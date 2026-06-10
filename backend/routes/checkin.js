@@ -49,8 +49,8 @@ router.post(
         if (maJobs.length > 0 && maJobs[0].first_job_time) {
           lateThreshold = maJobs[0].first_job_time;
         } else {
-          // No jobs assigned today, default to not late
-          lateThreshold = '23:59:59';
+          // No jobs assigned today, prevent check-in
+          return res.status(400).json({ error: 'ยังไม่มีงานที่ได้รับมอบหมายในวันนี้ ไม่สามารถเช็คอินได้' });
         }
       } else {
         const [settings] = await pool.query(

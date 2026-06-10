@@ -372,7 +372,7 @@ export default function CheckinPage() {
                 <p className={`text-xs mt-0.5 ${maThreshold ? 'text-amber-700' : 'text-slate-500'}`}>
                   {maThreshold
                     ? `หากเช็คอินหลัง ${maThreshold} น. จะถือว่ามาสาย`
-                    : 'คุณสามารถเช็คอินโดยไม่นับว่าสาย'}
+                    : 'คุณไม่สามารถเช็คอินได้จนกว่าจะได้รับมอบหมายงาน'}
                 </p>
               </div>
             </div>
