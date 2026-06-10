@@ -45,7 +45,7 @@ router.get('/records', auth, async (req, res) => {
        LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN oil_images i ON i.record_id = r.id
        ${whereClause}
-       GROUP BY r.id
+       GROUP BY r.id, u.full_name, u.team_id, t.team_name
        ORDER BY r.date_recorded DESC
        LIMIT ?`,
       [...params, parseInt(limit)]
@@ -56,7 +56,7 @@ router.get('/records', auth, async (req, res) => {
     })));
   } catch (err) {
     console.error('Oil records error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
@@ -113,7 +113,7 @@ router.post(
     } catch (err) {
       await conn.rollback();
       console.error('Add oil error:', err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: 'Server error: ' + err.message });
     } finally {
       conn.release();
     }
@@ -223,7 +223,7 @@ router.get('/efficiency', auth, async (req, res) => {
   } catch (err) {
     require('fs').appendFileSync('error.log', new Date().toISOString() + ' Efficiency Error: ' + err.stack + '\n');
     console.error('Efficiency error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
