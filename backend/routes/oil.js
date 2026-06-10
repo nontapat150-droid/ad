@@ -96,7 +96,7 @@ router.post(
         [
           targetTechId, license_plate, liters, mileage, price_per_liter,
           total_price, distance || 0, bahtPerKm, filler_name || null,
-          date_recorded || null,
+          (date_recorded ? date_recorded.replace('T', ' ') : null) || new Date(),
         ]
       );
 
