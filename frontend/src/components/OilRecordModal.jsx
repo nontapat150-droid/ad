@@ -21,13 +21,20 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const teamName = activeUser?.team_name || (activeUser?.team_id ? `ทีม ${activeUser.team_id}` : 'ไม่มีทีม');
   const userHasTeam = !!(activeUser?.team_name || activeUser?.team_id);
   
+  const getLocalDatetimeString = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
+
   const [form, setForm] = useState({ 
     tech_id: '',
     license_plate: user?.team_name || '', 
     liters: '', 
     price_per_liter: '', 
     mileage: '', 
-    total_price: '' 
+    total_price: '',
+    date_recorded: getLocalDatetimeString()
   });
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -78,7 +85,8 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           liters: '', 
           price_per_liter: '', 
           mileage: '', 
-          total_price: '' 
+          total_price: '',
+          date_recorded: getLocalDatetimeString()
         });
         setImages([]);
       }
@@ -202,6 +210,19 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Date Time */}
+            <div className="relative pt-2 col-span-2">
+              <label className="floating-label">วันที่และเวลาเติมน้ำมัน</label>
+              <input
+                required
+                type="datetime-local"
+                name="date_recorded"
+                value={form.date_recorded}
+                onChange={handleChange}
+                className="input-field cursor-pointer [&::-webkit-calendar-picker-indicator]:bg-amber-100 [&::-webkit-calendar-picker-indicator]:p-1.5 [&::-webkit-calendar-picker-indicator]:rounded-lg [&::-webkit-calendar-picker-indicator]:cursor-pointer hover:[&::-webkit-calendar-picker-indicator]:bg-amber-200"
+              />
+            </div>
+
             {/* Liters */}
             <div className="relative pt-2">
               <label className="floating-label">จำนวน (ลิตร)</label>
