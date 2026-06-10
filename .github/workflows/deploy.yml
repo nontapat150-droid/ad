@@ -51,17 +51,8 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          # บล็อกไฟล์และโฟลเดอร์ฝั่ง Backend ที่ไม่จำเป็นต้องอัปโหลด / เพื่อไม่ให้ทับของบนเซิร์ฟเวอร์
+          # บล็อกเฉพาะ node_modules และไฟล์ .env เพื่อป้องกันการอัปโหลดทับไฟล์การตั้งค่าบนเซิร์ฟเวอร์
           exclude: |
-            **/.env
-            **/.env.example
             **/node_modules/**
-            **/logs/**
-            **/uploads/**
-            **/cron/**
-            **/scripts/**
-            **/tests/**
-            **/*.md
-            **/.gitignore
-            package-lock.json
+            **/.env
             **/.ftp-deploy-sync-state.json

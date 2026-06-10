@@ -1,21 +1,21 @@
 require('dotenv').config();
-const express  = require('express');
-const cors     = require('cors');
-const path     = require('path');
-const fs       = require('fs');
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
 // ── Route Modules ───────────────────────────────────────────
-const authRouter      = require('./routes/auth');
-const checkinRouter   = require('./routes/checkin');
-const dispatchRouter  = require('./routes/dispatch');
+const authRouter = require('./routes/auth');
+const checkinRouter = require('./routes/checkin');
+const dispatchRouter = require('./routes/dispatch');
 const inventoryRouter = require('./routes/inventory');
-const oilRouter       = require('./routes/oil');
-const usersRouter     = require('./routes/users');
-const statsRouter     = require('./routes/stats');
-const messagesRouter  = require('./routes/messages');
+const oilRouter = require('./routes/oil');
+const usersRouter = require('./routes/users');
+const statsRouter = require('./routes/stats');
+const messagesRouter = require('./routes/messages');
 const announcementsRouter = require('./routes/announcements');
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Ensure uploads folder exists ────────────────────────────
@@ -24,7 +24,7 @@ fs.mkdirSync(uploadDir, { recursive: true });
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
-  origin:      process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+  origin: process.env.FRONTEND_ORIGIN || 'https://bonusais.com',
   credentials: true,
 }));
 app.use(express.json({ limit: '20mb' }));
@@ -36,24 +36,24 @@ app.use('/uploads', express.static(uploadDir));
 // ── Health Check ────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
-    status:  'ok',
+    status: 'ok',
     service: 'BOU Operations API',
     version: '1.0.0',
-    ts:      new Date().toISOString(),
+    ts: new Date().toISOString(),
   });
 });
 
 // ── API Routes ──────────────────────────────────────────────
-app.use('/api/auth',      authRouter);
-app.use('/api/checkin',   checkinRouter);
-app.use('/api/dispatch',  dispatchRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/checkin', checkinRouter);
+app.use('/api/dispatch', dispatchRouter);
 app.use('/api/inventory', inventoryRouter);
-app.use('/api/oil',       oilRouter);
-app.use('/api/users',     usersRouter);
-app.use('/api/stats',     statsRouter);
-app.use('/api/messages',  messagesRouter);
+app.use('/api/oil', oilRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/stats', statsRouter);
+app.use('/api/messages', messagesRouter);
 app.use('/api/announcements', announcementsRouter);
-app.use('/api/settings',  require('./routes/settings'));
+app.use('/api/settings', require('./routes/settings'));
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');
