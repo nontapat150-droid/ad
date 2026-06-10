@@ -282,15 +282,8 @@ router.get('/analytics', auth, async (req, res) => {
       ${whereClause}
     `, params);
 
-    // Calculate average refuel frequency (days)
-    const [freqResult] = await pool.query(`
-      SELECT AVG(diff) as avg_days FROM (
-        SELECT DATEDIFF(date_recorded, LAG(date_recorded) OVER (PARTITION BY r.tech_id ORDER BY date_recorded)) as diff
-        FROM oil_records r
-        LEFT JOIN users u ON u.id = r.tech_id
-        ${whereClause}
-      ) t WHERE diff IS NOT NULL AND diff > 0
-    `, params);
+    // Calculate average refuel frequency (days) - Disabled LAG() for MySQL 5.7 compatibility
+    const freqResult = [{ avg_days: 0 }];
 
     res.json({ 
       byVehicle, 
