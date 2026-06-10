@@ -39,9 +39,9 @@ router.post(
 
       if (type === 'ma') {
         const [maJobs] = await pool.query(
-          `SELECT MIN(plan_arrival_time) as first_job_time 
+          `SELECT MIN(job_time) as first_job_time 
            FROM ma_jobs 
-           WHERE (team_id = ? OR field_engineer_id = ?) 
+           WHERE (team_id = ? OR assigned_user_id = ?) 
              AND plan_arrival_date = ?`,
           [userTeamId, userId, today]
         );
@@ -102,9 +102,9 @@ router.get('/ma-threshold', auth, async (req, res) => {
     const userTeamId = userRow[0]?.team_id;
 
     const [maJobs] = await pool.query(
-      `SELECT MIN(plan_arrival_time) as first_job_time 
+      `SELECT MIN(job_time) as first_job_time 
        FROM ma_jobs 
-       WHERE (team_id = ? OR field_engineer_id = ?) 
+       WHERE (team_id = ? OR assigned_user_id = ?) 
          AND plan_arrival_date = ?`,
       [userTeamId, userId, today]
     );
