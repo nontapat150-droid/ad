@@ -44,16 +44,21 @@ app.get('/health', (req, res) => {
 });
 
 // ── API Routes ──────────────────────────────────────────────
-app.use('/api/auth', authRouter);
-app.use('/api/checkin', checkinRouter);
-app.use('/api/dispatch', dispatchRouter);
-app.use('/api/inventory', inventoryRouter);
-app.use('/api/oil', oilRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/stats', statsRouter);
-app.use('/api/messages', messagesRouter);
-app.use('/api/announcements', announcementsRouter);
-app.use('/api/settings', require('./routes/settings'));
+const apiRouter = express.Router();
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/checkin', checkinRouter);
+apiRouter.use('/dispatch', dispatchRouter);
+apiRouter.use('/inventory', inventoryRouter);
+apiRouter.use('/oil', oilRouter);
+apiRouter.use('/users', usersRouter);
+apiRouter.use('/stats', statsRouter);
+apiRouter.use('/messages', messagesRouter);
+apiRouter.use('/announcements', announcementsRouter);
+apiRouter.use('/settings', require('./routes/settings'));
+
+// เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');

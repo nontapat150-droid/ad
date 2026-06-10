@@ -29,8 +29,7 @@ export default function Login() {
         icon: 'warning',
         confirmButtonText: 'ตกลง',
         confirmButtonColor: '#F59E0B',
-        background: '#fff',
-        borderRadius: '1rem',
+        background: '#fff'
       });
       setIsFailed(true);
       const formEl = document.getElementById('login-form');
@@ -76,8 +75,7 @@ export default function Login() {
         icon: 'error',
         confirmButtonText: 'ตกลง',
         confirmButtonColor: '#A32D2D',
-        background: '#fff',
-        borderRadius: '1rem',
+        background: '#fff'
       });
 
       const formEl = document.getElementById('login-form');
