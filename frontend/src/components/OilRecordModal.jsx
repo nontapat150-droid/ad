@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
 export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const { user } = useAuth();
@@ -85,7 +86,11 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
       onSuccess();
       if (!inline && onClose) onClose();
     } catch (err) {
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: err.response?.data?.error || err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล'
+      });
     } finally {
       setLoading(false);
     }
