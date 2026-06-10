@@ -42,7 +42,8 @@ export default function OilDashboardPage() {
       setRecords(recRes.data);
       setEfficiency(effRes.data);
     } catch (err) {
-      console.error(err);
+      window.debugOilError = err.response?.data?.error || err.message || JSON.stringify(err);
+      console.error('Oil fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -68,6 +69,7 @@ export default function OilDashboardPage() {
         Swal.fire('สำเร็จ', 'คำนวณข้อมูลใหม่เรียบร้อยแล้ว', 'success');
       }
     } catch (err) {
+      window.debugOilError = err.response?.data?.error || err.message || JSON.stringify(err);
       console.error('Recalculate error:', err);
       Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'ไม่สามารถคำนวณใหม่ได้', 'error');
     }
@@ -232,6 +234,11 @@ export default function OilDashboardPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-6 stagger-children">
+            {window.debugOilError && (
+              <div className="bg-red-100 text-red-600 p-4 rounded-xl">
+                Debug Error: {window.debugOilError}
+              </div>
+            )}
             
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -485,11 +492,13 @@ export default function OilDashboardPage() {
                         </tr>
                       );
                     })}
-                    {records.length === 0 && (
-                      <tr>
-                        <td colSpan="11" className="p-8 text-center text-[#378ADD] font-medium">ไม่มีข้อมูลในเดือนนี้</td>
-                      </tr>
-                    )}
+                    {records.length === 0 ? (
+                  <tr>
+                    <td colSpan="11" className="text-center p-8 text-[#185FA5]/60">
+                      ไม่มีข้อมูลในเดือนนี้ (Debug: records={records.length}, isAdmin={isAdmin.toString()})
+                    </td>
+                  </tr>
+                ) : null}
                   </tbody>
                 </table>
               </div>
