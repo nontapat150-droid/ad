@@ -37,7 +37,6 @@ jobs:
           log-level: minimal
           # บล็อกไฟล์/โฟลเดอร์ฝั่ง Frontend ที่ไม่เกี่ยวกับเว็บ
           exclude: |
-            **/.htaccess
             **/.ftp-deploy-sync-state.json
 
       - name: 📂 Deploy Backend to backend folder
