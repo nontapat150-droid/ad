@@ -26,10 +26,10 @@ router.get('/records', auth, async (req, res) => {
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
-  if (month) {
-    where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
-    params.push(month);
-  }
+  // if (month) {
+  //   where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
+  //   params.push(month);
+  // }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -180,7 +180,7 @@ router.get('/efficiency', auth, async (req, res) => {
   let where  = [];
   let params = [];
 
-  if (month)   { where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?"); params.push(month); }
+  // if (month)   { where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?"); params.push(month); }
   if (team_ids) { 
     where.push("u.team_id IN (?)"); 
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))); 
@@ -245,10 +245,10 @@ router.get('/analytics', auth, async (req, res) => {
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
-  if (month) {
-    where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
-    params.push(month);
-  }
+  // if (month) {
+  //   where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
+  //   params.push(month);
+  // }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
