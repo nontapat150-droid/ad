@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Kanit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ─── Palette: White-Blue Glassmorphism ─── */
+  --glass-bg:          rgba(255, 255, 255, 0.72);
+  --glass-bg-deep:     rgba(224, 240, 255, 0.55);
+  --glass-border:      rgba(120, 180, 255, 0.30);
+  --glass-border-hover:rgba(56, 138, 221, 0.50);
+  --glass-shadow:      0 4px 24px rgba(24,95,165,0.10),
+                         inset 0 1px 0 rgba(255,255,255,0.90);
+  --glass-shadow-hover:0 12px 40px rgba(24,95,165,0.18),
+                         inset 0 1px 0 rgba(255,255,255,0.95);
+  --glass-blur:        blur(16px) saturate(1.4);
+
+  /* ─── Page background (gradient mesh) ─── */
+  --page-bg: linear-gradient(
+    145deg,
+    #f0f7ff 0%,
+    #e8f4ff 30%,
+    #f5faff 60%,
+    #eef6ff 100%
+  );
+  --page-bg-fixed: fixed; /* background-attachment */
+
+  /* ─── Brand Blues ─── */
+  --blue-50:  #E6F1FB;
+  --blue-100: #B5D4F4;
+  --blue-300: #378ADD;
+  --blue-600: #185FA5;
+  --blue-800: #0C447C;
+  --blue-900: #042C53;
+
+  /* ─── Dark button tones ─── */
+  --btn-dark-bg:      #0C2440;
+  --btn-dark-hover:   #04224A;
+  --btn-primary-bg:   linear-gradient(135deg,#185FA5,#0C447C);
+  --btn-primary-shadow:0 4px 14px rgba(24,95,165,0.38);
+
+  /* ─── Radius ─── */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-xl:  24px;
+  --radius-pill:100px;
+
+  /* ─── Easing curves ─── */
+  --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth:  cubic-bezier(0.16, 1.00, 0.30, 1);
+  --ease-liquid:  cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-inout:   cubic-bezier(0.65, 0.00, 0.35, 1.00);
+
+  /* ─── Transition speeds ─── */
+  --t-fast:   180ms;
+  --t-normal: 280ms;
+  --t-slow:   420ms;
+  --t-page:   550ms;
+}
+
+/* ─── Glass surface ─── */
+@layer components {
+  .glass {
+    @apply relative border;
+    background:       var(--glass-bg);
+    border:           1px solid var(--glass-border);
+    border-radius:    var(--radius-lg);
+    box-shadow:       var(--glass-shadow);
+    backdrop-filter:  var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    transition:       all var(--t-normal) var(--ease-smooth);
+  }
+  .glass:hover {
+    border-color:  var(--glass-border-hover);
+    box-shadow:    var(--glass-shadow-hover);
+    transform:     translateY(-2px);
+  }
+
+  /* Map old .glass-card to .glass */
+  .glass-card {
+    @apply glass;
+  }
+
+  /* ─── Deep tint variant (sidebar, modal) ─── */
+  .glass-deep {
+    background: var(--glass-bg-deep);
+    border:     1px solid rgba(56,138,221,0.20);
+  }
+}
+
+/* ─── Liquid blob background ─── */
+body {
+  background:            var(--page-bg);
+  background-attachment: var(--page-bg-fixed);
+  min-height: 100vh;
+  font-family:  'Kanit', 'Sora', sans-serif;
+  font-size:    15px;
+  line-height:  1.65;
+  color:        var(--blue-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* optional floating blobs via pseudo */
+body::before {
+  content:  "";
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 40% at 20% 30%,
+    rgba(181,212,244,0.35) 0%, transparent 60%),
+  radial-gradient(ellipse 50% 50% at 80% 70%,
+    rgba(93,202,165,0.12) 0%, transparent 55%);
+  animation: blobDrift 18s ease-in-out infinite alternate;
+  z-index: 0;
+}
+@keyframes blobDrift {
+  from { transform: translate(0,0) scale(1); }
+  to   { transform: translate(3%,4%) scale(1.05); }
+}
+
+/* ─── Base button reset ─── */
+.btn {
+  display:         inline-flex;
+  align-items:     center;
+  gap:             6px;
+  padding:         10px 22px;
+  border-radius:   var(--radius-md);
+  font-weight:     600;
+  font-size:       14px;
+  letter-spacing:  0.02em;
+  cursor:          pointer;
+  border:          none;
+  transition:      all var(--t-fast) var(--ease-spring);
+  user-select:     none;
+}
+
+/* Primary — gradient blue (call to action หลัก) */
+.btn-primary {
+  @apply btn;
+  background:  var(--btn-primary-bg);
+  color:       #fff;
+  box-shadow:  var(--btn-primary-shadow);
+}
+.btn-primary:hover {
+  transform:  translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 24px rgba(24,95,165,0.50);
+}
+.btn-primary:active { transform: scale(0.97); }
+
+/* Dark solid — เข้ม มองเห็นชัด บน glass bg */
+.btn-dark {
+  @apply btn;
+  background: var(--btn-dark-bg);
+  color:      #E6F1FB;
+  box-shadow: 0 4px 14px rgba(4,44,83,0.35);
+}
+.btn-dark:hover {
+  background: var(--btn-dark-hover);
+  transform:  translateY(-2px) scale(1.02);
+}
+
+/* Outline — edge ชัด ไม่หาย */
+.btn-outline, .btn-ghost {
+  @apply btn;
+  background:   transparent;
+  color:        var(--blue-800);
+  border:       1.5px solid var(--blue-600);
+}
+.btn-outline:hover, .btn-ghost:hover {
+  background: rgba(24,95,165,0.08);
+  transform:  translateY(-1px);
+}
+
+/* Danger / Warning */
+.btn-danger, .btn-warning {
+  @apply btn;
+  background: #A32D2D;
+  color:      #fff;
+}
+.btn-danger:hover, .btn-warning:hover { background: #791F1F; }
+
+/* ────────────────────────────────────────────
+   PAGE TRANSITION — ใช้กับ router/view wrapper
+   ──────────────────────────────────────────── */
+.page-enter  { opacity:0; transform:translateY(14px) scale(0.99); filter:blur(4px); }
+.page-active {
+  transition: opacity     var(--t-page) var(--ease-smooth),
+              transform   var(--t-page) var(--ease-smooth),
+              filter      var(--t-page) var(--ease-smooth);
+}
+.page-enter-to  { opacity:1; transform:none; filter:none; }
+.page-leave     { opacity:1; transform:none; filter:none; }
+.page-leave-active {
+  transition: opacity   320ms var(--ease-inout),
+              transform 320ms var(--ease-inout),
+              filter    320ms var(--ease-inout);
+}
+.page-leave-to { opacity:0; transform:translateY(-8px) scale(1.01); filter:blur(3px); }
+
+/* 
+Vue 3 / Nuxt 
+<Transition name="page">...</Transition>
+React — add/remove class ใน useEffect 
+*/
+
+/* ────────────────────────────────────────────
+   ELEMENT REVEAL — stagger children
+   ──────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(16px); }
+  to   { opacity:1; transform:none; }
+}
+.reveal, .animate-fade-in-up {
+  animation: fadeInUp 0.6s var(--ease-smooth) both;
+}
+/* stagger ลูก: .reveal:nth-child(1~6) */
+.reveal:nth-child(1), .stagger-children > *:nth-child(1) { animation-delay:0ms; }
+.reveal:nth-child(2), .stagger-children > *:nth-child(2) { animation-delay:80ms; }
+.reveal:nth-child(3), .stagger-children > *:nth-child(3) { animation-delay:160ms; }
+.reveal:nth-child(4), .stagger-children > *:nth-child(4) { animation-delay:240ms; }
+.reveal:nth-child(5), .stagger-children > *:nth-child(5) { animation-delay:320ms; }
+.reveal:nth-child(6), .stagger-children > *:nth-child(6) { animation-delay:400ms; }
+
+/* ────────────────────────────────────────────
+   LIQUID HOVER — hover บน card/row
+   ──────────────────────────────────────────── */
+.liquid-hover {
+  transition: transform var(--t-normal) var(--ease-spring),
+              box-shadow var(--t-normal) var(--ease-smooth),
+              border-color var(--t-normal) var(--ease-liquid);
+}
+.liquid-hover:hover {
+  transform:    translateY(-3px) scale(1.012);
+  box-shadow:   var(--glass-shadow-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* ────────────────────────────────────────────
+   SKELETON LOADING — pulse shimmer
+   ──────────────────────────────────────────── */
+@keyframes shimmer {
+  from { background-position:-200% 0; }
+  to   { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(181,212,244,0.3) 25%,
+    rgba(181,212,244,0.6) 50%,
+    rgba(181,212,244,0.3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s var(--ease-liquid) infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ────────────────────────────────────────────
+   SCROLL-TRIGGERED — IntersectionObserver
+   ──────────────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--ease-smooth),
+              transform 0.7s var(--ease-smooth);
+}
+.scroll-reveal.in-view { opacity:1; transform:none; }
+
+/* 
+JS — เพิ่ม .in-view เมื่อ scroll ถึง
+const io = new IntersectionObserver(
+  entries => entries.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('in-view');
+  }),
+  { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+);
+document.querySelectorAll('.scroll-reveal').forEach(el => io.observe(el));
+*/
+
+h1 { font-size:2rem;   font-weight:600; color:var(--blue-900); line-height:1.2; }
+h2 { font-size:1.4rem; font-weight:500; color:var(--blue-800); }
+h3 { font-size:1.1rem; font-weight:500; color:var(--blue-800); }
+p  { color:var(--blue-800); opacity:0.85; }
+small, .caption { font-size:12px; color:var(--blue-300); }
+
+/* ─── Inputs — glass style ─── */
+input, select, textarea, .input-field {
+  width:            100%;
+  padding:          10px 14px;
+  border-radius:    var(--radius-md);
+  border:           1px solid var(--glass-border);
+  background:       rgba(255,255,255,0.65);
+  backdrop-filter:  blur(8px);
+  color:            var(--blue-900);
+  font-family:      inherit;
+  font-size:        14px;
+  outline:          none;
+  transition:       all var(--t-fast) var(--ease-smooth);
+}
+input:focus, select:focus, textarea:focus, .input-field:focus {
+  border-color: var(--blue-600);
+  box-shadow:   0 0 0 3px rgba(24,95,165,0.15);
+  background:   rgba(255,255,255,0.88);
+}
+
+/* ─── Label ─── */
+label {
+  display:       block;
+  font-size:     12px;
+  font-weight:   500;
+  color:         var(--blue-600);
+  margin-bottom: 5px;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+}
+
+/* ── Status Badges ───────────────────────────────────── */
+@layer components {
+  .badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold;
+    border-radius: 10px;
+    backdrop-filter: blur(8px);
+  }
+  .badge-pending    { @apply badge bg-amber-100/80 text-amber-700 border border-amber-200/50; }
+  .badge-progress   { @apply badge bg-blue-100/80  text-blue-700  border border-blue-200/50; }
+  .badge-completed  { @apply badge bg-emerald-100/80 text-emerald-700 border border-emerald-200/50; }
+  .badge-failed     { @apply badge bg-red-100/80   text-red-700   border border-red-200/50; }
+  .badge-late       { @apply badge bg-orange-100/80 text-orange-700 border border-orange-200/50; }
+}
+
+/* ── Modal Overlay ───────────────────────────────────── */
+.modal-overlay {
+  @apply fixed inset-0 z-[60] flex items-end sm:items-center justify-center;
+  background: rgba(30, 58, 95, 0.25);
+  backdrop-filter: blur(8px);
+}
+.modal-sheet {
+  @apply w-full max-w-lg glass rounded-b-none rounded-t-3xl p-6 md:rounded-3xl shadow-2xl;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--blue-300); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--blue-600); }

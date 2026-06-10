@@ -1,0 +1,522 @@
+import { useState, useEffect, useCallback } from 'react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import api from '../api/axios';
+import Layout from '../components/Layout';
+import OilRecordModal from '../components/OilRecordModal';
+import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
+
+export default function OilDashboardPage() {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
+  const [analytics, setAnalytics] = useState({ byVehicle: [], dailyTrend: [], summary: {} });
+  const [efficiency, setEfficiency] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [selectedTeams, setSelectedTeams] = useState([]);
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+
+  useEffect(() => {
+    api.get('/users/teams').then(res => setTeams(res.data)).catch(console.error);
+  }, []);
+
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole(['super_admin', 'admin']);
+  const isOfficeTech = hasRole(['technician', 'office_technician']);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const queryParams = new URLSearchParams();
+      if (month) queryParams.append('month', month);
+      if (selectedTeams.length > 0) queryParams.append('team_ids', selectedTeams.join(','));
+
+      const [anRes, recRes, effRes] = await Promise.all([
+        api.get(`/oil/analytics?${queryParams.toString()}`),
+        api.get(`/oil/records?${queryParams.toString()}&limit=50`),
+        api.get(`/oil/efficiency?${queryParams.toString()}`)
+      ]);
+      setAnalytics(anRes.data);
+      setRecords(recRes.data);
+      setEfficiency(effRes.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [month, selectedTeams]);
+
+  const handleRecalculate = async () => {
+    try {
+      const result = await Swal.fire({
+        title: 'ยืนยันการคำนวณใหม่?',
+        text: 'ระบบจะทำการคำนวณระยะทางและต้นทุนต่อกิโลเมตรใหม่ทั้งหมดสำหรับรถทุกคัน การดำเนินการนี้ไม่สามารถย้อนกลับได้',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#185FA5',
+        cancelButtonColor: '#ef4444',
+        confirmButtonText: 'ยืนยันการคำนวณ',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'กำลังคำนวณ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        await api.post('/oil/recalculate');
+        await fetchData(); // Refresh data
+        Swal.fire('สำเร็จ', 'คำนวณข้อมูลใหม่เรียบร้อยแล้ว', 'success');
+      }
+    } catch (err) {
+      console.error('Recalculate error:', err);
+      Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'ไม่สามารถคำนวณใหม่ได้', 'error');
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleTeam = (teamId) => {
+    setSelectedTeams(prev => 
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
+
+  const summary = analytics.summary || {};
+  const totalCost = summary.total_cost || 0;
+  const totalLiters = summary.total_liters || 0;
+  const totalBills = summary.total_bills || 0;
+  const avgPrice = summary.avg_price_per_liter || 0;
+  const avgFreq = summary.avg_refuel_days || 0;
+  
+  // Calculate average cost per job across all teams
+  const totalEfficiencyJobs = efficiency.reduce((sum, item) => sum + parseInt(item.case_count || 0), 0);
+  const avgCostPerJob = totalEfficiencyJobs > 0 ? (totalCost / totalEfficiencyJobs) : 0;
+
+  // Custom Tooltip component for Recharts
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="glass-deep p-4 rounded-xl shadow-lg border-white/50 backdrop-blur-xl">
+          <p className="text-[#042C53] font-bold text-sm mb-2 pb-2 border-b border-white/20">{label}</p>
+          {payload.map((entry, index) => (
+            <div key={index} className="flex items-center gap-3 text-sm py-1">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+              <span className="text-[#185FA5] font-medium">{entry.name}:</span>
+              <span className="font-bold text-[#042C53]">{entry.value.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <Layout activeKey="oil" pageTitle="ระบบน้ำมัน">
+      <div className="flex flex-col gap-6 pb-12 w-full max-w-7xl mx-auto reveal">
+        
+        {/* Header & Controls */}
+        {!isOfficeTech && (
+        <div className="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-6 rounded-3xl animate-fade-in-up">
+          <div>
+            <h1 className="text-2xl font-extrabold text-[#042C53] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center text-white shadow-lg">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+              </div>
+              แดชบอร์ดสรุปน้ำมัน
+            </h1>
+            <p className="text-[#378ADD] mt-2 font-medium">สถิติและประวัติการเบิกจ่ายน้ำมันของรถทุกคัน</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 relative">
+            
+            {!isOfficeTech && (
+              <>
+                {/* Custom Multi-select Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowTeamDropdown(!showTeamDropdown)}
+                className="input-field max-w-[200px] flex items-center justify-between text-sm shadow-sm bg-white"
+              >
+                <span className="truncate mr-2">
+                  {selectedTeams.length === 0 ? 'ทุกทีม' : `เลือกแล้ว ${selectedTeams.length} ทีม`}
+                </span>
+                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              
+              {showTeamDropdown && (
+                <div className="absolute z-50 top-full mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl p-2 max-h-64 overflow-y-auto">
+                  <div className="p-1">
+                    <label className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedTeams.length === 0}
+                        onChange={() => setSelectedTeams([])}
+                        className="w-4 h-4 rounded text-[#185FA5] focus:ring-[#378ADD]"
+                      />
+                      <span className="text-sm font-medium text-[#042C53]">เลือกทุกทีม</span>
+                    </label>
+                    <div className="h-px bg-slate-100 my-1"></div>
+                    {teams.map(t => (
+                      <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTeams.includes(t.id)}
+                          onChange={() => toggleTeam(t.id)}
+                          className="w-4 h-4 rounded text-[#185FA5] focus:ring-[#378ADD]"
+                        />
+                        <span className="text-sm text-[#042C53]">{t.team_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="input-field max-w-[180px] font-mono text-sm shadow-sm"
+            />
+            <button
+              onClick={() => setShowCompare(!showCompare)}
+              className="btn-outline flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              เปรียบเทียบรถ
+            </button>
+            {isAdmin && (
+              <button
+                onClick={handleRecalculate}
+                className="btn-outline border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                คำนวณใหม่
+              </button>
+            )}
+            </>
+            )}
+            
+            {!isOfficeTech && (
+              <button
+                onClick={() => setShowModal(true)}
+                className="btn-primary flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                เพิ่มข้อมูล
+              </button>
+            )}
+          </div>
+        </div>
+        )}
+
+        {isOfficeTech ? (
+          <div className="flex justify-center w-full px-4 mb-12">
+            <OilRecordModal 
+              inline={true} 
+              onClose={() => {}} 
+              onSuccess={() => {
+                fetchData();
+                Swal.fire({
+                  icon: 'success',
+                  title: 'สำเร็จ',
+                  text: 'บันทึกข้อมูลการเติมน้ำมันเรียบร้อยแล้ว'
+                });
+              }} 
+            />
+          </div>
+        ) : loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="skeleton h-64 rounded-3xl" />
+            <div className="skeleton h-64 rounded-3xl" />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6 stagger-children">
+            
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              <StatCard 
+                title="ยอดเงินรวม (เดือนนี้)" 
+                value={`฿${totalCost.toLocaleString()}`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                colorClass="text-emerald-600"
+                bgClass="bg-emerald-100/50 text-emerald-600"
+              />
+              <StatCard 
+                title="จำนวนลิตรรวม" 
+                value={`${totalLiters.toFixed(2)} ลิตร`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+                colorClass="text-amber-500"
+                bgClass="bg-amber-100/50 text-amber-500"
+              />
+              <StatCard 
+                title="รายการทั้งหมด" 
+                value={`${totalBills} บิล`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                colorClass="text-indigo-500"
+                bgClass="bg-indigo-100/50 text-indigo-500"
+              />
+              <StatCard 
+                title="ต้นทุนเฉลี่ย (Cost/Job)" 
+                value={`฿${avgCostPerJob.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} / รอบ`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
+                colorClass="text-[#185FA5]"
+                bgClass="bg-blue-100/50 text-[#185FA5]"
+              />
+              <StatCard 
+                title="ค่าน้ำมันเฉลี่ย" 
+                value={`฿${parseFloat(avgPrice).toFixed(2)} / L`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>}
+                colorClass="text-orange-500"
+                bgClass="bg-orange-100/50 text-orange-500"
+              />
+              <StatCard 
+                title="ความถี่เติมน้ำมันเฉลี่ย" 
+                value={`ทุกๆ ${parseFloat(avgFreq).toFixed(1)} วัน`} 
+                icon={<svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                colorClass="text-teal-600"
+                bgClass="bg-teal-100/50 text-teal-600"
+              />
+            </div>
+
+            {/* Charts Area */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* 1. Daily Cost */}
+              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-100/80 text-orange-600 flex items-center justify-center">📈</div>
+                    ค่าใช้จ่ายรายวัน (บาท)
+                  </h3>
+                </div>
+                <div className="h-64 w-full">
+                  {analytics.dailyTrend.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line type="monotone" name="ยอดเงิน (บาท)" dataKey="total_cost" stroke="#F59E0B" strokeWidth={4} dot={{fill: '#FFF', stroke: '#F59E0B', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#F59E0B'}} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Daily Liters */}
+              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100/80 text-amber-500 flex items-center justify-center">⛽</div>
+                    ปริมาณน้ำมันรายวัน (ลิตร)
+                  </h3>
+                </div>
+                <div className="h-64 w-full">
+                  {analytics.dailyTrend.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={16}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                        <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
+                        <Bar name="จำนวน (ลิตร)" dataKey="total_liters" fill="#f59e0b" radius={[4, 4, 4, 4]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Daily Distance */}
+              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100/80 text-emerald-600 flex items-center justify-center">🛣️</div>
+                    ระยะทางวิ่งรายวัน (กม.) รวมทุกคัน
+                  </h3>
+                </div>
+                <div className="h-64 w-full">
+                  {analytics.dailyTrend.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line type="monotone" name="ระยะทาง (กม.)" dataKey="total_distance" stroke="#10b981" strokeWidth={4} dot={{fill: '#FFF', stroke: '#10b981', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#10b981'}} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. Efficiency per Job */}
+              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100/80 text-[#185FA5] flex items-center justify-center">🎯</div>
+                    ประสิทธิภาพต้นทุนต่อรอบ (บาท/งาน)
+                  </h3>
+                </div>
+                <div className="h-64 w-full">
+                  {efficiency.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={efficiency} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(120, 180, 255, 0.2)" />
+                        <XAxis type="number" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis type="category" dataKey="team_name" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} width={80} />
+                        <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
+                        <Bar name="ต้นทุนต่อรอบ (บาท)" dataKey="cost_per_job" fill="#185FA5" radius={[0, 8, 8, 0]}>
+                          {efficiency.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#185FA5' : '#378ADD'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลประสิทธิภาพในเดือนนี้</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Compare Vehicles Grid */}
+            {showCompare && analytics.byVehicle.length > 0 && (
+              <div className="glass-deep p-6 md:p-8 rounded-3xl animate-fade-in-up">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-extrabold text-[#042C53] text-xl flex items-center gap-2">
+                    <span className="bg-white p-2 rounded-xl shadow-sm">⚖️</span> ตารางเปรียบเทียบรถ
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {analytics.byVehicle.map((v) => (
+                    <div key={v.license_plate} className="glass p-5 rounded-2xl liquid-hover bg-white/60">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="text-xs font-bold text-[#378ADD] uppercase tracking-wider">ทะเบียนรถ</div>
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#185FA5]">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-black text-[#042C53] mb-4">{v.license_plate}</div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/20 pb-2">
+                          <span className="text-[#185FA5] font-medium">ยอดเงินรวม</span>
+                          <span className="font-bold text-emerald-600 text-base">฿{parseFloat(v.total_cost).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-[#185FA5] font-medium">จำนวนรวม</span>
+                          <span className="font-bold text-amber-500 text-base">{parseFloat(v.total_liters).toFixed(2)} L</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* History Table */}
+            <div className="glass p-6 rounded-3xl overflow-hidden liquid-hover bg-white/40">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100/80 text-emerald-600 flex items-center justify-center">📋</div>
+                  ประวัติการเติมน้ำมันล่าสุด
+                </h3>
+              </div>
+              <div className="overflow-x-auto w-full pb-2">
+                <table className="w-full text-left border-collapse min-w-[1000px]">
+                  <thead>
+                    <tr className="border-b-2 border-[#185FA5]/10 bg-slate-50/50">
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เดือน/ปี</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ช่างผู้เติม</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ทีม/ป้ายทะเบียน</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เลขไมล์</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง(กม.)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">กม./ลิตร</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เคสปิดงาน(ต่อเดือน)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/กม.</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/งาน</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ยอดรวม(บาท)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">รูปหลักฐาน</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#185FA5]/5">
+                    {records.map((r) => {
+                      const teamEff = efficiency.find(e => e.team_id === r.team_id);
+                      const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
+                      const kmPerLiter = parseFloat(r.liters) > 0 ? (parseFloat(r.distance || 0) / parseFloat(r.liters)).toFixed(2) : '0.00';
+                      const costPerKm = parseFloat(r.distance || 0) > 0 ? (parseFloat(r.total_price) / parseFloat(r.distance)).toFixed(2) : '0.00';
+                      const costPerJob = caseCount > 0 ? (parseFloat(r.total_price) / caseCount).toFixed(2) : '0.00';
+
+                      return (
+                        <tr key={r.id} className="hover:bg-white/60 transition-colors group">
+                          <td className="p-3 text-sm text-[#042C53] font-medium whitespace-nowrap">
+                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </td>
+                          <td className="p-3 text-sm text-[#042C53] whitespace-nowrap">
+                            {r.tech_name || 'N/A'}
+                          </td>
+                          <td className="p-3 text-sm font-black text-[#185FA5] whitespace-nowrap">
+                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.team_name || 'ไม่มีทีม'} / {r.license_plate}</span>
+                          </td>
+                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
+                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.distance || 0}</td>
+                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{kmPerLiter}</td>
+                          <td className="p-3 text-sm font-mono text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
+                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">฿{costPerKm}</td>
+                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">฿{costPerJob}</td>
+                          <td className="p-3 text-sm font-bold text-emerald-600 whitespace-nowrap text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
+                          <td className="p-3 text-center">
+                            <div className="flex justify-center gap-1.5">
+                              {r.images?.map((img, i) => (
+                                <a key={i} href={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg glass bg-white/50 flex items-center justify-center text-xs shadow-sm hover:scale-110 transition-transform">
+                                  🖼️
+                                </a>
+                              ))}
+                              {(!r.images || r.images.length === 0) && <span className="text-xs text-[#378ADD]">-</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {records.length === 0 && (
+                      <tr>
+                        <td colSpan="11" className="p-8 text-center text-[#378ADD] font-medium">ไม่มีข้อมูลในเดือนนี้</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+      </div>
+
+      {showModal && <OilRecordModal onClose={() => setShowModal(false)} onSuccess={fetchData} />}
+    </Layout>
+  );
+}
+
+function StatCard({ title, value, icon, bgClass, colorClass }) {
+  return (
+    <div className="glass p-5 rounded-3xl flex flex-col liquid-hover bg-white/60">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bgClass}`}>
+          {icon}
+        </div>
+        <div className="w-8 h-8 rounded-full border border-[#185FA5]/10 flex items-center justify-center">
+          <svg className="w-4 h-4 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+        </div>
+      </div>
+      <p className="text-sm font-bold text-[#378ADD] mb-1">{title}</p>
+      <p className={`text-2xl lg:text-3xl font-black tracking-tight ${colorClass}`}>{value}</p>
+    </div>
+  );
+}

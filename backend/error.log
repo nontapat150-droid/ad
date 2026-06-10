@@ -1,0 +1,656 @@
+2026-06-07T17:53:08.857Z Recalculate Error: Error: Unknown column 'created_at' in 'order clause'
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:136:34
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-06-07T17:53:54.146Z Recalculate Error: Error: Unknown column 'created_at' in 'order clause'
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:136:34
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-06-07T17:55:20.722Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-07T17:55:20.732Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-07T17:55:22.986Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T02:22:34.618Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T02:22:34.627Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T02:22:43.537Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T02:22:43.874Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T02:24:26.202Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:30:34.799Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:30:34.807Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:32:24.174Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:32:24.181Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:47:57.453Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:47:57.462Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:48:04.727Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:48:04.735Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:51:41.326Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:00.053Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:00.059Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:06.540Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:06.547Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:07.181Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:52:07.190Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:09.321Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:30.125Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:30.133Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:30.639Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:30.646Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:37.885Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:53:37.892Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:54:26.478Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:54:26.485Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:54:45.078Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:28.773Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:28.780Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:30.270Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:30.276Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:44.280Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:55:44.287Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:57:18.854Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:58:57.386Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T03:58:57.394Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T04:27:27.251Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T04:27:27.260Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:14:37.189Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:14:37.197Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:29:14.253Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:29:14.262Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:30:18.857Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
+2026-06-08T07:30:18.866Z Efficiency Error: Error: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'year_month,
+         COALESCE(jc.case_count, 0) AS case_count,
+         COALE...' at line 3
+    at C:\xampp\htdocs\BO\backend\routes\oil.js:195:31
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at auth (C:\xampp\htdocs\BO\backend\middleware\auth.js:17:5)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\layer.js:95:5)
+    at C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:284:15
+    at router.process_params (C:\xampp\htdocs\BO\backend\node_modules\express\lib\router\index.js:346:12)
