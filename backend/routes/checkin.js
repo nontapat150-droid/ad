@@ -88,7 +88,7 @@ router.post(
       });
     } catch (err) {
       console.error('Checkin error:', err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: 'Server error: ' + err.message });
     }
   }
 );
