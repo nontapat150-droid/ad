@@ -35,9 +35,11 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          # บล็อกไฟล์/โฟลเดอร์ฝั่ง Frontend ที่ไม่เกี่ยวกับเว็บ
+          # บล็อกไฟล์/โฟลเดอร์ฝั่ง Frontend ที่ไม่เกี่ยวกับเว็บ และป้องกันการลบโฟลเดอร์ API ของ cPanel
           exclude: |
             **/.ftp-deploy-sync-state.json
+            api/**
+            cgi-bin/**
 
       - name: 📂 Deploy Backend to backend folder
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5

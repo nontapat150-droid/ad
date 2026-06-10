@@ -18,11 +18,11 @@ const pool = mysql.createPool({
 (async () => {
   try {
     const conn = await pool.getConnection();
-    console.log(`✅ MySQL connected — database: ${process.env.DB_NAME}`);
+    console.log(`✅ MySQL connected — database: ${process.env.DB_NAME || 'zvucfpsz_RT'}`);
     conn.release();
   } catch (err) {
-    console.error('❌ MySQL connection failed:', err.message);
-    process.exit(1);
+    console.error('❌ MySQL connection failed on startup:', err.message);
+    // ไม่สั่ง process.exit(1) เพื่อไม่ให้เซิร์ฟเวอร์พัง 503
   }
 })();
 
