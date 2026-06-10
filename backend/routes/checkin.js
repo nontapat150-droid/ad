@@ -138,12 +138,12 @@ router.put(
         [userId, today]
       );
 
-      if (rows.length === 0) {
-        return res.status(400).json({ error: 'No check-in found for today' });
-      }
-      if (rows[0].checkout_time) {
-        return res.status(409).json({ error: 'Already checked out today' });
-      }
+        if (rows.length === 0) {
+          return res.status(400).json({ error: 'ไม่พบข้อมูลการเข้างานในวันนี้ กรุณาเข้างานก่อน' });
+        }
+        if (rows[0].checkout_time) {
+          return res.status(409).json({ error: 'คุณได้ทำการเลิกงานไปแล้วในวันนี้' });
+        }
 
       const imagePath = req.file ? req.file.filename : null;
       const lat       = req.body.lat ? parseFloat(req.body.lat) : null;
