@@ -2,9 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
+import ManualCheckinModal from '../components/ManualCheckinModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
-import ManualCheckinModal from '../components/ManualCheckinModal';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -55,7 +55,7 @@ export default function CheckinPage() {
   const [isEditMode, setIsEditMode] = useState(false); // user editing their own photo
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
   const [adminEditPhotoRecord, setAdminEditPhotoRecord] = useState(null); // admin editing photo
-  const [showManualCheckin, setShowManualCheckin] = useState(false); // manual checkin modal
+  const [showManualCheckin, setShowManualCheckin] = useState(false); // admin adding past checkin
 
   // History state
   const [history, setHistory] = useState([]);
@@ -281,6 +281,26 @@ export default function CheckinPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Admin Photo Upload ───────────────────────────────────────
+  const handleAdminPhotoUpload = async (e, record, tab) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      fd.append('type', tab); // 'checkin' or 'checkout'
+
+      await api.put(`/checkin/admin/edit-photo/${record.id}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({ icon: 'success', title: 'อัปเดตรูปภาพสำเร็จ', showConfirmButton: false, timer: 1500 });
+      fetchHistory();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'อัปเดตไม่สำเร็จ', text: err.response?.data?.error });
     }
   };
 
@@ -581,8 +601,9 @@ export default function CheckinPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowManualCheckin(true)}
-                    className="text-xs font-bold text-[#185FA5] bg-blue-50 border border-blue-200 hover:bg-[#185FA5] hover:text-white px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
-                    ➕ เพิ่มย้อนหลัง
+                    className="text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    เพิ่มย้อนหลัง
                   </button>
                   <button
                     onClick={() => navigate('/attendance-summary')}
@@ -703,12 +724,17 @@ export default function CheckinPage() {
                         {/* Admin actions */}
                         {isAdmin && (
                           <div className="flex gap-1.5">
-                            <button
-                              onClick={() => { setAdminEditPhotoRecord(record); startCamera(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                              title="แก้ไขรูปภาพ"
-                              className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm">
+                            <label
+                              title="อัปโหลดรูปภาพใหม่"
+                              className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm cursor-pointer">
                               📸
-                            </button>
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept="image/*" 
+                                onChange={(e) => handleAdminPhotoUpload(e, record, historyTab)} 
+                              />
+                            </label>
                             <button
                               onClick={() => setAdminEditRecord({ ...record })}
                               title="แก้ไขเวลา"
@@ -823,14 +849,11 @@ export default function CheckinPage() {
         </div>
       )}
 
+      {/* ── Admin Manual Checkin Modal ────────────────────── */}
       {showManualCheckin && (
-        <ManualCheckinModal
-          usersList={usersList}
-          onClose={() => setShowManualCheckin(false)}
-          onSuccess={() => {
-            setShowManualCheckin(false);
-            fetchHistory();
-          }}
+        <ManualCheckinModal 
+          onClose={() => setShowManualCheckin(false)} 
+          onSuccess={() => { setShowManualCheckin(false); fetchHistory(); }}
         />
       )}
     </Layout>
