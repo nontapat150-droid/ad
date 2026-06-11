@@ -331,7 +331,19 @@ export default function CheckinPage() {
   const handleAdminEditSave = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`/checkin/admin/edit/${adminEditRecord.id}`, adminEditRecord);
+      // แปลงรูปแบบวันที่แบบเงียบๆ ก่อนส่งหลังบ้าน
+      const payload = { ...adminEditRecord };
+      const formatToMySQL = (val) => {
+        if (!val) return null;
+        const safeStr = typeof val === 'string' ? val.replace(' ', 'T') : val;
+        const d = new Date(safeStr);
+        return isNaN(d.getTime()) ? null : format(d, 'yyyy-MM-dd HH:mm:ss');
+      };
+      
+      payload.checkin_time = formatToMySQL(payload.checkin_time);
+      payload.checkout_time = formatToMySQL(payload.checkout_time);
+
+      await api.put(`/checkin/admin/edit/${adminEditRecord.id}`, payload);
       
       // Upload new checkin image if provided
       if (adminEditRecord.newCheckinImg) {
@@ -842,7 +854,7 @@ export default function CheckinPage() {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">⏰ เวลาเข้างาน</label>
                 <DateTimePicker 
                   value={adminEditRecord.checkin_time}
-                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? format(date, 'yyyy-MM-dd HH:mm:ss') : null })}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? date.toISOString() : null })}
                   placeholder="เลือกเวลาเข้างาน"
                 />
               </div>
@@ -850,7 +862,7 @@ export default function CheckinPage() {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">🏁 เวลาเลิกงาน</label>
                 <DateTimePicker 
                   value={adminEditRecord.checkout_time}
-                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? format(date, 'yyyy-MM-dd HH:mm:ss') : null })}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? date.toISOString() : null })}
                   placeholder="เลือกเวลาเลิกงาน"
                 />
               </div>
