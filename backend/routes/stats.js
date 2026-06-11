@@ -193,7 +193,7 @@ router.get('/ma-tech-dashboard', auth, async (req, res) => {
       if (r.setting_key === 'ma_target_jobs') ma_target_jobs = parseInt(r.setting_value) || 130;
     });
     
-    const [[checkinsMonth]] = await pool.query(`SELECT COUNT(DISTINCT DATE(checkin_time)) as cnt FROM ma_checkins WHERE user_id = ? AND MONTH(checkin_time) = MONTH(CURDATE()) AND YEAR(checkin_time) = YEAR(CURDATE())`, [userId]);
+    const [[checkinsMonth]] = await pool.query(`SELECT COUNT(DISTINCT DATE(checkin_time)) as cnt FROM checkins WHERE user_id = ? AND MONTH(checkin_time) = MONTH(CURDATE()) AND YEAR(checkin_time) = YEAR(CURDATE())`, [userId]);
     
     const checkinsCount = checkinsMonth.cnt || 0;
     const completedCount = completedMonth.cnt || 0;
