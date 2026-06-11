@@ -93,6 +93,50 @@ router.post(
   }
 );
 
+// ── POST /api/checkin/admin/manual — Admin Manual Checkin ───────────────
+router.post(
+  '/admin/manual',
+  auth,
+  setUpload('checkins'),
+  upload.fields([{ name: 'checkin_image', maxCount: 1 }, { name: 'checkout_image', maxCount: 1 }]),
+  async (req, res) => {
+    // Only admin can do this
+    const roles = req.user.roles || [];
+    const hasAdmin = roles.includes('super_admin') || roles.includes('admin') || req.user.role === 'super_admin' || req.user.role === 'admin';
+    if (!hasAdmin) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { user_id, checkin_time, checkout_time, is_late } = req.body;
+    if (!user_id || !checkin_time) {
+      return res.status(400).json({ error: 'Missing user_id or checkin_time' });
+    }
+
+    const checkinImagePath = req.files && req.files['checkin_image'] ? req.files['checkin_image'][0].filename : null;
+    const checkoutImagePath = req.files && req.files['checkout_image'] ? req.files['checkout_image'][0].filename : null;
+
+    try {
+      const [result] = await pool.query(
+        `INSERT INTO checkins (user_id, checkin_time, checkout_time, image_path, checkout_image, is_late, is_edited)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [
+          user_id, 
+          new Date(checkin_time), 
+          checkout_time ? new Date(checkout_time) : null, 
+          checkinImagePath, 
+          checkoutImagePath, 
+          is_late === '1' || is_late === 1 ? 1 : 0
+        ]
+      );
+
+      res.status(201).json({ message: 'Manual checkin added successfully', id: result.insertId });
+    } catch (err) {
+      console.error('Manual checkin error:', err);
+      res.status(500).json({ error: 'Server error: ' + err.message });
+    }
+  }
+);
+
 // ── GET /api/checkin/ma-threshold — Get MA Check-in Deadline ───────────────
 router.get('/ma-threshold', auth, async (req, res) => {
   const userId = req.user.id;
@@ -525,8 +569,11 @@ router.put(
       if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบรูปภาพ' });
       }
+      const type = req.body.type || 'checkin';
+      const fieldName = type === 'checkout' ? 'checkout_image' : 'image_path';
+
       const [result] = await pool.query(
-        `UPDATE checkins SET image_path = ?, is_edited = 1 WHERE id = ?`,
+        `UPDATE checkins SET ${fieldName} = ?, is_edited = 1 WHERE id = ?`,
         [req.file.filename, req.params.id]
       );
       if (result.affectedRows === 0) {
