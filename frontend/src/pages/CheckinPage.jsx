@@ -330,11 +330,32 @@ export default function CheckinPage() {
     e.preventDefault();
     try {
       await api.put(`/checkin/admin/edit/${adminEditRecord.id}`, adminEditRecord);
+      
+      // Upload new checkin image if provided
+      if (adminEditRecord.newCheckinImg) {
+        const fd = new FormData();
+        fd.append('image', adminEditRecord.newCheckinImg);
+        fd.append('type', 'checkin');
+        await api.put(`/checkin/admin/edit-photo/${adminEditRecord.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
+      // Upload new checkout image if provided
+      if (adminEditRecord.newCheckoutImg) {
+        const fd = new FormData();
+        fd.append('image', adminEditRecord.newCheckoutImg);
+        fd.append('type', 'checkout');
+        await api.put(`/checkin/admin/edit-photo/${adminEditRecord.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
       Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', showConfirmButton: false, timer: 1500 });
       setAdminEditRecord(null);
       fetchHistory();
-    } catch {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด' });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถบันทึกข้อมูลได้' });
     }
   };
 
@@ -829,13 +850,37 @@ export default function CheckinPage() {
                   onChange={e => setAdminEditRecord({ ...adminEditRecord, checkout_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
                 />
               </div>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors">
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors mt-2">
                 <input type="checkbox" id="is_late"
                   checked={adminEditRecord.is_late === 1}
                   onChange={e => setAdminEditRecord({ ...adminEditRecord, is_late: e.target.checked ? 1 : 0 })}
                   className="w-4 h-4 accent-orange-500" />
                 <span className="text-sm font-bold text-orange-700">บันทึกสถานะ "มาสาย"</span>
               </label>
+
+              {/* New Photo Uploads inside Modal */}
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#042C53] mb-1">📸 รูปเข้างานใหม่ (ถ้ามี)</label>
+                  <label className="flex items-center justify-center w-full h-10 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors bg-white">
+                    <span className="text-xs font-bold text-slate-500 truncate px-3">
+                      {adminEditRecord.newCheckinImg ? adminEditRecord.newCheckinImg.name : 'เลือกรูปภาพ...'}
+                    </span>
+                    <input type="file" className="hidden" accept="image/*"
+                      onChange={e => setAdminEditRecord({ ...adminEditRecord, newCheckinImg: e.target.files[0] })} />
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#042C53] mb-1">📸 รูปออกงานใหม่ (ถ้ามี)</label>
+                  <label className="flex items-center justify-center w-full h-10 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors bg-white">
+                    <span className="text-xs font-bold text-slate-500 truncate px-3">
+                      {adminEditRecord.newCheckoutImg ? adminEditRecord.newCheckoutImg.name : 'เลือกรูปภาพ...'}
+                    </span>
+                    <input type="file" className="hidden" accept="image/*"
+                      onChange={e => setAdminEditRecord({ ...adminEditRecord, newCheckoutImg: e.target.files[0] })} />
+                  </label>
+                </div>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setAdminEditRecord(null)} className="flex-1 h-11 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-sm">
                   ยกเลิก
