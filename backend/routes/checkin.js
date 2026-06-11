@@ -93,6 +93,50 @@ router.post(
   }
 );
 
+// ── POST /api/checkin/admin/manual — Admin Manual Checkin ───────────────
+router.post(
+  '/admin/manual',
+  auth,
+  setUpload('checkins'),
+  upload.fields([{ name: 'checkin_image', maxCount: 1 }, { name: 'checkout_image', maxCount: 1 }]),
+  async (req, res) => {
+    // Only admin can do this
+    const roles = req.user.roles || [];
+    const hasAdmin = roles.includes('super_admin') || roles.includes('admin') || req.user.role === 'super_admin' || req.user.role === 'admin';
+    if (!hasAdmin) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { user_id, checkin_time, checkout_time, is_late } = req.body;
+    if (!user_id || !checkin_time) {
+      return res.status(400).json({ error: 'Missing user_id or checkin_time' });
+    }
+
+    const checkinImagePath = req.files && req.files['checkin_image'] ? req.files['checkin_image'][0].filename : null;
+    const checkoutImagePath = req.files && req.files['checkout_image'] ? req.files['checkout_image'][0].filename : null;
+
+    try {
+      const [result] = await pool.query(
+        `INSERT INTO checkins (user_id, checkin_time, checkout_time, image_path, checkout_image, is_late, is_edited)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [
+          user_id, 
+          new Date(checkin_time), 
+          checkout_time ? new Date(checkout_time) : null, 
+          checkinImagePath, 
+          checkoutImagePath, 
+          is_late === '1' || is_late === 1 ? 1 : 0
+        ]
+      );
+
+      res.status(201).json({ message: 'Manual checkin added successfully', id: result.insertId });
+    } catch (err) {
+      console.error('Manual checkin error:', err);
+      res.status(500).json({ error: 'Server error: ' + err.message });
+    }
+  }
+);
+
 // ── GET /api/checkin/ma-threshold — Get MA Check-in Deadline ───────────────
 router.get('/ma-threshold', auth, async (req, res) => {
   const userId = req.user.id;
@@ -531,6 +575,7 @@ router.put(
       
       let filename = req.file.filename;
 
+      // ถ้าเป็น checkout ต้องย้ายไฟล์จากโฟลเดอร์ checkins ไปที่ checkouts
       if (type === 'checkout') {
         const fs = require('fs');
         const path = require('path');
@@ -539,6 +584,10 @@ router.put(
         
         fs.mkdirSync(newDir, { recursive: true });
         
+        // สร้างโฟลเดอร์ถ้ายังไม่มี
+        fs.mkdirSync(newDir, { recursive: true });
+        
+        // เปลี่ยน prefix ชื่อไฟล์จาก checkins_ เป็น checkouts_
         filename = filename.replace(/^checkins_/, 'checkouts_');
         const newPath = path.join(newDir, filename);
         
@@ -557,6 +606,60 @@ router.put(
       res.json({ message: 'อัปเดตรูปภาพสำเร็จ', checkin_id: req.params.id });
     } catch (err) {
       console.error('Admin edit-photo error:', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
+// ── POST /api/checkin/admin/manual — Admin Manual Check-in ──
+router.post(
+  '/admin/manual',
+  auth,
+  setUpload('checkins'),
+  upload.fields([{ name: 'checkin_image', maxCount: 1 }, { name: 'checkout_image', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const roles = req.user.roles || [];
+      const hasAdmin = roles.includes('super_admin') || roles.includes('admin') || req.user.role === 'super_admin' || req.user.role === 'admin';
+      if (!hasAdmin) {
+        return res.status(403).json({ error: 'คุณไม่มีสิทธิ์' });
+      }
+
+      const { user_id, checkin_time, checkout_time, is_late } = req.body;
+
+      if (!user_id || !checkin_time) {
+        return res.status(400).json({ error: 'กรุณาระบุพนักงานและเวลาเข้างาน' });
+      }
+
+      let checkinImage = null;
+      let checkoutImage = null;
+
+      if (req.files && req.files['checkin_image']) {
+        checkinImage = req.files['checkin_image'][0].filename;
+      }
+      
+      if (req.files && req.files['checkout_image']) {
+        const file = req.files['checkout_image'][0];
+        checkoutImage = file.filename;
+        // Move it to checkouts dir
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = file.path;
+        const newDir = path.join(__dirname, '..', 'uploads', 'checkouts');
+        if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+        const newPath = path.join(newDir, checkoutImage);
+        fs.renameSync(oldPath, newPath);
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO checkins (user_id, checkin_time, checkout_time, is_late, image_path, checkout_image, is_edited)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [user_id, checkin_time, checkout_time || null, is_late === 'true' || is_late === true ? 1 : 0, checkinImage, checkoutImage]
+      );
+
+      res.status(201).json({ message: 'บันทึกข้อมูลเรียบร้อยแล้ว', id: result.insertId });
+    } catch (err) {
+      console.error('Manual checkin error:', err);
       res.status(500).json({ error: 'Server error' });
     }
   }

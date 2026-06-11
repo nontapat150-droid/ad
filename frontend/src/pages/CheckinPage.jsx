@@ -2,8 +2,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
+import ManualCheckinModal from '../components/ManualCheckinModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { DateTimePicker } from '../components/DateTimePicker';
+import { format } from 'date-fns';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -54,6 +57,7 @@ export default function CheckinPage() {
   const [isEditMode, setIsEditMode] = useState(false); // user editing their own photo
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
   const [adminEditPhotoRecord, setAdminEditPhotoRecord] = useState(null); // admin editing photo
+  const [showManualCheckin, setShowManualCheckin] = useState(false); // admin adding past checkin
 
   // History state
   const [history, setHistory] = useState([]);
@@ -282,6 +286,26 @@ export default function CheckinPage() {
     }
   };
 
+  // ── Admin Photo Upload ───────────────────────────────────────
+  const handleAdminPhotoUpload = async (e, record, tab) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      fd.append('type', tab); // 'checkin' or 'checkout'
+
+      await api.put(`/checkin/admin/edit-photo/${record.id}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({ icon: 'success', title: 'อัปเดตรูปภาพสำเร็จ', showConfirmButton: false, timer: 1500 });
+      fetchHistory();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'อัปเดตไม่สำเร็จ', text: err.response?.data?.error });
+    }
+  };
+
   // ── Admin Actions ─────────────────────────────────────────────
   const handleAdminDelete = async (id) => {
     const result = await Swal.fire({
@@ -307,12 +331,45 @@ export default function CheckinPage() {
   const handleAdminEditSave = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`/checkin/admin/edit/${adminEditRecord.id}`, adminEditRecord);
+      // แปลงรูปแบบวันที่แบบเงียบๆ ก่อนส่งหลังบ้าน
+      const payload = { ...adminEditRecord };
+      const formatToMySQL = (val) => {
+        if (!val) return null;
+        const safeStr = typeof val === 'string' ? val.replace(' ', 'T') : val;
+        const d = new Date(safeStr);
+        return isNaN(d.getTime()) ? null : format(d, 'yyyy-MM-dd HH:mm:ss');
+      };
+      
+      payload.checkin_time = formatToMySQL(payload.checkin_time);
+      payload.checkout_time = formatToMySQL(payload.checkout_time);
+
+      await api.put(`/checkin/admin/edit/${adminEditRecord.id}`, payload);
+      
+      // Upload new checkin image if provided
+      if (adminEditRecord.newCheckinImg) {
+        const fd = new FormData();
+        fd.append('image', adminEditRecord.newCheckinImg);
+        fd.append('type', 'checkin');
+        await api.put(`/checkin/admin/edit-photo/${adminEditRecord.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+      
+      // Upload new checkout image if provided
+      if (adminEditRecord.newCheckoutImg) {
+        const fd = new FormData();
+        fd.append('image', adminEditRecord.newCheckoutImg);
+        fd.append('type', 'checkout');
+        await api.put(`/checkin/admin/edit-photo/${adminEditRecord.id}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
       Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', showConfirmButton: false, timer: 1500 });
       setAdminEditRecord(null);
       fetchHistory();
-    } catch {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด' });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถบันทึกข้อมูลได้' });
     }
   };
 
@@ -578,6 +635,12 @@ export default function CheckinPage() {
               {isAdmin && (
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setShowManualCheckin(true)}
+                    className="text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    เพิ่มย้อนหลัง
+                  </button>
+                  <button
                     onClick={() => navigate('/attendance-summary')}
                     className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
                     📊 ภาพรวม
@@ -700,8 +763,17 @@ export default function CheckinPage() {
                               onClick={() => { setAdminEditPhotoRecord({ ...record, isCheckout: isCheckoutTab }); startCamera(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                               title="แก้ไขรูปภาพ"
                               className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm">
+                            <label
+                              title="อัปโหลดรูปภาพใหม่"
+                              className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm cursor-pointer">
                               📸
-                            </button>
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept="image/*" 
+                                onChange={(e) => handleAdminPhotoUpload(e, record, historyTab)} 
+                              />
+                            </label>
                             <button
                               onClick={() => setAdminEditRecord({ ...record })}
                               title="แก้ไขเวลา"
@@ -784,25 +856,51 @@ export default function CheckinPage() {
             <form onSubmit={handleAdminEditSave} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">⏰ เวลาเข้างาน</label>
-                <input type="datetime-local" className="input-field"
-                  value={adminEditRecord.checkin_time ? new Date(new Date(adminEditRecord.checkin_time).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                  onChange={e => setAdminEditRecord({ ...adminEditRecord, checkin_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                <DateTimePicker 
+                  value={adminEditRecord.checkin_time}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? date.toISOString() : null })}
+                  placeholder="เลือกเวลาเข้างาน"
                 />
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">🏁 เวลาเลิกงาน</label>
-                <input type="datetime-local" className="input-field"
-                  value={adminEditRecord.checkout_time ? new Date(new Date(adminEditRecord.checkout_time).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                  onChange={e => setAdminEditRecord({ ...adminEditRecord, checkout_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                <DateTimePicker 
+                  value={adminEditRecord.checkout_time}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? date.toISOString() : null })}
+                  placeholder="เลือกเวลาเลิกงาน"
                 />
               </div>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors">
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors mt-2">
                 <input type="checkbox" id="is_late"
                   checked={adminEditRecord.is_late === 1}
                   onChange={e => setAdminEditRecord({ ...adminEditRecord, is_late: e.target.checked ? 1 : 0 })}
                   className="w-4 h-4 accent-orange-500" />
                 <span className="text-sm font-bold text-orange-700">บันทึกสถานะ "มาสาย"</span>
               </label>
+
+              {/* New Photo Uploads inside Modal */}
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#042C53] mb-1">📸 รูปเข้างานใหม่ (ถ้ามี)</label>
+                  <label className="flex items-center justify-center w-full h-10 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors bg-white">
+                    <span className="text-xs font-bold text-slate-500 truncate px-3">
+                      {adminEditRecord.newCheckinImg ? adminEditRecord.newCheckinImg.name : 'เลือกรูปภาพ...'}
+                    </span>
+                    <input type="file" className="hidden" accept="image/*"
+                      onChange={e => setAdminEditRecord({ ...adminEditRecord, newCheckinImg: e.target.files[0] })} />
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#042C53] mb-1">📸 รูปออกงานใหม่ (ถ้ามี)</label>
+                  <label className="flex items-center justify-center w-full h-10 border border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors bg-white">
+                    <span className="text-xs font-bold text-slate-500 truncate px-3">
+                      {adminEditRecord.newCheckoutImg ? adminEditRecord.newCheckoutImg.name : 'เลือกรูปภาพ...'}
+                    </span>
+                    <input type="file" className="hidden" accept="image/*"
+                      onChange={e => setAdminEditRecord({ ...adminEditRecord, newCheckoutImg: e.target.files[0] })} />
+                  </label>
+                </div>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setAdminEditRecord(null)} className="flex-1 h-11 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-sm">
                   ยกเลิก
@@ -814,6 +912,14 @@ export default function CheckinPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── Admin Manual Checkin Modal ────────────────────── */}
+      {showManualCheckin && (
+        <ManualCheckinModal 
+          onClose={() => setShowManualCheckin(false)} 
+          onSuccess={() => { setShowManualCheckin(false); fetchHistory(); }}
+        />
       )}
     </Layout>
   );
