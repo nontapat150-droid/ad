@@ -180,7 +180,7 @@ export default function Sidebar({
 
       <aside
         ref={sidebarRef}
-        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transform transition-transform duration-300 ease-out md:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col bg-white/80 backdrop-blur-2xl border-r border-white/50 shadow-2xl md:shadow-none transform transition-transform duration-300 ease-out md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
 
