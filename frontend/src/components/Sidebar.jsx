@@ -111,61 +111,53 @@ export default function Sidebar({
     }
   };
 
-  const ADMIN_GROUP = {
-    label: 'ผู้ดูแลระบบ',
-    items: [
-      ...(isSuperAdmin ? [{ key: 'users', label: 'จัดการผู้ใช้', icon: UsersIcon }] : []),
-      { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
-      ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
-      { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
-    ],
-  };
+  const dynamicMenuGroups = [];
 
-  // Filter menus based on role
-  const baseGroups = MENU_GROUPS.map(group => ({
-    ...group,
-    items: group.items.filter(item => {
-      // If admin (but not super admin), hide these items
-      if (isAdminOnly && ['oil', 'entry_fee', 'bag'].includes(item.key)) {
-        return false;
+  // Group 1: Admin
+  if (isAdmin) {
+    dynamicMenuGroups.push({
+      label: 'ผู้ดูแลระบบ',
+      items: [
+        ...(isSuperAdmin ? [{ key: 'users', label: 'จัดการผู้ใช้', icon: UsersIcon }] : []),
+        { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
+        ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
+        { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
+      ]
+    });
+  }
+
+  // Loop over MENU_GROUPS and filter/modify
+  MENU_GROUPS.forEach(group => {
+    let items = [...group.items];
+
+    // Filter items based on roles
+    items = items.filter(item => {
+      // Only SuperAdmin and OfficeTech can see these
+      if (['oil', 'entry_fee', 'bag'].includes(item.key)) {
+        return isSuperAdmin || isOfficeTech;
       }
       return true;
-    })
-  })).filter(group => group.items.length > 0);
+    });
 
-  const techGroups = MENU_GROUPS.map(group => {
-    let items = group.items;
-    
-    // จัดการเมนูหน้าแรก
+    // Modify home item based on tech roles
     items = items.map(item => {
       if (item.key === 'home') {
-        if (isMATech && isOfficeTech) {
-          return [
-            { key: 'home', label: 'หน้าแรก', icon: item.icon },
-            { key: 'home_ma', label: 'สรุปผล MA ของฉัน', icon: item.icon }
-          ];
-        } else if (isMATech && !isOfficeTech) {
-          return { key: 'home_ma', label: 'สรุปผล MA ของฉัน', icon: item.icon };
+        let homeItems = [];
+        if (isAdmin || isOfficeTech || (!isMATech && !isOfficeTech)) {
+          homeItems.push({ key: 'home', label: 'หน้าแรก', icon: item.icon });
         }
+        if (isMATech) {
+          homeItems.push({ key: 'home_ma', label: 'สรุปผล MA', icon: item.icon });
+        }
+        return homeItems;
       }
       return item;
     }).flat();
 
-    return {
-      ...group,
-      items: items.filter(item => {
-        // ถ้าเป็นช่าง MA อย่างเดียว (ไม่มี Office) ให้ซ่อนเมนูพวกนี้
-        if (isMATech && !isOfficeTech && ['entry_fee', 'oil', 'bag'].includes(item.key)) {
-          return false;
-        }
-        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report'].includes(item.key);
-      })
-    };
-  }).filter(group => group.items.length > 0);
-
-  const dynamicMenuGroups = isAdmin 
-    ? [...baseGroups, ADMIN_GROUP]
-    : techGroups;
+    if (items.length > 0) {
+      dynamicMenuGroups.push({ ...group, items });
+    }
+  });
 
   return (
     <>
