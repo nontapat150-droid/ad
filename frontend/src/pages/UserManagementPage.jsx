@@ -3,6 +3,7 @@ import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import TeamManagementModal from '../components/TeamManagementModal';
 
 export default function UserManagementPage() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function UserManagementPage() {
   const [deletingId, setDeletingId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('users');
+  const [isTeamModalOpen, setTeamModalOpen] = useState(false);
   const [lateTimes, setLateTimes] = useState({});
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -85,29 +87,8 @@ export default function UserManagementPage() {
     }
   };
 
-  const handleAddTeam = async () => {
-    const { value: teamName } = await Swal.fire({
-      title: 'เพิ่มทีมใหม่',
-      input: 'text',
-      inputLabel: 'ชื่อทีม',
-      inputPlaceholder: 'กรอกชื่อทีม เช่น ทีม กทม. 1',
-      showCancelButton: true,
-      confirmButtonText: 'บันทึก',
-      cancelButtonText: 'ยกเลิก',
-      inputValidator: (value) => {
-        if (!value) return 'กรุณากรอกชื่อทีม!';
-      }
-    });
-
-    if (teamName) {
-      try {
-        await api.post('/users/teams', { team_name: teamName });
-        Swal.fire('สำเร็จ', 'เพิ่มทีมเรียบร้อยแล้ว', 'success');
-        fetchData();
-      } catch (err) {
-        Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'ไม่สามารถเพิ่มทีมได้', 'error');
-      }
-    }
+  const handleAddTeam = () => {
+    setTeamModalOpen(true);
   };
 
   const getRoleBadge = (role) => {
@@ -269,6 +250,12 @@ export default function UserManagementPage() {
           teams={teams}
           onClose={() => setEditingUser(null)}
           onSuccess={fetchData}
+        />
+      )}
+      {isTeamModalOpen && (
+        <TeamManagementModal 
+          onClose={() => setTeamModalOpen(false)} 
+          refreshParent={fetchData} 
         />
       )}
     </Layout>
