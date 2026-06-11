@@ -243,6 +243,7 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    console.log('[DEBUG] Submitting form...', form);
     try {
       const payload = { ...form };
       if (payload.team_id === '') payload.team_id = null;
@@ -251,15 +252,21 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
         if (!payload.password) delete payload.password; // Don't update password if empty
         // ensure extra_roles doesn't include the primary role
         if (payload.extra_roles) payload.extra_roles = payload.extra_roles.filter(r => r !== payload.role);
-        await api.put(`/users/${user.id}`, payload);
+        console.log('[DEBUG] Updating existing user (PUT)', payload);
+        const res = await api.put(`/users/${user.id}`, payload);
+        console.log('[DEBUG] PUT response:', res.data);
       } else {
         if (payload.extra_roles) payload.extra_roles = payload.extra_roles.filter(r => r !== payload.role);
-        await api.post('/users', payload);
+        console.log('[DEBUG] Creating new user (POST)', payload);
+        const res = await api.post('/users', payload);
+        console.log('[DEBUG] POST response:', res.data);
       }
       onSuccess();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      console.error('[DEBUG] Save error:', err);
+      console.error('[DEBUG] Error response data:', err.response?.data);
+      alert(`Error: ${err.response?.data?.error || err.response?.data?.message || err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล'}`);
     } finally {
       setLoading(false);
     }
