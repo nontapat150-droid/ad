@@ -211,16 +211,23 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
           <div className="grid grid-cols-2 gap-4">
             {/* Date Time */}
-            <div className="relative pt-2 col-span-2">
+            <div className="relative pt-2 col-span-2 group">
               <label className="floating-label">วันที่และเวลาเติมน้ำมัน</label>
-              <input
-                required
-                type="datetime-local"
-                name="date_recorded"
-                value={form.date_recorded}
-                onChange={handleChange}
-                className="input-field cursor-pointer [&::-webkit-calendar-picker-indicator]:bg-amber-100 [&::-webkit-calendar-picker-indicator]:p-1.5 [&::-webkit-calendar-picker-indicator]:rounded-lg [&::-webkit-calendar-picker-indicator]:cursor-pointer hover:[&::-webkit-calendar-picker-indicator]:bg-amber-200"
-              />
+              <div className="relative flex items-center">
+                <input
+                  required
+                  type="datetime-local"
+                  name="date_recorded"
+                  value={form.date_recorded}
+                  onChange={handleChange}
+                  className="input-field cursor-pointer font-bold text-[#042C53] pr-12 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer relative z-10"
+                />
+                <div className="absolute right-3 z-20 pointer-events-none text-[#185FA5] flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 group-hover:bg-blue-100 transition-colors shadow-sm border border-blue-100/50">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              </div>
             </div>
 
             {/* Liters */}
