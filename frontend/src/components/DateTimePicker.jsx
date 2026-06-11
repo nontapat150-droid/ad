@@ -8,19 +8,27 @@ import { Calendar } from "./ui/calendar";
 import { cn } from "../lib/utils";
 
 export function DateTimePicker({ value, onChange, placeholder = "เลือกวันและเวลา", className }) {
-  const [date, setDate] = useState(value ? new Date(value) : null);
-  const [hour, setHour] = useState(value ? new Date(value).getHours().toString().padStart(2, '0') : "08");
-  const [minute, setMinute] = useState(value ? new Date(value).getMinutes().toString().padStart(2, '0') : "00");
+  // ฟังก์ชันแปลงสตริงที่อาจมีปัญหาในบางเบราว์เซอร์ให้เป็น ISO Format ที่รองรับ
+  const parseSafeDate = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    // แทนที่ space ด้วย T สำหรับ iOS/Safari e.g. '2024-03-20 08:00:00' -> '2024-03-20T08:00:00'
+    const safeStr = typeof val === 'string' ? val.replace(' ', 'T') : val;
+    const d = new Date(safeStr);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const [date, setDate] = useState(parseSafeDate(value));
+  const [hour, setHour] = useState(date ? date.getHours().toString().padStart(2, '0') : "08");
+  const [minute, setMinute] = useState(date ? date.getMinutes().toString().padStart(2, '0') : "00");
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (value) {
-      const v = new Date(value);
-      setDate(v);
-      setHour(v.getHours().toString().padStart(2, '0'));
-      setMinute(v.getMinutes().toString().padStart(2, '0'));
-    } else {
-      setDate(null);
+    const d = parseSafeDate(value);
+    setDate(d);
+    if (d) {
+      setHour(d.getHours().toString().padStart(2, '0'));
+      setMinute(d.getMinutes().toString().padStart(2, '0'));
     }
   }, [value]);
 
