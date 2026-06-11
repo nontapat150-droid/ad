@@ -3,6 +3,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import OilRecordModal from '../components/OilRecordModal';
+import OilRecordEditModal from '../components/OilRecordEditModal';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 
@@ -16,6 +17,7 @@ export default function OilDashboardPage() {
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
   const [viewingImages, setViewingImages] = useState(null);
 
@@ -485,17 +487,18 @@ export default function OilDashboardPage() {
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                   <thead>
                     <tr className="border-b-2 border-[#185FA5]/10 bg-slate-50/50">
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เดือน/ปี</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ช่างผู้เติม</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ทีม/ป้ายทะเบียน</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เวลา</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ช่าง (ผู้เบิก)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ทีม/ป้ายทะเบียน(โดยแสดงเฉพาะทีม)</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เลขไมล์</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง(กม.)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">กม./ลิตร</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เคสปิดงาน(ต่อเดือน)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เคสปิดสำเร็จ (เดือน)</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/กม.</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/งาน</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ยอดรวม(บาท)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">รูปหลักฐาน</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ยอดรวม (บาท)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">หลักฐาน รูปภาพ</th>
+                      {isAdmin && <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">จัดการ</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#185FA5]/5">
@@ -509,13 +512,13 @@ export default function OilDashboardPage() {
                       return (
                         <tr key={r.id} className="hover:bg-white/60 transition-colors group">
                           <td className="p-3 text-sm text-[#042C53] font-medium whitespace-nowrap">
-                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="p-3 text-sm text-[#042C53] whitespace-nowrap">
                             {r.tech_name || 'N/A'}
                           </td>
                           <td className="p-3 text-sm font-black text-[#185FA5] whitespace-nowrap">
-                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.team_name || 'ไม่มีทีม'} / {r.license_plate}</span>
+                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
                           </td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.distance || 0}</td>
@@ -536,8 +539,18 @@ export default function OilDashboardPage() {
                               ) : (
                                 <span className="text-xs text-[#378ADD] font-bold bg-slate-50/50 px-2 py-1.5 rounded-lg border border-slate-100">-</span>
                               )}
-                              
-                              {isAdmin && (
+                            </div>
+                          </td>
+                          {isAdmin && (
+                            <td className="p-3 text-center">
+                              <div className="flex justify-center items-center gap-2">
+                                <button
+                                  onClick={() => setEditingRecord(r)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-500 hover:text-blue-600 transition-all shadow-sm border border-blue-100/50 hover:shadow-md hover:scale-105 flex-shrink-0"
+                                  title="แก้ไขรายการนี้"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </button>
                                 <button
                                   onClick={() => handleDeleteRecord(r.id)}
                                   className="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-600 transition-all shadow-sm border border-rose-100/50 hover:shadow-md hover:scale-105 flex-shrink-0"
@@ -545,9 +558,9 @@ export default function OilDashboardPage() {
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
-                              )}
-                            </div>
-                          </td>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -618,6 +631,17 @@ export default function OilDashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingRecord && (
+        <OilRecordEditModal
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          onSuccess={() => {
+            setEditingRecord(null);
+            fetchData();
+          }}
+        />
       )}
     </Layout>
   );

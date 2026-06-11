@@ -322,4 +322,117 @@ router.get('/analytics', auth, async (req, res) => {
   }
 });
 
+// ── PUT /api/oil/records/:id — Edit a fuel record ──────────────
+router.put(
+  '/records/:id',
+  auth,
+  setUpload('oil_receipts'),
+  upload.array('images', 5),
+  async (req, res) => {
+    const recordId = req.params.id;
+    const {
+      tech_id, license_plate, liters, mileage, total_price, date_recorded, existing_images
+    } = req.body;
+
+    const userRoles = req.user.roles || [req.user.role];
+    const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Get old record
+      const [old] = await conn.query('SELECT * FROM oil_records WHERE id = ?', [recordId]);
+      if (old.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Record not found' });
+      }
+
+      // Update basic details.
+      // Notice: we don't recalculate distance here because /oil/recalculate will do it for all.
+      // We just update the values. price_per_liter can be recalculated.
+      const price_per_liter = parseFloat(liters) > 0 ? (parseFloat(total_price) / parseFloat(liters)).toFixed(2) : 0;
+
+      await conn.query(
+        `UPDATE oil_records
+         SET tech_id = ?, license_plate = ?, liters = ?, mileage = ?, price_per_liter = ?, total_price = ?, date_recorded = ?
+         WHERE id = ?`,
+        [
+          tech_id || old[0].tech_id, 
+          license_plate || old[0].license_plate, 
+          liters || old[0].liters, 
+          mileage || old[0].mileage, 
+          price_per_liter, 
+          total_price || old[0].total_price, 
+          (date_recorded ? date_recorded.replace('T', ' ') : null) || old[0].date_recorded,
+          recordId
+        ]
+      );
+
+      // Handle images
+      let keptImages = [];
+      if (existing_images) {
+        try {
+          keptImages = JSON.parse(existing_images);
+        } catch(e) {}
+      }
+
+      // Delete removed images from db
+      if (keptImages.length > 0) {
+        await conn.query(`DELETE FROM oil_images WHERE record_id = ? AND image_path NOT IN (?)`, [recordId, keptImages]);
+      } else {
+        await conn.query(`DELETE FROM oil_images WHERE record_id = ?`, [recordId]);
+      }
+
+      // Insert new images
+      if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          await conn.query(
+            `INSERT INTO oil_images (record_id, image_path) VALUES (?, ?)`,
+            [recordId, file.filename]
+          );
+        }
+      }
+
+      await conn.commit();
+      res.json({ message: 'Updated successfully' });
+    } catch (err) {
+      await conn.rollback();
+      console.error('Update oil record error:', err);
+      res.status(500).json({ error: 'Server error' });
+    } finally {
+      conn.release();
+    }
+  }
+);
+
+// ── DELETE /api/oil/records/:id — Delete a fuel record ──────────────
+router.delete('/records/:id', auth, async (req, res) => {
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    await conn.query(`DELETE FROM oil_images WHERE record_id = ?`, [req.params.id]);
+    await conn.query(`DELETE FROM oil_records WHERE id = ?`, [req.params.id]);
+
+    await conn.commit();
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Delete oil record error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 module.exports = router;
