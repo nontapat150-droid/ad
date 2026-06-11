@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
 export default function UserManagementPage() {
   const { user } = useAuth();
@@ -59,14 +60,26 @@ export default function UserManagementPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('คุณต้องการลบผู้ใช้นี้ใช่หรือไม่?')) return;
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบผู้ใช้?',
+      text: 'คุณต้องการลบผู้ใช้นี้ออกจากระบบใช่หรือไม่?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ใช่, ลบเลย',
+      cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) return;
+
     setDeletingId(id);
     try {
       await api.delete(`/users/${id}`);
-      alert('ลบผู้ใช้เรียบร้อย');
+      Swal.fire('สำเร็จ', 'ลบผู้ใช้เรียบร้อยแล้ว', 'success');
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการลบผู้ใช้');
+      Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'เกิดข้อผิดพลาดในการลบผู้ใช้', 'error');
     } finally {
       setDeletingId(null);
     }
