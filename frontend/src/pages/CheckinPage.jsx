@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import ManualCheckinModal from '../components/ManualCheckinModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { DateTimePicker } from '../components/DateTimePicker';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -838,16 +839,18 @@ export default function CheckinPage() {
             <form onSubmit={handleAdminEditSave} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">⏰ เวลาเข้างาน</label>
-                <input type="datetime-local" className="input-field"
-                  value={adminEditRecord.checkin_time ? new Date(new Date(adminEditRecord.checkin_time).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                  onChange={e => setAdminEditRecord({ ...adminEditRecord, checkin_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                <DateTimePicker 
+                  value={adminEditRecord.checkin_time}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? date.toISOString() : null })}
+                  placeholder="เลือกเวลาเข้างาน"
                 />
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">🏁 เวลาเลิกงาน</label>
-                <input type="datetime-local" className="input-field"
-                  value={adminEditRecord.checkout_time ? new Date(new Date(adminEditRecord.checkout_time).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                  onChange={e => setAdminEditRecord({ ...adminEditRecord, checkout_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                <DateTimePicker 
+                  value={adminEditRecord.checkout_time}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? date.toISOString() : null })}
+                  placeholder="เลือกเวลาเลิกงาน"
                 />
               </div>
               <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors mt-2">
