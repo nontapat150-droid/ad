@@ -295,11 +295,15 @@ router.get('/analytics', auth, async (req, res) => {
 
   try {
     const [byVehicle] = await pool.query(`
-      SELECT license_plate, SUM(liters) as total_liters, SUM(total_price) as total_cost
+      SELECT r.license_plate, 
+             SUM(r.liters) as total_liters, 
+             SUM(r.total_price) as total_cost,
+             SUM(r.distance) as total_distance,
+             MAX(u.team_id) as main_team_id
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
       ${whereClause}
-      GROUP BY license_plate
+      GROUP BY r.license_plate
       ORDER BY total_cost DESC
     `, params);
 
