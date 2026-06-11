@@ -120,6 +120,26 @@ router.post(
   }
 );
 
+// ── DELETE /api/oil/records/:id — Delete a fuel record ──────
+router.delete('/records/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const recordId = req.params.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Delete associated images first
+    await conn.query('DELETE FROM oil_images WHERE record_id = ?', [recordId]);
+    await conn.query('DELETE FROM oil_records WHERE id = ?', [recordId]);
+    await conn.commit();
+    res.json({ message: 'Oil record deleted successfully' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Delete oil record error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /api/oil/recalculate ──────────────────────────────
 router.post('/recalculate', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
