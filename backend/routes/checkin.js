@@ -571,10 +571,31 @@ router.put(
       }
       const type = req.body.type || 'checkin';
       const fieldName = type === 'checkout' ? 'checkout_image' : 'image_path';
+      
+      let filename = req.file.filename;
+
+      // ถ้าเป็น checkout ต้องย้ายไฟล์จากโฟลเดอร์ checkins ไปที่ checkouts
+      if (type === 'checkout') {
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = req.file.path;
+        const newDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads', 'checkouts');
+        
+        // สร้างโฟลเดอร์ถ้ายังไม่มี
+        fs.mkdirSync(newDir, { recursive: true });
+        
+        // เปลี่ยน prefix ชื่อไฟล์จาก checkins_ เป็น checkouts_
+        filename = filename.replace(/^checkins_/, 'checkouts_');
+        const newPath = path.join(newDir, filename);
+        
+        if (fs.existsSync(oldPath)) {
+          fs.renameSync(oldPath, newPath);
+        }
+      }
 
       const [result] = await pool.query(
         `UPDATE checkins SET ${fieldName} = ?, is_edited = 1 WHERE id = ?`,
-        [req.file.filename, req.params.id]
+        [filename, req.params.id]
       );
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'ไม่พบข้อมูล' });
