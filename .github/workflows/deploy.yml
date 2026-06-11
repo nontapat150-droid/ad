@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - แก้ระบบเช็คอิน
 
 jobs:
   build-and-deploy:
