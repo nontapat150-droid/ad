@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { DateTimePicker } from './DateTimePicker';
+import { format } from 'date-fns';
 
 // ── Helpers ──────────────────────────────────────────────────
 function toThaiDate(isoString) {
@@ -178,38 +180,26 @@ export default function ManualCheckinModal({ onClose, onSuccess }) {
                 <label className="block text-sm font-bold text-[#042C53] mb-2">วันและเวลาเข้างาน *</label>
                 <div className="flex items-center gap-3">
                   
-                  {/* Thai Date Input Wrapper */}
-                  <div className="relative flex-1 group">
-                    <input 
-                      type="date" 
-                      name="checkin_date" 
-                      value={formData.checkin_date} 
-                      onChange={handleChange} 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-                    />
-                    <div className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white flex items-center justify-between group-hover:border-[#378ADD] transition-colors">
-                      <span className={`text-sm font-bold ${formData.checkin_date ? 'text-[#185FA5]' : 'text-slate-400'}`}>
-                        {formData.checkin_date ? toThaiDate(formData.checkin_date) : 'วว/ดด/ปปปป'}
-                      </span>
-                      <span className="text-[#378ADD]">📅</span>
-                    </div>
-                  </div>
-
-                  {/* Thai Time Input Wrapper */}
-                  <div className="relative w-32 group">
-                    <input 
-                      type="time" 
-                      name="checkin_time" 
-                      value={formData.checkin_time} 
-                      onChange={handleChange} 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-                    />
-                    <div className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white flex items-center justify-center group-hover:border-[#378ADD] transition-colors">
-                      <span className={`text-sm font-bold ${formData.checkin_time ? 'text-[#185FA5]' : 'text-slate-400'}`}>
-                        {toThaiTime(formData.checkin_time)}
-                      </span>
-                    </div>
-                  </div>
+                  <DateTimePicker 
+                    value={formData.checkin_date && formData.checkin_time ? new Date(`${formData.checkin_date}T${formData.checkin_time}`) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({
+                          ...formData,
+                          checkin_date: format(date, 'yyyy-MM-dd'),
+                          checkin_time: format(date, 'HH:mm')
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          checkin_date: '',
+                          checkin_time: ''
+                        });
+                      }
+                    }}
+                    placeholder="เลือกวันและเวลาเข้างาน"
+                    className="flex-1"
+                  />
 
                   {/* Late Checkbox */}
                   <label className="flex items-center gap-2 cursor-pointer shrink-0">
@@ -263,20 +253,24 @@ export default function ManualCheckinModal({ onClose, onSuccess }) {
 
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-2">เวลาออกงาน (ถ้ามี)</label>
-                <div className="relative w-40 group">
-                  <input 
-                    type="time" 
-                    name="checkout_time" 
-                    value={formData.checkout_time} 
-                    onChange={handleChange} 
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
+                <div className="relative w-full group">
+                  <DateTimePicker 
+                    value={formData.checkout_time ? new Date(`${formData.checkin_date || format(new Date(), 'yyyy-MM-dd')}T${formData.checkout_time}`) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({
+                          ...formData,
+                          checkout_time: format(date, 'HH:mm')
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          checkout_time: ''
+                        });
+                      }
+                    }}
+                    placeholder="เลือกเวลาออกงาน"
                   />
-                  <div className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white flex items-center justify-between group-hover:border-[#378ADD] transition-colors">
-                    <span className={`text-sm font-bold ${formData.checkout_time ? 'text-[#185FA5]' : 'text-slate-400'}`}>
-                      {toThaiTime(formData.checkout_time)}
-                    </span>
-                    <span className="text-[#378ADD]">⏰</span>
-                  </div>
                 </div>
               </div>
 
