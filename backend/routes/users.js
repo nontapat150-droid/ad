@@ -42,6 +42,24 @@ router.get('/teams', auth, async (req, res) => {
   }
 });
 
+// ── POST /api/users/teams — Create a new team ──────────────────
+router.post('/teams', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { team_name } = req.body;
+  if (!team_name) {
+    return res.status(400).json({ error: 'team_name is required' });
+  }
+  try {
+    const [result] = await pool.query('INSERT INTO teams (team_name) VALUES (?)', [team_name]);
+    res.status(201).json({ message: 'Team created', id: result.insertId });
+  } catch (err) {
+    console.error('Create team error:', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Team name already exists' });
+    }
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 // ── POST /api/users — Create user ──────────────────────────
 router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { username, password, full_name, role = 'technician', status = 'approved', team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
