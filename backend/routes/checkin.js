@@ -1,5 +1,5 @@
 const express = require('express');
-const pool    = require('../config/db');
+const pool = require('../config/db');
 const { auth } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 
@@ -13,7 +13,7 @@ router.post(
   upload.single('image'),
   async (req, res) => {
     const userId = req.user.id;
-    const today  = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     try {
       // Prevent double check-in on same day
@@ -68,12 +68,12 @@ router.post(
         lateThreshold = userRow[0]?.allow_late_time || roleLateTime || globalLateTime;
       }
 
-      const nowTime       = new Date().toTimeString().slice(0, 8);
-      const isLate        = nowTime > lateThreshold ? 1 : 0;
+      const nowTime = new Date().toTimeString().slice(0, 8);
+      const isLate = nowTime > lateThreshold ? 1 : 0;
 
       const imagePath = req.file ? req.file.filename : null;
-      const lat       = req.body.lat  ? parseFloat(req.body.lat)  : null;
-      const lng       = req.body.lng  ? parseFloat(req.body.lng)  : null;
+      const lat = req.body.lat ? parseFloat(req.body.lat) : null;
+      const lng = req.body.lng ? parseFloat(req.body.lng) : null;
 
       const [result] = await pool.query(
         `INSERT INTO checkins (user_id, image_path, checkin_lat, checkin_lng, is_late)
@@ -82,9 +82,9 @@ router.post(
       );
 
       res.status(201).json({
-        message:    isLate ? 'Checked in (late)' : 'Checked in on time',
+        message: isLate ? 'Checked in (late)' : 'Checked in on time',
         checkin_id: result.insertId,
-        is_late:    !!isLate,
+        is_late: !!isLate,
       });
     } catch (err) {
       console.error('Checkin error:', err);
@@ -120,11 +120,11 @@ router.post(
         `INSERT INTO checkins (user_id, checkin_time, checkout_time, image_path, checkout_image, is_late, is_edited)
          VALUES (?, ?, ?, ?, ?, ?, 1)`,
         [
-          user_id, 
-          new Date(checkin_time), 
-          checkout_time ? new Date(checkout_time) : null, 
-          checkinImagePath, 
-          checkoutImagePath, 
+          user_id,
+          new Date(checkin_time),
+          checkout_time ? new Date(checkout_time) : null,
+          checkinImagePath,
+          checkoutImagePath,
           is_late === '1' || is_late === 1 ? 1 : 0
         ]
       );
@@ -140,7 +140,7 @@ router.post(
 // ── GET /api/checkin/ma-threshold — Get MA Check-in Deadline ───────────────
 router.get('/ma-threshold', auth, async (req, res) => {
   const userId = req.user.id;
-  const today  = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   try {
     const [userRow] = await pool.query(`SELECT team_id FROM users WHERE id = ? LIMIT 1`, [userId]);
     const userTeamId = userRow[0]?.team_id;
@@ -172,7 +172,7 @@ router.put(
   upload.single('image'),
   async (req, res) => {
     const userId = req.user.id;
-    const today  = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
     try {
       const [rows] = await pool.query(
@@ -182,16 +182,16 @@ router.put(
         [userId, today]
       );
 
-        if (rows.length === 0) {
-          return res.status(400).json({ error: 'ไม่พบข้อมูลการเข้างานในวันนี้ กรุณาเข้างานก่อน' });
-        }
-        if (rows[0].checkout_time) {
-          return res.status(409).json({ error: 'คุณได้ทำการเลิกงานไปแล้วในวันนี้' });
-        }
+      if (rows.length === 0) {
+        return res.status(400).json({ error: 'ไม่พบข้อมูลการเข้างานในวันนี้ กรุณาเข้างานก่อน' });
+      }
+      if (rows[0].checkout_time) {
+        return res.status(409).json({ error: 'คุณได้ทำการเลิกงานไปแล้วในวันนี้' });
+      }
 
       const imagePath = req.file ? req.file.filename : null;
-      const lat       = req.body.lat ? parseFloat(req.body.lat) : null;
-      const lng       = req.body.lng ? parseFloat(req.body.lng) : null;
+      const lat = req.body.lat ? parseFloat(req.body.lat) : null;
+      const lng = req.body.lng ? parseFloat(req.body.lng) : null;
 
       await pool.query(
         `UPDATE checkins
@@ -238,7 +238,7 @@ router.get('/ma-performance', auth, async (req, res) => {
     if (!month) {
       return res.status(400).json({ error: 'Month parameter is required (YYYY-MM)' });
     }
-    
+
     // Fetch global targets
     const [settings] = await pool.query(
       `SELECT setting_key, setting_value FROM system_settings 
@@ -376,8 +376,8 @@ router.put(
   upload.single('image'),
   async (req, res) => {
     const userId = req.user.id;
-    const today  = new Date().toISOString().slice(0, 10);
-    
+    const today = new Date().toISOString().slice(0, 10);
+
     if (!req.file) {
       return res.status(400).json({ error: 'ไม่พบรูปภาพ' });
     }
@@ -569,10 +569,10 @@ router.put(
       if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบรูปภาพ' });
       }
-      
+
       const type = req.body.type || 'checkin';
       const fieldName = type === 'checkout' ? 'checkout_image' : 'image_path';
-      
+
       let filename = req.file.filename;
 
       // ถ้าเป็น checkout ต้องย้ายไฟล์จากโฟลเดอร์ checkins ไปที่ checkouts
@@ -581,16 +581,16 @@ router.put(
         const path = require('path');
         const oldPath = req.file.path;
         const newDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads', 'checkouts');
-        
+
         fs.mkdirSync(newDir, { recursive: true });
-        
+
         // สร้างโฟลเดอร์ถ้ายังไม่มี
         fs.mkdirSync(newDir, { recursive: true });
-        
+
         // เปลี่ยน prefix ชื่อไฟล์จาก checkins_ เป็น checkouts_
         filename = filename.replace(/^checkins_/, 'checkouts_');
         const newPath = path.join(newDir, filename);
-        
+
         if (fs.existsSync(oldPath)) {
           fs.renameSync(oldPath, newPath);
         }
@@ -637,7 +637,7 @@ router.post(
       if (req.files && req.files['checkin_image']) {
         checkinImage = req.files['checkin_image'][0].filename;
       }
-      
+
       if (req.files && req.files['checkout_image']) {
         const file = req.files['checkout_image'][0];
         checkoutImage = file.filename;
@@ -645,8 +645,10 @@ router.post(
         const fs = require('fs');
         const path = require('path');
         const oldPath = file.path;
-        const newDir = path.join(__dirname, '..', 'uploads', 'checkouts');
+        const newDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads', 'checkouts');
         if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+        
+        checkoutImage = checkoutImage.replace(/^checkins_/, 'checkouts_');
         const newPath = path.join(newDir, checkoutImage);
         fs.renameSync(oldPath, newPath);
       }
