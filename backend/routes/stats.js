@@ -94,37 +94,45 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 // ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
   try {
-    const [[usersResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`);
-    const [[onlineResult]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
-    const [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
-    const [[nonResult]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`);
-    const [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`);
-    const [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`);
+    let usersCnt = 0, onlineCnt = 0, inventoryCnt = 0, nonCnt = 0, oilCnt = 0, entryCnt = 0;
+    
+    try { const [[r]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`); usersCnt = r.cnt || 0; } catch(e) { console.error('Error users:', e); }
+    try { const [[r]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`); onlineCnt = r.cnt || 0; } catch(e) { console.error('Error checkins:', e); }
+    try { const [[r]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`); inventoryCnt = r.cnt || 0; } catch(e) { console.error('Error inventory:', e); }
+    try { const [[r]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`); nonCnt = r.cnt || 0; } catch(e) { console.error('Error jobs:', e); }
+    try { const [[r]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`); oilCnt = r.cnt || 0; } catch(e) { console.error('Error oil:', e); }
+    try { const [[r]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`); entryCnt = r.cnt || 0; } catch(e) { console.error('Error entry_fees:', e); }
 
-    const [feed] = await pool.query(`
-      SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
-      FROM (
-        (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records ORDER BY date_recorded DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees ORDER BY created_at DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins ORDER BY checkin_time DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, tech_id AS user_id, 'job' AS type, created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY created_at DESC LIMIT 10)
-      ) AS c
-      LEFT JOIN users u ON u.id = c.user_id
-      ORDER BY c.created_at DESC
-      LIMIT 20
-    `);
+    let feed = [];
+    try {
+      const [f] = await pool.query(`
+        SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
+        FROM (
+          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records ORDER BY date_recorded DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees ORDER BY created_at DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins ORDER BY checkin_time DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, tech_id AS user_id, 'job' AS type, created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY created_at DESC LIMIT 10)
+        ) AS c
+        LEFT JOIN users u ON u.id = c.user_id
+        ORDER BY c.created_at DESC
+        LIMIT 20
+      `);
+      feed = f;
+    } catch(e) {
+      console.error('Super Admin Feed Error:', e);
+    }
 
     res.json({
       summary: {
-        totalUsers: usersResult.cnt || 0,
-        onlineUsers: onlineResult.cnt || 0,
-        totalInventory: inventoryResult.cnt || 0,
-        totalNonCustomers: nonResult.cnt || 0,
-        monthlyOilBills: oilResult.cnt || 0,
-        monthlyEntryFees: entryResult.cnt || 0
+        totalUsers: usersCnt,
+        onlineUsers: onlineCnt,
+        totalInventory: inventoryCnt,
+        totalNonCustomers: nonCnt,
+        monthlyOilBills: oilCnt,
+        monthlyEntryFees: entryCnt
       },
       feed
     });
