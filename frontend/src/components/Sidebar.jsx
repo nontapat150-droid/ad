@@ -170,10 +170,9 @@ export default function Sidebar({
         aria-hidden="true"
       />
 
-      {/* ── Sidebar Panel ──────────────────────────────── */}
       <aside
         ref={sidebarRef}
-        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transition-transform duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) md:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transform transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}>
 
