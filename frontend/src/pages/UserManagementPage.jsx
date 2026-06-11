@@ -85,6 +85,31 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleAddTeam = async () => {
+    const { value: teamName } = await Swal.fire({
+      title: 'เพิ่มทีมใหม่',
+      input: 'text',
+      inputLabel: 'ชื่อทีม',
+      inputPlaceholder: 'กรอกชื่อทีม เช่น ทีม กทม. 1',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => {
+        if (!value) return 'กรุณากรอกชื่อทีม!';
+      }
+    });
+
+    if (teamName) {
+      try {
+        await api.post('/users/teams', { team_name: teamName });
+        Swal.fire('สำเร็จ', 'เพิ่มทีมเรียบร้อยแล้ว', 'success');
+        fetchData();
+      } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'ไม่สามารถเพิ่มทีมได้', 'error');
+      }
+    }
+  };
+
   const getRoleBadge = (role) => {
     const roles = {
       super_admin: { label: 'ผู้ดูแลระบบ', color: 'bg-purple-100 text-purple-700 border-purple-200' },
@@ -132,11 +157,18 @@ export default function UserManagementPage() {
               >เวลาเข้างาน</button>
             </div>
             {activeTab === 'users' && (
-              <button
-                onClick={() => setEditingUser({ username: '', full_name: '', password: '', role: 'technician', extra_roles: [], status: 'approved', team_id: '', allow_late_time: '08:30:00' })}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-transform flex items-center gap-2">
-                <span>➕</span> เพิ่มผู้ใช้ใหม่
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddTeam}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-bold shadow-md shadow-teal-500/20 active:scale-95 transition-transform flex items-center gap-2">
+                  <span>🏢</span> เพิ่มทีม
+                </button>
+                <button
+                  onClick={() => setEditingUser({ username: '', full_name: '', password: '', role: 'technician', extra_roles: [], status: 'approved', team_id: '', allow_late_time: '08:30:00' })}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-transform flex items-center gap-2">
+                  <span>➕</span> เพิ่มผู้ใช้ใหม่
+                </button>
+              </div>
             )}
           </div>
         </div>
