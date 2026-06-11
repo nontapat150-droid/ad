@@ -4,11 +4,19 @@ import api from '../api/axios';
 import Layout from '../components/Layout';
 import OilRecordModal from '../components/OilRecordModal';
 import OilRecordEditModal from '../components/OilRecordEditModal';
+import DateRangeFilter from '../components/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 
 export default function OilDashboardPage() {
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  });
   const [analytics, setAnalytics] = useState({ byVehicle: [], dailyTrend: [], summary: {} });
   const [efficiency, setEfficiency] = useState([]);
   const [records, setRecords] = useState([]);
@@ -33,7 +41,8 @@ export default function OilDashboardPage() {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
-      if (month) queryParams.append('month', month);
+      if (startDate) queryParams.append('start_date', startDate);
+      if (endDate) queryParams.append('end_date', endDate);
       if (selectedTeams.length > 0) queryParams.append('team_ids', selectedTeams.join(','));
 
       const [anRes, recRes, effRes] = await Promise.all([
@@ -50,7 +59,7 @@ export default function OilDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [month, selectedTeams]);
+  }, [startDate, endDate, selectedTeams]);
 
   const handleRecalculate = async () => {
     try {
@@ -224,11 +233,11 @@ export default function OilDashboardPage() {
               )}
             </div>
 
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="input-field max-w-[180px] font-mono text-sm shadow-sm"
+            <DateRangeFilter 
+              startDate={startDate} 
+              endDate={endDate} 
+              setStartDate={setStartDate} 
+              setEndDate={setEndDate} 
             />
             <button
               onClick={() => setShowCompare(!showCompare)}

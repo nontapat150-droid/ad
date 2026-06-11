@@ -10,7 +10,7 @@ const ADMIN_ROLES = ['super_admin', 'admin'];
 router.get('/records', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
-  const { month, tech_id, team_ids, limit = 50 } = req.query;
+  const { month, start_date, end_date, tech_id, team_ids, limit = 50 } = req.query;
 
   let where  = [];
   let params = [];
@@ -26,10 +26,13 @@ router.get('/records', auth, async (req, res) => {
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
-  // if (month) {
-  //   where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
-  //   params.push(month);
-  // }
+  if (start_date && end_date) {
+    where.push("DATE(r.date_recorded) BETWEEN ? AND ?");
+    params.push(start_date, end_date);
+  } else if (month) {
+    where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
+    params.push(month);
+  }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -196,11 +199,25 @@ router.post('/recalculate', auth, async (req, res) => {
 
 // ── GET /api/oil/efficiency — Liters/Job analytics ─────────
 router.get('/efficiency', auth, async (req, res) => {
-  const { month, team_id, team_ids } = req.query;
+  const { month, start_date, end_date, team_id, team_ids } = req.query;
   let where  = [];
   let params = [];
 
-  // if (month)   { where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?"); params.push(month); }
+  let jobsWhere = [];
+  let jobsParams = [];
+
+  if (start_date && end_date) {
+    where.push("DATE(r.date_recorded) BETWEEN ? AND ?");
+    params.push(start_date, end_date);
+    jobsWhere.push("DATE(j.completed_at) BETWEEN ? AND ?");
+    jobsParams.push(start_date, end_date);
+  } else if (month) { 
+    where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?"); 
+    params.push(month);
+    jobsWhere.push("DATE_FORMAT(j.completed_at, '%Y-%m') = ?");
+    jobsParams.push(month);
+  }
+
   if (team_ids) { 
     where.push("u.team_id IN (?)"); 
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))); 
@@ -210,12 +227,12 @@ router.get('/efficiency', auth, async (req, res) => {
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const jobsWhereClause = jobsWhere.length ? ' AND ' + jobsWhere.join(' AND ') : '';
 
   try {
     const [rows] = await pool.query(
       `SELECT
          t.id AS team_id, t.team_name,
-         DATE_FORMAT(r.date_recorded, '%Y-%m') AS \`year_month\`,
          COALESCE(jc.case_count, 0) AS case_count,
          COALESCE(SUM(r.liters), 0)            AS total_liters,
          COALESCE(SUM(r.total_price), 0)        AS total_cost,
@@ -229,15 +246,16 @@ router.get('/efficiency', auth, async (req, res) => {
        JOIN users u ON u.id = r.tech_id
        JOIN teams t ON t.id = u.team_id
        LEFT JOIN (
-           SELECT j.team_id, DATE_FORMAT(j.completed_at, '%Y-%m') as \`year_month\`, COUNT(*) as case_count
+           SELECT j.team_id, COUNT(*) as case_count
            FROM jobs j
            WHERE j.status = 'completed' AND j.team_id IS NOT NULL
-           GROUP BY j.team_id, \`year_month\`
-       ) jc ON jc.team_id = t.id AND jc.\`year_month\` = DATE_FORMAT(r.date_recorded, '%Y-%m')
+           ${jobsWhereClause}
+           GROUP BY j.team_id
+       ) jc ON jc.team_id = t.id
        ${whereClause}
-       GROUP BY t.id, t.team_name, \`year_month\`, jc.case_count
-       ORDER BY \`year_month\` DESC, t.team_name ASC`,
-      params
+       GROUP BY t.id, t.team_name, jc.case_count
+       ORDER BY t.team_name ASC`,
+      [...jobsParams, ...params]
     );
     res.json(rows);
   } catch (err) {
@@ -249,7 +267,7 @@ router.get('/efficiency', auth, async (req, res) => {
 
 // ── GET /api/oil/analytics — Dashboard Charts ──────────────
 router.get('/analytics', auth, async (req, res) => {
-  const { month, team_ids } = req.query; // e.g., '2026-06'
+  const { month, start_date, end_date, team_ids } = req.query; // e.g., '2026-06'
   let where = [];
   let params = [];
 
@@ -265,10 +283,13 @@ router.get('/analytics', auth, async (req, res) => {
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
-  // if (month) {
-  //   where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
-  //   params.push(month);
-  // }
+  if (start_date && end_date) {
+    where.push("DATE(r.date_recorded) BETWEEN ? AND ?");
+    params.push(start_date, end_date);
+  } else if (month) {
+    where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
+    params.push(month);
+  }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 

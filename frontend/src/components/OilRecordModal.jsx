@@ -111,7 +111,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
       if (name === 'liters' || name === 'price_per_liter') {
         const l = parseFloat(next.liters || 0);
         const p = parseFloat(next.price_per_liter || 0);
-        if (l && p) next.total_price = (l * p).toFixed(2);
+        if (l && p) next.total_price = Math.round(l * p).toString();
       }
       return next;
     });
@@ -257,9 +257,9 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           <div className="relative pt-2">
             <label className="floating-label">ราคารวมสุทธิ (บาท)</label>
             <input
-              required type="number" step="0.01"
+              required type="number" step="1"
               name="total_price" value={form.total_price} onChange={handleChange}
-              className="input-field bg-amber-50 border-amber-200 text-amber-600 font-bold text-lg" placeholder="0.00"
+              className="input-field bg-amber-50 border-amber-200 text-amber-600 font-bold text-lg" placeholder="0"
             />
           </div>
 
