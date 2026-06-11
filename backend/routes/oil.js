@@ -195,7 +195,7 @@ router.get('/efficiency', auth, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT
          t.id AS team_id, t.team_name,
-         DATE_FORMAT(r.date_recorded, '%Y-%m') AS year_month,
+         DATE_FORMAT(r.date_recorded, '%Y-%m') AS \`year_month\`,
          COALESCE(jc.case_count, 0) AS case_count,
          COALESCE(SUM(r.liters), 0)            AS total_liters,
          COALESCE(SUM(r.total_price), 0)        AS total_cost,
@@ -209,14 +209,14 @@ router.get('/efficiency', auth, async (req, res) => {
        JOIN users u ON u.id = r.tech_id
        JOIN teams t ON t.id = u.team_id
        LEFT JOIN (
-           SELECT j.team_id, DATE_FORMAT(j.completed_at, '%Y-%m') as year_month, COUNT(*) as case_count
+           SELECT j.team_id, DATE_FORMAT(j.completed_at, '%Y-%m') as \`year_month\`, COUNT(*) as case_count
            FROM jobs j
            WHERE j.status = 'completed' AND j.team_id IS NOT NULL
-           GROUP BY j.team_id, year_month
-       ) jc ON jc.team_id = t.id AND jc.year_month = DATE_FORMAT(r.date_recorded, '%Y-%m')
+           GROUP BY j.team_id, \`year_month\`
+       ) jc ON jc.team_id = t.id AND jc.\`year_month\` = DATE_FORMAT(r.date_recorded, '%Y-%m')
        ${whereClause}
-       GROUP BY t.id, t.team_name, year_month, jc.case_count
-       ORDER BY year_month DESC, t.team_name ASC`,
+       GROUP BY t.id, t.team_name, \`year_month\`, jc.case_count
+       ORDER BY \`year_month\` DESC, t.team_name ASC`,
       params
     );
     res.json(rows);
