@@ -44,7 +44,8 @@ router.get('/teams', auth, async (req, res) => {
 
 // ── POST /api/users — Create user ──────────────────────────
 router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { username, password, full_name, role = 'technician', team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
+  let { username, password, full_name, role = 'technician', team_id, extra_roles = [], allow_late_time } = req.body;
+  if (!allow_late_time) allow_late_time = '08:30:00';
   if (!username || !password || !full_name) {
     return res.status(400).json({ error: 'username, password, full_name required' });
   }
@@ -111,7 +112,8 @@ router.put('/:id/roles', auth, requireRole(['super_admin']), async (req, res) =>
 
 // ── PUT /api/users/:id — Update user details ──────────────
 router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { username, password, full_name, role, status, team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
+  let { username, password, full_name, role, status, team_id, extra_roles = [], allow_late_time } = req.body;
+  if (!allow_late_time) allow_late_time = '08:30:00';
   const userId = req.params.id;
 
   const conn = await pool.getConnection();
