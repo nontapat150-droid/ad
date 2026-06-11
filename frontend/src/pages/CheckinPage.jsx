@@ -253,7 +253,7 @@ export default function CheckinPage() {
       fd.append('image', blob, `photo_${Date.now()}.jpg`);
       fd.append('lat', coords.lat);
       fd.append('lng', coords.lng);
-      fd.append('type', checkinType);
+      fd.append('type', adminEditPhotoRecord?.isCheckout ? 'checkout' : checkinType);
       const opts = { headers: { 'Content-Type': 'multipart/form-data' } };
 
       if (adminEditPhotoRecord) {
@@ -759,6 +759,10 @@ export default function CheckinPage() {
                         {/* Admin actions */}
                         {isAdmin && (
                           <div className="flex gap-1.5">
+                            <button
+                              onClick={() => { setAdminEditPhotoRecord({ ...record, isCheckout: isCheckoutTab }); startCamera(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              title="แก้ไขรูปภาพ"
+                              className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm">
                             <label
                               title="อัปโหลดรูปภาพใหม่"
                               className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center text-sm cursor-pointer">

@@ -569,6 +569,7 @@ router.put(
       if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบรูปภาพ' });
       }
+      
       const type = req.body.type || 'checkin';
       const fieldName = type === 'checkout' ? 'checkout_image' : 'image_path';
       
@@ -580,6 +581,8 @@ router.put(
         const path = require('path');
         const oldPath = req.file.path;
         const newDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads', 'checkouts');
+        
+        fs.mkdirSync(newDir, { recursive: true });
         
         // สร้างโฟลเดอร์ถ้ายังไม่มี
         fs.mkdirSync(newDir, { recursive: true });
