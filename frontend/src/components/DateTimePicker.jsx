@@ -62,6 +62,7 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant={"outline"}
           className={cn(
             "w-full justify-start text-left font-normal bg-white/65 backdrop-blur-sm border-slate-200 h-11 rounded-xl",
