@@ -44,8 +44,7 @@ router.get('/teams', auth, async (req, res) => {
 
 // ── POST /api/users — Create user ──────────────────────────
 router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  let { username, password, full_name, role = 'technician', team_id, extra_roles = [], allow_late_time } = req.body;
-  if (!allow_late_time) allow_late_time = '08:30:00';
+  const { username, password, full_name, role = 'technician', status = 'approved', team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
   if (!username || !password || !full_name) {
     return res.status(400).json({ error: 'username, password, full_name required' });
   }
@@ -56,9 +55,9 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const [result] = await conn.query(
-      `INSERT INTO users (username, password_hash, full_name, role, team_id, allow_late_time)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [username, hash, full_name, role, team_id || null, allow_late_time]
+      `INSERT INTO users (username, password_hash, full_name, role, status, team_id, allow_late_time)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [username, hash, full_name, role, status, team_id || null, allow_late_time]
     );
     const userId = result.insertId;
 
@@ -74,10 +73,11 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.status(201).json({ message: 'User created', id: userId });
   } catch (err) {
     await conn.rollback();
+    console.error('Create user error:', err);
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'Username already exists' });
     }
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   } finally {
     conn.release();
   }
