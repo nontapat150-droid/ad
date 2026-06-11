@@ -83,12 +83,28 @@ router.post(
     const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
     const targetTechId = (isAdmin && tech_id) ? tech_id : req.user.id;
 
+    const targetDate = date_recorded ? new Date(date_recorded) : new Date();
+
     const bahtPerKm = distance && distance > 0
       ? (parseFloat(total_price) / parseFloat(distance)).toFixed(2)
       : 0;
 
     const conn = await pool.getConnection();
     try {
+      // Check for duplicate record (same tech, same car, same date)
+      const [existing] = await conn.query(
+        `SELECT id FROM oil_records 
+         WHERE tech_id = ? 
+           AND license_plate = ? 
+           AND DATE(date_recorded) = DATE(?)`,
+        [targetTechId, license_plate, targetDate]
+      );
+
+      if (existing.length > 0) {
+        conn.release();
+        return res.status(409).json({ error: 'คุณมีการบันทึกข้อมูลน้ำมันของรถคันนี้ในวันนี้ไปแล้ว (ข้อมูลซ้ำ)' });
+      }
+
       await conn.beginTransaction();
 
       const [result] = await conn.query(

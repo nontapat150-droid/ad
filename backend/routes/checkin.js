@@ -525,9 +525,31 @@ router.put(
       if (!req.file) {
         return res.status(400).json({ error: 'ไม่พบรูปภาพ' });
       }
+      
+      const type = req.body.type || 'checkin';
+      const fieldName = type === 'checkout' ? 'checkout_image' : 'image_path';
+      
+      let filename = req.file.filename;
+
+      if (type === 'checkout') {
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = req.file.path;
+        const newDir = path.join(__dirname, '..', process.env.UPLOAD_DIR || 'uploads', 'checkouts');
+        
+        fs.mkdirSync(newDir, { recursive: true });
+        
+        filename = filename.replace(/^checkins_/, 'checkouts_');
+        const newPath = path.join(newDir, filename);
+        
+        if (fs.existsSync(oldPath)) {
+          fs.renameSync(oldPath, newPath);
+        }
+      }
+
       const [result] = await pool.query(
-        `UPDATE checkins SET image_path = ?, is_edited = 1 WHERE id = ?`,
-        [req.file.filename, req.params.id]
+        `UPDATE checkins SET ${fieldName} = ?, is_edited = 1 WHERE id = ?`,
+        [filename, req.params.id]
       );
       if (result.affectedRows === 0) {
         return res.status(404).json({ error: 'ไม่พบข้อมูล' });
