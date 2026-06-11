@@ -180,7 +180,7 @@ export default function Sidebar({
 
       <aside
         ref={sidebarRef}
-        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transform transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] md:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transform transition-transform duration-300 ease-out md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
 
@@ -199,9 +199,14 @@ export default function Sidebar({
             </div>
             {/* Close btn (mobile) */}
             <button
-              onClick={handleClose}
-              className="md:hidden w-8 h-8 rounded-lg glass border border-white/50 flex items-center justify-center text-[#378ADD] hover:bg-[#E6F1FB] transition-colors">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose();
+              }}
+              className="md:hidden w-8 h-8 rounded-lg glass border border-white/50 flex items-center justify-center text-[#378ADD] active:bg-[#E6F1FB] transition-colors">
+              <svg className="w-5 h-5 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
