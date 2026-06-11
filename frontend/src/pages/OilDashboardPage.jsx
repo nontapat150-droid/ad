@@ -459,27 +459,62 @@ export default function OilDashboardPage() {
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {analytics.byVehicle.map((v) => (
-                    <div key={v.license_plate} className="glass p-5 rounded-2xl liquid-hover bg-white/60">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="text-xs font-bold text-[#378ADD] uppercase tracking-wider">ทะเบียนรถ</div>
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#185FA5]">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                  {analytics.byVehicle.map((v) => {
+                    const teamEff = efficiency.find(e => e.team_id === v.main_team_id);
+                    const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
+                    
+                    const tCost = parseFloat(v.total_cost || 0);
+                    const tLiters = parseFloat(v.total_liters || 0);
+                    const tDistance = parseFloat(v.total_distance || 0);
+                    
+                    const literPerBaht = tLiters > 0 ? (tCost / tLiters).toFixed(2) : '0.00';
+                    const kmPerLiter = tLiters > 0 ? (tDistance / tLiters).toFixed(2) : '0.00';
+                    const costPerKm = tDistance > 0 ? (tCost / tDistance).toFixed(2) : '0.00';
+                    const costPerJob = caseCount > 0 ? (tCost / caseCount).toFixed(2) : '0.00';
+
+                    return (
+                      <div key={v.license_plate} className="glass p-5 rounded-2xl liquid-hover bg-white/60 shadow-sm border border-white/50">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="text-xs font-bold text-[#378ADD] uppercase tracking-wider">ทะเบียนรถ</div>
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#185FA5]">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                          </div>
+                        </div>
+                        <div className="text-2xl font-black text-[#042C53] mb-4">{v.license_plate}</div>
+                        
+                        <div className="space-y-2.5">
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">ยอดรวม</span>
+                            <span className="font-bold text-emerald-600">฿{tCost.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">จำนวนลิตร</span>
+                            <span className="font-bold text-amber-500">{tLiters.toFixed(2)} L</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">เฉลี่ยลิตร/บาท</span>
+                            <span className="font-bold text-[#042C53]">{literPerBaht}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">ระยะทาง</span>
+                            <span className="font-bold text-[#042C53]">{tDistance.toLocaleString()} กม.</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">ลิตร/กม.</span>
+                            <span className="font-bold text-[#042C53]">{kmPerLiter}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
+                            <span className="text-[#185FA5] font-medium">ต้นทุน/กม.</span>
+                            <span className="font-bold text-[#042C53]">฿{costPerKm}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-[#185FA5] font-medium">ต้นทุน/งาน</span>
+                            <span className="font-bold text-[#042C53]">฿{costPerJob}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-2xl font-black text-[#042C53] mb-4">{v.license_plate}</div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/20 pb-2">
-                          <span className="text-[#185FA5] font-medium">ยอดเงินรวม</span>
-                          <span className="font-bold text-emerald-600 text-base">฿{parseFloat(v.total_cost).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-[#185FA5] font-medium">จำนวนรวม</span>
-                          <span className="font-bold text-amber-500 text-base">{parseFloat(v.total_liters).toFixed(2)} L</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
