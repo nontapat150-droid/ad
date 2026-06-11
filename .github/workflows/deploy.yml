@@ -42,6 +42,11 @@ jobs:
             api/**
             cgi-bin/**
 
+      - name: 🔄 Trigger Node.js Restart
+        run: |
+          mkdir -p backend/tmp
+          touch backend/tmp/restart.txt
+
       - name: 📂 Deploy Backend to backend folder
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -58,20 +63,3 @@ jobs:
             **/node_modules/**
             **/.env
             **/.ftp-deploy-sync-state.json
-
-      - name: 🔄 Trigger Node.js Restart
-        run: |
-          mkdir -p backend/tmp
-          touch backend/tmp/restart.txt
-          
-      - name: 📂 Upload Restart Trigger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./backend/tmp/
-          server-dir: ./backend/tmp/
-          protocol: ftp
-          port: 21
-          log-level: minimal
