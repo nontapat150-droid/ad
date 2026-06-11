@@ -6,6 +6,7 @@ import ManualCheckinModal from '../components/ManualCheckinModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { DateTimePicker } from '../components/DateTimePicker';
+import { format } from 'date-fns';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -841,7 +842,7 @@ export default function CheckinPage() {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">⏰ เวลาเข้างาน</label>
                 <DateTimePicker 
                   value={adminEditRecord.checkin_time}
-                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? date.toISOString() : null })}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkin_time: date ? format(date, 'yyyy-MM-dd HH:mm:ss') : null })}
                   placeholder="เลือกเวลาเข้างาน"
                 />
               </div>
@@ -849,7 +850,7 @@ export default function CheckinPage() {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">🏁 เวลาเลิกงาน</label>
                 <DateTimePicker 
                   value={adminEditRecord.checkout_time}
-                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? date.toISOString() : null })}
+                  onChange={date => setAdminEditRecord({ ...adminEditRecord, checkout_time: date ? format(date, 'yyyy-MM-dd HH:mm:ss') : null })}
                   placeholder="เลือกเวลาเลิกงาน"
                 />
               </div>
