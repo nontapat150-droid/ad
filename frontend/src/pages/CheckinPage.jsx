@@ -35,7 +35,16 @@ export default function CheckinPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
-  const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
+  const hasMARole = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
+  const hasOfficeRole = user?.role === 'technician' || user?.roles?.includes('technician');
+
+  const availableTabs = [];
+  if (isAdmin || hasOfficeRole || (!hasMARole && !hasOfficeRole)) {
+    availableTabs.push({ id: 'general', label: 'ทั่วไป', icon: '📝' });
+  }
+  if (isAdmin || hasMARole) {
+    availableTabs.push({ id: 'ma', label: 'ทีม MA', icon: '🛠️' });
+  }
 
   // Camera state
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -52,7 +61,7 @@ export default function CheckinPage() {
 
   // UI state
   const [loading, setLoading] = useState(false);
-  const [checkinType, setCheckinType] = useState(isMATech ? 'ma' : 'general');
+  const [checkinType, setCheckinType] = useState(availableTabs[0]?.id || 'general');
   const [maThreshold, setMaThreshold] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false); // user editing their own photo
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
@@ -386,13 +395,10 @@ export default function CheckinPage() {
         <div className="lg:col-span-7 flex flex-col gap-5">
 
           {/* Type Tabs */}
-          {!isMATech && (
+          {availableTabs.length > 1 && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex p-1 glass border border-white/50 rounded-2xl shadow-sm flex-1">
-                {[
-                  { id: 'general', label: 'ทั่วไป', icon: '📝' },
-                  { id: 'ma', label: 'ทีม MA', icon: '🛠️' },
-                ].map(tab => (
+                {availableTabs.map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setCheckinType(tab.id)}
