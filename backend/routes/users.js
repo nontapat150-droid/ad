@@ -159,12 +159,27 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ── DELETE /api/users/:id — Delete user ───────────────────
 router.delete('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const userId = req.params.id;
+  const conn = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM users WHERE id = ?', [userId]);
+    await conn.beginTransaction();
+    // Delete child rows first
+    await conn.query('DELETE FROM user_roles WHERE user_id = ?', [userId]);
+    
+    // Attempt to delete the user
+    await conn.query('DELETE FROM users WHERE id = ?', [userId]);
+    
+    await conn.commit();
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
+    await conn.rollback();
     console.error('Delete user error:', err);
-    res.status(500).json({ error: 'Server error' });
+    // Handle foreign key constraint error
+    if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+      return res.status(400).json({ error: 'ไม่สามารถลบได้ เนื่องจากผู้ใช้นี้มีประวัติผูกกับข้อมูลอื่นแล้ว (เช่น ข้อมูลงาน หรือรายการน้ำมัน) แนะนำให้ไปที่แก้ไขแล้วเปลี่ยนสถานะเป็น "ระงับการใช้งาน" แทนครับ' });
+    }
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
   }
 });
 
