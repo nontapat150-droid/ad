@@ -41,12 +41,34 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ── GET /api/stats/admin-dashboard — Admin Homepage ──────
 router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
-    const [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
-    const [[officeAssigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NOT NULL`);
-    const [[maAssigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`);
-    const [[officeUnassigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NULL`);
-    const [[maUnassigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`);
-    const unassignedTotal = (officeUnassigned.cnt || 0) + (maUnassigned.cnt || 0);
+    let inventoryCnt = 0, officeAssignedCnt = 0, officeUnassignedCnt = 0, maAssignedCnt = 0, maUnassignedCnt = 0;
+
+    try {
+      const [[inv]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
+      inventoryCnt = inv.cnt || 0;
+    } catch(e) {}
+
+    try {
+      const [[oa]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NOT NULL`);
+      officeAssignedCnt = oa.cnt || 0;
+    } catch(e) {}
+
+    try {
+      const [[ou]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NULL`);
+      officeUnassignedCnt = ou.cnt || 0;
+    } catch(e) {}
+
+    try {
+      const [[maA]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`);
+      maAssignedCnt = maA.cnt || 0;
+    } catch(e) {}
+
+    try {
+      const [[maU]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`);
+      maUnassignedCnt = maU.cnt || 0;
+    } catch(e) {}
+
+    const unassignedTotal = officeUnassignedCnt + maUnassignedCnt;
 
     const [announcements] = await pool.query(
       `SELECT * FROM announcements 
@@ -56,9 +78,9 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
     res.json({
       summary: {
-        totalInventory: inventoryResult.cnt || 0,
-        officeAssignedToday: officeAssigned.cnt || 0,
-        maAssignedToday: maAssigned.cnt || 0,
+        totalInventory: inventoryCnt,
+        officeAssignedToday: officeAssignedCnt,
+        maAssignedToday: maAssignedCnt,
         unassignedToday: unassignedTotal
       },
       announcements
