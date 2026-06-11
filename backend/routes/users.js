@@ -60,6 +60,21 @@ router.post('/teams', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
+// ── DELETE /api/users/teams/:id — Delete team ─────────────────
+router.delete('/teams/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const teamId = req.params.id;
+  try {
+    await pool.query('DELETE FROM teams WHERE id = ?', [teamId]);
+    res.json({ message: 'Team deleted successfully' });
+  } catch (err) {
+    console.error('Delete team error:', err);
+    if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+      return res.status(400).json({ error: 'ไม่สามารถลบทีมได้ เนื่องจากยังมีผู้ใช้งานอยู่ในทีมนี้ กรุณาย้ายหรือลบผู้ใช้ในทีมก่อนครับ' });
+    }
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 // ── POST /api/users — Create user ──────────────────────────
 router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { username, password, full_name, role = 'technician', status = 'approved', team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
