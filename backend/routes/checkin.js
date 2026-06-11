@@ -540,6 +540,60 @@ router.put(
   }
 );
 
+// ── POST /api/checkin/admin/manual — Admin Manual Check-in ──
+router.post(
+  '/admin/manual',
+  auth,
+  setUpload('checkins'),
+  upload.fields([{ name: 'checkin_image', maxCount: 1 }, { name: 'checkout_image', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const roles = req.user.roles || [];
+      const hasAdmin = roles.includes('super_admin') || roles.includes('admin') || req.user.role === 'super_admin' || req.user.role === 'admin';
+      if (!hasAdmin) {
+        return res.status(403).json({ error: 'คุณไม่มีสิทธิ์' });
+      }
+
+      const { user_id, checkin_time, checkout_time, is_late } = req.body;
+
+      if (!user_id || !checkin_time) {
+        return res.status(400).json({ error: 'กรุณาระบุพนักงานและเวลาเข้างาน' });
+      }
+
+      let checkinImage = null;
+      let checkoutImage = null;
+
+      if (req.files && req.files['checkin_image']) {
+        checkinImage = req.files['checkin_image'][0].filename;
+      }
+      
+      if (req.files && req.files['checkout_image']) {
+        const file = req.files['checkout_image'][0];
+        checkoutImage = file.filename;
+        // Move it to checkouts dir
+        const fs = require('fs');
+        const path = require('path');
+        const oldPath = file.path;
+        const newDir = path.join(__dirname, '..', 'uploads', 'checkouts');
+        if (!fs.existsSync(newDir)) fs.mkdirSync(newDir, { recursive: true });
+        const newPath = path.join(newDir, checkoutImage);
+        fs.renameSync(oldPath, newPath);
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO checkins (user_id, checkin_time, checkout_time, is_late, image_path, checkout_image, is_edited)
+         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [user_id, checkin_time, checkout_time || null, is_late === 'true' || is_late === true ? 1 : 0, checkinImage, checkoutImage]
+      );
+
+      res.status(201).json({ message: 'บันทึกข้อมูลเรียบร้อยแล้ว', id: result.insertId });
+    } catch (err) {
+      console.error('Manual checkin error:', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+);
+
 // ── PUT /api/checkin/admin/edit/:id — Admin Edit Check-in ──
 router.put('/admin/edit/:id', auth, async (req, res) => {
   try {

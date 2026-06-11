@@ -4,6 +4,7 @@ import api from '../api/axios';
 import Layout from '../components/Layout';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import ManualCheckinModal from '../components/ManualCheckinModal';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -54,6 +55,7 @@ export default function CheckinPage() {
   const [isEditMode, setIsEditMode] = useState(false); // user editing their own photo
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
   const [adminEditPhotoRecord, setAdminEditPhotoRecord] = useState(null); // admin editing photo
+  const [showManualCheckin, setShowManualCheckin] = useState(false); // manual checkin modal
 
   // History state
   const [history, setHistory] = useState([]);
@@ -578,6 +580,11 @@ export default function CheckinPage() {
               {isAdmin && (
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setShowManualCheckin(true)}
+                    className="text-xs font-bold text-[#185FA5] bg-blue-50 border border-blue-200 hover:bg-[#185FA5] hover:text-white px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
+                    ➕ เพิ่มย้อนหลัง
+                  </button>
+                  <button
                     onClick={() => navigate('/attendance-summary')}
                     className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
                     📊 ภาพรวม
@@ -814,6 +821,17 @@ export default function CheckinPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showManualCheckin && (
+        <ManualCheckinModal
+          usersList={usersList}
+          onClose={() => setShowManualCheckin(false)}
+          onSuccess={() => {
+            setShowManualCheckin(false);
+            fetchHistory();
+          }}
+        />
       )}
     </Layout>
   );
