@@ -86,11 +86,11 @@ export default function OilDashboardPage() {
   };
 
   const summary = analytics.summary || {};
-  const totalCost = summary.total_cost || 0;
-  const totalLiters = summary.total_liters || 0;
-  const totalBills = summary.total_bills || 0;
-  const avgPrice = summary.avg_price_per_liter || 0;
-  const avgFreq = summary.avg_refuel_days || 0;
+  const totalCost = parseFloat(summary.total_cost || 0);
+  const totalLiters = parseFloat(summary.total_liters || 0);
+  const totalBills = parseInt(summary.total_bills || 0, 10);
+  const avgPrice = parseFloat(summary.avg_price_per_liter || 0);
+  const avgFreq = parseFloat(summary.avg_refuel_days || 0);
   
   // Calculate average cost per job across all teams
   const totalEfficiencyJobs = efficiency.reduce((sum, item) => sum + parseInt(item.case_count || 0), 0);
