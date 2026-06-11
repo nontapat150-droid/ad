@@ -41,6 +41,14 @@ export default function Sidebar({
   const navigate = useNavigate();
   const [expandedKeys, setExpandedKeys] = useState({ inventory: true });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+
+  const isOpen = open || localOpen;
+
+  const handleClose = () => {
+    setLocalOpen(false);
+    onClose?.();
+  };
 
   const toggleExpand = (key) => {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }));
@@ -49,23 +57,23 @@ export default function Sidebar({
   // Close on outside click (mobile)
   useEffect(() => {
     const handler = (e) => {
-      if (open && window.innerWidth < 768 && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
-        onClose();
+      if (isOpen && window.innerWidth < 768 && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+        handleClose();
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [open, onClose]);
+  }, [isOpen, onClose]);
 
   // Lock body scroll when sidebar open on mobile
   useEffect(() => {
-    if (open && window.innerWidth < 768) {
+    if (isOpen && window.innerWidth < 768) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [open]);
+  }, [isOpen]);
 
   const userRoles = user?.roles || [user?.role || ''];
   const isSuperAdmin = userRoles.includes('super_admin');
@@ -163,9 +171,9 @@ export default function Sidebar({
     <>
       {/* ── Overlay (mobile only) ──────────────────────── */}
       <div
-        onClick={onClose}
+        onClick={handleClose}
         className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
-          open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         aria-hidden="true"
       />
@@ -173,7 +181,7 @@ export default function Sidebar({
       <aside
         ref={sidebarRef}
         className={`fixed top-0 left-0 bottom-0 z-50 w-[280px] flex flex-col glass border-none rounded-none shadow-none shadow-2xl md:shadow-none transform transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] md:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
+          isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}>
 
         {/* ── Header ──────────────────────────────────── */}
@@ -191,7 +199,7 @@ export default function Sidebar({
             </div>
             {/* Close btn (mobile) */}
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="md:hidden w-8 h-8 rounded-lg glass border border-white/50 flex items-center justify-center text-[#378ADD] hover:bg-[#E6F1FB] transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -357,9 +365,37 @@ export default function Sidebar({
         </div>
       </aside>
 
+      {/* ── Mobile Bottom Navigation ── */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 h-[70px] bg-white/90 backdrop-blur-xl border-t border-slate-200 z-30 flex items-center justify-around px-2 pb-safe shadow-[0_-10px_20px_rgba(0,0,0,0.03)] transition-transform duration-300 ${isOpen ? 'translate-y-full' : 'translate-y-0'}`}>
+        <BottomNavItem icon={<HomeIcon active={activeKey === 'home' || activeKey === 'home_ma'} />} label="หน้าแรก" onClick={() => { handleClose(); handleNav('home'); }} active={activeKey === 'home' || activeKey === 'home_ma'} />
+        <BottomNavItem icon={<JobsIcon active={activeKey === 'jobs'} />} label="งาน" onClick={() => { handleClose(); handleNav('jobs'); }} active={activeKey === 'jobs'} />
+        <BottomNavItem icon={<CheckinIcon active={activeKey === 'checkin'} />} label="ลงเวลา" onClick={() => { handleClose(); handleNav('checkin'); }} active={activeKey === 'checkin'} />
+        <BottomNavItem 
+          icon={
+            <svg className="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          } 
+          label="เมนู" 
+          onClick={() => setLocalOpen(true)} 
+          active={isOpen} 
+        />
+      </nav>
+
       {/* Profile Modal */}
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
+  );
+}
+
+function BottomNavItem({ icon, label, onClick, active }) {
+  return (
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-[#185FA5]' : 'text-slate-400 hover:text-slate-600'}`}>
+      <div className={`transition-transform duration-200 ${active ? 'scale-110' : 'scale-100'}`}>
+        {icon}
+      </div>
+      <span className={`text-[10px] ${active ? 'font-bold' : 'font-medium'}`}>{label}</span>
+    </button>
   );
 }
 

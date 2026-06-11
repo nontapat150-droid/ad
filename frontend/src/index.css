@@ -102,6 +102,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@media (max-width: 767px) {
+  body {
+    padding-bottom: 76px; /* space for bottom nav */
+  }
+}
+
 /* optional floating blobs via pseudo */
 body::before {
   content:  "";
