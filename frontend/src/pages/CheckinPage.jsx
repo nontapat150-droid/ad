@@ -681,9 +681,18 @@ export default function CheckinPage() {
                   const isCheckoutTab = historyTab === 'checkout';
                   if (isCheckoutTab && !record.checkout_time) return null;
                   const time = isCheckoutTab ? record.checkout_time : record.checkin_time;
-                  const imgUrl = isCheckoutTab
-                    ? (record.checkout_image ? `/uploads/checkouts/${record.checkout_image}` : null)
-                    : (record.image_path ? `/uploads/checkins/${record.image_path}` : null);
+                  let imgUrl = null;
+                  if (isCheckoutTab && record.checkout_image) {
+                    if (record.checkout_image.startsWith('checkins_')) {
+                      // ถ้ารูปเป็นข้อมูลเก่าที่ยังไม่โดนย้าย (เพราะ server ไม่ได้ restart) รูปจะยังอยู่ในโฟลเดอร์ checkins/
+                      imgUrl = `/uploads/checkins/${record.checkout_image}`;
+                    } else {
+                      // ถ้ารูปเป็นโค้ดใหม่ รูปจะอยู่ใน checkouts/
+                      imgUrl = `/uploads/checkouts/${record.checkout_image}`;
+                    }
+                  } else if (!isCheckoutTab && record.image_path) {
+                    imgUrl = `/uploads/checkins/${record.image_path}`;
+                  }
                   const isToday = new Date(record.checkin_time).toDateString() === new Date().toDateString();
                   const isUserOwn = !isAdmin && record.id === history[0]?.id && isToday && !isCheckoutTab;
 
