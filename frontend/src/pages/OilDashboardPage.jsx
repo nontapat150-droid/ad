@@ -17,6 +17,7 @@ export default function OilDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
+  const [viewingImages, setViewingImages] = useState(null);
 
   useEffect(() => {
     api.get('/users/teams').then(res => setTeams(res.data)).catch(console.error);
@@ -78,6 +79,50 @@ export default function OilDashboardPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleDeleteRecord = async (id) => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบ?',
+      html: `คุณแน่ใจหรือไม่ที่จะลบ <b>ประวัติการเติมน้ำมัน</b> รายการนี้?<br/><span class="text-xs text-rose-500 mt-2 block">*ข้อมูลนี้จะไม่สามารถกู้คืนได้</span>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#e2e8f0',
+      cancelButtonText: '<span class="text-slate-600 font-bold">ยกเลิก</span>',
+      confirmButtonText: '<span class="font-bold">ใช่, ลบทิ้งเลย</span>',
+      customClass: {
+        popup: 'rounded-3xl border border-slate-100 shadow-2xl',
+        confirmButton: 'rounded-xl shadow-md hover:scale-105 transition-all',
+        cancelButton: 'rounded-xl hover:scale-105 transition-all'
+      }
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await api.delete(`/oil/records/${id}`);
+        Swal.fire({
+          title: 'ลบสำเร็จ!',
+          text: 'ลบประวัติการเติมน้ำมันเรียบร้อยแล้ว',
+          icon: 'success',
+          customClass: {
+            popup: 'rounded-3xl',
+            confirmButton: 'rounded-xl bg-emerald-500'
+          }
+        });
+        fetchData();
+      } catch (err) {
+        Swal.fire({
+          title: 'เกิดข้อผิดพลาด',
+          text: err.response?.data?.error || 'ไม่สามารถลบรายการได้',
+          icon: 'error',
+          customClass: {
+            popup: 'rounded-3xl',
+            confirmButton: 'rounded-xl bg-rose-500'
+          }
+        });
+      }
+    }
+  };
 
   const toggleTeam = (teamId) => {
     setSelectedTeams(prev => 
@@ -480,13 +525,27 @@ export default function OilDashboardPage() {
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">฿{costPerJob}</td>
                           <td className="p-3 text-sm font-bold text-emerald-600 whitespace-nowrap text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
                           <td className="p-3 text-center">
-                            <div className="flex justify-center gap-1.5">
-                              {r.images?.map((img, i) => (
-                                <a key={i} href={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`} target="_blank" rel="noopener noreferrer" className="w-7 h-7 rounded-lg glass bg-white/50 flex items-center justify-center text-xs shadow-sm hover:scale-110 transition-transform">
-                                  🖼️
-                                </a>
-                              ))}
-                              {(!r.images || r.images.length === 0) && <span className="text-xs text-[#378ADD]">-</span>}
+                            <div className="flex justify-center items-center gap-2">
+                              {r.images && r.images.length > 0 ? (
+                                <button
+                                  onClick={() => setViewingImages(r.images)}
+                                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-indigo-600 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm border border-indigo-100/50 hover:shadow-md hover:scale-105"
+                                >
+                                  <span className="text-sm">📸</span> ดูภาพ ({r.images.length})
+                                </button>
+                              ) : (
+                                <span className="text-xs text-[#378ADD] font-bold bg-slate-50/50 px-2 py-1.5 rounded-lg border border-slate-100">-</span>
+                              )}
+                              
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleDeleteRecord(r.id)}
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-600 transition-all shadow-sm border border-rose-100/50 hover:shadow-md hover:scale-105 flex-shrink-0"
+                                  title="ลบรายการนี้"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -509,6 +568,57 @@ export default function OilDashboardPage() {
       </div>
 
       {showModal && <OilRecordModal onClose={() => setShowModal(false)} onSuccess={fetchData} />}
+      
+      {/* Evidence Images Modal */}
+      {viewingImages && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 animate-[fadeIn_0.3s_ease-out]">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setViewingImages(null)}></div>
+          <div className="relative w-full max-w-5xl flex flex-col bg-white/90 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white overflow-hidden max-h-[90vh]">
+            
+            <div className="p-6 border-b border-slate-200/50 bg-white/50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-100 to-blue-100 border border-white shadow-sm flex items-center justify-center text-2xl font-bold text-indigo-600">
+                  📸
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-[#042C53]">หลักฐานการเติมน้ำมัน</h2>
+                  <p className="text-sm font-bold text-slate-400 mt-0.5">มีรูปภาพทั้งหมด {viewingImages.length} รูป</p>
+                </div>
+              </div>
+              <button onClick={() => setViewingImages(null)} className="p-2 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {viewingImages.map((img, idx) => (
+                  <div key={idx} className="group relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col">
+                    <div className="flex-1 overflow-hidden bg-slate-100 relative">
+                      <img 
+                        src={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`} 
+                        alt={`Evidence ${idx+1}`} 
+                        className="w-full h-full object-cover min-h-[300px] max-h-[600px] hover:scale-105 transition-transform duration-500 cursor-zoom-in"
+                        onClick={() => window.open(`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`, '_blank')}
+                      />
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-black text-[#042C53] shadow-sm border border-white">
+                        รูปที่ {idx + 1}
+                      </div>
+                      <button 
+                        onClick={() => window.open(`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`, '_blank')}
+                        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md text-[#185FA5] shadow-sm border border-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#185FA5] hover:text-white"
+                        title="เปิดรูปในแท็บใหม่"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
