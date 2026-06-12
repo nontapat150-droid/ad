@@ -1,25 +1,22 @@
 <?php
 header('Content-Type: application/json');
-$backend = '/home/zvucfpsz/public_html/backend';
+$host = 'localhost';
+$db   = 'zvucfpsz_RT';
+$user = 'zvucfpsz_BO';
+$pass = '@2*]BC9AuGO^%P&-';
 
-// Hard restart node
-shell_exec('pkill -9 -f "node" 2>&1');
-shell_exec('kill -9 $(pgrep -f node) 2>&1');
-@mkdir($backend . '/tmp', 0755, true);
-touch($backend . '/tmp/restart.txt');
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ]);
 
-// Read error logs
-$lp = $backend . '/error_log.txt';
-$log = file_exists($lp) ? substr(file_get_contents($lp), -5000) : 'no log';
+    // Alter table to use utf8mb4
+    $pdo->exec("ALTER TABLE reports CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("ALTER TABLE reports MODIFY title VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
+    $pdo->exec("ALTER TABLE reports MODIFY description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
 
-// Check if report.js has the new multer handling (verify deploy success)
-$rp = $backend . '/routes/report.js';
-$report_content = file_exists($rp) ? file_get_contents($rp) : '';
-$has_new_code = strpos($report_content, 'POST /api/report multer error') !== false;
-
-echo json_encode([
-    'restarted' => true,
-    'deploy_success' => $has_new_code,
-    'error_log' => $log
-]);
+    echo json_encode(['success' => true, 'message' => 'Table reports converted to utf8mb4 successfully.']);
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
 ?>
