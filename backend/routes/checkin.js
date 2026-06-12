@@ -7,8 +7,19 @@ const router = express.Router();
 
 router.get('/migrate-checkins', async (req, res) => {
   try {
-    await pool.query('ALTER TABLE checkins ADD COLUMN checkin_type VARCHAR(20) DEFAULT "general"');
-    res.json({ message: 'Column checkin_type added successfully' });
+    try {
+      await pool.query('ALTER TABLE checkins ADD COLUMN checkin_type VARCHAR(20) DEFAULT "general"');
+    } catch (e) {
+      // Ignore if already exists
+    }
+    await pool.query(`
+      UPDATE checkins c 
+      JOIN users u ON c.user_id = u.id 
+      SET c.checkin_type = 'ma' 
+      WHERE c.checkin_type = 'general' 
+        AND (u.role = 'ma_technician' OR u.team_id IS NOT NULL)
+    `);
+    res.json({ message: 'Migration applied successfully' });
   } catch (err) {
     res.json({ error: err.message });
   }
