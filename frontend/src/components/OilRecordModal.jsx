@@ -104,6 +104,18 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
     }
   };
 
+  const [overridePlate, setOverridePlate] = useState(false);
+
+  const handleToggleOverride = () => {
+    if (overridePlate) {
+      // Revert back to original team name
+      const activeTech = isAdmin && selectedTech ? selectedTech : user;
+      const tName = activeTech?.team_name || (activeTech?.team_id ? `ทีม ${activeTech.team_id}` : '');
+      setForm(prev => ({ ...prev, license_plate: tName }));
+    }
+    setOverridePlate(!overridePlate);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => {
@@ -201,12 +213,23 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
               name="license_plate"
               value={form.license_plate}
               onChange={handleChange}
-              disabled={userHasTeam || !!form.tech_id}
-              className={`input-field uppercase ${userHasTeam || form.tech_id ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : ''}`}
+              disabled={(userHasTeam || !!form.tech_id) && !overridePlate}
+              className={`input-field uppercase ${(userHasTeam || form.tech_id) && !overridePlate ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : ''}`}
               placeholder="ตัวอย่าง เช่น 1234 หรือ 1กข  5678"
             />
-            {userHasTeam && (
-              <p className="text-xs text-brand-600 mt-1 font-medium bg-brand-50 inline-block px-2 py-0.5 rounded">🔒 ผูกกับทีมอัตโนมัติ ไม่สามารถเปลี่ยนได้</p>
+            {(userHasTeam || form.tech_id) && (
+              <div className="flex items-center gap-2 mt-1">
+                <p className={`text-xs font-medium inline-block px-2 py-0.5 rounded ${overridePlate ? 'bg-amber-50 text-amber-600' : 'bg-brand-50 text-brand-600'}`}>
+                  {overridePlate ? '🔓 พิมพ์ทะเบียนชั่วคราวได้' : '🔒 ผูกกับทีมอัตโนมัติ ไม่สามารถเปลี่ยนได้'}
+                </p>
+                <button 
+                  type="button" 
+                  onClick={handleToggleOverride}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 underline"
+                >
+                  {overridePlate ? 'ยกเลิก' : 'เปลี่ยนรถชั่วคราว'}
+                </button>
+              </div>
             )}
           </div>
 

@@ -68,6 +68,21 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
     setNewImages(newImages.filter((_, i) => i !== index));
   };
 
+  const [overridePlate, setOverridePlate] = useState(false);
+
+  const handleToggleOverride = () => {
+    if (overridePlate) {
+      // Revert back to original team name from user list
+      let teamName = '';
+      if (formData.tech_id) {
+        const selectedUser = usersList.find(u => u.id == formData.tech_id);
+        teamName = selectedUser?.team_name || '';
+      }
+      setFormData(prev => ({ ...prev, license_plate: teamName }));
+    }
+    setOverridePlate(!overridePlate);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -148,9 +163,23 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
                   value={formData.license_plate} 
                   onChange={handleChange} 
                   required 
-                  disabled={!!formData.tech_id}
-                  className={`w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] ${formData.tech_id ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : 'bg-slate-50'}`} 
+                  disabled={!!formData.tech_id && !overridePlate}
+                  className={`w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] ${!!formData.tech_id && !overridePlate ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : 'bg-slate-50'}`} 
                 />
+                {!!formData.tech_id && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <p className={`text-xs font-medium inline-block px-2 py-0.5 rounded ${overridePlate ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+                      {overridePlate ? '🔓 พิมพ์ทะเบียนชั่วคราวได้' : '🔒 ผูกกับทีมอัตโนมัติ ไม่สามารถเปลี่ยนได้'}
+                    </p>
+                    <button 
+                      type="button" 
+                      onClick={handleToggleOverride}
+                      className="text-xs font-bold text-[#185FA5] hover:text-[#0C447C] underline"
+                    >
+                      {overridePlate ? 'ยกเลิก' : 'เปลี่ยนรถชั่วคราว'}
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">เลขไมล์ *</label>
