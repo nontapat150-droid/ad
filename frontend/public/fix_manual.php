@@ -16,25 +16,27 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    // Delete oil records where license plate is "ทีม"
-    $deletedOil = $pdo->exec("DELETE FROM oil_records WHERE license_plate LIKE '%ทีม%' OR filler_name LIKE '%ทีม%'");
-
-    $byVehicleStmt = $pdo->query("
-      SELECT r.license_plate, 
-             SUM(r.liters) as total_liters, 
-             SUM(r.total_price) as total_cost,
-             SUM(r.distance) as total_distance,
-             MAX(u.team_id) as main_team_id
-      FROM oil_records r
-      LEFT JOIN users u ON u.id = r.tech_id
-      GROUP BY r.license_plate
-      ORDER BY total_cost DESC
+    // Create table if not exists just in case
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        image_path VARCHAR(255),
+        status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ");
-    $byVehicle = $byVehicleStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    $stmt = $pdo->query("SHOW TABLES LIKE 'reports'");
+    $tables = $stmt->fetchAll();
 
     echo json_encode([
         'success' => true, 
-        'byVehicle' => $byVehicle
+        'tables' => $tables
     ]);
 
 } catch (\PDOException $e) {
