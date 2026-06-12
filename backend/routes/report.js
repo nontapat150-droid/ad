@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const { requireAuth } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -31,7 +31,7 @@ const upload = multer({
 });
 
 // GET /api/report - Get list of reports
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
     const roles = req.user.roles || [req.user.role];
     const isAdmin = roles.some(r => ['super_admin', 'admin'].includes(r));
@@ -59,7 +59,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // POST /api/report - Create new report
-router.post('/', requireAuth, upload.single('image'), async (req, res) => {
+router.post('/', auth, upload.single('image'), async (req, res) => {
   try {
     const { title, description } = req.body;
     const imagePath = req.file ? `reports/${req.file.filename}` : null;
@@ -82,7 +82,7 @@ router.post('/', requireAuth, upload.single('image'), async (req, res) => {
 });
 
 // PUT /api/report/:id/status - Admin change status
-router.put('/:id/status', requireAuth, async (req, res) => {
+router.put('/:id/status', auth, async (req, res) => {
   try {
     const roles = req.user.roles || [req.user.role];
     if (!roles.some(r => ['super_admin', 'admin'].includes(r))) {
@@ -107,7 +107,7 @@ router.put('/:id/status', requireAuth, async (req, res) => {
 });
 
 // DELETE /api/report/:id - Admin delete report
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
     const roles = req.user.roles || [req.user.role];
     if (!roles.some(r => ['super_admin', 'admin'].includes(r))) {
