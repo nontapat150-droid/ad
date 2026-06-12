@@ -16,10 +16,8 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $pwd = shell_exec('pwd');
-    $ls = shell_exec('ls -la ../../ 2>&1');
-    $node_path = shell_exec('ps aux | grep node 2>&1');
-    echo json_encode(['success' => true, 'pwd' => $pwd, 'ls' => $ls, 'node' => $node_path]);
+    $cat = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/routes/report.js 2>&1');
+    echo json_encode(['success' => true, 'cat' => $cat]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
