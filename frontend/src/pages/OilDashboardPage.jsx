@@ -513,13 +513,13 @@ export default function OilDashboardPage() {
                 <div className="h-64 w-full">
                   {efficiency.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={efficiency} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
+                      <BarChart data={efficiency.filter(e => e.team_name !== 'ทีม 5')} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(120, 180, 255, 0.2)" />
                         <XAxis type="number" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
                         <YAxis type="category" dataKey="team_name" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} width={80} />
                         <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
                         <Bar name="ต้นทุนต่อรอบ (บาท)" dataKey="cost_per_job" fill="#185FA5" radius={[0, 8, 8, 0]}>
-                          {efficiency.map((entry, index) => (
+                          {efficiency.filter(e => e.team_name !== 'ทีม 5').map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#185FA5' : '#378ADD'} />
                           ))}
                         </Bar>
@@ -628,7 +628,7 @@ export default function OilDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#185FA5]/5">
-                    {records.map((r) => {
+                    {records.filter(r => r.license_plate !== 'ทีม 5' && r.team_name !== 'ทีม 5').map((r) => {
                       const teamEff = efficiency.find(e => e.team_id === r.team_id);
                       const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
                       const kmPerLiter = parseFloat(r.liters) > 0 ? (parseFloat(r.distance || 0) / parseFloat(r.liters)).toFixed(2) : '0.00';
