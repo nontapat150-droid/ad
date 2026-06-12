@@ -47,29 +47,8 @@ async function test() {
 test();
 ";
     file_put_contents('/home/zvucfpsz/repositories/ad/backend/test_db.js', $js);
-    $js = "
-const mysql = require('mysql2/promise');
-async function test() {
-    const pool = mysql.createPool({
-        host: 'localhost',
-        user: 'bonusais_usr',
-        password: 'U%i0T6H^Q%zW',
-        database: 'bonusais_db'
-    });
-    try {
-        const [rows] = await pool.query('SELECT * FROM reports');
-        console.log('SELECT OK: ' + rows.length);
-        process.exit(0);
-    } catch(e) {
-        console.error(e.message);
-        process.exit(1);
-    }
-}
-test();
-";
-    file_put_contents('/home/zvucfpsz/repositories/ad/backend/test_db.js', $js);
-    $node_test = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && node test_db.js 2>&1');
-    echo json_encode(['success' => true, 'node_test' => $node_test]);
+    $node_log = file_exists('/home/zvucfpsz/repositories/ad/backend/error_log.txt') ? substr(file_get_contents('/home/zvucfpsz/repositories/ad/backend/error_log.txt'), -5000) : 'Node log not found';
+    echo json_encode(['success' => true, 'node_log' => $node_log]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
