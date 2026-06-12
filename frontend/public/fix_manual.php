@@ -16,10 +16,10 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $logPath = __DIR__ . '/../../backend/error_log.txt';
-    $logContent = file_exists($logPath) ? file_get_contents($logPath) : 'Log not found';
-    $node_log = file_exists('/home/zvucfpsz/repositories/ad/backend/error_log.txt') ? file_get_contents('/home/zvucfpsz/repositories/ad/backend/error_log.txt') : 'Node log not found';
-    echo json_encode(['success' => true, 'log' => $logContent, 'node_log' => $node_log]);
+    $api = shell_exec('curl -s -i http://127.0.0.1:5000/api/report 2>&1');
+    $api2 = shell_exec('curl -s -i https://bonusais.com/api/report 2>&1');
+    $pkill = shell_exec('pkill -f node 2>&1');
+    echo json_encode(['success' => true, 'api_local' => $api, 'api_remote' => $api2, 'pkill' => $pkill]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
