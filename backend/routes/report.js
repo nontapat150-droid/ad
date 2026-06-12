@@ -63,7 +63,18 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/report - Create new report
-router.post('/', auth, upload.single('image'), async (req, res) => {
+router.post('/', auth, (req, res, next) => {
+  upload.single('image')(req, res, function (err) {
+    if (err instanceof multer.MulterError) {
+      try { require('fs').appendFileSync(__dirname + '/../error_log.txt', new Date().toISOString() + ' POST /api/report multer error: ' + err.message + '\n\n'); } catch(e) {}
+      return res.status(400).json({ error: 'Multer error: ' + err.message });
+    } else if (err) {
+      try { require('fs').appendFileSync(__dirname + '/../error_log.txt', new Date().toISOString() + ' POST /api/report unknown upload error: ' + err.message + '\n\n'); } catch(e) {}
+      return res.status(500).json({ error: 'Upload error: ' + err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     const { title, description } = req.body;
     const imagePath = req.file ? `reports/${req.file.filename}` : null;
@@ -81,7 +92,8 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
     res.status(201).json({ id: result.insertId, message: 'บันทึกการแจ้งปัญหาเรียบร้อยแล้ว' });
   } catch (error) {
     console.error('Error creating report:', error);
-    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
+    try { require('fs').appendFileSync(__dirname + '/../error_log.txt', new Date().toISOString() + ' POST /api/report SQL error: ' + error.stack + '\n\n'); } catch(e) {}
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', details: error.message });
   }
 });
 
