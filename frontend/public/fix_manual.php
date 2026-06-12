@@ -1,23 +1,20 @@
 <?php
-echo "<h1>Fixing Manual Checkin Images</h1>";
+$host = 'localhost';
+$db   = 'zvucfpsz_RT';
+$user = 'zvucfpsz_BO';
+$pass = '@2*]BC9AuGO^%P&-';
 
-$checkins_dir = __DIR__ . '/uploads/checkins/';
-$checkouts_dir = __DIR__ . '/uploads/checkouts/';
+$dsn = "mysql:host=$host;dbname=$db;charset=utf8mb4";
+$options = [
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+];
 
-if (!file_exists($checkouts_dir)) {
-    mkdir($checkouts_dir, 0755, true);
-}
-
-if (file_exists($checkins_dir) && is_dir($checkins_dir)) {
-    $files = scandir($checkins_dir);
-    $moved_count = 0;
-    foreach ($files as $file) {
-        if ($file !== '.' && $file !== '..') {
-            // Check if it's a checkout image that accidentally got stuck in checkins
-            // Wait, how do we know if it's a checkout image?
-            // Actually, we CANNOT know just by filename because checkin images also start with checkins_!
-            // If we move ALL checkins_, we break checkin images!
-        }
-    }
+try {
+     $pdo = new PDO($dsn, $user, $pass, $options);
+     $stmt = $pdo->query('DESCRIBE ma_jobs');
+     echo json_encode($stmt->fetchAll());
+} catch (\PDOException $e) {
+     throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
 ?>
