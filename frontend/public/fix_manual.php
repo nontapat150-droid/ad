@@ -47,8 +47,8 @@ async function test() {
 test();
 ";
     file_put_contents('/home/zvucfpsz/repositories/ad/backend/test_db.js', $js);
-    $node_test = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && node test_db.js 2>&1');
-    echo json_encode(['success' => true, 'node_test' => $node_test, 'restarted' => $restart]);
+    $env = file_exists('/home/zvucfpsz/repositories/ad/backend/.env') ? file_get_contents('/home/zvucfpsz/repositories/ad/backend/.env') : 'No .env';
+    echo json_encode(['success' => true, 'env' => $env]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
