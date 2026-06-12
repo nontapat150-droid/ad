@@ -20,7 +20,7 @@ try {
     $deletedOil = $pdo->exec("DELETE FROM oil_records WHERE license_plate LIKE '%ทีม 5%' OR filler_name LIKE '%ทีม 5%'");
 
     // Check if Team 5 exists
-    $stmt = $pdo->query("SELECT id FROM teams WHERE name = 'ทีม 5' LIMIT 1");
+    $stmt = $pdo->query("SELECT id FROM teams WHERE team_name = 'ทีม 5' LIMIT 1");
     $team = $stmt->fetch();
 
     if ($team) {
