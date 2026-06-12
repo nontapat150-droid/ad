@@ -55,7 +55,7 @@ router.get('/', auth, async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error('Error fetching reports:', error);
-    res.status(500).json({ error: 'ไม่สามารถดึงข้อมูลการแจ้งปัญหาได้' });
+    res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
 
