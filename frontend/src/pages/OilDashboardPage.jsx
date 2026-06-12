@@ -27,6 +27,8 @@ export default function OilDashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
+  const [compareChartType, setCompareChartType] = useState('bar');
+  const [compareMetric, setCompareMetric] = useState('total_cost');
   const [viewingImages, setViewingImages] = useState(null);
   const [importPreview, setImportPreview] = useState(null);
 
@@ -577,13 +579,111 @@ export default function OilDashboardPage() {
 
             {/* Compare Vehicles Grid */}
             {showCompare && analytics.byVehicle.length > 0 && (
-              <div className="glass-deep p-6 md:p-8 rounded-3xl animate-fade-in-up">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-extrabold text-[#042C53] text-xl flex items-center gap-2">
-                    <span className="bg-white p-2 rounded-xl shadow-sm">⚖️</span> ตารางเปรียบเทียบรถ
-                  </h3>
+              <div className="glass-deep p-6 md:p-8 rounded-3xl animate-fade-in-up flex flex-col gap-8">
+                
+                {/* 📊 Vehicle Comparison Chart */}
+                <div className="bg-white/50 p-6 rounded-2xl border border-white/60">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+                    <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100/80 text-indigo-600 flex items-center justify-center">📈</div>
+                      กราฟเปรียบเทียบรถแต่ละคัน
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <select 
+                        value={compareMetric} 
+                        onChange={(e) => setCompareMetric(e.target.value)}
+                        className="glass-input px-3 py-1.5 rounded-xl text-sm font-medium text-[#185FA5] border-white/50 focus:border-[#378ADD] outline-none"
+                      >
+                        <option value="total_cost">ยอดเงินรวม (บาท)</option>
+                        <option value="total_liters">จำนวนลิตรรวม (ลิตร)</option>
+                        <option value="total_distance">ระยะทางวิ่งรวม (กม.)</option>
+                        <option value="cost_per_km">ต้นทุน/กม. (บาท/กม.)</option>
+                        <option value="km_per_liter">อัตราสิ้นเปลือง (กม./ลิตร)</option>
+                        <option value="cost_per_job">ต้นทุน/งาน (บาท/งาน)</option>
+                      </select>
+                      <div className="flex bg-white/40 p-1 rounded-xl border border-white/40">
+                        <button 
+                          onClick={() => setCompareChartType('bar')}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${compareChartType === 'bar' ? 'bg-[#185FA5] text-white shadow-md' : 'text-[#185FA5] hover:bg-white/50'}`}
+                        >
+                          แท่ง
+                        </button>
+                        <button 
+                          onClick={() => setCompareChartType('line')}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${compareChartType === 'line' ? 'bg-[#185FA5] text-white shadow-md' : 'text-[#185FA5] hover:bg-white/50'}`}
+                        >
+                          เส้น
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="h-72 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      {(() => {
+                        const chartData = analytics.byVehicle.filter(v => v.license_plate && !v.license_plate.includes('ทีม 5')).map(v => {
+                          const teamEff = efficiency.find(e => e.team_id === v.main_team_id);
+                          const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
+                          const tCost = parseFloat(v.total_cost || 0);
+                          const tLiters = parseFloat(v.total_liters || 0);
+                          const tDistance = parseFloat(v.total_distance || 0);
+                          return {
+                            name: v.license_plate,
+                            total_cost: tCost,
+                            total_liters: tLiters,
+                            total_distance: tDistance,
+                            cost_per_km: tDistance > 0 ? parseFloat((tCost / tDistance).toFixed(2)) : 0,
+                            km_per_liter: tLiters > 0 ? parseFloat((tDistance / tLiters).toFixed(2)) : 0,
+                            cost_per_job: caseCount > 0 ? parseFloat((tCost / caseCount).toFixed(2)) : 0,
+                          };
+                        });
+                        
+                        const nameMap = {
+                          total_cost: 'ยอดเงินรวม (บาท)',
+                          total_liters: 'จำนวนลิตรรวม (ลิตร)',
+                          total_distance: 'ระยะทางวิ่งรวม (กม.)',
+                          cost_per_km: 'ต้นทุน/กม. (บาท/กม.)',
+                          km_per_liter: 'อัตราสิ้นเปลือง (กม./ลิตร)',
+                          cost_per_job: 'ต้นทุน/งาน (บาท/งาน)'
+                        };
+
+                        if (compareChartType === 'bar') {
+                          return (
+                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
+                              <XAxis dataKey="name" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} angle={-30} textAnchor="end" />
+                              <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                              <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
+                              <Bar name={nameMap[compareMetric]} dataKey={compareMetric} fill="#185FA5" radius={[4, 4, 0, 0]}>
+                                {chartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#185FA5' : '#378ADD'} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          );
+                        } else {
+                          return (
+                            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 25 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
+                              <XAxis dataKey="name" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} angle={-30} textAnchor="end" />
+                              <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Line name={nameMap[compareMetric]} type="monotone" dataKey={compareMetric} stroke="#F59E0B" strokeWidth={4} dot={{fill: '#FFF', stroke: '#F59E0B', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#F59E0B'}} />
+                            </LineChart>
+                          );
+                        }
+                      })()}
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-extrabold text-[#042C53] text-xl flex items-center gap-2">
+                      <span className="bg-white p-2 rounded-xl shadow-sm">⚖️</span> ตารางสรุปข้อมูลรถแต่ละคัน
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {analytics.byVehicle.filter(v => v.license_plate && !v.license_plate.includes('ทีม 5')).map((v) => {
                     const teamEff = efficiency.find(e => e.team_id === v.main_team_id);
                     const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
