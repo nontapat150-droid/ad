@@ -16,24 +16,8 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $sql = "
-    CREATE TABLE IF NOT EXISTS reports (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      description TEXT NOT NULL,
-      image_path VARCHAR(255) NULL,
-      status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ";
-    $pdo->exec($sql);
-    
-    $stmt = $pdo->query("SHOW TABLES");
-    $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    echo json_encode(['success' => true, 'tables' => $tables]);
+    $node_log = file_exists('/home/zvucfpsz/repositories/ad/backend/error_log.txt') ? substr(file_get_contents('/home/zvucfpsz/repositories/ad/backend/error_log.txt'), -5000) : 'Node log not found';
+    echo json_encode(['success' => true, 'node_log' => $node_log]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
