@@ -280,7 +280,10 @@ router.get('/ma-performance', auth, async (req, res) => {
     const targetJobs = targets.ma_target_jobs;
 
     const [users] = await pool.query(
-      `SELECT id, full_name, role, team_id FROM users WHERE role IN ('ma', 'ma_technician')`
+      `SELECT DISTINCT u.id, u.full_name, u.role, u.team_id 
+       FROM users u 
+       LEFT JOIN user_roles ur ON u.id = ur.user_id 
+       WHERE u.role IN ('ma', 'ma_technician') OR ur.role IN ('ma', 'ma_technician')`
     );
 
     const results = [];
