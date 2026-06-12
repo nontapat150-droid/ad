@@ -136,8 +136,6 @@ export default function OilDashboardPage() {
     }
   };
 
-  const fileInputRef = useRef(null);
-
   const handleImportExcel = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -179,7 +177,8 @@ export default function OilDashboardPage() {
       console.error(err);
       Swal.fire('ข้อผิดพลาด', err.message, 'error');
     } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      const fileInput = document.getElementById('import-excel-file');
+      if (fileInput) fileInput.value = '';
     }
   };
 
@@ -327,15 +326,15 @@ export default function OilDashboardPage() {
             {!isOfficeTech && (
               <>
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => document.getElementById('import-excel-file').click()}
                   className="btn-outline border-blue-500 text-blue-600 hover:bg-blue-50 flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   Import
                 </button>
                 <input
+                  id="import-excel-file"
                   type="file"
                   accept=".xlsx, .xls, .csv"
-                  ref={fileInputRef}
                   onChange={handleImportExcel}
                   className="hidden"
                 />
