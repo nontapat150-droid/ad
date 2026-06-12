@@ -1,27 +1,19 @@
 <?php
 header('Content-Type: application/json');
-$backend = '/home/zvucfpsz/public_html/backend';
+$host = 'localhost';
+$db   = 'zvucfpsz_RT';
+$user = 'zvucfpsz_BO';
+$pass = '@2*]BC9AuGO^%P&-';
 
-// Where are the files actually saving?
-$p1 = $backend . '/uploads/reports';
-$p2 = '/home/zvucfpsz/public_html/uploads/reports';
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ]);
 
-$files1 = is_dir($p1) ? scandir($p1) : [];
-$files2 = is_dir($p2) ? scandir($p2) : [];
+    $reports = $pdo->query("SELECT id, title, image_path FROM reports ORDER BY id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 
-// Check frontend build dir
-$public = '/home/zvucfpsz/public_html';
-
-echo json_encode([
-    'backend_uploads' => [
-        'path' => $p1,
-        'exists' => is_dir($p1),
-        'files' => array_diff($files1, ['.', '..'])
-    ],
-    'public_uploads' => [
-        'path' => $p2,
-        'exists' => is_dir($p2),
-        'files' => array_diff($files2, ['.', '..'])
-    ]
-]);
+    echo json_encode(['reports' => $reports]);
+} catch (PDOException $e) {
+    echo json_encode(['error' => $e->getMessage()]);
+}
 ?>
