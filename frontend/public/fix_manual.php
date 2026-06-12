@@ -16,9 +16,10 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $routes = shell_exec('ls -la /home/zvucfpsz/repositories/ad/backend/routes/ 2>&1');
-    $server = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/server.js 2>&1');
-    echo json_encode(['success' => true, 'routes' => $routes, 'server' => $server]);
+    $htaccess = shell_exec('cat /home/zvucfpsz/public_html/bonusais.com/.htaccess 2>&1');
+    $ftp_routes = shell_exec('ls -la /home/zvucfpsz/backend/routes/ 2>&1');
+    $ftp_server = shell_exec('cat /home/zvucfpsz/backend/server.js 2>&1 | grep report');
+    echo json_encode(['success' => true, 'htaccess' => $htaccess, 'ftp_routes' => $ftp_routes, 'ftp_server' => $ftp_server]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
