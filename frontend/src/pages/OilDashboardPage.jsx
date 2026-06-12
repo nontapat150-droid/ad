@@ -149,13 +149,43 @@ export default function OilDashboardPage() {
       
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: "A", raw: true });
       
-      // Filter out header row
-      const payload = jsonData.filter(row => row.A && !String(row.A).includes('วัน')).map(row => {
-        let dateVal = row.A;
-        if (dateVal instanceof Date) {
-          // Keep local time intact before toISOString
-          dateVal = new Date(dateVal.getTime() - dateVal.getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
+      // Process all rows to keep index for cell reference
+      const payload = jsonData.map((row, index) => {
+        if (!row.A || String(row.A).includes('วัน')) return null;
+        
+        const rowNum = index + 1; // xlsx sheet_to_json with header:"A" starts at row 1
+        const cell = worksheet['A' + rowNum];
+        
+        // Use cell.w (formatted text) if available to avoid locale-dependent Date parsing bugs
+        let dateVal = (cell && cell.w) ? cell.w : row.A;
+        
+        if (typeof dateVal === 'string') {
+          try {
+            let [datePart, timePart] = dateVal.split(' ');
+            if (datePart && datePart.includes('/')) {
+              let [day, month, year] = datePart.split('/');
+              if (day && month && year) {
+                // If month > 12, it's likely MM/DD/YYYY format, so swap them
+                if (parseInt(month) > 12) {
+                  const temp = day;
+                  day = month;
+                  month = temp;
+                }
+                // Adjust BE year to CE year if > 2500
+                if (parseInt(year) > 2500) {
+                  year = (parseInt(year) - 543).toString();
+                }
+                const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                dateVal = `${formattedDate}T${timePart || '00:00:00'}`;
+              }
+            }
+          } catch (e) {
+            console.error("Date parse error", e);
+          }
+        } else if (dateVal instanceof Date) {
+          dateVal = new Date(dateVal.getTime() - dateVal.getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', 'T');
         }
+        
         return {
           date_recorded: dateVal,
           filler_name: row.B,
@@ -165,7 +195,7 @@ export default function OilDashboardPage() {
           price_per_liter: row.F,
           total_price: row.H
         };
-      });
+      }).filter(Boolean);
 
       if (payload.length === 0) {
         Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบไม่ถูกต้อง', 'error');
