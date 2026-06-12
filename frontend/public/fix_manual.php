@@ -16,8 +16,9 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $cat = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/routes/report.js 2>&1');
-    echo json_encode(['success' => true, 'cat' => $cat]);
+    $routes = shell_exec('ls -la /home/zvucfpsz/repositories/ad/backend/routes/ 2>&1');
+    $server = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/server.js 2>&1');
+    echo json_encode(['success' => true, 'routes' => $routes, 'server' => $server]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
