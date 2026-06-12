@@ -5,6 +5,15 @@ const { upload, setUpload } = require('../middleware/upload');
 
 const router = express.Router();
 
+router.get('/migrate-checkins', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE checkins ADD COLUMN checkin_type VARCHAR(20) DEFAULT "general"');
+    res.json({ message: 'Column checkin_type added successfully' });
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
+
 // ── POST /api/checkin — Check in with selfie ───────────────
 router.post(
   '/',
@@ -76,9 +85,9 @@ router.post(
       const lng = req.body.lng ? parseFloat(req.body.lng) : null;
 
       const [result] = await pool.query(
-        `INSERT INTO checkins (user_id, image_path, checkin_lat, checkin_lng, is_late)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, imagePath, lat, lng, isLate]
+        `INSERT INTO checkins (user_id, image_path, checkin_lat, checkin_lng, is_late, checkin_type)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, imagePath, lat, lng, isLate, type]
       );
 
       res.status(201).json({
@@ -107,7 +116,7 @@ router.post(
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const { user_id, checkin_time, checkout_time, is_late } = req.body;
+    const { user_id, checkin_time, checkout_time, is_late, type } = req.body;
     if (!user_id || !checkin_time) {
       return res.status(400).json({ error: 'Missing user_id or checkin_time' });
     }
@@ -117,15 +126,16 @@ router.post(
 
     try {
       const [result] = await pool.query(
-        `INSERT INTO checkins (user_id, checkin_time, checkout_time, image_path, checkout_image, is_late, is_edited)
-         VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO checkins (user_id, checkin_time, checkout_time, image_path, checkout_image, is_late, is_edited, checkin_type)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
         [
           user_id,
           new Date(checkin_time),
           checkout_time ? new Date(checkout_time) : null,
           checkinImagePath,
           checkoutImagePath,
-          is_late === '1' || is_late === 1 ? 1 : 0
+          is_late === '1' || is_late === 1 ? 1 : 0,
+          type || 'general'
         ]
       );
 
@@ -270,7 +280,7 @@ router.get('/ma-performance', auth, async (req, res) => {
            COUNT(DISTINCT DATE(checkin_time)) as total_days,
            SUM(is_late) as total_late
          FROM checkins
-         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ?`,
+         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ? AND checkin_type = 'ma'`,
         [u.id, month]
       );
 

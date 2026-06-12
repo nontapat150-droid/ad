@@ -9,7 +9,7 @@ const token = jwt.sign(
 
 const options = {
   hostname: 'bonusais.com',
-  path: '/api/checkin/history?limit=50&userId=ALL&date=2026-06-06',
+  path: '/api/checkin/migrate-checkins',
   method: 'GET',
   headers: {
     'Authorization': `Bearer ${token}`

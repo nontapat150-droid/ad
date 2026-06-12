@@ -10,9 +10,8 @@ async function test() {
       database: process.env.DB_NAME,
     });
 
-    const filterDate = '2026-06-06';
-    const [rows] = await pool.query("SELECT id, checkin_time, DATE(checkin_time) as d FROM checkins WHERE DATE(checkin_time) = ?", [filterDate]);
-    console.log("Records in DB:", rows);
+    const [rows] = await pool.query("DESCRIBE checkins");
+    console.log("Checkins Schema:", rows);
 
     pool.end();
   } catch (err) {
