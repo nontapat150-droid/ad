@@ -141,6 +141,10 @@ export default function OilDashboardPage() {
     if (!file) return;
 
     try {
+      // Fetch users list to map filler_name to license_plate (team_name)
+      const usersRes = await api.get('/users');
+      const usersList = usersRes.data || [];
+
       const data = await file.arrayBuffer();
       const XLSX = await import('xlsx');
       const workbook = XLSX.read(data, { cellDates: true });
@@ -186,11 +190,20 @@ export default function OilDashboardPage() {
           dateVal = new Date(dateVal.getTime() - dateVal.getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', 'T');
         }
         
+        const filler = String(row.B || '').trim();
+        let matchedPlate = '';
+        if (filler) {
+          const matchedUser = usersList.find(u => u.full_name && u.full_name.includes(filler));
+          if (matchedUser) {
+            matchedPlate = matchedUser.team_name || '';
+          }
+        }
+
         return {
           date_recorded: dateVal,
-          filler_name: row.B,
+          filler_name: filler,
           mileage: row.C,
-          license_plate: row.D,
+          license_plate: matchedPlate,
           liters: row.E,
           price_per_liter: row.F,
           total_price: row.H

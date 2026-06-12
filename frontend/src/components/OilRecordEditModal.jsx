@@ -42,7 +42,17 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   }, [record]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (e.target.name === 'tech_id') {
+      const selectedUser = usersList.find(u => u.id == e.target.value);
+      const teamName = selectedUser?.team_name || '';
+      setFormData(prev => ({
+        ...prev,
+        tech_id: e.target.value,
+        license_plate: teamName || prev.license_plate
+      }));
+    } else {
+      setFormData({ ...formData, [e.target.name]: e.target.value });
+    }
   };
 
   const handleRemoveExistingImage = (img) => {
@@ -132,7 +142,15 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">ทะเบียนรถ *</label>
-                <input type="text" name="license_plate" value={formData.license_plate} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] bg-slate-50" />
+                <input 
+                  type="text" 
+                  name="license_plate" 
+                  value={formData.license_plate} 
+                  onChange={handleChange} 
+                  required 
+                  disabled={!!formData.tech_id}
+                  className={`w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] ${formData.tech_id ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : 'bg-slate-50'}`} 
+                />
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">เลขไมล์ *</label>

@@ -196,13 +196,14 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           <div className="relative pt-2">
             <label className="floating-label">ทะเบียนรถยนต์ / จักรยานยนต์</label>
             <input
+              type="text"
               required
               name="license_plate"
               value={form.license_plate}
               onChange={handleChange}
-              disabled={userHasTeam}
-              className={`input-field uppercase ${userHasTeam ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : ''}`}
-              placeholder="เช่น กท 1234 หรือ 1กต 5678"
+              disabled={userHasTeam || !!form.tech_id}
+              className={`input-field uppercase ${userHasTeam || form.tech_id ? 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-80' : ''}`}
+              placeholder="ตัวอย่าง เช่น 1234 หรือ 1กข  5678"
             />
             {userHasTeam && (
               <p className="text-xs text-brand-600 mt-1 font-medium bg-brand-50 inline-block px-2 py-0.5 rounded">🔒 ผูกกับทีมอัตโนมัติ ไม่สามารถเปลี่ยนได้</p>
