@@ -541,7 +541,7 @@ export default function OilDashboardPage() {
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                  {analytics.byVehicle.map((v) => {
+                  {analytics.byVehicle.filter(v => v.license_plate && !v.license_plate.includes('ทีม 5')).map((v) => {
                     const teamEff = efficiency.find(e => e.team_id === v.main_team_id);
                     const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
                     
