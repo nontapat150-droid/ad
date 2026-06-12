@@ -1,35 +1,35 @@
 <?php
 header('Content-Type: application/json');
-set_time_limit(10);
+set_time_limit(30);
 
+$output = [];
+
+// Kill node forcefully
+$kill1 = shell_exec('pkill -9 -f "node" 2>&1; echo "done1"');
+$output['kill1'] = trim($kill1);
+
+sleep(2);
+
+$kill2 = shell_exec('kill -9 $(pgrep -f node) 2>&1; echo "done2"');
+$output['kill2'] = trim($kill2);
+
+sleep(2);
+
+// Touch restart file
 $backend = '/home/zvucfpsz/public_html/backend';
+@mkdir($backend . '/tmp', 0755, true);
+touch($backend . '/tmp/restart.txt');
+$output['restart_touched'] = true;
 
-// Read latest error log
-$lp = $backend . '/error_log.txt';
-$log = file_exists($lp) ? substr(file_get_contents($lp), -3000) : 'no log';
+// Verify which version of report.js is on disk now
+$lines = file($backend . '/routes/report.js');
+$output['line40'] = isset($lines[39]) ? trim($lines[39]) : 'n/a';
+$output['line48'] = isset($lines[47]) ? trim($lines[47]) : 'n/a';
 
-// Check multer installed
-$multer_path = '/home/zvucfpsz/nodevenv/public_html/backend/20/lib/node_modules/multer';
-$has_multer = is_dir($multer_path);
+// Check if node is still running
+sleep(3);
+$ps = shell_exec('ps aux | grep node | grep -v grep 2>&1');
+$output['node_running'] = trim($ps);
 
-$multer_local = $backend . '/node_modules/multer';
-$has_multer_local = is_dir($multer_local);
-
-// Check uploads writable
-$uploads = $backend . '/uploads/reports';
-shell_exec("mkdir -p $uploads && chmod 755 $uploads");
-$writable = is_writable($uploads);
-
-// Read POST handler (lines 65-86)
-$rp = $backend . '/routes/report.js';
-$lines = file($rp);
-$post_section = implode('', array_slice($lines, 64, 25));
-
-echo json_encode([
-    'error_log_tail' => $log,
-    'multer_global' => $has_multer,
-    'multer_local' => $has_multer_local,
-    'uploads_writable' => $writable,
-    'post_handler' => $post_section,
-], JSON_PRETTY_PRINT);
+echo json_encode($output, JSON_PRETTY_PRINT);
 ?>
