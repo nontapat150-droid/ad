@@ -16,8 +16,13 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $api = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/routes/report.js | head -n 15 2>&1');
-    echo json_encode(['success' => true, 'cat' => $api]);
+    $code = file_get_contents('https://raw.githubusercontent.com/nontapat150-droid/ad/แก้ระบบเช็คอิน/backend/routes/report.js');
+    if ($code) {
+        file_put_contents('/home/zvucfpsz/repositories/ad/backend/routes/report.js', $code);
+        file_put_contents('/home/zvucfpsz/backend/routes/report.js', $code);
+    }
+    $restart = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && touch tmp/restart.txt && pkill -f node 2>&1');
+    echo json_encode(['success' => true, 'wrote' => strlen($code)]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
