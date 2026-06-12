@@ -742,6 +742,7 @@ export default function OilDashboardPage() {
                   })}
                 </div>
               </div>
+              </div>
             )}
 
             {/* History Table */}
