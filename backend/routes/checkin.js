@@ -311,59 +311,63 @@ router.get('/ma-performance', auth, async (req, res) => {
 // ── GET /api/checkin/history?limit=30 — My recent history (or All for Admin) ─
 router.get('/history', auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 30, 90);
-  const filterUserId = req.query.userId;
+  const { userId: filterUserId, date: filterDate, status: filterStatus } = req.query;
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
 
   try {
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+
+    if (filterDate) {
+      whereClause += ' AND DATE(c.checkin_time) = ?';
+      params.push(filterDate);
+    }
+    
+    if (filterStatus === 'ontime') {
+      whereClause += ' AND c.is_late = 0';
+    } else if (filterStatus === 'late') {
+      whereClause += ' AND c.is_late = 1';
+    }
+
     if (isAdmin) {
-      if (filterUserId === 'ALL' || !filterUserId) {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [limit * 2]
-        );
-        return res.json(rows);
-      } else if (filterUserId === 'ME') {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           WHERE c.user_id = ?
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [req.user.id, limit]
-        );
-        return res.json(rows);
-      } else {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           WHERE c.user_id = ?
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [filterUserId, limit]
-        );
-        return res.json(rows);
+      if (filterUserId === 'ME') {
+        whereClause += ' AND c.user_id = ?';
+        params.push(req.user.id);
+      } else if (filterUserId && filterUserId !== 'ALL') {
+        whereClause += ' AND c.user_id = ?';
+        params.push(filterUserId);
       }
-    } else {
+      
       const [rows] = await pool.query(
-        `SELECT id, checkin_time, checkout_time, is_late, image_path, checkout_image, is_edited,
-                checkin_lat, checkin_lng, checkout_lat, checkout_lng
-         FROM checkins WHERE user_id = ?
-         ORDER BY checkin_time DESC LIMIT ?`,
-        [req.user.id, limit]
+        `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                u.full_name, u.username, u.role
+         FROM checkins c
+         JOIN users u ON c.user_id = u.id
+         ${whereClause}
+         ORDER BY c.checkin_time DESC LIMIT ?`,
+        [...params, limit * 2]
+      );
+      return res.json(rows);
+    } else {
+      whereClause += ' AND c.user_id = ?';
+      params.push(req.user.id);
+      
+      const [rows] = await pool.query(
+        `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                u.full_name, u.username, u.role
+         FROM checkins c
+         JOIN users u ON c.user_id = u.id
+         ${whereClause}
+         ORDER BY c.checkin_time DESC LIMIT ?`,
+        [...params, limit]
       );
       res.json(rows);
     }
   } catch (err) {
+    console.error('History error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -411,65 +415,40 @@ router.put(
 
 // ── GET /api/checkin/stats — My Check-in Stats ──────────────
 router.get('/stats', auth, async (req, res) => {
-  const filterUserId = req.query.userId;
+  const { userId: filterUserId, date: filterDate } = req.query;
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
 
   try {
-    if (isAdmin) {
-      if (filterUserId === 'ALL' || !filterUserId) {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins`
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      } else if (filterUserId === 'ME') {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins 
-           WHERE user_id = ?`,
-          [req.user.id]
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      } else {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins 
-           WHERE user_id = ?`,
-          [filterUserId]
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      }
-    } else {
-      const [rows] = await pool.query(
-        `SELECT 
-           SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-           SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-         FROM checkins 
-         WHERE user_id = ?`,
-        [req.user.id]
-      );
-      res.json({
-        late: parseInt(rows[0].late_count || 0),
-        ontime: parseInt(rows[0].ontime_count || 0)
-      });
+    let whereClause = 'WHERE 1=1';
+    let params = [];
+
+    if (filterDate) {
+      whereClause += ' AND DATE(checkin_time) = ?';
+      params.push(filterDate);
     }
+
+    if (!isAdmin || (filterUserId !== 'ALL' && filterUserId)) {
+      const uId = isAdmin ? (filterUserId === 'ME' ? req.user.id : filterUserId) : req.user.id;
+      whereClause += ' AND user_id = ?';
+      params.push(uId);
+    }
+
+    const [rows] = await pool.query(
+      `SELECT 
+         SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
+         SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
+       FROM checkins 
+       ${whereClause}`,
+      params
+    );
+
+    res.json({
+      late: parseInt(rows[0].late_count || 0),
+      ontime: parseInt(rows[0].ontime_count || 0)
+    });
   } catch (err) {
+    console.error('Stats error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

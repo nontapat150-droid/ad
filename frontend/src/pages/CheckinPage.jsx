@@ -74,19 +74,26 @@ export default function CheckinPage() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [stats, setStats] = useState({ late: 0, ontime: 0 });
   const [filterUserId, setFilterUserId] = useState('ALL');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL', 'ontime', 'late'
   const [usersList, setUsersList] = useState([]);
 
   // ── Data Fetch ───────────────────────────────────────────────
   const fetchHistory = useCallback(() => {
     setLoadingHistory(true);
-    const q = isAdmin ? `?limit=50&userId=${filterUserId}` : `?limit=30`;
+    let q = isAdmin ? `?limit=50&userId=${filterUserId}` : `?limit=30`;
+    if (filterDate) q += `&date=${filterDate}`;
+    if (filterStatus !== 'ALL') q += `&status=${filterStatus}`;
+
     api.get(`/checkin/history${q}`)
       .then(res => setHistory(res.data))
       .catch(console.error)
       .finally(() => setLoadingHistory(false));
-    const sq = isAdmin ? `?userId=${filterUserId}` : '';
+      
+    let sq = isAdmin ? `?userId=${filterUserId}` : '?';
+    if (filterDate) sq += `&date=${filterDate}`;
     api.get(`/checkin/stats${sq}`).then(res => setStats(res.data)).catch(console.error);
-  }, [isAdmin, filterUserId]);
+  }, [isAdmin, filterUserId, filterDate, filterStatus]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
   useEffect(() => {
@@ -610,22 +617,28 @@ export default function CheckinPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="glass rounded-2xl border border-white/50 p-4 flex items-center gap-3 hover:shadow-md transition-shadow overflow-hidden relative">
+            <button 
+              onClick={() => setFilterStatus(prev => prev === 'ontime' ? 'ALL' : 'ontime')}
+              className={`text-left glass rounded-2xl border p-4 flex items-center gap-3 hover:shadow-md transition-all overflow-hidden relative cursor-pointer ${filterStatus === 'ontime' ? 'ring-2 ring-emerald-400 border-emerald-400/50 bg-emerald-50/20' : 'border-white/50'}`}
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent pointer-events-none" />
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20 shrink-0">✅</div>
               <div>
                 <p className="text-xs text-slate-500 font-medium">มาตรงเวลา</p>
                 <p className="text-2xl font-black text-[#042C53]">{stats.ontime} <span className="text-sm font-normal text-slate-400">รอบ</span></p>
               </div>
-            </div>
-            <div className="glass rounded-2xl border border-white/50 p-4 flex items-center gap-3 hover:shadow-md transition-shadow overflow-hidden relative">
+            </button>
+            <button 
+              onClick={() => setFilterStatus(prev => prev === 'late' ? 'ALL' : 'late')}
+              className={`text-left glass rounded-2xl border p-4 flex items-center gap-3 hover:shadow-md transition-all overflow-hidden relative cursor-pointer ${filterStatus === 'late' ? 'ring-2 ring-orange-400 border-orange-400/50 bg-orange-50/20' : 'border-white/50'}`}
+            >
               <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent pointer-events-none" />
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-xl shadow-lg shadow-orange-500/20 shrink-0">⚠️</div>
               <div>
                 <p className="text-xs text-slate-500 font-medium">มาสาย</p>
                 <p className="text-2xl font-black text-[#042C53]">{stats.late} <span className="text-sm font-normal text-slate-400">รอบ</span></p>
               </div>
-            </div>
+            </button>
           </div>
 
           {/* History Card */}
@@ -638,22 +651,30 @@ export default function CheckinPage() {
                 </div>
                 ประวัติการลงเวลา
               </h3>
-              {isAdmin && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowManualCheckin(true)}
-                    className="text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-                    เพิ่มย้อนหลัง
-                  </button>
-                  <button
-                    onClick={() => navigate('/attendance-summary')}
-                    className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
-                    📊 ภาพรวม
-                  </button>
-                  <FilterDropdown value={filterUserId} onChange={setFilterUserId} usersList={usersList} />
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <input 
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="text-xs font-medium border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-[#185FA5] text-slate-600 bg-white"
+                />
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => setShowManualCheckin(true)}
+                      className="text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                      เพิ่ม
+                    </button>
+                    <button
+                      onClick={() => navigate('/attendance-summary')}
+                      className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
+                      📊 ภาพรวม
+                    </button>
+                    <FilterDropdown value={filterUserId} onChange={setFilterUserId} usersList={usersList} />
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Tabs */}
