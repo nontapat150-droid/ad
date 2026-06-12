@@ -28,6 +28,7 @@ export default function OilDashboardPage() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
   const [viewingImages, setViewingImages] = useState(null);
+  const [importPreview, setImportPreview] = useState(null);
 
   useEffect(() => {
     api.get('/users/teams').then(res => setTeams(res.data)).catch(console.error);
@@ -173,20 +174,32 @@ export default function OilDashboardPage() {
         return;
       }
 
-      Swal.fire({
-        title: 'กำลังนำเข้าข้อมูล...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
+      setImportPreview(payload);
+    } catch (err) {
+      console.error(err);
+      Swal.fire('ข้อผิดพลาด', err.message, 'error');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
-      const res = await api.post('/oil/import-bulk', payload);
+  const confirmImport = async () => {
+    if (!importPreview) return;
+    
+    Swal.fire({
+      title: 'กำลังนำเข้าข้อมูล...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const res = await api.post('/oil/import-bulk', importPreview);
       Swal.fire('สำเร็จ', res.data.message, 'success');
+      setImportPreview(null);
       fetchData();
     } catch (err) {
       console.error(err);
       Swal.fire('ข้อผิดพลาด', err.response?.data?.error || err.message, 'error');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -757,6 +770,74 @@ export default function OilDashboardPage() {
           }}
         />
       )}
+
+      {/* Import Preview Modal */}
+      {importPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">ตัวอย่างข้อมูลที่จะนำเข้า</h2>
+                <p className="text-sm text-slate-500 mt-1">พบข้อมูลทั้งหมด {importPreview.length} รายการ</p>
+              </div>
+              <button 
+                onClick={() => setImportPreview(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                    <tr>
+                      <th className="py-3 px-4">วันที่</th>
+                      <th className="py-3 px-4">ผู้เติม</th>
+                      <th className="py-3 px-4">ทะเบียนรถ</th>
+                      <th className="py-3 px-4 text-right">เลขไมล์</th>
+                      <th className="py-3 px-4 text-right">จำนวนลิตร</th>
+                      <th className="py-3 px-4 text-right">ยอดรวม (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {importPreview.slice(0, 50).map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4 text-slate-600">{new Date(row.date_recorded).toLocaleString('th-TH')}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800">{row.filler_name}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.license_plate}</td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-600">{Number(row.mileage).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-600">{row.liters}</td>
+                        <td className="py-3 px-4 text-right font-mono text-emerald-600 font-medium">{Number(row.total_price).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importPreview.length > 50 && (
+                <p className="text-center text-sm text-slate-500 mt-4">แสดงตัวอย่าง 50 รายการแรก จากทั้งหมด {importPreview.length} รายการ</p>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+              <button
+                onClick={() => setImportPreview(null)}
+                className="px-6 py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-200 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmImport}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all hover:-translate-y-0.5"
+              >
+                ยืนยันการนำเข้า
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Layout>
   );
 }
