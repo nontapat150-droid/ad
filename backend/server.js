@@ -33,6 +33,7 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadDir));
+app.use('/api/uploads', express.static(uploadDir));
 
 // ── Health Check ────────────────────────────────────────────
 app.get('/health', (req, res) => {
