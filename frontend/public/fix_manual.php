@@ -16,9 +16,10 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $git = shell_exec('cd /home/zvucfpsz/repositories/ad && git fetch --all && git reset --hard origin/แก้ระบบเช็คอิน && git pull 2>&1');
-    $restart = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && touch tmp/restart.txt 2>&1');
-    echo json_encode(['success' => true, 'git' => $git, 'restart' => $restart]);
+    $logPath = __DIR__ . '/../../backend/error_log.txt';
+    $logContent = file_exists($logPath) ? file_get_contents($logPath) : 'Log not found';
+    $node_log = file_exists('/home/zvucfpsz/repositories/ad/backend/error_log.txt') ? file_get_contents('/home/zvucfpsz/repositories/ad/backend/error_log.txt') : 'Node log not found';
+    echo json_encode(['success' => true, 'log' => $logContent, 'node_log' => $node_log]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
