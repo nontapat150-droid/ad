@@ -16,9 +16,10 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $logPath = __DIR__ . '/../../backend/error_log.txt';
-    $logContent = file_exists($logPath) ? file_get_contents($logPath) : 'Log not found';
-    echo json_encode(['success' => true, 'log' => $logContent]);
+    $pwd = shell_exec('pwd');
+    $ls = shell_exec('ls -la ../../ 2>&1');
+    $node_path = shell_exec('ps aux | grep node 2>&1');
+    echo json_encode(['success' => true, 'pwd' => $pwd, 'ls' => $ls, 'node' => $node_path]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
