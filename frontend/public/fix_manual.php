@@ -1,22 +1,27 @@
 <?php
 header('Content-Type: application/json');
-$host = 'localhost';
-$db   = 'zvucfpsz_RT';
-$user = 'zvucfpsz_BO';
-$pass = '@2*]BC9AuGO^%P&-';
+$backend = '/home/zvucfpsz/public_html/backend';
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
+// Where are the files actually saving?
+$p1 = $backend . '/uploads/reports';
+$p2 = '/home/zvucfpsz/public_html/uploads/reports';
 
-    // Alter table to use utf8mb4
-    $pdo->exec("ALTER TABLE reports CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    $pdo->exec("ALTER TABLE reports MODIFY title VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
-    $pdo->exec("ALTER TABLE reports MODIFY description TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL");
+$files1 = is_dir($p1) ? scandir($p1) : [];
+$files2 = is_dir($p2) ? scandir($p2) : [];
 
-    echo json_encode(['success' => true, 'message' => 'Table reports converted to utf8mb4 successfully.']);
-} catch (PDOException $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-}
+// Check frontend build dir
+$public = '/home/zvucfpsz/public_html';
+
+echo json_encode([
+    'backend_uploads' => [
+        'path' => $p1,
+        'exists' => is_dir($p1),
+        'files' => array_diff($files1, ['.', '..'])
+    ],
+    'public_uploads' => [
+        'path' => $p2,
+        'exists' => is_dir($p2),
+        'files' => array_diff($files2, ['.', '..'])
+    ]
+]);
 ?>
