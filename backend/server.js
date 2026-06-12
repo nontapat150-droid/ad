@@ -81,6 +81,7 @@ const pool = require('./config/db');
 
 async function initDB() {
   try {
+    // Try with foreign key first
     const query = `
       CREATE TABLE IF NOT EXISTS reports (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -97,7 +98,27 @@ async function initDB() {
     await pool.query(query);
     console.log('✅ Checked database tables (reports)');
   } catch (err) {
-    console.error('❌ Failed to check/create database tables:', err);
+    console.error('⚠️ Could not create reports with FK, trying without FK:', err.message);
+    try {
+      // Try without foreign key constraint as fallback
+      const fallback = `
+        CREATE TABLE IF NOT EXISTS reports (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT NOT NULL,
+          image_path VARCHAR(255),
+          status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `;
+      await pool.query(fallback);
+      console.log('✅ Created reports table (without FK)');
+    } catch (err2) {
+      console.error('❌ Failed to create reports table at all:', err2.message);
+      // Don't crash the server — just log and continue
+    }
   }
 }
 
