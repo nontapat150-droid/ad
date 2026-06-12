@@ -16,27 +16,12 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    // Create table if not exists just in case
-    $pdo->exec("
-      CREATE TABLE IF NOT EXISTS reports (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        description TEXT NOT NULL,
-        image_path VARCHAR(255),
-        status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ");
-
-    $stmt = $pdo->query("SHOW TABLES LIKE 'reports'");
-    $tables = $stmt->fetchAll();
+    $stmt = $pdo->query("DESCRIBE users");
+    $columns = $stmt->fetchAll();
 
     echo json_encode([
         'success' => true, 
-        'tables' => $tables
+        'users_columns' => $columns
     ]);
 
 } catch (\PDOException $e) {
