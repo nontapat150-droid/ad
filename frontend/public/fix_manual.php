@@ -47,18 +47,29 @@ async function test() {
 test();
 ";
     file_put_contents('/home/zvucfpsz/repositories/ad/backend/test_db.js', $js);
-    $code = file_get_contents('/home/zvucfpsz/repositories/ad/backend/server.js');
-    $code = str_replace(
-        "const reportRouter = require('./routes/report');",
-        "const reportRouter = require('./routes/report');\napiRouter.get('/test-db', async (req, res) => { try { const pool = require('./config/db'); const [rows] = await pool.query('SHOW TABLES'); res.json(rows); } catch(e) { res.status(500).json({error: e.message}); } });",
-        $code
-    );
-    file_put_contents('/home/zvucfpsz/repositories/ad/backend/server.js', $code);
-    file_put_contents('/home/zvucfpsz/backend/server.js', $code);
-    
-    $restart = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && touch tmp/restart.txt && pkill -f node 2>&1');
-    $api_test = shell_exec('curl -s -i http://127.0.0.1:5000/api/test-db 2>&1');
-    echo json_encode(['success' => true, 'api_test' => $api_test]);
+    $js = "
+const mysql = require('mysql2/promise');
+async function test() {
+    const pool = mysql.createPool({
+        host: 'localhost',
+        user: 'bonusais_usr',
+        password: 'U%i0T6H^Q%zW',
+        database: 'bonusais_db'
+    });
+    try {
+        const [rows] = await pool.query('SELECT r.*, u.full_name, t.name AS team_name, u.phone FROM reports r LEFT JOIN users u ON r.user_id = u.id LEFT JOIN teams t ON u.team_id = t.id');
+        console.log('SELECT OK: ' + rows.length);
+        process.exit(0);
+    } catch(e) {
+        console.error(e.message);
+        process.exit(1);
+    }
+}
+test();
+";
+    file_put_contents('/home/zvucfpsz/repositories/ad/backend/test_db.js', $js);
+    $node_test = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && node test_db.js 2>&1');
+    echo json_encode(['success' => true, 'node_test' => $node_test]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
