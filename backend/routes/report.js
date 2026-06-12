@@ -37,9 +37,10 @@ router.get('/', auth, async (req, res) => {
     const isAdmin = roles.some(r => ['super_admin', 'admin'].includes(r));
     
     let query = `
-      SELECT r.*, u.full_name, u.team_name, u.phone 
+      SELECT r.*, u.full_name, t.name AS team_name, u.phone 
       FROM reports r
       LEFT JOIN users u ON r.user_id = u.id
+      LEFT JOIN teams t ON u.team_id = t.id
     `;
     let params = [];
 
