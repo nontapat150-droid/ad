@@ -14,6 +14,7 @@ const usersRouter = require('./routes/users');
 const statsRouter = require('./routes/stats');
 const messagesRouter = require('./routes/messages');
 const announcementsRouter = require('./routes/announcements');
+const reportRouter = require('./routes/report');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,6 +56,7 @@ apiRouter.use('/stats', statsRouter);
 apiRouter.use('/messages', messagesRouter);
 apiRouter.use('/announcements', announcementsRouter);
 apiRouter.use('/settings', require('./routes/settings'));
+apiRouter.use('/report', reportRouter);
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
 app.use('/api', apiRouter);
@@ -74,10 +76,36 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-// ── Start ────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 BOU API running at http://localhost:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health\n`);
+// ── Initialize DB & Start ────────────────────────────────────
+const pool = require('./config/db');
+
+async function initDB() {
+  try {
+    const query = `
+      CREATE TABLE IF NOT EXISTS reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        image_path VARCHAR(255),
+        status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+    `;
+    await pool.query(query);
+    console.log('✅ Checked database tables (reports)');
+  } catch (err) {
+    console.error('❌ Failed to check/create database tables:', err);
+  }
+}
+
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 BOU API running at http://localhost:${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/health\n`);
+  });
 });
 
 module.exports = app;

@@ -20,6 +20,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import OfficeTechDashboard from './pages/OfficeTechDashboard';
 import MaTechDashboard from './pages/MaTechDashboard';
+import ReportPage from './pages/ReportPage';
 
 // ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -158,6 +159,7 @@ function AppRoutes() {
       <Route path="/attendance-summary" element={<ProtectedRoute><AttendanceSummaryPage /></ProtectedRoute>} />
       <Route path="/ma-performance" element={<ProtectedRoute><MaPerformancePage /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AnnouncementsPage /></ProtectedRoute>} />
+      <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
 
       {/* Default: redirect based on role */}
       <Route path="/" element={<RootRedirect />} />
