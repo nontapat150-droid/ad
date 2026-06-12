@@ -32,7 +32,7 @@ export default function DispatchDashboardPage() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   let initialTab = searchParams.get('tab') || 'office';
-  if (isMATech && initialTab === 'office') initialTab = 'ma';
+  if (!isOfficeTech && isMATech && initialTab === 'office') initialTab = 'ma';
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -276,8 +276,9 @@ export default function DispatchDashboardPage() {
           {['office', 'ma', 'map', 'postponed']
             .filter(tab => {
               if (isAdmin) return true;
-              if (isMATech) return tab === 'ma' || tab === 'map';
-              if (isOfficeTech) return tab === 'office' || tab === 'map';
+              if (tab === 'map') return isMATech || isOfficeTech;
+              if (tab === 'ma') return isMATech;
+              if (tab === 'office') return isOfficeTech;
               return false;
             })
             .map(tab => {
