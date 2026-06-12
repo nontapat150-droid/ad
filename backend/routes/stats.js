@@ -104,26 +104,55 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     try { const [[r]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`); entryCnt = r.cnt || 0; } catch(e) { console.error('Error entry_fees:', e); }
 
     let feed = [];
+    
+    // 1. Oil Records
     try {
-      const [f] = await pool.query(`
-        SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
-        FROM (
-          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records ORDER BY date_recorded DESC LIMIT 10)
-          UNION ALL
-          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees ORDER BY created_at DESC LIMIT 10)
-          UNION ALL
-          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins ORDER BY checkin_time DESC LIMIT 10)
-          UNION ALL
-          (SELECT id, tech_id AS user_id, 'job' AS type, created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY created_at DESC LIMIT 10)
-        ) AS c
-        LEFT JOIN users u ON u.id = c.user_id
-        ORDER BY c.created_at DESC
-        LIMIT 20
+      const [oilFeed] = await pool.query(`
+        SELECT o.id, 'oil' AS type, o.date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action, u.full_name as user_name
+        FROM oil_records o
+        LEFT JOIN users u ON u.id = o.tech_id
+        ORDER BY o.date_recorded DESC LIMIT 10
       `);
-      feed = f;
-    } catch(e) {
-      console.error('Super Admin Feed Error:', e);
-    }
+      feed = feed.concat(oilFeed);
+    } catch(e) { console.error('Feed error oil_records:', e); }
+
+    // 2. Entry Fees
+    try {
+      const [entryFeed] = await pool.query(`
+        SELECT e.id, 'entry_fee' AS type, e.created_at, 'บันทึกค่าแรกเข้า' AS action, u.full_name as user_name
+        FROM entry_fees e
+        LEFT JOIN users u ON u.id = e.created_by
+        ORDER BY e.created_at DESC LIMIT 10
+      `);
+      feed = feed.concat(entryFeed);
+    } catch(e) { console.error('Feed error entry_fees:', e); }
+
+    // 3. Checkins
+    try {
+      const [checkinFeed] = await pool.query(`
+        SELECT c.id, 'checkin' AS type, c.checkin_time AS created_at, 'เช็คอินเข้างาน' AS action, u.full_name as user_name
+        FROM checkins c
+        LEFT JOIN users u ON u.id = c.user_id
+        ORDER BY c.checkin_time DESC LIMIT 10
+      `);
+      feed = feed.concat(checkinFeed);
+    } catch(e) { console.error('Feed error checkins:', e); }
+
+    // 4. Job Logs
+    try {
+      const [jobFeed] = await pool.query(`
+        SELECT j.id, 'job' AS type, j.created_at, 'ปิดงานเสร็จสิ้น' AS action, u.full_name as user_name
+        FROM job_logs j
+        LEFT JOIN users u ON u.id = j.tech_id
+        WHERE j.status = 'completed'
+        ORDER BY j.created_at DESC LIMIT 10
+      `);
+      feed = feed.concat(jobFeed);
+    } catch(e) { console.error('Feed error job_logs:', e); }
+
+    // Sort combined feed by created_at DESC and limit to 20
+    feed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    feed = feed.slice(0, 20);
 
     res.json({
       summary: {
