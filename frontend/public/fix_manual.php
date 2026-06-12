@@ -16,10 +16,8 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $api = shell_exec('curl -s -i http://127.0.0.1:5000/api/report 2>&1');
-    $api2 = shell_exec('curl -s -i https://bonusais.com/api/report 2>&1');
-    $pkill = shell_exec('pkill -f node 2>&1');
-    echo json_encode(['success' => true, 'api_local' => $api, 'api_remote' => $api2, 'pkill' => $pkill]);
+    $api = shell_exec('cat /home/zvucfpsz/repositories/ad/backend/routes/report.js | head -n 15 2>&1');
+    echo json_encode(['success' => true, 'cat' => $api]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
