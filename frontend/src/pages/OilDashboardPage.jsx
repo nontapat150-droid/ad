@@ -135,6 +135,61 @@ export default function OilDashboardPage() {
     }
   };
 
+  const fileInputRef = useRef(null);
+
+  const handleImportExcel = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.read(data, { cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: "A", raw: true });
+      
+      // Filter out header row
+      const payload = jsonData.filter(row => row.A && !String(row.A).includes('วัน')).map(row => {
+        let dateVal = row.A;
+        if (dateVal instanceof Date) {
+          // Keep local time intact before toISOString
+          dateVal = new Date(dateVal.getTime() - dateVal.getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
+        }
+        return {
+          date_recorded: dateVal,
+          filler_name: row.B,
+          mileage: row.C,
+          license_plate: row.D,
+          liters: row.E,
+          price_per_liter: row.F,
+          total_price: row.H
+        };
+      });
+
+      if (payload.length === 0) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลในไฟล์ Excel หรือรูปแบบไม่ถูกต้อง', 'error');
+        return;
+      }
+
+      Swal.fire({
+        title: 'กำลังนำเข้าข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      const res = await api.post('/oil/import-bulk', payload);
+      Swal.fire('สำเร็จ', res.data.message, 'success');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('ข้อผิดพลาด', err.response?.data?.error || err.message, 'error');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const toggleTeam = (teamId) => {
     setSelectedTeams(prev => 
       prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
