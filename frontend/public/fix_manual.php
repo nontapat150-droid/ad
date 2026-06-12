@@ -16,8 +16,9 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $output = shell_exec('git log -1 2>&1');
-    echo json_encode(['success' => true, 'git_log' => $output]);
+    $logPath = __DIR__ . '/../../backend/error_log.txt';
+    $logContent = file_exists($logPath) ? file_get_contents($logPath) : 'Log not found';
+    echo json_encode(['success' => true, 'log' => $logContent]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);

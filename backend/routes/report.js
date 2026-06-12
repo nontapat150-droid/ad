@@ -55,6 +55,9 @@ router.get('/', auth, async (req, res) => {
     res.json(rows);
   } catch (error) {
     console.error('Error fetching reports:', error);
+    try {
+      require('fs').appendFileSync(__dirname + '/../error_log.txt', new Date().toISOString() + ' GET /api/report: ' + error.stack + '\n\n');
+    } catch(e) {}
     res.status(500).json({ error: error.message, stack: error.stack });
   }
 });
