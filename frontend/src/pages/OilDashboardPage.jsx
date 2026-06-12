@@ -658,7 +658,7 @@ export default function OilDashboardPage() {
                     <tr className="border-b-2 border-[#185FA5]/10 bg-slate-50/50">
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เวลา</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ช่าง (ผู้เบิก)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ทีม/ป้ายทะเบียน(โดยแสดงเฉพาะทีม)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ป้ายทะเบียน</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เลขไมล์</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">กม./ลิตร</th>
@@ -687,7 +687,7 @@ export default function OilDashboardPage() {
                             {r.tech_name || 'N/A'}
                           </td>
                           <td className="p-3 text-sm font-black text-[#185FA5] whitespace-nowrap">
-                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
+                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.license_plate || r.team_name || 'ไม่มีทีม'}</span>
                           </td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.distance || 0}</td>
