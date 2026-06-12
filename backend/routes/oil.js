@@ -41,7 +41,7 @@ router.get('/records', auth, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT r.*,
               u.full_name AS tech_name,
-              u.team_id,
+              COALESCE((SELECT id FROM teams WHERE team_name = r.license_plate LIMIT 1), u.team_id) AS team_id,
               t.team_name,
               GROUP_CONCAT(i.image_path SEPARATOR ',') AS images
        FROM oil_records r
@@ -345,7 +345,7 @@ router.get('/efficiency', auth, async (req, res) => {
               ELSE 0 END                     AS cost_per_job
        FROM oil_records r
        JOIN users u ON u.id = r.tech_id
-       JOIN teams t ON t.id = u.team_id
+       JOIN teams t ON t.id = COALESCE((SELECT id FROM teams t2 WHERE t2.team_name = r.license_plate LIMIT 1), u.team_id)
        LEFT JOIN (
            SELECT j.team_id, COUNT(*) as case_count
            FROM jobs j
@@ -401,7 +401,7 @@ router.get('/analytics', auth, async (req, res) => {
              SUM(r.liters) as total_liters, 
              SUM(r.total_price) as total_cost,
              SUM(r.distance) as total_distance,
-             MAX(u.team_id) as main_team_id
+             COALESCE((SELECT id FROM teams t2 WHERE t2.team_name = r.license_plate LIMIT 1), MAX(u.team_id)) as main_team_id
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
       ${whereClause}
