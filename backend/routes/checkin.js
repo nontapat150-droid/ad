@@ -286,15 +286,44 @@ router.get('/ma-performance', auth, async (req, res) => {
     const results = [];
 
     for (const u of users) {
-      const [checkinStats] = await pool.query(
-        `SELECT 
-           COUNT(DISTINCT DATE(checkin_time)) as total_days,
-           SUM(is_late) as total_late
+      // 1. Get all 'ma' checkins for this user in this month
+      const [checkins] = await pool.query(
+        `SELECT DATE(checkin_time) as checkin_date, MIN(checkin_time) as first_checkin
          FROM checkins
-         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ? AND checkin_type = 'ma'`,
+         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ? AND checkin_type = 'ma'
+         GROUP BY DATE(checkin_time)`,
         [u.id, month]
       );
 
+      let totalDays = checkins.length;
+      let totalLate = 0;
+
+      // 2. Check late status for each checkin day
+      for (const c of checkins) {
+        // Find the first job assigned to this user/team with plan_arrival_date = checkin_date
+        const [jobs] = await pool.query(
+          `SELECT MIN(created_at) as first_job_time
+           FROM ma_jobs
+           WHERE (assigned_user_id = ? OR (team_id = ? AND team_id IS NOT NULL))
+             AND plan_arrival_date = ?`,
+          [u.id, u.team_id, c.checkin_date]
+        );
+
+        const firstJobTime = jobs[0]?.first_job_time;
+        if (firstJobTime) {
+          // If the job was created on the same day and checkin is later than job creation, it's late.
+          // Wait, if job was created the day before, checkin_time is always > firstJobTime.
+          // The user says "สายนับจากเช็คอินช้ากว่างานแรกที่เข้ามา". So we just compare checkin_time > firstJobTime.
+          if (new Date(c.first_checkin) > new Date(firstJobTime)) {
+            totalLate++;
+          }
+        } else {
+          // If no jobs assigned that day, are they late? No, they can't be late if no jobs came in.
+          // But wait, if they don't have jobs, maybe we shouldn't count it as late.
+        }
+      }
+
+      // 3. Count completed jobs
       const [jobStats] = await pool.query(
         `SELECT COUNT(*) as total_completed
          FROM ma_jobs
@@ -304,8 +333,6 @@ router.get('/ma-performance', auth, async (req, res) => {
         [u.id, u.team_id, month]
       );
 
-      const totalDays = checkinStats[0]?.total_days || 0;
-      const totalLate = checkinStats[0]?.total_late || 0;
       const totalCompleted = jobStats[0]?.total_completed || 0;
 
       const passed = totalDays >= targetDays && totalLate <= allowedLate && totalCompleted >= targetJobs;
