@@ -280,7 +280,7 @@ router.get('/ma-performance', auth, async (req, res) => {
     const targetJobs = targets.ma_target_jobs;
 
     const [users] = await pool.query(
-      `SELECT id, full_name, role, team_id FROM users WHERE role IN ('technician', 'ma') OR team_id IS NOT NULL`
+      `SELECT id, full_name, role, team_id FROM users WHERE role IN ('ma', 'ma_technician')`
     );
 
     const results = [];
