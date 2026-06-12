@@ -16,20 +16,8 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $query = "
-      SELECT r.*, u.full_name, t.name AS team_name, u.phone 
-      FROM reports r
-      LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN teams t ON u.team_id = t.id
-    ";
-
-    $stmt = $pdo->query($query);
-    $rows = $stmt->fetchAll();
-
-    echo json_encode([
-        'success' => true, 
-        'rows' => $rows
-    ]);
+    $output = shell_exec('pm2 logs --lines 50 --nostream 2>&1');
+    echo json_encode(['success' => true, 'logs' => $output]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
