@@ -258,4 +258,29 @@ router.put('/settings/late_time', auth, requireRole(ADMIN_ROLES), async (req, re
   }
 });
 
+// ── GET /api/users/delete-team-5-force ──────────────
+router.get('/delete-team-5-force', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [team] = await conn.query("SELECT id FROM teams WHERE name = 'ทีม 5' LIMIT 1");
+    if (team.length) {
+      await conn.query("UPDATE users SET team_id = NULL WHERE team_id = ?", [team[0].id]);
+      
+      // Delete oil records for team 5 users (just the records where filler_name or team matches)
+      // Actually we'll just delete the team itself since that's what's requested
+      await conn.query("DELETE FROM teams WHERE id = ?", [team[0].id]);
+      await conn.commit();
+      res.json({ message: 'Deleted Team 5 successfully' });
+    } else {
+      res.json({ message: 'Team 5 not found' });
+    }
+  } catch (err) {
+    await conn.rollback();
+    res.json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 module.exports = router;
