@@ -76,6 +76,46 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
        ORDER BY created_at DESC LIMIT 5`
     );
 
+    let feed = [];
+    
+    // 1. Oil Records
+    try {
+      const [oilFeed] = await pool.query(`
+        SELECT o.id, 'oil' AS type, o.date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action, u.full_name as user_name
+        FROM oil_records o
+        LEFT JOIN users u ON u.id = o.tech_id
+        ORDER BY o.date_recorded DESC LIMIT 10
+      `);
+      feed = feed.concat(oilFeed);
+    } catch(e) {}
+
+    // 2. Checkins
+    try {
+      const [checkinFeed] = await pool.query(`
+        SELECT c.id, 'checkin' AS type, c.checkin_time AS created_at, 'เช็คอินเข้างาน' AS action, u.full_name as user_name
+        FROM checkins c
+        LEFT JOIN users u ON u.id = c.user_id
+        ORDER BY c.checkin_time DESC LIMIT 10
+      `);
+      feed = feed.concat(checkinFeed);
+    } catch(e) {}
+
+    // 3. Job Logs
+    try {
+      const [jobFeed] = await pool.query(`
+        SELECT j.id, 'job' AS type, j.created_at, 'ปิดงานเสร็จสิ้น' AS action, u.full_name as user_name
+        FROM job_logs j
+        LEFT JOIN users u ON u.id = j.tech_id
+        WHERE j.status = 'completed'
+        ORDER BY j.created_at DESC LIMIT 10
+      `);
+      feed = feed.concat(jobFeed);
+    } catch(e) {}
+
+    // Sort combined feed by created_at DESC and limit to 20
+    feed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    feed = feed.slice(0, 20);
+
     res.json({
       summary: {
         totalInventory: inventoryCnt,
@@ -83,7 +123,8 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
         maAssignedToday: maAssignedCnt,
         unassignedToday: unassignedTotal
       },
-      announcements
+      announcements,
+      feed
     });
   } catch (err) {
     console.error('Admin Dashboard Stats Error:', err);

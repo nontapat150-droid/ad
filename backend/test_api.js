@@ -9,7 +9,7 @@ const token = jwt.sign(
 
 const options = {
   hostname: 'bonusais.com',
-  path: '/api/checkin/migrate-checkins',
+  path: '/api/stats/super-admin-dashboard',
   method: 'GET',
   headers: {
     'Authorization': `Bearer ${token}`
@@ -25,9 +25,9 @@ const req = https.request(options, (res) => {
     console.log('Status:', res.statusCode);
     try {
       const json = JSON.parse(data);
-      console.log('Returned items count:', json.length);
-      if (json.length > 0) {
-        console.log('First item date:', json[0].checkin_time);
+      console.log('Returned items count:', json.feed?.length);
+      if (json.feed?.length > 0) {
+        console.log('First item:', json.feed[0]);
       }
     } catch (e) {
       console.log('Raw data:', data.slice(0, 500));
