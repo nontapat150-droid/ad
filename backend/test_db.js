@@ -10,7 +10,8 @@ async function test() {
       database: process.env.DB_NAME,
     });
 
-    const [rows] = await pool.query("SELECT r.*, DATE_FORMAT(r.date_recorded, '%Y-%m') as ym FROM oil_records r");
+    const filterDate = '2026-06-06';
+    const [rows] = await pool.query("SELECT id, checkin_time, DATE(checkin_time) as d FROM checkins WHERE DATE(checkin_time) = ?", [filterDate]);
     console.log("Records in DB:", rows);
 
     pool.end();
