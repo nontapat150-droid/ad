@@ -19,19 +19,22 @@ try {
     // Delete oil records where license plate is "ทีม"
     $deletedOil = $pdo->exec("DELETE FROM oil_records WHERE license_plate LIKE '%ทีม%' OR filler_name LIKE '%ทีม%'");
 
-    // Get all license plates
-    $platesStmt = $pdo->query("SELECT DISTINCT license_plate FROM oil_records");
-    $plates = $platesStmt->fetchAll();
-
-    // Get all teams
-    $teamsStmt = $pdo->query("SELECT id, team_name FROM teams");
-    $allTeams = $teamsStmt->fetchAll();
+    $byVehicleStmt = $pdo->query("
+      SELECT r.license_plate, 
+             SUM(r.liters) as total_liters, 
+             SUM(r.total_price) as total_cost,
+             SUM(r.distance) as total_distance,
+             MAX(u.team_id) as main_team_id
+      FROM oil_records r
+      LEFT JOIN users u ON u.id = r.tech_id
+      GROUP BY r.license_plate
+      ORDER BY total_cost DESC
+    ");
+    $byVehicle = $byVehicleStmt->fetchAll(\PDO::FETCH_ASSOC);
 
     echo json_encode([
         'success' => true, 
-        'deleted_oil' => $deletedOil,
-        'license_plates' => $plates,
-        'teams' => $allTeams
+        'byVehicle' => $byVehicle
     ]);
 
 } catch (\PDOException $e) {

@@ -390,7 +390,10 @@ export default function CheckinPage() {
   };
 
   // Today's checkin check
-  const todayCheckin = history.find(r => new Date(r.checkin_time).toDateString() === new Date().toDateString());
+  const todayCheckin = history.find(r => 
+    new Date(r.checkin_time).toDateString() === new Date().toDateString() &&
+    (r.checkin_type === checkinType || (!r.checkin_type && checkinType === 'general'))
+  );
   const alreadyCheckedInToday = !!todayCheckin;
   const canEditToday = !isAdmin && alreadyCheckedInToday && !isEditMode;
 
@@ -759,6 +762,17 @@ export default function CheckinPage() {
                         <p className="font-black text-[#042C53] text-base leading-tight">{fmtTime(time)}</p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[11px] text-slate-400">{fmtDate(time)}</span>
+                          {/* Type badge */}
+                          {record.checkin_type === 'ma' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-md">
+                              🛠️ ทีม MA
+                            </span>
+                          )}
+                          {(!record.checkin_type || record.checkin_type === 'general') && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                              📝 ทั่วไป
+                            </span>
+                          )}
                           {/* Map link */}
                           {mapUrl && (
                             <a

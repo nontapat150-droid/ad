@@ -36,10 +36,12 @@ router.post(
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     try {
-      // Prevent double check-in on same day
+      const type = req.body.type || 'general';
+
+      // Prevent double check-in on same day for the same type
       const [existing] = await pool.query(
-        `SELECT id FROM checkins WHERE user_id = ? AND DATE(checkin_time) = ? LIMIT 1`,
-        [userId, today]
+        `SELECT id FROM checkins WHERE user_id = ? AND DATE(checkin_time) = ? AND checkin_type = ? LIMIT 1`,
+        [userId, today, type]
       );
       if (existing.length > 0) {
         return res.status(409).json({ error: 'Already checked in today', checkin_id: existing[0].id });
@@ -55,8 +57,6 @@ router.post(
       const userTeamId = userRow[0]?.team_id;
 
       let lateThreshold;
-      const type = req.body.type || 'general';
-
       if (type === 'ma') {
         const [maJobs] = await pool.query(
           `SELECT MIN(job_time) as first_job_time 
@@ -196,11 +196,12 @@ router.put(
     const today = new Date().toISOString().slice(0, 10);
 
     try {
+      const type = req.body.type || 'general';
       const [rows] = await pool.query(
         `SELECT id, checkout_time FROM checkins
-         WHERE user_id = ? AND DATE(checkin_time) = ?
+         WHERE user_id = ? AND DATE(checkin_time) = ? AND checkin_type = ?
          ORDER BY checkin_time DESC LIMIT 1`,
-        [userId, today]
+        [userId, today, type]
       );
 
       if (rows.length === 0) {
@@ -411,7 +412,7 @@ router.get('/history', auth, async (req, res) => {
       
       const [rows] = await pool.query(
         `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng, c.checkin_type,
                 u.full_name, u.username, u.role
          FROM checkins c
          JOIN users u ON c.user_id = u.id
@@ -426,7 +427,7 @@ router.get('/history', auth, async (req, res) => {
       
       const [rows] = await pool.query(
         `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng, c.checkin_type,
                 u.full_name, u.username, u.role
          FROM checkins c
          JOIN users u ON c.user_id = u.id
