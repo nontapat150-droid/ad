@@ -139,6 +139,89 @@ router.post(
   }
 );
 
+// ── POST /api/oil/import-bulk — Import bulk fuel records ──────────────
+router.post('/import-bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const records = req.body;
+  if (!Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({ error: 'No data provided or invalid format' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    let successCount = 0;
+    
+    // Process records in order
+    for (const record of records) {
+      const {
+        date_recorded,
+        filler_name,
+        mileage,
+        license_plate,
+        liters,
+        price_per_liter,
+        total_price
+      } = record;
+
+      // 1. Find tech_id by filler_name
+      let tech_id = null;
+      if (filler_name) {
+        const [users] = await conn.query(
+          `SELECT id FROM users WHERE full_name LIKE ? LIMIT 1`,
+          [`%${filler_name.trim()}%`]
+        );
+        if (users.length > 0) {
+          tech_id = users[0].id;
+        }
+      }
+
+      // 2. Validate essential fields (graceful fallback)
+      const parsedLiters = parseFloat(liters) || 0;
+      const parsedMileage = parseFloat(mileage) || 0;
+      const parsedPrice = parseFloat(price_per_liter) || 0;
+      const parsedTotal = parseFloat(total_price) || 0;
+      const safeLicense = license_plate || 'ไม่ระบุ';
+      
+      const targetDate = date_recorded ? new Date(date_recorded) : new Date();
+
+      // 3. Skip if duplicate
+      const [existing] = await conn.query(
+        `SELECT id FROM oil_records 
+         WHERE (tech_id = ? OR filler_name = ?)
+           AND license_plate = ? 
+           AND DATE(date_recorded) = DATE(?)`,
+        [tech_id, filler_name, safeLicense, targetDate]
+      );
+
+      if (existing.length === 0) {
+        await conn.query(
+          `INSERT INTO oil_records
+             (tech_id, license_plate, liters, mileage, price_per_liter, total_price,
+              distance, baht_per_km, filler_name, date_recorded)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            tech_id, safeLicense, parsedLiters, parsedMileage, parsedPrice,
+            parsedTotal, 0, 0, filler_name || null,
+            targetDate
+          ]
+        );
+        successCount++;
+      }
+    }
+
+    await conn.commit();
+
+    res.status(200).json({ message: `นำเข้าสำเร็จ ${successCount} รายการ (ข้ามข้อมูลซ้ำ ${records.length - successCount} รายการ)`, imported: successCount });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Bulk import error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── DELETE /api/oil/records/:id — Delete a fuel record ──────
 router.delete('/records/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const recordId = req.params.id;

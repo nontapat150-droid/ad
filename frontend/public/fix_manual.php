@@ -12,7 +12,7 @@ $options = [
 
 try {
      $pdo = new PDO($dsn, $user, $pass, $options);
-     $stmt = $pdo->query('DESCRIBE ma_jobs');
+     $stmt = $pdo->query('SELECT created_at, plan_arrival_date, job_time FROM ma_jobs ORDER BY id DESC LIMIT 10');
      echo json_encode($stmt->fetchAll());
 } catch (\PDOException $e) {
      throw new \PDOException($e->getMessage(), (int)$e->getCode());
