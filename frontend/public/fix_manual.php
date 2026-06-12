@@ -1,19 +1,11 @@
 <?php
 header('Content-Type: application/json');
-$host = 'localhost';
-$db   = 'zvucfpsz_RT';
-$user = 'zvucfpsz_BO';
-$pass = '@2*]BC9AuGO^%P&-';
+$backend = '/home/zvucfpsz/public_html/backend';
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    ]);
+shell_exec('pkill -9 -f "node" 2>&1');
+shell_exec('kill -9 $(pgrep -f node) 2>&1');
+@mkdir($backend . '/tmp', 0755, true);
+touch($backend . '/tmp/restart.txt');
 
-    $reports = $pdo->query("SELECT id, title, image_path FROM reports ORDER BY id DESC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode(['reports' => $reports]);
-} catch (PDOException $e) {
-    echo json_encode(['error' => $e->getMessage()]);
-}
+echo json_encode(['restarted' => true]);
 ?>
