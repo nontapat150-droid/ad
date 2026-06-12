@@ -22,8 +22,9 @@ router.get('/records', auth, async (req, res) => {
     where.push('r.tech_id = ?');
     params.push(tech_id);
   } else if (team_ids) {
-    where.push('u.team_id IN (?)');
-    params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
+    where.push('(u.team_id IN (?) OR r.license_plate IN (SELECT team_name FROM teams WHERE id IN (?)))');
+    const ids = team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    params.push(ids, ids);
   }
 
   if (start_date && end_date) {
@@ -318,11 +319,12 @@ router.get('/efficiency', auth, async (req, res) => {
   }
 
   if (team_ids) { 
-    where.push("u.team_id IN (?)"); 
-    params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))); 
+    where.push("(u.team_id IN (?) OR r.license_plate IN (SELECT team_name FROM teams WHERE id IN (?)))"); 
+    const ids = team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    params.push(ids, ids); 
   } else if (team_id) { 
-    where.push("u.team_id = ?");   
-    params.push(team_id); 
+    where.push("(u.team_id = ? OR r.license_plate = (SELECT team_name FROM teams WHERE id = ?))");   
+    params.push(team_id, team_id); 
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -378,8 +380,9 @@ router.get('/analytics', auth, async (req, res) => {
     where.push('r.tech_id = ?');
     params.push(req.user.id);
   } else if (team_ids) {
-    where.push("u.team_id IN (?)");
-    params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
+    where.push("(u.team_id IN (?) OR r.license_plate IN (SELECT team_name FROM teams WHERE id IN (?)))");
+    const ids = team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    params.push(ids, ids);
   }
 
   if (start_date && end_date) {
