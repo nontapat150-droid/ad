@@ -16,53 +16,42 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 
+    // Check tables in zvucfpsz_RT
+    $tables_rt = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+
+    // Check if reports table exists in zvucfpsz_RT
+    $reports_exists_rt = in_array('reports', $tables_rt);
+
+    // Check reports table structure if exists
+    $reports_columns = [];
+    if ($reports_exists_rt) {
+        $reports_columns = $pdo->query("DESCRIBE reports")->fetchAll();
+    }
+
+    // Read current server report.js
+    $rp = '/home/zvucfpsz/repositories/ad/backend/routes/report.js';
+    $report_js = file_exists($rp) ? file_get_contents($rp) : 'NOT FOUND';
+
+    // Read .env
+    $ep = '/home/zvucfpsz/repositories/ad/backend/.env';
+    $env = file_exists($ep) ? file_get_contents($ep) : 'NOT FOUND';
+
     // Read error log
     $node_log = '';
-    $log_paths = [
-        '/home/zvucfpsz/repositories/ad/backend/error_log.txt',
-        '/home/zvucfpsz/backend/error_log.txt',
-    ];
-    foreach ($log_paths as $lp) {
+    foreach (['/home/zvucfpsz/repositories/ad/backend/error_log.txt', '/home/zvucfpsz/backend/error_log.txt'] as $lp) {
         if (file_exists($lp)) {
             $node_log .= "=== $lp ===\n" . substr(file_get_contents($lp), -3000) . "\n";
         }
     }
 
-    // Also check if report.js has syntax issues by reading it
-    $report_js = '';
-    $rp = '/home/zvucfpsz/repositories/ad/backend/routes/report.js';
-    if (file_exists($rp)) {
-        $report_js = file_get_contents($rp);
-    }
-
-    // Check server.js for port
-    $server_js = '';
-    $sp = '/home/zvucfpsz/repositories/ad/backend/server.js';
-    if (file_exists($sp)) {
-        $server_js = file_get_contents($sp);
-    }
-
-    // Check db.js config
-    $db_js = '';
-    $dp = '/home/zvucfpsz/repositories/ad/backend/config/db.js';
-    if (file_exists($dp)) {
-        $db_js = file_get_contents($dp);
-    }
-
-    // Check env
-    $env_content = '';
-    $ep = '/home/zvucfpsz/repositories/ad/backend/.env';
-    if (file_exists($ep)) {
-        $env_content = file_get_contents($ep);
-    }
-
     echo json_encode([
-        'success' => true,
+        'db_name' => 'zvucfpsz_RT',
+        'tables' => $tables_rt,
+        'reports_exists' => $reports_exists_rt,
+        'reports_columns' => $reports_columns,
+        'env' => $env,
+        'report_js_first_10_lines' => implode("\n", array_slice(explode("\n", $report_js), 0, 10)),
         'node_log' => $node_log ?: 'No log files found',
-        'report_js_head' => substr($report_js, 0, 500),
-        'server_js_head' => substr($server_js, 0, 500),
-        'db_js' => $db_js,
-        'env' => $env_content,
     ]);
 
 } catch (\PDOException $e) {
