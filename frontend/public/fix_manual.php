@@ -16,13 +16,9 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $code = file_get_contents('https://raw.githubusercontent.com/nontapat150-droid/ad/แก้ระบบเช็คอิน/backend/routes/report.js');
-    if ($code) {
-        file_put_contents('/home/zvucfpsz/repositories/ad/backend/routes/report.js', $code);
-        file_put_contents('/home/zvucfpsz/backend/routes/report.js', $code);
-    }
-    $restart = shell_exec('cd /home/zvucfpsz/repositories/ad/backend && touch tmp/restart.txt && pkill -f node 2>&1');
-    echo json_encode(['success' => true, 'wrote' => strlen($code)]);
+    $node_log = file_exists('/home/zvucfpsz/repositories/ad/backend/error_log.txt') ? file_get_contents('/home/zvucfpsz/repositories/ad/backend/error_log.txt') : 'Node log not found';
+    $node_log_ftp = file_exists('/home/zvucfpsz/backend/error_log.txt') ? file_get_contents('/home/zvucfpsz/backend/error_log.txt') : 'FTP Node log not found';
+    echo json_encode(['success' => true, 'node_log' => $node_log, 'ftp_log' => $node_log_ftp]);
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
