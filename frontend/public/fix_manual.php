@@ -17,18 +17,27 @@ try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
     $query = "
-      SELECT r.*, u.full_name, t.name AS team_name, u.phone 
-      FROM reports r
-      LEFT JOIN users u ON r.user_id = u.id
-      LEFT JOIN teams t ON u.team_id = t.id
+      CREATE TABLE IF NOT EXISTS reports (
+        id INT(11) AUTO_INCREMENT PRIMARY KEY,
+        user_id INT(11) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        image_path VARCHAR(255),
+        status ENUM('pending', 'in_progress', 'resolved') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
 
-    $stmt = $pdo->query($query);
-    $rows = $stmt->fetchAll();
+    $pdo->exec($query);
+
+    $stmt = $pdo->query("SHOW TABLES LIKE 'reports'");
+    $tables = $stmt->fetchAll();
 
     echo json_encode([
         'success' => true, 
-        'rows' => $rows
+        'tables' => $tables,
+        'msg' => 'Table creation executed'
     ]);
 
 } catch (\PDOException $e) {
