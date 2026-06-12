@@ -300,26 +300,45 @@ router.get('/ma-performance', auth, async (req, res) => {
 
       // 2. Check late status for each checkin day
       for (const c of checkins) {
-        // Find the first job assigned to this user/team with plan_arrival_date = checkin_date
+        // Find all jobs assigned to this user/team for that day
         const [jobs] = await pool.query(
-          `SELECT MIN(created_at) as first_job_time
+          `SELECT job_time, plan_arrival_date
            FROM ma_jobs
            WHERE (assigned_user_id = ? OR (team_id = ? AND team_id IS NOT NULL))
              AND plan_arrival_date = ?`,
           [u.id, u.team_id, c.checkin_date]
         );
 
-        const firstJobTime = jobs[0]?.first_job_time;
-        if (firstJobTime) {
-          // If the job was created on the same day and checkin is later than job creation, it's late.
-          // Wait, if job was created the day before, checkin_time is always > firstJobTime.
-          // The user says "สายนับจากเช็คอินช้ากว่างานแรกที่เข้ามา". So we just compare checkin_time > firstJobTime.
-          if (new Date(c.first_checkin) > new Date(firstJobTime)) {
-            totalLate++;
+        if (jobs.length > 0) {
+          let firstJobTimeMs = Infinity;
+
+          jobs.forEach(job => {
+            if (job.job_time && job.plan_arrival_date) {
+              // job_time might be "09:00" or "09:00-12:00" or "09.00"
+              // Extract the first time portion, e.g. "09" and "00"
+              const match = job.job_time.match(/(\d{1,2})[:.](\d{2})/);
+              if (match) {
+                let hour = parseInt(match[1]);
+                let min = parseInt(match[2]);
+                
+                // Construct the full Date object for the job's scheduled start time
+                // c.checkin_date is already a localized date string or Date object
+                let d = new Date(job.plan_arrival_date);
+                d.setHours(hour, min, 0, 0);
+                
+                if (d.getTime() < firstJobTimeMs) {
+                  firstJobTimeMs = d.getTime();
+                }
+              }
+            }
+          });
+
+          // If we successfully parsed a job time
+          if (firstJobTimeMs !== Infinity) {
+            if (new Date(c.first_checkin).getTime() > firstJobTimeMs) {
+              totalLate++;
+            }
           }
-        } else {
-          // If no jobs assigned that day, are they late? No, they can't be late if no jobs came in.
-          // But wait, if they don't have jobs, maybe we shouldn't count it as late.
         }
       }
 
