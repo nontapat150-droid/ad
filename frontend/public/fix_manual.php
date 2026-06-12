@@ -16,23 +16,26 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    // Find Team 5
-    $stmt = $pdo->query("SELECT * FROM teams WHERE name LIKE '%5%'");
-    $teams = $stmt->fetchAll();
+    // Delete oil records where license plate is "ทีม 5"
+    $deletedOil = $pdo->exec("DELETE FROM oil_records WHERE license_plate LIKE '%ทีม 5%' OR filler_name LIKE '%ทีม 5%'");
 
-    // Find users in Team 5
-    $stmt = $pdo->query("SELECT * FROM users WHERE team_id IN (SELECT id FROM teams WHERE name LIKE '%5%')");
-    $users = $stmt->fetchAll();
+    // Check if Team 5 exists
+    $stmt = $pdo->query("SELECT id FROM teams WHERE name = 'ทีม 5' LIMIT 1");
+    $team = $stmt->fetch();
 
-    // Find oil records for team 5
-    $stmt = $pdo->query("SELECT o.*, u.full_name, t.name as team_name FROM oil_records o LEFT JOIN users u ON o.tech_id = u.id LEFT JOIN teams t ON u.team_id = t.id WHERE t.name LIKE '%5%' OR o.filler_name LIKE '%5%'");
-    $oil = $stmt->fetchAll();
+    if ($team) {
+        $teamId = $team['id'];
+        
+        // Unassign users from Team 5 (set to NULL or unassigned)
+        $pdo->exec("UPDATE users SET team_id = NULL WHERE team_id = $teamId");
 
-    echo json_encode([
-        'teams' => $teams,
-        'users' => $users,
-        'oil_records' => $oil
-    ]);
+        // Delete the team itself
+        $deleted = $pdo->exec("DELETE FROM teams WHERE id = $teamId");
+
+        echo json_encode(['success' => true, 'message' => "Team 5 (ID: $teamId) deleted. Also deleted $deletedOil oil records.", 'deleted_rows' => $deleted]);
+    } else {
+        echo json_encode(['success' => true, 'message' => "Team 5 not found. Deleted $deletedOil oil records."]);
+    }
 
 } catch (\PDOException $e) {
     echo json_encode(['error' => $e->getMessage()]);
