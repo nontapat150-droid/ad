@@ -16,12 +16,19 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    $stmt = $pdo->query("DESCRIBE users");
-    $columns = $stmt->fetchAll();
+    $query = "
+      SELECT r.*, u.full_name, t.name AS team_name, u.phone 
+      FROM reports r
+      LEFT JOIN users u ON r.user_id = u.id
+      LEFT JOIN teams t ON u.team_id = t.id
+    ";
+
+    $stmt = $pdo->query($query);
+    $rows = $stmt->fetchAll();
 
     echo json_encode([
         'success' => true, 
-        'users_columns' => $columns
+        'rows' => $rows
     ]);
 
 } catch (\PDOException $e) {
