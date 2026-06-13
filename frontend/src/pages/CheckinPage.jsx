@@ -74,7 +74,7 @@ export default function CheckinPage() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [stats, setStats] = useState({ late: 0, ontime: 0 });
   const [filterUserId, setFilterUserId] = useState('ALL');
-  const [filterDate, setFilterDate] = useState('');
+  const [filterDate, setFilterDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL', 'ontime', 'late'
   const [usersList, setUsersList] = useState([]);
 
