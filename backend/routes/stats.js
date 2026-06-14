@@ -195,29 +195,35 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     feed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     feed = feed.slice(0, 20);
 
-    let mechanicTeams = [];
-    try {
-      const [usersData] = await pool.query(`
-        SELECT 
-          u.id, u.full_name, u.role, u.profile_image, t.team_name,
-          CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS is_online
-        FROM users u
-        LEFT JOIN teams t ON u.team_id = t.id
-        LEFT JOIN checkins c ON c.user_id = u.id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
-        WHERE u.role NOT IN ('super_admin', 'admin')
-      `);
-      
-      const teamMap = {};
-      usersData.forEach(u => {
-        const tName = u.team_name || 'ไม่มีทีม';
-        if (!teamMap[tName]) teamMap[tName] = { team_name: tName, total: 0, online: 0, members: [] };
-        teamMap[tName].total += 1;
-        if (u.is_online) teamMap[tName].online += 1;
-        teamMap[tName].members.push(u);
-      });
-      mechanicTeams = Object.values(teamMap).sort((a, b) => a.team_name.localeCompare(b.team_name));
-      mechanicTeams.forEach(t => t.members.sort((a, b) => b.is_online - a.is_online));
-    } catch(e) { console.error('Error mechanic teams:', e); }
+      let mechanicTeams = [];
+      try {
+        const [usersData] = await pool.query(`
+          SELECT 
+            u.id, u.full_name, u.role, u.profile_image, t.team_name
+          FROM users u
+          LEFT JOIN teams t ON u.team_id = t.id
+          WHERE u.role NOT IN ('super_admin', 'admin')
+        `);
+        
+        const now = Date.now();
+        const ACTIVE_THRESHOLD = 15 * 60 * 1000; // 15 minutes
+        
+        const teamMap = {};
+        usersData.forEach(u => {
+          const tName = u.team_name || 'ไม่มีทีม';
+          if (!teamMap[tName]) teamMap[tName] = { team_name: tName, total: 0, online: 0, members: [] };
+          teamMap[tName].total += 1;
+          
+          // Check global active users map
+          const lastActive = global.activeUsers ? (global.activeUsers.get(u.id) || 0) : 0;
+          u.is_online = (now - lastActive < ACTIVE_THRESHOLD) ? 1 : 0;
+          
+          if (u.is_online) teamMap[tName].online += 1;
+          teamMap[tName].members.push(u);
+        });
+        mechanicTeams = Object.values(teamMap).sort((a, b) => a.team_name.localeCompare(b.team_name));
+        mechanicTeams.forEach(t => t.members.sort((a, b) => b.is_online - a.is_online));
+      } catch(e) { console.error('Error mechanic teams:', e); }
 
     let jobsProportion = { total: 0, ma: 0, office: 0, sales: 0, admin: 0 };
     try {

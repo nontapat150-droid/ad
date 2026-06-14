@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 
+global.activeUsers = global.activeUsers || new Map();
+
 /**
  * Middleware: Verify JWT from Authorization: Bearer <token>
  * Attaches decoded payload to req.user
@@ -14,6 +16,10 @@ const auth = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // { id, username, role, roles[], team_id, full_name }
+    
+    // Track active usage
+    global.activeUsers.set(decoded.id, Date.now());
+    
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
