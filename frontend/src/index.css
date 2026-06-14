@@ -429,3 +429,15 @@ label {
 .bouns-btn:active {
   transform: scale(0.98);
 }
+
+/* -- Live Chat Feed Marquee -- */
+@keyframes marquee-y {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+.animate-marquee-y {
+  animation: marquee-y 30s linear infinite;
+}
+.animate-marquee-y:hover {
+  animation-play-state: paused;
+}

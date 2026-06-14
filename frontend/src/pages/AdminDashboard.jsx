@@ -31,6 +31,12 @@ export default function AdminDashboard() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 
+  const todayFeed = (data?.feed || []).filter(item => {
+    const d = new Date(item.created_at);
+    const t = new Date();
+    return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear();
+  }).reverse();
+
   return (
     <div className="flex h-dvh font-sans overflow-hidden" style={{ background: 'var(--page-bg)', backgroundAttachment: 'fixed' }}>
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="admin_dashboard" />
@@ -159,60 +165,111 @@ export default function AdminDashboard() {
                       </span>
                     </div>
 
-                    {/* Feed Items (Chat Style) */}
-                    <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/40 flex flex-col-reverse gap-4">
-                      {data?.feed?.length > 0 ? (
-                        data.feed.map((item, idx) => {
-                          const FEED_CONFIG = {
-                            oil: { icon: '⛽', color: 'from-amber-400 to-orange-500', shadow: 'shadow-orange-500/20', label: 'ลงน้ำมัน' },
-                            entry_fee: { icon: '💰', color: 'from-emerald-400 to-teal-500', shadow: 'shadow-teal-500/20', label: 'ค่าแรกเข้า' },
-                            checkin: { icon: '📍', color: 'from-blue-400 to-indigo-500', shadow: 'shadow-blue-500/20', label: 'ลงเวลา' },
-                            job: { icon: '🛠️', color: 'from-purple-400 to-pink-500', shadow: 'shadow-purple-500/20', label: 'งานเสร็จ' }
-                          };
-                          const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
-                          
-                          // timeAgo function inside component
-                          const timeAgo = (dateStr) => {
-                            const diff = (new Date() - new Date(dateStr)) / 1000;
-                            if (diff < 60) return 'เมื่อสักครู่';
-                            if (diff < 3600) return `${Math.floor(diff/60)} นาทีที่แล้ว`;
-                            if (diff < 86400) return `${Math.floor(diff/3600)} ชั่วโมงที่แล้ว`;
-                            return `${Math.floor(diff/86400)} วันที่แล้ว`;
-                          };
+                    {/* Feed Items (Chat Style with Marquee Loop) */}
+                    <div className="flex-1 overflow-hidden bg-slate-50/40 relative">
+                      {todayFeed.length > 0 ? (
+                        <div className="animate-marquee-y flex flex-col hover:[animation-play-state:paused]">
+                          <div className="flex flex-col gap-4 p-4 md:p-6 pb-2">
+                            {todayFeed.map((item, idx) => {
+                              const FEED_CONFIG = {
+                                oil: { icon: '⛽', color: 'from-amber-400 to-orange-500', shadow: 'shadow-orange-500/20', label: 'ลงน้ำมัน' },
+                                entry_fee: { icon: '💰', color: 'from-emerald-400 to-teal-500', shadow: 'shadow-teal-500/20', label: 'ค่าแรกเข้า' },
+                                checkin: { icon: '📍', color: 'from-blue-400 to-indigo-500', shadow: 'shadow-blue-500/20', label: 'ลงเวลา' },
+                                job: { icon: '🛠️', color: 'from-purple-400 to-pink-500', shadow: 'shadow-purple-500/20', label: 'งานเสร็จ' }
+                              };
+                              const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
+                              
+                              const timeAgo = (dateStr) => {
+                                const diff = (new Date() - new Date(dateStr)) / 1000;
+                                if (diff < 60) return 'เมื่อสักครู่';
+                                if (diff < 3600) return `${Math.floor(diff/60)} นาทีที่แล้ว`;
+                                if (diff < 86400) return `${Math.floor(diff/3600)} ชั่วโมงที่แล้ว`;
+                                return `${Math.floor(diff/86400)} วันที่แล้ว`;
+                              };
 
-                          return (
-                            <div
-                              key={`${item.type}-${item.id}-${idx}`}
-                              className="flex items-end gap-3 group animate-fade-in-up"
-                            >
-                              {/* Avatar/Icon */}
-                              <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
-                                {cfg.icon}
-                              </div>
+                              return (
+                                <div
+                                  key={`feed-1-${item.type}-${item.id}-${idx}`}
+                                  className="flex items-end gap-3 group"
+                                >
+                                  {/* Avatar/Icon */}
+                                  <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
+                                    {cfg.icon}
+                                  </div>
 
-                              {/* Chat Bubble Content */}
-                              <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
-                                <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
-                                  {item.user_name || 'ผู้ใช้'} 
-                                  <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                  <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
-                                </span>
-                                <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
-                                  <p className="text-[#042C53] text-sm font-medium leading-relaxed">
-                                    {item.action}
-                                  </p>
+                                  {/* Chat Bubble Content */}
+                                  <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
+                                    <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
+                                      {item.user_name || 'ผู้ใช้'} 
+                                      <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
+                                    </span>
+                                    <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
+                                      <p className="text-[#042C53] text-sm font-medium leading-relaxed">
+                                        {item.action}
+                                      </p>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
+                                      {timeAgo(item.created_at)}
+                                    </span>
+                                  </div>
                                 </div>
-                                <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
-                                  {timeAgo(item.created_at)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
+                              );
+                            })}
+                          </div>
+                          <div className="flex flex-col gap-4 px-4 md:px-6 pb-2" aria-hidden="true">
+                            {todayFeed.map((item, idx) => {
+                              const FEED_CONFIG = {
+                                oil: { icon: '⛽', color: 'from-amber-400 to-orange-500', shadow: 'shadow-orange-500/20', label: 'ลงน้ำมัน' },
+                                entry_fee: { icon: '💰', color: 'from-emerald-400 to-teal-500', shadow: 'shadow-teal-500/20', label: 'ค่าแรกเข้า' },
+                                checkin: { icon: '📍', color: 'from-blue-400 to-indigo-500', shadow: 'shadow-blue-500/20', label: 'ลงเวลา' },
+                                job: { icon: '🛠️', color: 'from-purple-400 to-pink-500', shadow: 'shadow-purple-500/20', label: 'งานเสร็จ' }
+                              };
+                              const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
+                              
+                              const timeAgo = (dateStr) => {
+                                const diff = (new Date() - new Date(dateStr)) / 1000;
+                                if (diff < 60) return 'เมื่อสักครู่';
+                                if (diff < 3600) return `${Math.floor(diff/60)} นาทีที่แล้ว`;
+                                if (diff < 86400) return `${Math.floor(diff/3600)} ชั่วโมงที่แล้ว`;
+                                return `${Math.floor(diff/86400)} วันที่แล้ว`;
+                              };
+
+                              return (
+                                <div
+                                  key={`feed-2-${item.type}-${item.id}-${idx}`}
+                                  className="flex items-end gap-3 group"
+                                >
+                                  {/* Avatar/Icon */}
+                                  <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
+                                    {cfg.icon}
+                                  </div>
+
+                                  {/* Chat Bubble Content */}
+                                  <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
+                                    <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
+                                      {item.user_name || 'ผู้ใช้'} 
+                                      <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
+                                    </span>
+                                    <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
+                                      <p className="text-[#042C53] text-sm font-medium leading-relaxed">
+                                        {item.action}
+                                      </p>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
+                                      {timeAgo(item.created_at)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full text-center py-10">
                           <div className="w-16 h-16 bg-[#E6F1FB] rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-inner">📭</div>
-                          <p className="text-[#042C53] font-bold">ยังไม่มีรายการล่าสุด</p>
+                          <p className="text-[#042C53] font-bold">ยังไม่มีรายการล่าสุดของวันนี้</p>
                           <p className="text-[#378ADD] text-sm mt-1">การทำรายการใหม่จะปรากฏที่นี่</p>
                         </div>
                       )}
