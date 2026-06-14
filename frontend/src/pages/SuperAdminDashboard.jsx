@@ -189,59 +189,61 @@ export default function SuperAdminDashboard() {
                 </div>
 
                 {/* ── Activity Feed ── */}
-                <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden">
+                <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col h-[500px]">
                   {/* Feed Header */}
-                  <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between"
+                  <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between shrink-0"
                     style={{ background: 'rgba(255,255,255,0.4)' }}>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20">
-                        <span className="text-white text-xs">⚡</span>
+                        <span className="text-white text-xs">💬</span>
                       </div>
                       <div>
-                        <h2 className="text-[#042C53] font-bold text-base">Activity Feed</h2>
-                        <p className="text-[#378ADD] text-xs">การทำรายการล่าสุดในระบบ</p>
+                        <h2 className="text-[#042C53] font-bold text-base">Live Activity Feed</h2>
+                        <p className="text-[#378ADD] text-xs">การทำรายการล่าสุดแบบเรียลไทม์</p>
                       </div>
                     </div>
                     <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      LIVE FEED
+                      LIVE
                     </span>
                   </div>
 
-                  {/* Feed Items */}
-                  <div className="divide-y divide-white/20">
+                  {/* Feed Items (Chat Style) */}
+                  <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/40 flex flex-col-reverse gap-4">
                     {data?.feed?.length > 0 ? (
                       data.feed.map((item, idx) => {
                         const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
                         return (
                           <div
                             key={`${item.type}-${item.id}-${idx}`}
-                            className="flex items-center gap-4 px-6 py-4 hover:bg-white/30 transition-colors group"
+                            className="flex items-end gap-3 group animate-fade-in-up"
                           >
-                            {/* Icon */}
-                            <div className={`w-11 h-11 shrink-0 rounded-2xl bg-gradient-to-br ${cfg.color} flex items-center justify-center text-lg shadow-lg ${cfg.shadow} group-hover:scale-110 transition-transform duration-200`}>
+                            {/* Avatar/Icon */}
+                            <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
                               {cfg.icon}
                             </div>
 
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#042C53] text-sm font-medium">
-                                <span className="font-bold">{item.user_name || 'ผู้ใช้'}</span>
-                                {' '}
-                                <span className="text-[#378ADD]">{item.action}</span>
-                              </p>
-                              <p className="text-[#378ADD] text-xs mt-0.5">{timeAgo(item.created_at)}</p>
+                            {/* Chat Bubble Content */}
+                            <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
+                              <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
+                                {item.user_name || 'ผู้ใช้'} 
+                                <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
+                              </span>
+                              <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
+                                <p className="text-[#042C53] text-sm font-medium leading-relaxed">
+                                  {item.action}
+                                </p>
+                              </div>
+                              <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
+                                {timeAgo(item.created_at)}
+                              </span>
                             </div>
-
-                            {/* Badge */}
-                            <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full border bg-gradient-to-br ${cfg.color} text-white shadow-sm hidden sm:block`}>
-                              {cfg.label}
-                            </span>
                           </div>
                         );
                       })
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="flex flex-col items-center justify-center h-full text-center py-10">
                         <div className="w-16 h-16 bg-[#E6F1FB] rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-inner">📭</div>
                         <p className="text-[#042C53] font-bold">ยังไม่มีรายการล่าสุด</p>
                         <p className="text-[#378ADD] text-sm mt-1">การทำรายการใหม่จะปรากฏที่นี่</p>
