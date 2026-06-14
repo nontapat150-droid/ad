@@ -195,6 +195,80 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     feed.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     feed = feed.slice(0, 20);
 
+    let mechanicTeams = [];
+    try {
+      const [usersData] = await pool.query(`
+        SELECT 
+          u.id, u.full_name, u.role, u.profile_image, t.team_name,
+          CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END AS is_online
+        FROM users u
+        LEFT JOIN teams t ON u.team_id = t.id
+        LEFT JOIN checkins c ON c.user_id = u.id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
+        WHERE u.role NOT IN ('super_admin', 'admin')
+      `);
+      
+      const teamMap = {};
+      usersData.forEach(u => {
+        const tName = u.team_name || 'ไม่มีทีม';
+        if (!teamMap[tName]) teamMap[tName] = { team_name: tName, total: 0, online: 0, members: [] };
+        teamMap[tName].total += 1;
+        if (u.is_online) teamMap[tName].online += 1;
+        teamMap[tName].members.push(u);
+      });
+      mechanicTeams = Object.values(teamMap).sort((a, b) => a.team_name.localeCompare(b.team_name));
+      mechanicTeams.forEach(t => t.members.sort((a, b) => b.is_online - a.is_online));
+    } catch(e) { console.error('Error mechanic teams:', e); }
+
+    let jobsProportion = { total: 0, completed: 0, pending: 0, failed: 0 };
+    try {
+      const [[jp]] = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(status = 'completed') as completed,
+          SUM(status = 'pending') as pending,
+          SUM(status = 'failed') as failed
+        FROM jobs 
+        WHERE MONTH(create_time) = MONTH(CURDATE()) AND YEAR(create_time) = YEAR(CURDATE())
+      `);
+      jobsProportion = {
+        total: jp.total || 0,
+        completed: jp.completed || 0,
+        pending: jp.pending || 0,
+        failed: jp.failed || 0
+      };
+    } catch(e) { console.error('Error jobs proportion:', e); }
+
+    let jobsToday = 0, jobsPending = 0, jobsInProgress = 0, jobsCompletedToday = 0;
+    try {
+      const [[jobStats]] = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(team_id IS NULL AND status NOT IN ('completed', 'failed')) as pending,
+          SUM(team_id IS NOT NULL AND status NOT IN ('completed', 'failed')) as in_progress,
+          SUM(status = 'completed') as completed
+        FROM jobs 
+        WHERE DATE(create_time) = CURDATE() OR plan_arrival_date = CURDATE()
+      `);
+      jobsToday += Number(jobStats.total || 0);
+      jobsPending += Number(jobStats.pending || 0);
+      jobsInProgress += Number(jobStats.in_progress || 0);
+      jobsCompletedToday += Number(jobStats.completed || 0);
+
+      const [[maStats]] = await pool.query(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(team_id IS NULL AND status NOT IN ('completed', 'failed')) as pending,
+          SUM(team_id IS NOT NULL AND status NOT IN ('completed', 'failed')) as in_progress,
+          SUM(status = 'completed') as completed
+        FROM ma_jobs 
+        WHERE plan_arrival_date = CURDATE()
+      `);
+      jobsToday += Number(maStats.total || 0);
+      jobsPending += Number(maStats.pending || 0);
+      jobsInProgress += Number(maStats.in_progress || 0);
+      jobsCompletedToday += Number(maStats.completed || 0);
+    } catch(e) { console.error('Error jobs today stats:', e); }
+
     res.json({
       summary: {
         totalUsers: usersCnt,
@@ -202,9 +276,15 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         totalInventory: inventoryCnt,
         totalNonCustomers: nonCnt,
         monthlyOilBills: oilCnt,
-        monthlyEntryFees: entryCnt
+        monthlyEntryFees: entryCnt,
+        jobsToday,
+        jobsPending,
+        jobsInProgress,
+        jobsCompletedToday
       },
-      feed
+      feed,
+      mechanicTeams,
+      jobsProportion
     });
   } catch (err) {
     console.error('Super Admin Dashboard Stats Error:', err);

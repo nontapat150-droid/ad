@@ -143,24 +143,40 @@ export default function SuperAdminDashboard() {
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <StatCard
-                      title="ผู้ใช้ระบบทั้งหมด"
-                      value={data?.summary?.totalUsers || 0}
-                      suffix="คน"
+                      title="งานทั้งหมดวันนี้"
+                      value={data?.summary?.jobsToday || 0}
+                      suffix="งาน"
                       gradient="from-[#185FA5] to-[#0C447C]"
-                      icon="👥"
+                      icon="📋"
                       shadow="shadow-blue-500/20"
                     />
                     <StatCard
-                      title="กำลังใช้งานขณะนี้"
-                      value={data?.summary?.onlineUsers || 0}
-                      suffix="คน"
-                      gradient="from-emerald-500 to-teal-600"
-                      icon="🟢"
+                      title="รออนุมัติ/มอบหมาย"
+                      value={data?.summary?.jobsPending || 0}
+                      suffix="งาน"
+                      gradient="from-amber-500 to-orange-600"
+                      icon="⏳"
+                      shadow="shadow-amber-500/20"
+                    />
+                    <StatCard
+                      title="กำลังปฏิบัติงาน"
+                      value={data?.summary?.jobsInProgress || 0}
+                      suffix="งาน"
+                      gradient="from-teal-400 to-emerald-500"
+                      icon="🛠️"
                       shadow="shadow-emerald-500/20"
                       live
                     />
                     <StatCard
-                      title="สินค้าในคลังทั้งหมด"
+                      title="เสร็จสิ้นวันนี้"
+                      value={data?.summary?.jobsCompletedToday || 0}
+                      suffix="งาน"
+                      gradient="from-emerald-500 to-teal-600"
+                      icon="✅"
+                      shadow="shadow-emerald-500/20"
+                    />
+                    <StatCard
+                      title="จำนวนสินค้าในคลัง"
                       value={Number(data?.summary?.totalInventory || 0).toLocaleString()}
                       suffix="ชิ้น"
                       gradient="from-slate-600 to-slate-800"
@@ -168,130 +184,216 @@ export default function SuperAdminDashboard() {
                       shadow="shadow-slate-500/20"
                     />
                     <StatCard
-                      title="ลูกค้า NON ทั้งหมด"
+                      title="เลข NON ลูกค้าทั้งหมด"
                       value={Number(data?.summary?.totalNonCustomers || 0).toLocaleString()}
                       suffix="ราย"
                       gradient="from-purple-500 to-violet-700"
                       icon="🏢"
                       shadow="shadow-purple-500/20"
                     />
-                    <StatCard
-                      title="บิลน้ำมันเดือนนี้"
-                      value={data?.summary?.monthlyOilBills || 0}
-                      suffix="บิล"
-                      gradient="from-amber-500 to-orange-600"
-                      icon="⛽"
-                      shadow="shadow-amber-500/20"
-                    />
-                    <StatCard
-                      title="ค่าแรกเข้าเดือนนี้"
-                      value={data?.summary?.monthlyEntryFees || 0}
-                      suffix="รายการ"
-                      gradient="from-teal-500 to-cyan-600"
-                      icon="💰"
-                      shadow="shadow-teal-500/20"
-                    />
                   </div>
                 </div>
 
-                {/* ── Activity Feed ── */}
-                <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col h-[500px]">
-                  {/* Feed Header */}
-                  <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.4)' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20">
-                        <span className="text-white text-xs">💬</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                  {/* ── Left Column: Job Proportions & Activity Feed ── */}
+                  <div className="lg:col-span-2 flex flex-col gap-6">
+                    
+                    {/* ── Job Proportions (This Month) ── */}
+                    <div className="glass rounded-3xl border border-white/50 shadow-sm p-5 md:p-6 flex flex-col justify-center">
+                      <h3 className="text-[#042C53] font-bold text-base mb-4 flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0">
+                          <span className="text-white text-xs">📊</span>
+                        </div>
+                        สัดส่วนงานเดือนนี้
+                      </h3>
+                      
+                      <div className="w-full h-4 md:h-5 rounded-full overflow-hidden flex bg-slate-100 shadow-inner">
+                        <div style={{ width: `${((data?.jobsProportion?.completed || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-emerald-500 h-full transition-all duration-1000" title={`สำเร็จ ${data?.jobsProportion?.completed || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.pending || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-amber-400 h-full transition-all duration-1000" title={`รอดำเนินการ ${data?.jobsProportion?.pending || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.failed || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-rose-500 h-full transition-all duration-1000" title={`ยกเลิก/ล้มเหลว ${data?.jobsProportion?.failed || 0} งาน`} />
                       </div>
-                      <div>
-                        <h2 className="text-[#042C53] font-bold text-base">Live Activity Feed</h2>
-                        <p className="text-[#378ADD] text-xs">การทำรายการล่าสุดแบบเรียลไทม์</p>
+                      
+                      <div className="flex flex-wrap items-center justify-between mt-4 text-[11px] md:text-xs font-medium gap-2">
+                        <div className="flex flex-wrap gap-3 md:gap-4">
+                          <div className="flex items-center gap-1.5 text-emerald-600">
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                            สำเร็จ ({data?.jobsProportion?.completed || 0})
+                          </div>
+                          <div className="flex items-center gap-1.5 text-amber-600">
+                            <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm" />
+                            รอดำเนินการ ({data?.jobsProportion?.pending || 0})
+                          </div>
+                          <div className="flex items-center gap-1.5 text-rose-600">
+                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm" />
+                            ล้มเหลว ({data?.jobsProportion?.failed || 0})
+                          </div>
+                        </div>
+                        <div className="text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          รวม: {data?.jobsProportion?.total || 0} งาน
+                        </div>
                       </div>
                     </div>
-                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      LIVE
-                    </span>
+
+                    {/* ── Activity Feed ── */}
+                    <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col h-[400px]">
+                      {/* Feed Header */}
+                      <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.4)' }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20">
+                            <span className="text-white text-xs">💬</span>
+                          </div>
+                          <div>
+                            <h2 className="text-[#042C53] font-bold text-base">Live Activity Feed</h2>
+                            <p className="text-[#378ADD] text-xs">การทำรายการล่าสุดแบบเรียลไทม์</p>
+                          </div>
+                        </div>
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          LIVE
+                        </span>
+                      </div>
+
+                      {/* Feed Items (Chat Style with Marquee Loop) */}
+                      <div className="flex-1 overflow-hidden bg-slate-50/40 relative">
+                        {todayFeed.length > 0 ? (
+                          <div className="animate-marquee-y flex flex-col hover:[animation-play-state:paused]">
+                            <div className="flex flex-col gap-4 p-4 md:p-6 pb-2">
+                              {todayFeed.map((item, idx) => {
+                                const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
+                                return (
+                                  <div
+                                    key={`feed-1-${item.type}-${item.id}-${idx}`}
+                                    className="flex items-end gap-3 group"
+                                  >
+                                    {/* Avatar/Icon */}
+                                    <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
+                                      {cfg.icon}
+                                    </div>
+
+                                    {/* Chat Bubble Content */}
+                                    <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
+                                      <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
+                                        {item.user_name || 'ผู้ใช้'} 
+                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
+                                      </span>
+                                      <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
+                                        <p className="text-[#042C53] text-sm font-medium leading-relaxed">
+                                          {item.action}
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
+                                        {timeAgo(item.created_at)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex flex-col gap-4 px-4 md:px-6 pb-2" aria-hidden="true">
+                              {todayFeed.map((item, idx) => {
+                                const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
+                                return (
+                                  <div
+                                    key={`feed-2-${item.type}-${item.id}-${idx}`}
+                                    className="flex items-end gap-3 group"
+                                  >
+                                    {/* Avatar/Icon */}
+                                    <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
+                                      {cfg.icon}
+                                    </div>
+
+                                    {/* Chat Bubble Content */}
+                                    <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
+                                      <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
+                                        {item.user_name || 'ผู้ใช้'} 
+                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
+                                      </span>
+                                      <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
+                                        <p className="text-[#042C53] text-sm font-medium leading-relaxed">
+                                          {item.action}
+                                        </p>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
+                                        {timeAgo(item.created_at)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-center py-10">
+                            <div className="w-16 h-16 bg-[#E6F1FB] rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-inner">📭</div>
+                            <p className="text-[#042C53] font-bold">ยังไม่มีรายการล่าสุดของวันนี้</p>
+                            <p className="text-[#378ADD] text-sm mt-1">การทำรายการใหม่จะปรากฏที่นี่</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Feed Items (Chat Style with Marquee Loop) */}
-                  <div className="flex-1 overflow-hidden bg-slate-50/40 relative">
-                    {todayFeed.length > 0 ? (
-                      <div className="animate-marquee-y flex flex-col hover:[animation-play-state:paused]">
-                        <div className="flex flex-col gap-4 p-4 md:p-6 pb-2">
-                          {todayFeed.map((item, idx) => {
-                            const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
-                            return (
-                              <div
-                                key={`feed-1-${item.type}-${item.id}-${idx}`}
-                                className="flex items-end gap-3 group"
-                              >
-                                {/* Avatar/Icon */}
-                                <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
-                                  {cfg.icon}
-                                </div>
-
-                                {/* Chat Bubble Content */}
-                                <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
-                                  <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
-                                    {item.user_name || 'ผู้ใช้'} 
-                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
-                                  </span>
-                                  <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
-                                    <p className="text-[#042C53] text-sm font-medium leading-relaxed">
-                                      {item.action}
-                                    </p>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
-                                    {timeAgo(item.created_at)}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                  {/* ── Right Column: Mechanic Teams Status ── */}
+                  <div className="lg:col-span-1 glass rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col h-[500px] lg:h-auto lg:max-h-[800px]">
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b border-white/30 flex items-center justify-between shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.4)' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center shadow-md shadow-blue-500/20">
+                          <span className="text-white text-xs">🛠️</span>
                         </div>
-                        <div className="flex flex-col gap-4 px-4 md:px-6 pb-2" aria-hidden="true">
-                          {todayFeed.map((item, idx) => {
-                            const cfg = FEED_CONFIG[item.type] || { icon: '📌', color: 'from-slate-400 to-slate-500', shadow: 'shadow-slate-400/20', label: 'กิจกรรม' };
-                            return (
-                              <div
-                                key={`feed-2-${item.type}-${item.id}-${idx}`}
-                                className="flex items-end gap-3 group"
-                              >
-                                {/* Avatar/Icon */}
-                                <div className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${cfg.color} flex items-center justify-center text-sm shadow-md ${cfg.shadow} ring-2 ring-white/50`}>
-                                  {cfg.icon}
-                                </div>
-
-                                {/* Chat Bubble Content */}
-                                <div className="flex flex-col max-w-[85%] md:max-w-[75%]">
-                                  <span className="text-[11px] font-bold text-slate-500 mb-1 ml-2 flex items-center gap-1.5">
-                                    {item.user_name || 'ผู้ใช้'} 
-                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded border bg-gradient-to-br ${cfg.color} text-white shadow-sm`}>{cfg.label}</span>
-                                  </span>
-                                  <div className="bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-sm px-4 py-3 relative">
-                                    <p className="text-[#042C53] text-sm font-medium leading-relaxed">
-                                      {item.action}
-                                    </p>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 mt-1 ml-2 font-medium">
-                                    {timeAgo(item.created_at)}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div>
+                          <h2 className="text-[#042C53] font-bold text-base">สถานะทีมช่าง</h2>
+                          <p className="text-[#378ADD] text-xs">ออนไลน์ / ออฟไลน์</p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-center py-10">
-                        <div className="w-16 h-16 bg-[#E6F1FB] rounded-2xl flex items-center justify-center text-3xl mb-3 shadow-inner">📭</div>
-                        <p className="text-[#042C53] font-bold">ยังไม่มีรายการล่าสุดของวันนี้</p>
-                        <p className="text-[#378ADD] text-sm mt-1">การทำรายการใหม่จะปรากฏที่นี่</p>
-                      </div>
-                    )}
+                    </div>
+                    {/* List */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/40 flex flex-col gap-4">
+                      {data?.mechanicTeams?.length > 0 ? (
+                        data.mechanicTeams.map(team => (
+                          <div key={team.team_name} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col gap-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                              <h4 className="font-bold text-[#042C53] text-sm flex items-center gap-2">
+                                {team.team_name}
+                              </h4>
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                {team.online} / {team.total}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-2.5">
+                              {team.members.map(member => (
+                                <div key={member.id} className="flex items-center justify-between group">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-full bg-slate-200 overflow-hidden shrink-0 border border-slate-100">
+                                      {member.profile_image ? (
+                                        <img src={`/api/uploads/profiles/${member.profile_image}`} alt={member.full_name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <svg className="w-full h-full text-slate-400 p-1" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                      )}
+                                    </div>
+                                    <span className="text-xs font-medium text-slate-600 truncate max-w-[140px] group-hover:text-[#042C53] transition-colors" title={member.full_name}>{member.full_name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-semibold text-slate-400">
+                                      {member.is_online ? 'ออนไลน์' : 'ออฟไลน์'}
+                                    </span>
+                                    <span className={`w-2 h-2 rounded-full ${member.is_online ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-5">
+                          <p className="text-slate-400 text-sm">ไม่พบข้อมูลทีมช่าง</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
