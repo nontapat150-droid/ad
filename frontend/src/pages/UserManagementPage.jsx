@@ -12,6 +12,7 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null); // null = not editing, {} = new user, {...} = existing user
   const [deletingId, setDeletingId] = useState(null);
+  const [roleFilter, setRoleFilter] = useState('all'); // Add role filter state
 
   const [activeTab, setActiveTab] = useState('users');
   const [isTeamModalOpen, setTeamModalOpen] = useState(false);
@@ -155,7 +156,25 @@ export default function UserManagementPage() {
         </div>
 
         {activeTab === 'users' ? (
-        <div className="glass p-5 rounded-3xl border border-white/50 shadow-sm overflow-hidden">
+        <div className="glass p-5 rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-lg font-bold text-[#042C53]">รายชื่อผู้ใช้งาน</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-[#042C53]">ตัวกรองบทบาท:</span>
+              <select 
+                value={roleFilter} 
+                onChange={(e) => setRoleFilter(e.target.value)} 
+                className="input-field glass !w-auto !py-1.5 !min-h-0 cursor-pointer"
+              >
+                <option value="all">ทั้งหมด</option>
+                <option value="admin">แอดมิน / ผู้ดูแลระบบ</option>
+                <option value="sales">เซล</option>
+                <option value="technician">ช่าง Office</option>
+                <option value="ma_technician">ช่าง MA</option>
+              </select>
+            </div>
+          </div>
+          
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 w-full rounded-2xl" />)}
@@ -173,8 +192,14 @@ export default function UserManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} className="border-b border-white/30 hover:/80 transition-colors">
+                  {users.filter(u => {
+                    if (roleFilter === 'all') return true;
+                    if (roleFilter === 'admin' && (u.role === 'admin' || u.role === 'super_admin' || (u.roles && (u.roles.includes('admin') || u.roles.includes('super_admin'))))) return true;
+                    if (u.role === roleFilter) return true;
+                    if (u.roles && u.roles.includes(roleFilter)) return true;
+                    return false;
+                  }).map((u) => (
+                    <tr key={u.id} className="border-b border-white/30 hover:bg-white/80 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full glass flex items-center justify-center font-bold text-[#378ADD] border border-white/50">
