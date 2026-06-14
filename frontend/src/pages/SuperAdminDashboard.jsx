@@ -208,24 +208,29 @@ export default function SuperAdminDashboard() {
                       </h3>
                       
                       <div className="w-full h-4 md:h-5 rounded-full overflow-hidden flex bg-slate-100 shadow-inner">
-                        <div style={{ width: `${((data?.jobsProportion?.completed || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-emerald-500 h-full transition-all duration-1000" title={`สำเร็จ ${data?.jobsProportion?.completed || 0} งาน`} />
-                        <div style={{ width: `${((data?.jobsProportion?.pending || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-amber-400 h-full transition-all duration-1000" title={`รอดำเนินการ ${data?.jobsProportion?.pending || 0} งาน`} />
-                        <div style={{ width: `${((data?.jobsProportion?.failed || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-rose-500 h-full transition-all duration-1000" title={`ยกเลิก/ล้มเหลว ${data?.jobsProportion?.failed || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.ma || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-blue-500 h-full transition-all duration-1000" title={`ช่าง MA ${data?.jobsProportion?.ma || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.office || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-emerald-500 h-full transition-all duration-1000" title={`ช่าง Office ${data?.jobsProportion?.office || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.sales || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-amber-400 h-full transition-all duration-1000" title={`เซล ${data?.jobsProportion?.sales || 0} งาน`} />
+                        <div style={{ width: `${((data?.jobsProportion?.admin || 0) / (data?.jobsProportion?.total || 1)) * 100}%` }} className="bg-purple-500 h-full transition-all duration-1000" title={`งานทั่วไป/แอดมิน ${data?.jobsProportion?.admin || 0} งาน`} />
                       </div>
                       
                       <div className="flex flex-wrap items-center justify-between mt-4 text-[11px] md:text-xs font-medium gap-2">
                         <div className="flex flex-wrap gap-3 md:gap-4">
+                          <div className="flex items-center gap-1.5 text-blue-600">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" />
+                            ช่าง MA ({data?.jobsProportion?.ma || 0} งาน, {((data?.jobsProportion?.ma || 0) / (data?.jobsProportion?.total || 1) * 100).toFixed(0)}%)
+                          </div>
                           <div className="flex items-center gap-1.5 text-emerald-600">
                             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
-                            สำเร็จ ({data?.jobsProportion?.completed || 0})
+                            ช่าง Office ({data?.jobsProportion?.office || 0} งาน, {((data?.jobsProportion?.office || 0) / (data?.jobsProportion?.total || 1) * 100).toFixed(0)}%)
                           </div>
                           <div className="flex items-center gap-1.5 text-amber-600">
                             <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm" />
-                            รอดำเนินการ ({data?.jobsProportion?.pending || 0})
+                            เซล ({data?.jobsProportion?.sales || 0} งาน, {((data?.jobsProportion?.sales || 0) / (data?.jobsProportion?.total || 1) * 100).toFixed(0)}%)
                           </div>
-                          <div className="flex items-center gap-1.5 text-rose-600">
-                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-sm" />
-                            ล้มเหลว ({data?.jobsProportion?.failed || 0})
+                          <div className="flex items-center gap-1.5 text-purple-600">
+                            <div className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm" />
+                            งานทั่วไป/แอดมิน ({data?.jobsProportion?.admin || 0} งาน, {((data?.jobsProportion?.admin || 0) / (data?.jobsProportion?.total || 1) * 100).toFixed(0)}%)
                           </div>
                         </div>
                         <div className="text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">

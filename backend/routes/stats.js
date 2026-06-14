@@ -219,23 +219,29 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
       mechanicTeams.forEach(t => t.members.sort((a, b) => b.is_online - a.is_online));
     } catch(e) { console.error('Error mechanic teams:', e); }
 
-    let jobsProportion = { total: 0, completed: 0, pending: 0, failed: 0 };
+    let jobsProportion = { total: 0, ma: 0, office: 0, sales: 0, admin: 0 };
     try {
-      const [[jp]] = await pool.query(`
+      const [[officeStats]] = await pool.query(`
         SELECT 
           COUNT(*) as total,
-          SUM(status = 'completed') as completed,
-          SUM(status = 'pending') as pending,
-          SUM(status = 'failed') as failed
+          SUM(create_user_role = 'technician') as office,
+          SUM(create_user_role = 'sales') as sales,
+          SUM(create_user_role IN ('admin', 'super_admin') OR create_user_role IS NULL) as admin
         FROM jobs 
         WHERE MONTH(create_time) = MONTH(CURDATE()) AND YEAR(create_time) = YEAR(CURDATE())
       `);
-      jobsProportion = {
-        total: jp.total || 0,
-        completed: jp.completed || 0,
-        pending: jp.pending || 0,
-        failed: jp.failed || 0
-      };
+      
+      const [[maStats]] = await pool.query(`
+        SELECT COUNT(*) as total 
+        FROM ma_jobs 
+        WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
+      `);
+
+      jobsProportion.ma = Number(maStats.total || 0);
+      jobsProportion.office = Number(officeStats.office || 0);
+      jobsProportion.sales = Number(officeStats.sales || 0);
+      jobsProportion.admin = Number(officeStats.admin || 0);
+      jobsProportion.total = jobsProportion.ma + jobsProportion.office + jobsProportion.sales + jobsProportion.admin;
     } catch(e) { console.error('Error jobs proportion:', e); }
 
     let jobsToday = 0, jobsPending = 0, jobsInProgress = 0, jobsCompletedToday = 0;
