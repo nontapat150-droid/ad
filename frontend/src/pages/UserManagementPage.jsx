@@ -157,21 +157,28 @@ export default function UserManagementPage() {
 
         {activeTab === 'users' ? (
         <div className="glass p-5 rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-[#042C53]">รายชื่อผู้ใช้งาน</h2>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-[#042C53]">ตัวกรองบทบาท:</span>
-              <select 
-                value={roleFilter} 
-                onChange={(e) => setRoleFilter(e.target.value)} 
-                className="input-field glass !w-auto !py-1.5 !min-h-0 cursor-pointer"
-              >
-                <option value="all">ทั้งหมด</option>
-                <option value="admin">แอดมิน / ผู้ดูแลระบบ</option>
-                <option value="sales">เซล</option>
-                <option value="technician">ช่าง Office</option>
-                <option value="ma_technician">ช่าง MA</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'all', label: 'ทั้งหมด' },
+                { id: 'admin', label: 'แอดมิน' },
+                { id: 'sales', label: 'เซล' },
+                { id: 'technician', label: 'ช่าง Office' },
+                { id: 'ma_technician', label: 'ช่าง MA' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setRoleFilter(f.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                    roleFilter === f.id 
+                      ? 'bg-gradient-to-r from-[#185FA5] to-blue-600 text-white shadow-md shadow-blue-500/20' 
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </div>
           
