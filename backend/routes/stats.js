@@ -73,7 +73,8 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
   try {
     const [[usersResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`);
-    const [[onlineResult]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
+    const [[onlineResult1]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
+    const [[onlineResult2]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
     const [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
     const [[nonResult]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`);
     const [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`);
@@ -88,6 +89,8 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
           UNION ALL
           (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
           UNION ALL
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
+          UNION ALL
           (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 20)
         ) AS c
         LEFT JOIN users u ON u.id = c.user_id
@@ -97,19 +100,20 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
 
     const [onlineStatus] = await pool.query(`
       SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
-             (CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
+             (CASE WHEN c.id IS NOT NULL OR mc.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
              u.profile_image
       FROM users u
       LEFT JOIN teams t ON u.team_id = t.id
       LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
-      WHERE u.status = 'approved' AND u.role NOT IN ('super_admin', 'admin')
+      LEFT JOIN ma_checkins mc ON u.id = mc.user_id AND DATE(mc.checkin_time) = CURDATE() AND mc.checkout_time IS NULL
+      WHERE u.role NOT IN ('super_admin', 'admin')
       ORDER BY t.team_name, u.full_name
     `);
 
     res.json({
       summary: {
         totalUsers: usersResult.cnt || 0,
-        onlineUsers: onlineResult.cnt || 0,
+        onlineUsers: (onlineResult1.cnt || 0) + (onlineResult2.cnt || 0),
         totalInventory: inventoryResult.cnt || 0,
         totalNonCustomers: nonResult.cnt || 0,
         monthlyOilBills: oilResult.cnt || 0,
