@@ -84,8 +84,8 @@ export default function AisExpansionPage() {
         layers: [
           new TileLayer({
             source: new XYZ({
-              url: 'https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UlpKF4zHaO6RzT8Jbnke',
-              attributions: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+              attributions: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
               crossOrigin: 'anonymous',
             }),
           }),
@@ -137,7 +137,7 @@ export default function AisExpansionPage() {
               </svg>
               แผนที่บ้าน
             </h3>
-            <p className="text-xs text-slate-500 mt-1">OpenLayers & MapTiler</p>
+            <p className="text-xs text-slate-500 mt-1">OpenLayers & ArcGIS</p>
           </div>
           
           {/* Detection Toggle */}
