@@ -3,10 +3,13 @@ import Sidebar from './Sidebar';
 import InboxModal from './InboxModal';
 import api from '../api/axios';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const navigate = useNavigate();
 
   const close  = useCallback(() => setSidebarOpen(false), []);
   const toggle = useCallback(() => setSidebarOpen((v) => !v), []);
@@ -66,7 +69,10 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
           <div className="flex items-center gap-2">
             {/* Map Button */}
             <button 
-              onClick={() => window.dispatchEvent(new CustomEvent('openAisExpansionMap'))}
+              onClick={() => {
+                if (onNavigate) onNavigate('ais_expansion');
+                else navigate('/ais-expansion');
+              }}
               className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
               title="แผนที่งานขยาย AIS"
             >
