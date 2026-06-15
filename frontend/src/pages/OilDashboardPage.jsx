@@ -156,13 +156,13 @@ export default function OilDashboardPage() {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="glass-deep p-4 rounded-xl shadow-lg border-white/50 backdrop-blur-xl">
-          <p className="text-[#042C53] font-bold text-sm mb-2 pb-2 border-b border-white/20">{label}</p>
+        <div className="bg-white p-4 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E5E7EB] backdrop-blur-xl">
+          <p className="text-[#1F2937] font-bold text-sm mb-2 pb-2 border-b border-[#F3F4F6]">{label}</p>
           {payload.map((entry, index) => (
             <div key={index} className="flex items-center gap-3 text-sm py-1">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-              <span className="text-[#185FA5] font-medium">{entry.name}:</span>
-              <span className="font-bold text-[#042C53]">{entry.value.toLocaleString()}</span>
+              <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: entry.color }} />
+              <span className="text-[#6B7280] font-medium">{entry.name}:</span>
+              <span className="font-bold text-[#1F2937]">{entry.value.toLocaleString()}</span>
             </div>
           ))}
         </div>
@@ -177,15 +177,15 @@ export default function OilDashboardPage() {
         
         {/* Header & Controls */}
         {!isDataEntryOnly && (
-        <div className="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-6 rounded-3xl animate-fade-in-up">
+        <div className="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-[#E5E7EB] animate-fade-in-up">
           <div>
-            <h1 className="text-2xl font-extrabold text-[#042C53] flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center text-white shadow-lg">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+            <h1 className="text-2xl font-extrabold text-[#1F2937] flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center text-[#1F2937] shadow-sm">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
               </div>
               แดชบอร์ดสรุปน้ำมัน
             </h1>
-            <p className="text-[#378ADD] mt-2 font-medium">สถิติและประวัติการเบิกจ่ายน้ำมันของรถทุกคัน</p>
+            <p className="text-[#6B7280] mt-2 font-medium">สถิติและประวัติการเบิกจ่ายน้ำมันของรถทุกคัน</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 relative">
@@ -196,36 +196,36 @@ export default function OilDashboardPage() {
             <div className="relative">
               <button 
                 onClick={() => setShowTeamDropdown(!showTeamDropdown)}
-                className="input-field max-w-[200px] flex items-center justify-between text-sm shadow-sm bg-white"
+                className="input-field max-w-[200px] flex items-center justify-between text-sm shadow-sm bg-[#F9FAFB] border-[#E5E7EB] text-[#1F2937] font-bold"
               >
                 <span className="truncate mr-2">
                   {selectedTeams.length === 0 ? 'ทุกทีม' : `เลือกแล้ว ${selectedTeams.length} ทีม`}
                 </span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
               </button>
               
               {showTeamDropdown && (
-                <div className="absolute z-50 top-full mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-xl p-2 max-h-64 overflow-y-auto">
+                <div className="absolute z-50 top-full mt-2 w-56 bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] p-2 max-h-64 overflow-y-auto">
                   <div className="p-1">
-                    <label className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                    <label className="flex items-center gap-3 p-2 hover:bg-[#F3F4F6] rounded-lg cursor-pointer transition-colors">
                       <input 
                         type="checkbox" 
                         checked={selectedTeams.length === 0}
                         onChange={() => setSelectedTeams([])}
-                        className="w-4 h-4 rounded text-[#185FA5] focus:ring-[#378ADD]"
+                        className="w-4 h-4 rounded text-[#A3E635] focus:ring-[#A3E635] border-[#D1D5DB]"
                       />
-                      <span className="text-sm font-medium text-[#042C53]">เลือกทุกทีม</span>
+                      <span className="text-sm font-bold text-[#1F2937]">เลือกทุกทีม</span>
                     </label>
-                    <div className="h-px bg-slate-100 my-1"></div>
+                    <div className="h-px bg-[#E5E7EB] my-1"></div>
                     {teams.map(t => (
-                      <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                      <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-[#F3F4F6] rounded-lg cursor-pointer transition-colors">
                         <input 
                           type="checkbox" 
                           checked={selectedTeams.includes(t.id)}
                           onChange={() => toggleTeam(t.id)}
-                          className="w-4 h-4 rounded text-[#185FA5] focus:ring-[#378ADD]"
+                          className="w-4 h-4 rounded text-[#A3E635] focus:ring-[#A3E635] border-[#D1D5DB]"
                         />
-                        <span className="text-sm text-[#042C53]">{t.team_name}</span>
+                        <span className="text-sm font-medium text-[#4B5563]">{t.team_name}</span>
                       </label>
                     ))}
                   </div>
@@ -241,15 +241,15 @@ export default function OilDashboardPage() {
             />
             <button
               onClick={() => setShowCompare(!showCompare)}
-              className="btn-outline flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              className="bg-white border border-[#E5E7EB] hover:border-[#A3E635] text-[#374151] hover:text-[#65a30d] px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-all active:scale-95">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
               เปรียบเทียบรถ
             </button>
             {isAdmin && (
               <button
                 onClick={handleRecalculate}
-                className="btn-outline border-orange-500 text-orange-600 hover:bg-orange-50 flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                className="bg-white border border-orange-200 text-orange-600 hover:bg-orange-50 px-4 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-sm transition-all active:scale-95">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 คำนวณใหม่
               </button>
             )}
@@ -259,8 +259,8 @@ export default function OilDashboardPage() {
             {!isDataEntryOnly && (
               <button
                 onClick={() => setShowModal(true)}
-                className="btn-primary flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                className="bg-[#1F2937] hover:bg-[#374151] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-bold shadow-md transition-all active:scale-95">
+                <svg className="w-5 h-5 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
                 เพิ่มข้อมูล
               </button>
             )}
@@ -346,10 +346,10 @@ export default function OilDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* 1. Daily Cost */}
-              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-orange-100/80 text-orange-600 flex items-center justify-center">📈</div>
+                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">📈</div>
                     ค่าใช้จ่ายรายวัน (บาท)
                   </h3>
                 </div>
@@ -357,24 +357,24 @@ export default function OilDashboardPage() {
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip content={<CustomTooltip />} />
                         <Line type="monotone" name="ยอดเงิน (บาท)" dataKey="total_cost" stroke="#F59E0B" strokeWidth={4} dot={{fill: '#FFF', stroke: '#F59E0B', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#F59E0B'}} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
                   )}
                 </div>
               </div>
 
               {/* 2. Daily Liters */}
-              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100/80 text-amber-500 flex items-center justify-center">⛽</div>
+                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#A3E635]/20 text-[#65a30d] flex items-center justify-center">⛽</div>
                     ปริมาณน้ำมันรายวัน (ลิตร)
                   </h3>
                 </div>
@@ -382,24 +382,24 @@ export default function OilDashboardPage() {
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={16}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
-                        <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
-                        <Bar name="จำนวน (ลิตร)" dataKey="total_liters" fill="#f59e0b" radius={[4, 4, 4, 4]} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dx={-10} />
+                        <Tooltip cursor={{fill: '#F3F4F6'}} content={<CustomTooltip />} />
+                        <Bar name="จำนวน (ลิตร)" dataKey="total_liters" fill="#A3E635" radius={[4, 4, 4, 4]} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
                   )}
                 </div>
               </div>
 
               {/* 3. Daily Distance */}
-              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100/80 text-emerald-600 flex items-center justify-center">🛣️</div>
+                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] text-[#374151] flex items-center justify-center">🛣️</div>
                     ระยะทางวิ่งรายวัน (กม.) รวมทุกคัน
                   </h3>
                 </div>
@@ -407,24 +407,24 @@ export default function OilDashboardPage() {
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120, 180, 255, 0.2)" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dx={-10} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" name="ระยะทาง (กม.)" dataKey="total_distance" stroke="#10b981" strokeWidth={4} dot={{fill: '#FFF', stroke: '#10b981', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#10b981'}} />
+                        <Line type="monotone" name="ระยะทาง (กม.)" dataKey="total_distance" stroke="#374151" strokeWidth={4} dot={{fill: '#FFF', stroke: '#374151', strokeWidth: 2, r: 4}} activeDot={{r: 6, strokeWidth: 0, fill: '#374151'}} />
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลในเดือนนี้</div>
+                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
                   )}
                 </div>
               </div>
 
               {/* 4. Efficiency per Job */}
-              <div className="glass p-6 rounded-3xl flex flex-col liquid-hover">
+              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100/80 text-[#185FA5] flex items-center justify-center">🎯</div>
+                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">🎯</div>
                     ประสิทธิภาพต้นทุนต่อรอบ (บาท/งาน)
                   </h3>
                 </div>
@@ -432,19 +432,19 @@ export default function OilDashboardPage() {
                   {efficiency.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={efficiency} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(120, 180, 255, 0.2)" />
-                        <XAxis type="number" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis type="category" dataKey="team_name" tick={{fill: '#185FA5', fontSize: 12}} axisLine={false} tickLine={false} width={80} />
-                        <Tooltip cursor={{fill: 'rgba(120,180,255,0.1)'}} content={<CustomTooltip />} />
-                        <Bar name="ต้นทุนต่อรอบ (บาท)" dataKey="cost_per_job" fill="#185FA5" radius={[0, 8, 8, 0]}>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
+                        <XAxis type="number" tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} dy={10} />
+                        <YAxis type="category" dataKey="team_name" tick={{fill: '#6B7280', fontSize: 12, fontWeight: 600}} axisLine={false} tickLine={false} width={80} />
+                        <Tooltip cursor={{fill: '#F3F4F6'}} content={<CustomTooltip />} />
+                        <Bar name="ต้นทุนต่อรอบ (บาท)" dataKey="cost_per_job" fill="#14b8a6" radius={[0, 8, 8, 0]}>
                           {efficiency.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#185FA5' : '#378ADD'} />
+                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#14b8a6' : '#2dd4bf'} />
                           ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-[#378ADD] text-sm">ไม่มีข้อมูลประสิทธิภาพในเดือนนี้</div>
+                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลประสิทธิภาพในเดือนนี้</div>
                   )}
                 </div>
               </div>
@@ -452,10 +452,10 @@ export default function OilDashboardPage() {
 
             {/* Compare Vehicles Grid */}
             {showCompare && analytics.byVehicle.length > 0 && (
-              <div className="glass-deep p-6 md:p-8 rounded-3xl animate-fade-in-up">
+              <div className="bg-[#F9FAFB] p-6 md:p-8 rounded-3xl border border-[#E5E7EB] shadow-sm animate-fade-in-up">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-extrabold text-[#042C53] text-xl flex items-center gap-2">
-                    <span className="bg-white p-2 rounded-xl shadow-sm">⚖️</span> ตารางเปรียบเทียบรถ
+                  <h3 className="font-extrabold text-[#1F2937] text-xl flex items-center gap-2">
+                    <span className="bg-white p-2 rounded-xl shadow-sm border border-[#E5E7EB]">⚖️</span> ตารางเปรียบเทียบรถ
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -473,43 +473,43 @@ export default function OilDashboardPage() {
                     const costPerJob = caseCount > 0 ? (tCost / caseCount).toFixed(2) : '0.00';
 
                     return (
-                      <div key={v.license_plate} className="glass p-5 rounded-2xl liquid-hover bg-white/60 shadow-sm border border-white/50">
+                      <div key={v.license_plate} className="bg-white p-5 rounded-2xl hover:-translate-y-1 hover:shadow-md transition-all shadow-sm border border-[#E5E7EB]">
                         <div className="flex items-center justify-between mb-4">
-                          <div className="text-xs font-bold text-[#378ADD] uppercase tracking-wider">ทะเบียนรถ</div>
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[#185FA5]">
+                          <div className="text-xs font-bold text-[#6B7280] uppercase tracking-wider">ทะเบียนรถ</div>
+                          <div className="w-8 h-8 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center text-[#1F2937]">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                           </div>
                         </div>
-                        <div className="text-2xl font-black text-[#042C53] mb-4">{v.license_plate}</div>
+                        <div className="text-2xl font-black text-[#1F2937] mb-4">{v.license_plate}</div>
                         
                         <div className="space-y-2.5">
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">ยอดรวม</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">ยอดรวม</span>
                             <span className="font-bold text-emerald-600">฿{tCost.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">จำนวนลิตร</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">จำนวนลิตร</span>
                             <span className="font-bold text-amber-500">{tLiters.toFixed(2)} L</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">เฉลี่ยลิตร/บาท</span>
-                            <span className="font-bold text-[#042C53]">{literPerBaht}</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">เฉลี่ยลิตร/บาท</span>
+                            <span className="font-bold text-[#1F2937]">{literPerBaht}</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">ระยะทาง</span>
-                            <span className="font-bold text-[#042C53]">{tDistance.toLocaleString()} กม.</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">ระยะทาง</span>
+                            <span className="font-bold text-[#1F2937]">{tDistance.toLocaleString()} กม.</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">ลิตร/กม.</span>
-                            <span className="font-bold text-[#042C53]">{kmPerLiter}</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">ลิตร/กม.</span>
+                            <span className="font-bold text-[#1F2937]">{kmPerLiter}</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm border-b border-[#378ADD]/10 pb-2">
-                            <span className="text-[#185FA5] font-medium">ต้นทุน/กม.</span>
-                            <span className="font-bold text-[#042C53]">฿{costPerKm}</span>
+                          <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                            <span className="text-[#6B7280] font-medium">ต้นทุน/กม.</span>
+                            <span className="font-bold text-[#1F2937]">฿{costPerKm}</span>
                           </div>
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-[#185FA5] font-medium">ต้นทุน/งาน</span>
-                            <span className="font-bold text-[#042C53]">฿{costPerJob}</span>
+                            <span className="text-[#6B7280] font-medium">ต้นทุน/งาน</span>
+                            <span className="font-bold text-[#1F2937]">฿{costPerJob}</span>
                           </div>
                         </div>
                       </div>
@@ -520,31 +520,31 @@ export default function OilDashboardPage() {
             )}
 
             {/* History Table */}
-            <div className="glass p-6 rounded-3xl overflow-hidden liquid-hover bg-white/40">
+            <div className="bg-white p-6 rounded-3xl overflow-hidden shadow-sm border border-[#E5E7EB]">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-[#042C53] text-lg flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100/80 text-emerald-600 flex items-center justify-center">📋</div>
+                <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">📋</div>
                   ประวัติการเติมน้ำมันล่าสุด
                 </h3>
               </div>
               <div className="overflow-x-auto w-full pb-2">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                   <thead>
-                    <tr className="border-b-2 border-[#185FA5]/10 bg-slate-50/50">
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เวลา</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ชื่อผู้เติม / ทีม / ตำแหน่ง</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เลขไมล์</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">กม./ลิตร</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เคสปิดสำเร็จ (เดือน)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/กม.</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ต้นทุน/งาน</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ยอดรวม (บาท)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">หลักฐาน รูปภาพ</th>
-                      {isAdmin && <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-center">จัดการ</th>}
+                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่/เวลา</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ชื่อผู้เติม / ทีม / ตำแหน่ง</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">เลขไมล์</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">กม./ลิตร</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">เคสปิดสำเร็จ (เดือน)</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">ต้นทุน/กม.</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">ต้นทุน/งาน</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">ยอดรวม (บาท)</th>
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-center">หลักฐาน รูปภาพ</th>
+                      {isAdmin && <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-center">จัดการ</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#185FA5]/5">
+                  <tbody className="divide-y divide-[#F3F4F6]">
                     {records.map((r) => {
                       const teamEff = efficiency.find(e => e.team_id === r.team_id);
                       const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
@@ -553,16 +553,16 @@ export default function OilDashboardPage() {
                       const costPerJob = caseCount > 0 ? (parseFloat(r.total_price) / caseCount).toFixed(2) : '0.00';
 
                       return (
-                        <tr key={r.id} className="hover:bg-white/60 transition-colors group">
-                          <td className="p-3 text-sm text-[#042C53] font-medium whitespace-nowrap">
+                        <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                          <td className="p-4 text-sm text-[#4B5563] font-medium whitespace-nowrap">
                             {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                           </td>
-                          <td className="p-3 text-sm text-[#042C53] whitespace-nowrap">
+                          <td className="p-4 text-sm text-[#1F2937] whitespace-nowrap">
                             <div className="flex flex-col gap-1.5">
-                              <span className="font-bold text-[#042C53]">{r.tech_name || 'N/A'}</span>
+                              <span className="font-bold text-[#1F2937]">{r.tech_name || 'N/A'}</span>
                               <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-black bg-blue-100 text-[#185FA5] px-2 py-0.5 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
-                                <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                                <span className="text-xs font-black bg-[#A3E635]/20 text-[#65a30d] border border-[#A3E635]/30 px-2.5 py-0.5 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
+                                <span className="text-xs font-medium text-[#6B7280] bg-[#F3F4F6] px-2.5 py-0.5 rounded-md border border-[#E5E7EB]">
                                   {{
                                     sales: 'เซล',
                                     technician: 'ช่าง Office',
@@ -575,40 +575,40 @@ export default function OilDashboardPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
-                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.distance || 0}</td>
-                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{kmPerLiter}</td>
-                          <td className="p-3 text-sm font-mono text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
-                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">฿{costPerKm}</td>
-                          <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">฿{costPerJob}</td>
-                          <td className="p-3 text-sm font-bold text-emerald-600 whitespace-nowrap text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
-                          <td className="p-3 text-center">
+                          <td className="p-4 text-sm font-mono font-bold text-[#6B7280] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
+                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">{r.distance || 0}</td>
+                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">{kmPerLiter}</td>
+                          <td className="p-4 text-sm font-mono text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
+                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">฿{costPerKm}</td>
+                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">฿{costPerJob}</td>
+                          <td className="p-4 text-sm font-bold text-emerald-600 whitespace-nowrap text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
+                          <td className="p-4 text-center">
                             <div className="flex justify-center items-center gap-2">
                               {r.images && r.images.length > 0 ? (
                                 <button
                                   onClick={() => setViewingImages(r.images)}
-                                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-indigo-600 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm border border-indigo-100/50 hover:shadow-md hover:scale-105"
+                                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#F9FAFB] text-[#1F2937] font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm border border-[#E5E7EB] hover:border-[#A3E635] hover:shadow-md active:scale-95 group/btn"
                                 >
-                                  <span className="text-sm">📸</span> ดูภาพ ({r.images.length})
+                                  <span className="text-sm group-hover/btn:scale-110 transition-transform">📸</span> ดูภาพ ({r.images.length})
                                 </button>
                               ) : (
-                                <span className="text-xs text-[#378ADD] font-bold bg-slate-50/50 px-2 py-1.5 rounded-lg border border-slate-100">-</span>
+                                <span className="text-xs text-[#9CA3AF] font-bold bg-[#F9FAFB] px-2 py-1.5 rounded-lg border border-[#E5E7EB]">-</span>
                               )}
                             </div>
                           </td>
                           {isAdmin && (
-                            <td className="p-3 text-center">
+                            <td className="p-4 text-center">
                               <div className="flex justify-center items-center gap-2">
                                 <button
                                   onClick={() => setEditingRecord(r)}
-                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-500 hover:text-blue-600 transition-all shadow-sm border border-blue-100/50 hover:shadow-md hover:scale-105 flex-shrink-0"
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#1F2937] transition-all shadow-sm border border-[#E5E7EB] hover:border-[#A3E635] hover:shadow-md active:scale-95 flex-shrink-0"
                                   title="แก้ไขรายการนี้"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                 </button>
                                 <button
                                   onClick={() => handleDeleteRecord(r.id)}
-                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-600 transition-all shadow-sm border border-rose-100/50 hover:shadow-md hover:scale-105 flex-shrink-0"
+                                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white hover:bg-rose-50 text-[#6B7280] hover:text-rose-600 transition-all shadow-sm border border-[#E5E7EB] hover:border-rose-200 hover:shadow-md active:scale-95 flex-shrink-0"
                                   title="ลบรายการนี้"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -621,7 +621,7 @@ export default function OilDashboardPage() {
                     })}
                     {records.length === 0 ? (
                   <tr>
-                    <td colSpan="11" className="text-center p-8 text-[#185FA5]/60">
+                    <td colSpan="11" className="text-center p-8 text-[#9CA3AF] font-bold">
                       ไม่มีข้อมูลในเดือนนี้ (Debug: records={records.length}, isAdmin={isAdmin.toString()})
                     </td>
                   </tr>
@@ -704,16 +704,13 @@ export default function OilDashboardPage() {
 
 function StatCard({ title, value, icon, bgClass, colorClass }) {
   return (
-    <div className="glass p-5 rounded-3xl flex flex-col liquid-hover bg-white/60">
+    <div className="bg-white p-5 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bgClass}`}>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${bgClass}`}>
           {icon}
         </div>
-        <div className="w-8 h-8 rounded-full border border-[#185FA5]/10 flex items-center justify-center">
-          <svg className="w-4 h-4 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-        </div>
       </div>
-      <p className="text-sm font-bold text-[#378ADD] mb-1">{title}</p>
+      <p className="text-sm font-bold text-[#6B7280] mb-1">{title}</p>
       <p className={`text-2xl lg:text-3xl font-black tracking-tight ${colorClass}`}>{value}</p>
     </div>
   );
