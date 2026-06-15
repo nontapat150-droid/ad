@@ -110,12 +110,15 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     try {
       const [rows] = await pool.query(`
         SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
-               (CASE WHEN c.id IS NOT NULL OR mc.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
-               u.profile_image
+               (CASE WHEN MAX(c.id) IS NOT NULL OR MAX(mc.id) IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
+               u.profile_image,
+               GROUP_CONCAT(DISTINCT ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv
         FROM users u
         LEFT JOIN teams t ON u.team_id = t.id
         LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
         LEFT JOIN ma_checkins mc ON u.id = mc.user_id AND DATE(mc.checkin_time) = CURDATE() AND mc.checkout_time IS NULL
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image
         ORDER BY t.team_name, u.full_name
       `);
       onlineStatus = rows;
