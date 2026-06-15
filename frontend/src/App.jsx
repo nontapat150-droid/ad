@@ -16,10 +16,7 @@ import EntryFeePage from './pages/EntryFeePage';
 import AttendanceSummaryPage from './pages/AttendanceSummaryPage';
 import MaPerformancePage from './pages/MaPerformancePage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
-import AdminDashboard from './pages/AdminDashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import OfficeTechDashboard from './pages/OfficeTechDashboard';
-import MaTechDashboard from './pages/MaTechDashboard';
+import UnifiedDashboard from './pages/UnifiedDashboard';
 import AisExpansionPage from './pages/AisExpansionPage';
 
 // ── Protected Route ─────────────────────────────────────────
@@ -83,34 +80,10 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
-        path="/super-admin"
+        path="/dashboard"
         element={
-          <ProtectedRoute allowedRoles={['super_admin']}>
-            <SuperAdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/office-tech"
-        element={
-          <ProtectedRoute allowedRoles={['technician', 'office_technician', 'super_admin', 'admin', 'sales']}>
-            <OfficeTechDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ma-tech"
-        element={
-          <ProtectedRoute allowedRoles={['ma_technician', 'super_admin', 'admin']}>
-            <MaTechDashboard />
+          <ProtectedRoute>
+            <UnifiedDashboard />
           </ProtectedRoute>
         }
       />
