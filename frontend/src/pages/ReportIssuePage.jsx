@@ -44,16 +44,15 @@ export default function ReportIssuePage() {
       if (message) formData.append('message', message);
       if (image) formData.append('image', image);
 
-      await api.post('/reports', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await api.post('/reports', formData);
       Swal.fire({ icon: 'success', title: 'ส่งรายงานสำเร็จ', showConfirmButton: false, timer: 1500 });
       setMessage('');
       setImage(null);
       fetchReports();
     } catch (err) {
       console.error('Submit report error:', err);
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถส่งรายงานได้' });
+      const errMsg = err.response?.data?.error || err.message || 'ไม่สามารถส่งรายงานได้';
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: errMsg });
     } finally {
       setLoading(false);
     }

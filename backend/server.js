@@ -62,8 +62,18 @@ app.use('/api', apiRouter);
 app.use('/', apiRouter);
 
 const pool = require('./config/db');
-pool.query('DELETE FROM oil_records WHERE license_plate = \'ทีม 6\'').catch(console.error);
-pool.query('DELETE FROM teams WHERE team_name = \'ทีม 6\'').catch(console.error);
+pool.query('DELETE FROM oil_records WHERE license_plate = \\'ทีม 6\\'').catch(console.error);
+pool.query('DELETE FROM teams WHERE team_name = \\'ทีม 6\\'').catch(console.error);
+pool.query(`
+  CREATE TABLE IF NOT EXISTS issue_reports (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    message TEXT,
+    image_url VARCHAR(255),
+    status ENUM('pending', 'reviewed', 'resolved') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )
+`).catch(console.error);
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');
