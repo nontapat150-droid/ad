@@ -91,7 +91,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-dvh w-full flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-sans bg-[#03132A]">
+    <div className="min-h-dvh w-full flex items-center justify-center p-4 sm:p-8 relative overflow-x-hidden font-sans bg-[#03132A]">
 
       {/* Ambient premium glow background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#042C53] via-[#0C447C] to-[#03132A]" />
@@ -156,15 +156,15 @@ export default function Login() {
         </div>
 
         {/* Right Side - Login Form */}
-        <div className="w-full md:w-1/2 p-8 md:p-14 flex flex-col justify-center bg-white/[0.04] backdrop-blur-xl">
+        <div className="w-full md:w-1/2 p-6 sm:p-8 md:p-14 flex flex-col justify-center bg-white/[0.04] backdrop-blur-xl">
 
           <div className="mb-10 md:hidden text-center">
             <h1 className="text-3xl font-extrabold text-white mb-1">Bouns</h1>
             <p className="text-[#85B7EB] font-medium tracking-[0.2em] text-xs uppercase">ระบบจัดการงาน</p>
           </div>
 
-          <h2 className="text-3xl font-bold text-white mb-2">เข้าสู่ระบบ 👋</h2>
-          <p className="text-[#B5D4F4] text-sm mb-10 font-medium">กรุณากรอกข้อมูลเพื่อดำเนินการต่อ</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">เข้าสู่ระบบ 👋</h2>
+          <p className="text-[#B5D4F4] text-xs sm:text-sm mb-8 sm:mb-10 font-medium">กรุณากรอกข้อมูลเพื่อดำเนินการต่อ</p>
 
           <form id="login-form" onSubmit={handleSubmit} className="space-y-6">
 
