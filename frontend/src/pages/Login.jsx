@@ -207,7 +207,7 @@ export default function Login() {
                   type="text"
                   value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  className="w-full h-12 pl-11 pr-4 rounded-xl bg-[#FAEEDA]/[0.05] border border-[#FAEEDA]/15 text-[#FAEEDA] placeholder-[#FAEEDA]/40 focus:outline-none focus:ring-2 focus:ring-[#5DCAA5]/50 focus:border-[#5DCAA5]/60 transition-all duration-300 text-base"
+                  className="w-full h-12 pl-11 pr-4 rounded-xl bg-white/5 border border-white/10 text-[#FAEEDA] placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#5DCAA5]/50 focus:border-[#5DCAA5]/60 transition-all duration-300 text-base"
                   placeholder="กรอกชื่อผู้ใช้งานของคุณ"
                   autoComplete="username"
                 />
@@ -224,7 +224,7 @@ export default function Login() {
                   type={showPass ? 'text' : 'password'}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full h-12 pl-11 pr-12 rounded-xl bg-[#FAEEDA]/[0.05] border border-[#FAEEDA]/15 text-[#FAEEDA] placeholder-[#FAEEDA]/40 focus:outline-none focus:ring-2 focus:ring-[#5DCAA5]/50 focus:border-[#5DCAA5]/60 transition-all duration-300 text-base"
+                  className="w-full h-12 pl-11 pr-12 rounded-xl bg-white/5 border border-white/10 text-[#FAEEDA] placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#5DCAA5]/50 focus:border-[#5DCAA5]/60 transition-all duration-300 text-base"
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
