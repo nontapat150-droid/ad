@@ -260,8 +260,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
         </div>
 
         {/* ── Navigation ───────────────────────────────── */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 min-h-0"
-          style={{ scrollbarWidth: 'none' }}>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 min-h-0 custom-scrollbar">
           {dynamicMenuGroups.map((group) => (
             <div key={group.label}>
               {/* Group label */}
