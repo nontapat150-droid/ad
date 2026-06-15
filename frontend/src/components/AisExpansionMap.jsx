@@ -4,39 +4,11 @@ import { Map, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
 import OSM from 'ol/source/OSM';
 import { fromLonLat } from 'ol/proj';
-import VectorLayer from 'ol/layer/Vector';
-import VectorSource from 'ol/source/Vector';
-import Feature from 'ol/Feature';
-import Point from 'ol/geom/Point';
-import { Style, Icon, Circle as CircleStyle, Fill, Stroke } from 'ol/style';
-import api from '../api/axios';
+import { defaults as defaultControls, FullScreen } from 'ol/control';
 
 export default function AisExpansionMap({ open, onClose }) {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const vectorSourceRef = useRef(new VectorSource());
-
-  // Fetch jobs data when drawer opens
-  useEffect(() => {
-    if (open) {
-      fetchJobs();
-    }
-  }, [open]);
-
-  const fetchJobs = async () => {
-    setLoading(true);
-    try {
-      // Fetching all pending jobs to show on map
-      const res = await api.get('/dispatch/jobs?status=pending');
-      setJobs(res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch jobs for map', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Initialize Map
   useEffect(() => {
@@ -48,40 +20,19 @@ export default function AisExpansionMap({ open, onClose }) {
     if (!map) {
       const initialMap = new Map({
         target: mapRef.current,
+        controls: defaultControls().extend([new FullScreen()]),
         layers: [
           new TileLayer({
             source: new OSM(),
           }),
-          new VectorLayer({
-            source: vectorSourceRef.current,
-            style: new Style({
-              image: new CircleStyle({
-                radius: 6,
-                fill: new Fill({ color: '#ef4444' }),
-                stroke: new Stroke({ color: '#ffffff', width: 2 }),
-              }),
-            }),
-          }),
         ],
         view: new View({
-          center: fromLonLat([100.5018, 13.7563]), // Default to Bangkok
+          center: fromLonLat([100.5018, 13.7563]), // Bangkok
           zoom: 6,
         }),
       });
 
       setMap(initialMap);
-
-      // Add click event for popup (optional improvement)
-      initialMap.on('singleclick', function (evt) {
-        const feature = initialMap.forEachFeatureAtPixel(evt.pixel, function (feature) {
-          return feature;
-        });
-        if (feature) {
-          const props = feature.getProperties();
-          // Ideally you would show a popup here. For now, we can log or show an alert.
-          // SweetAlert or a custom overlay could be used.
-        }
-      });
     }
 
     return () => {
@@ -90,41 +41,7 @@ export default function AisExpansionMap({ open, onClose }) {
         setMap(null);
       }
     };
-  }, [open]); // Re-initialize map when open changes to handle DOM rendering correctly
-
-  // Update features when jobs change
-  useEffect(() => {
-    if (jobs.length > 0 && map) {
-      vectorSourceRef.current.clear();
-      const features = [];
-
-      jobs.forEach((job) => {
-        if (job.lat && job.lng) {
-          const lat = parseFloat(job.lat);
-          const lng = parseFloat(job.lng);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            const feature = new Feature({
-              geometry: new Point(fromLonLat([lng, lat])),
-              jobId: job.id,
-              customer: job.customer,
-              accessNo: job.access_no,
-            });
-            features.push(feature);
-          }
-        }
-      });
-
-      if (features.length > 0) {
-        vectorSourceRef.current.addFeatures(features);
-        
-        // Fit map to extent of features
-        const extent = vectorSourceRef.current.getExtent();
-        if (extent && extent[0] !== Infinity) {
-          map.getView().fit(extent, { padding: [50, 50, 50, 50], maxZoom: 16, duration: 1000 });
-        }
-      }
-    }
-  }, [jobs, map]);
+  }, [open]);
 
   return (
     <>
@@ -152,7 +69,7 @@ export default function AisExpansionMap({ open, onClose }) {
               </svg>
               ระบบงานขยาย AIS (แผนที่บ้าน)
             </h2>
-            <p className="text-sm text-slate-500 mt-1">แสดงตำแหน่งบ้าน/จุดติดตั้งที่รอการดำเนินการ</p>
+            <p className="text-sm text-slate-500 mt-1">OpenLayers Map</p>
           </div>
           <button
             onClick={onClose}
@@ -169,27 +86,6 @@ export default function AisExpansionMap({ open, onClose }) {
           {open && (
             <div ref={mapRef} className="absolute inset-0 w-full h-full" />
           )}
-
-          {/* Loading Overlay */}
-          {loading && (
-            <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-                <span className="text-brand-700 font-medium bg-white/80 px-3 py-1 rounded-full shadow-sm">กำลังโหลดข้อมูลพิกัด...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Map Info Badge */}
-          <div className="absolute bottom-6 left-6 z-10 bg-white/90 backdrop-blur shadow-lg rounded-2xl p-4 border border-white/50">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)] animate-pulse" />
-              <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">ตำแหน่งทั้งหมด</p>
-                <p className="text-2xl font-black text-[#042C53] leading-none mt-1">{jobs.filter(j => j.lat && j.lng).length}</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </>
