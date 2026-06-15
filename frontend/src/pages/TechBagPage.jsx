@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '../components/Sidebar';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
@@ -233,32 +233,24 @@ export default function TechBagPage() {
           {/* Admin User Selector (Desktop) */}
           {isAdmin && (
             <div className="hidden sm:block">
-              <select 
-                className="bg-[#F9FAFB] border border-[#E5E7EB] text-[#1F2937] text-sm rounded-xl focus:ring-[#A3E635]/40 focus:border-[#A3E635] block p-2.5 font-bold transition-all outline-none"
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-              >
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.full_name} {u.team_name ? `(${u.team_name})` : ''}</option>
-                ))}
-              </select>
+              <CustomUserSelect 
+                value={selectedUserId} 
+                onChange={setSelectedUserId} 
+                users={users} 
+              />
             </div>
           )}
         </header>
 
         {/* Mobile Admin User Selector */}
         {isAdmin && (
-          <div className="sm:hidden px-4 py-3 bg-white border-b border-[#E5E7EB]">
+          <div className="sm:hidden px-4 py-3 bg-white border-b border-[#E5E7EB] relative z-[9]">
             <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-1.5">เลือกช่างเพื่อดูข้อมูล</label>
-            <select 
-              className="bg-[#F9FAFB] border border-[#E5E7EB] text-[#1F2937] text-sm rounded-xl focus:ring-[#A3E635]/40 focus:border-[#A3E635] block w-full p-2.5 font-bold transition-all outline-none"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-            >
-              {users.map(u => (
-                <option key={u.id} value={u.id}>{u.full_name} {u.team_name ? `(${u.team_name})` : ''}</option>
-              ))}
-            </select>
+            <CustomUserSelect 
+              value={selectedUserId} 
+              onChange={setSelectedUserId} 
+              users={users} 
+            />
           </div>
         )}
 
@@ -512,6 +504,85 @@ export default function TechBagPage() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+    </div>
+  );
+}
+// ── Helper Components ──────────────────────────────────────
+function CustomUserSelect({ value, onChange, users }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedUser = users.find(u => u.id == value) || users[0];
+
+  return (
+    <div className="relative w-full sm:w-64" ref={dropdownRef}>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between bg-white border text-left text-sm rounded-xl px-4 py-2.5 transition-all outline-none group ${
+          isOpen ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'border-[#E5E7EB] hover:border-[#A3E635]/50 hover:shadow-md'
+        }`}
+        style={{ boxShadow: isOpen ? '0 4px 12px rgba(163,230,53,0.15)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      >
+        <div className="flex flex-col items-start min-w-0 pr-3">
+          {selectedUser ? (
+            <>
+              <span className="truncate w-full font-bold text-[#1F2937] leading-tight group-hover:text-[#65a30d] transition-colors">{selectedUser.full_name}</span>
+              {selectedUser.team_name && <span className="text-[10px] text-[#9CA3AF] font-bold tracking-wider uppercase mt-0.5">{selectedUser.team_name}</span>}
+            </>
+          ) : (
+            <span className="text-[#9CA3AF] font-bold">กำลังโหลด...</span>
+          )}
+        </div>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors ${isOpen ? 'bg-[#A3E635]/20 text-[#65a30d]' : 'bg-[#F3F4F6] text-[#9CA3AF] group-hover:bg-[#A3E635]/10 group-hover:text-[#65a30d]'}`}>
+          <svg className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+      
+      <div 
+        className={`absolute top-[calc(100%+8px)] left-0 right-0 sm:right-auto sm:w-72 bg-white rounded-xl border border-[#E5E7EB] overflow-hidden transition-all duration-300 origin-top z-[60] ${
+          isOpen ? 'opacity-100 scale-100 visible translate-y-0' : 'opacity-0 scale-95 invisible -translate-y-2'
+        }`}
+        style={{ boxShadow: '0 12px 30px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)' }}
+      >
+        <div className="max-h-[50vh] sm:max-h-64 overflow-y-auto p-1.5 space-y-0.5" style={{ scrollbarWidth: 'thin' }}>
+          {users.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => { onChange(u.id); setIsOpen(false); }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center justify-between group ${
+                value == u.id 
+                  ? 'bg-[#A3E635]/15 border border-[#A3E635]/30 shadow-sm' 
+                  : 'hover:bg-[#F9FAFB] border border-transparent'
+              }`}
+            >
+              <div className="flex flex-col min-w-0 pr-3">
+                <span className={`truncate leading-tight font-bold ${value == u.id ? 'text-[#1F2937]' : 'text-[#374151] group-hover:text-[#1F2937]'}`}>{u.full_name}</span>
+                {u.team_name && <span className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${value == u.id ? 'text-[#65a30d]' : 'text-[#9CA3AF] group-hover:text-[#6B7280]'}`}>{u.team_name}</span>}
+              </div>
+              {value == u.id && (
+                <div className="w-5 h-5 rounded-full bg-[#A3E635] flex items-center justify-center shrink-0 shadow-sm shadow-lime-500/30">
+                  <svg className="w-3.5 h-3.5 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
