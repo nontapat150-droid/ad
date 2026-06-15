@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-const auth = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 
 // ── GET /api/reports ─── Get reports for current user (or all if admin)
