@@ -155,7 +155,7 @@ export default function Sidebar({
       ...group,
       items: items.filter(item => {
         if (isSales && !isAdmin) {
-          const allowedForSales = ['home', 'oil', 'checkin', 'ais_expansion'];
+          const allowedForSales = ['oil', 'checkin', 'ais_expansion'];
           return allowedForSales.includes(item.key);
         }
         if (isMATech && !isOfficeTech && !isAdmin) {
