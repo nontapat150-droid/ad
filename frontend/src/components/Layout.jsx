@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import InboxModal from './InboxModal';
+import AisExpansionMap from './AisExpansionMap';
 import api from '../api/axios';
 
 export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const close  = useCallback(() => setSidebarOpen(false), []);
@@ -64,6 +66,16 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {/* Map Button */}
+            <button 
+              onClick={() => setMapOpen(true)}
+              className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
+              title="แผนที่งานขยาย AIS"
+            >
+              <svg className="w-5 h-5 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+            </button>
             {/* Notification bell */}
             <button 
               onClick={() => setInboxOpen(true)}
@@ -92,6 +104,10 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
         open={inboxOpen} 
         onClose={() => setInboxOpen(false)} 
         onReadMessage={fetchUnreadCount}
+      />
+      <AisExpansionMap 
+        open={mapOpen} 
+        onClose={() => setMapOpen(false)} 
       />
     </div>
   );
