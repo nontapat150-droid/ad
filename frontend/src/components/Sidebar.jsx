@@ -159,11 +159,11 @@ export default function Sidebar({
           return allowedForSales.includes(item.key);
         }
         if (isMATech && !isOfficeTech && !isAdmin) {
-          const allowedForMATech = ['home_ma', 'bag', 'oil', 'checkin', 'report', 'jobs'];
+          const allowedForMATech = ['home_ma', 'bag', 'oil', 'report', 'jobs'];
           return allowedForMATech.includes(item.key);
         }
         if (isOfficeTech && !isAdmin) {
-          const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'checkin', 'report', 'jobs'];
+          const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'report', 'jobs'];
           return allowedForOfficeTech.includes(item.key);
         }
         return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
