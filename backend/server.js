@@ -61,6 +61,10 @@ apiRouter.use('/settings', require('./routes/settings'));
 app.use('/api', apiRouter);
 app.use('/', apiRouter);
 
+const pool = require('./config/db');
+pool.query('DELETE FROM oil_records WHERE license_plate = \'ทีม 6\'').catch(console.error);
+pool.query('DELETE FROM teams WHERE team_name = \'ทีม 6\'').catch(console.error);
+
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');
 
