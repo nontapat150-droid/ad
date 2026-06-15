@@ -23,23 +23,25 @@ router.get('/products', auth, async (req, res) => {
 
     res.json(productsWithModels);
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Get products error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
 // ── POST /api/inventory/products ──
 router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { name, has_sn, prefix } = req.body;
+  const { name, has_sn } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   try {
     const [result] = await pool.query(
-      'INSERT INTO inventory_products (name, has_sn, prefix) VALUES (?, ?, ?)',
-      [name, has_sn !== false, prefix || null]
+      'INSERT INTO inventory_products (name, has_sn) VALUES (?, ?)',
+      [name, has_sn !== false]
     );
     res.json({ message: 'Product created', id: result.insertId });
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Add product error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
@@ -55,7 +57,8 @@ router.post('/models', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     );
     res.json({ message: 'Model created', id: result.insertId });
   } catch (err) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Add model error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
