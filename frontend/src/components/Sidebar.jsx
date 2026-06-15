@@ -106,6 +106,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
       { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
+      { key: 'report', label: 'รายการแจ้งปัญหา', icon: ReportIcon },
     ],
   };
 

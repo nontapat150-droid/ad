@@ -10,6 +10,8 @@ export default function ReportIssuePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const isAdmin = user?.roles?.includes('super_admin') || user?.roles?.includes('admin') || user?.role === 'admin' || user?.role === 'super_admin';
+
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,6 +26,17 @@ export default function ReportIssuePage() {
       console.error('Fetch reports error:', err);
     } finally {
       setFetching(false);
+    }
+  };
+
+  const handleStatusChange = async (id, status) => {
+    try {
+      await api.put(`/reports/${id}/status`, { status });
+      fetchReports();
+      Swal.fire({ icon: 'success', title: 'อัปเดตสถานะสำเร็จ', showConfirmButton: false, timer: 1500 });
+    } catch (err) {
+      console.error('Update status error:', err);
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการอัปเดตสถานะ' });
     }
   };
 
@@ -219,13 +232,32 @@ export default function ReportIssuePage() {
               ) : (
                 <div className="space-y-5">
                   {reports.map(report => (
-                    <div key={report.id} className="p-5 sm:p-6 rounded-2xl border border-[#E5E7EB] bg-white hover:shadow-md hover:border-[#A3E635]/50 transition-all group">
+                    <div key={report.id} className="p-5 sm:p-6 rounded-2xl border border-[#E5E7EB] bg-white hover:shadow-md hover:border-[#A3E635]/50 transition-all group flex flex-col">
                       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
                         <div className="flex-1">
+                          {isAdmin && (
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="px-2 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200">
+                                ผู้แจ้ง: {report.reporter_name || 'ไม่ทราบชื่อ'} {report.team_name ? `(${report.team_name})` : ''}
+                              </span>
+                            </div>
+                          )}
                           <p className="text-sm font-bold text-[#1F2937] whitespace-pre-wrap leading-relaxed">{report.message || <span className="text-slate-400 italic">ไม่มีข้อความ</span>}</p>
                         </div>
-                        <div className="shrink-0 flex sm:justify-end">
+                        <div className="shrink-0 flex flex-col items-end gap-2">
                           {getStatusBadge(report.status)}
+                          {isAdmin && report.status !== 'resolved' && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              {report.status === 'pending' && (
+                                <button onClick={() => handleStatusChange(report.id, 'reviewed')} className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold transition-colors">
+                                  รับเรื่อง
+                                </button>
+                              )}
+                              <button onClick={() => handleStatusChange(report.id, 'resolved')} className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 border border-green-200 rounded-lg text-xs font-bold transition-colors">
+                                แก้ไขเสร็จสิ้น
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       
