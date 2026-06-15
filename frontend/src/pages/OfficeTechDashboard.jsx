@@ -142,26 +142,28 @@ export default function OfficeTechDashboard() {
               </div>
             ) : (
               <>
-                <div>
-                  <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                {!isSales && (
+                  <div>
+                    <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                      </div>
+                      สรุปงานประจำวัน
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <StatCard title="จำนวนงานในวันนี้" value={data?.summary?.jobsToday || 0}
+                        suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
+                      <StatCard title="งานที่สำเร็จ" value={data?.summary?.jobsCompleted || 0}
+                        suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
+                      <StatCard title="งานที่ไม่สำเร็จ" value={data?.summary?.jobsFailed || 0}
+                        suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
+                      <StatCard title="บิลน้ำมันวันนี้" value={data?.summary?.oilToday || 0}
+                        suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
+                      <StatCard title="ค่าแรกเข้าวันนี้" value={data?.summary?.entryToday || 0}
+                        suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
                     </div>
-                    สรุปงานประจำวัน
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <StatCard title="จำนวนงานในวันนี้" value={data?.summary?.jobsToday || 0}
-                      suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
-                    <StatCard title="งานที่สำเร็จ" value={data?.summary?.jobsCompleted || 0}
-                      suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
-                    <StatCard title="งานที่ไม่สำเร็จ" value={data?.summary?.jobsFailed || 0}
-                      suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
-                    <StatCard title="บิลน้ำมันวันนี้" value={data?.summary?.oilToday || 0}
-                      suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
-                    <StatCard title="ค่าแรกเข้าวันนี้" value={data?.summary?.entryToday || 0}
-                      suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
                   </div>
-                </div>
+                )}
 
                 {/* Shortcuts */}
                 <div className="glass rounded-3xl p-6 border border-white/50 shadow-sm">
