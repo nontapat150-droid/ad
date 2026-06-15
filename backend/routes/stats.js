@@ -88,7 +88,7 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         UNION ALL
         (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins ORDER BY checkin_time DESC LIMIT 10)
         UNION ALL
-        (SELECT id, tech_id AS user_id, 'job' AS type, created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY created_at DESC LIMIT 10)
+        (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY timestamp DESC LIMIT 10)
       ) AS c
       LEFT JOIN users u ON u.id = c.user_id
       ORDER BY c.created_at DESC
