@@ -455,7 +455,7 @@ export default function CheckinPage() {
 
             <div className="p-6">
               {/* Viewfinder */}
-              <div className="relative w-full aspect-[4/3] sm:aspect-video md:aspect-[4/3] rounded-3xl overflow-hidden bg-[#1F2937] shadow-inner mb-6 transition-all duration-300">
+              <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-[4/3] rounded-3xl overflow-hidden bg-[#1F2937] shadow-inner mb-6 transition-all duration-300">
                 {!isCameraOn && !photo ? (
                   /* Idle state */
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 animate-fade-in">
