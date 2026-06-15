@@ -39,7 +39,9 @@ export default function OfficeTechDashboard() {
     }
   };
 
-  const firstName = user?.full_name?.split(' ')[0] || 'ช่าง';
+  const firstName = user?.full_name?.split(' ')[0] || 'ผู้ใช้งาน';
+  const isSales = user?.roles?.includes('sales') || user?.role === 'sales';
+  const roleTitle = isSales ? 'เซล' : 'ช่าง Office';
   const greeting = getGreeting();
   const todayDate = new Date().toLocaleDateString('th-TH', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -60,7 +62,7 @@ export default function OfficeTechDashboard() {
             <span className="block w-[18px] h-[2px] rounded-full bg-slate-600" />
           </button>
           <div className="flex-1">
-            <h2 className="text-[#042C53] font-bold text-lg">หน้าแรก (ช่าง Office)</h2>
+            <h2 className="text-[#042C53] font-bold text-lg">หน้าแรก ({roleTitle})</h2>
           </div>
           <button onClick={fetchDashboardData}
             className="flex items-center gap-1.5 text-xs text-[#185FA5] hover:text-[#0C447C] font-semibold bg-[#E6F1FB] hover:bg-[#B5D4F4] px-3 py-1.5 rounded-lg border border-[#185FA5]/20 transition-all">
@@ -87,7 +89,7 @@ export default function OfficeTechDashboard() {
               </div>
               {/* Role badge */}
               <div className="absolute top-6 right-6 bg-white/10 border border-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
-                🏢 ช่าง Office
+                {isSales ? '💼' : '🏢'} {roleTitle}
               </div>
             </div>
 
@@ -160,8 +162,10 @@ export default function OfficeTechDashboard() {
                       gradient="from-[#185FA5] to-[#378ADD]" shadow="shadow-blue-500/25" />
                     <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน" onClick={() => navigate('/oil')}
                       gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
-                    <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า" onClick={() => navigate('/entry-fee')}
-                      gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+                    {!isSales && (
+                      <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า" onClick={() => navigate('/entry-fee')}
+                        gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+                    )}
                   </div>
                 </div>
               </>
