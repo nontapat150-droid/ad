@@ -9,6 +9,7 @@ import { defaults as defaultControls, FullScreen } from 'ol/control';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Point from 'ol/geom/Point';
+import Circle from 'ol/geom/Circle';
 import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import Layout from '../components/Layout';
 
@@ -17,6 +18,7 @@ export default function AisExpansionPage() {
   const [map, setMap] = useState(null);
   const [clickedCoord, setClickedCoord] = useState(null);
   const [splitterInput, setSplitterInput] = useState('');
+  const [radiusInput, setRadiusInput] = useState('500');
   const [searchError, setSearchError] = useState('');
 
   const popupRef = useRef(null);
@@ -59,6 +61,18 @@ export default function AisExpansionPage() {
 
     vectorSourceRef.current.addFeature(marker);
 
+    // Create radius feature if radius is provided
+    const radiusMeters = parseFloat(radiusInput);
+    if (!isNaN(radiusMeters) && radiusMeters > 0) {
+      // Convert meters to map units (EPSG:3857)
+      // Map units at equator = meters. We must scale it based on latitude.
+      const radiusMapUnits = radiusMeters / Math.cos((lat * Math.PI) / 180);
+      const circleFeature = new Feature({
+        geometry: new Circle(centerCoord, radiusMapUnits)
+      });
+      vectorSourceRef.current.addFeature(circleFeature);
+    }
+
     // Animate map to location
     if (map) {
       map.getView().animate({
@@ -98,14 +112,21 @@ export default function AisExpansionPage() {
               crossOrigin: 'anonymous',
             }),
           }),
-          // 3. Layer สำหรับวาดหมุด Splitter
+          // 3. Layer สำหรับวาดหมุด Splitter และรัศมี
           new VectorLayer({
             source: vectorSourceRef.current,
             style: new Style({
+              fill: new Fill({
+                color: 'rgba(59, 130, 246, 0.15)', // Light blue for radius fill
+              }),
+              stroke: new Stroke({
+                color: '#3B82F6', // Blue for radius stroke
+                width: 2,
+              }),
               image: new CircleStyle({
                 radius: 8,
                 fill: new Fill({
-                  color: '#3B82F6', // Blue for Splitter
+                  color: '#ef4444', // Red for Splitter point so it stands out
                 }),
                 stroke: new Stroke({
                   color: '#ffffff',
@@ -177,7 +198,7 @@ export default function AisExpansionPage() {
                   setSplitterInput(e.target.value);
                   if (searchError) setSearchError('');
                 }}
-                className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 w-[220px] transition-colors ${
+                className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 w-[180px] sm:w-[220px] transition-colors ${
                   searchError ? 'border-red-300 focus:ring-red-200 bg-red-50' : 'border-slate-200 focus:ring-brand-100 focus:border-brand-400'
                 }`}
               />
@@ -186,6 +207,18 @@ export default function AisExpansionPage() {
                   {searchError}
                 </span>
               )}
+            </div>
+            <div className="flex flex-col">
+              <div className="relative">
+                <input
+                  type="number"
+                  placeholder="รัศมี"
+                  value={radiusInput}
+                  onChange={(e) => setRadiusInput(e.target.value)}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand-400 w-[100px] transition-colors pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">ม.</span>
+              </div>
             </div>
             <button
               type="submit"
