@@ -192,6 +192,106 @@ export default function InventoryStockPage() {
     }
   };
 
+  const handleExcelUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        const items = data.map(row => {
+          const keys = Object.keys(row);
+          const pKey = keys.find(k => k.replace(/\s+/g, '').includes('ชื่อสินค้า') || k.toLowerCase().includes('product'));
+          const mKey = keys.find(k => k.replace(/\s+/g, '').includes('ชื่อโมเดล') || k.toLowerCase().includes('model'));
+          const sKey = keys.find(k => k.replace(/\s+/g, '').includes('SN') || k.toLowerCase() === 'sn' || k.toLowerCase().includes('serial'));
+          const qKey = keys.find(k => k.replace(/\s+/g, '').includes('จำนวน') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('qty'));
+
+          return {
+            productName: pKey ? row[pKey] : null,
+            modelName: mKey ? row[mKey] : null,
+            sn: sKey ? row[sKey] : null,
+            quantity: qKey ? row[qKey] : 1
+          };
+        }).filter(item => item.productName && item.modelName);
+
+        if (items.length === 0) {
+          Swal.fire({ icon: 'error', title: 'รูปแบบไฟล์ไม่ถูกต้อง', text: 'ไม่พบคอลัมน์ ชื่อสินค้า หรือ ชื่อโมเดล ในไฟล์ Excel' });
+          e.target.value = null;
+          return;
+        }
+
+        const previewHtml = `
+          <div style="max-height: 350px; overflow-y: auto; text-align: left; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead style="position: sticky; top: 0; background: #E6F1FB; color: #042C53;">
+                <tr>
+                  <th style="padding: 10px; border-bottom: 1px solid #cbd5e1; text-align: left;">ชื่อสินค้า</th>
+                  <th style="padding: 10px; border-bottom: 1px solid #cbd5e1; text-align: left;">ชื่อโมเดล</th>
+                  <th style="padding: 10px; border-bottom: 1px solid #cbd5e1; text-align: left;">SN</th>
+                  <th style="padding: 10px; border-bottom: 1px solid #cbd5e1; text-align: center;">จำนวน</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(item => `
+                  <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #0f172a;">${item.productName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #378ADD;">${item.modelName}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; color: #475569;">${item.sn || '-'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #166534; font-weight: bold;">${item.quantity}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 14px; color: #64748b; text-align: left;">* หากรายการไหนมีในระบบแล้วจะเพิ่มสต๊อกให้ทันที</span>
+            <span style="font-weight: bold; color: #185FA5;">รวม ${items.length} รายการ</span>
+          </div>
+        `;
+
+        const confirmResult = await Swal.fire({
+          title: 'ตรวจสอบรายการก่อนนำเข้า',
+          html: previewHtml,
+          showCancelButton: true,
+          confirmButtonText: 'ยืนยันการนำเข้า',
+          cancelButtonText: 'ยกเลิก',
+          confirmButtonColor: '#10b981',
+          cancelButtonColor: '#94a3b8',
+          width: '700px',
+          customClass: { popup: 'rounded-2xl' }
+        });
+
+        if (!confirmResult.isConfirmed) {
+          e.target.value = null;
+          return;
+        }
+
+        Swal.fire({
+          title: 'กำลังนำเข้าข้อมูล...',
+          text: 'กรุณารอสักครู่ ระบบกำลังเพิ่มข้อมูลเข้าระบบ',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+
+        const res = await axios.post('/inventory/import', { items });
+        Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ', text: res.data.message });
+        fetchStock();
+      } catch (err) {
+        console.error('Excel Import Error:', err);
+        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถนำเข้าไฟล์ได้ กรุณาตรวจสอบรูปแบบไฟล์' });
+      }
+      e.target.value = null; // reset input
+    };
+    reader.readAsBinaryString(file);
+  };
+
   return (
     <div className="animate-fade-in-up">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -213,6 +313,12 @@ export default function InventoryStockPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
+                  
+                  <label className="flex items-center justify-center px-4 py-2.5 rounded-xl border border-[#10b981] text-emerald-700 hover:bg-emerald-50 transition-colors shrink-0 bg-emerald-50/30 shadow-sm cursor-pointer font-bold text-sm gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    นำเข้า Excel
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleExcelUpload} />
+                  </label>
                   
                   <button type="button" onClick={(e) => { e.preventDefault(); fetchStock(); }} className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200 text-[#185FA5] hover:bg-[#E6F1FB] transition-colors shrink-0 bg-white shadow-sm" title="อัปเดตข้อมูล">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>

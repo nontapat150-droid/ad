@@ -186,6 +186,99 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
+// ── POST /api/inventory/import ──
+router.post('/import', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { items } = req.body;
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Invalid items data' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const adminId = req.user.id;
+    let importedCount = 0;
+
+    for (const item of items) {
+      const pName = item.productName?.toString().trim();
+      const mName = item.modelName?.toString().trim();
+      const snVal = item.sn?.toString().trim();
+      const qtyVal = item.quantity ? parseFloat(item.quantity) : 1;
+
+      if (!pName || !mName) continue; // Skip incomplete rows
+
+      // Check Product
+      let [products] = await conn.query('SELECT id, has_sn FROM inventory_products WHERE name = ?', [pName]);
+      let productId, hasSn;
+
+      if (products.length === 0) {
+        // Create product
+        hasSn = snVal ? true : false;
+        const [pRes] = await conn.query('INSERT INTO inventory_products (name, has_sn) VALUES (?, ?)', [pName, hasSn]);
+        productId = pRes.insertId;
+      } else {
+        productId = products[0].id;
+        hasSn = products[0].has_sn;
+      }
+
+      // Check Model
+      let [models] = await conn.query('SELECT id FROM inventory_models WHERE product_id = ? AND model_name = ?', [productId, mName]);
+      let modelId;
+
+      if (models.length === 0) {
+        const [mRes] = await conn.query('INSERT INTO inventory_models (product_id, model_name) VALUES (?, ?)', [productId, mName]);
+        modelId = mRes.insertId;
+      } else {
+        modelId = models[0].id;
+      }
+
+      // Add Item
+      if (hasSn) {
+        if (!snVal) continue; // Skip SN-required item if no SN
+        try {
+          const [iRes] = await conn.query(
+            'INSERT INTO inventory_items (model_id, sn, quantity, status) VALUES (?, ?, ?, "in_stock")',
+            [modelId, snVal, 1]
+          );
+          await conn.query(
+            'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", 1)',
+            [iRes.insertId, adminId]
+          );
+          importedCount++;
+        } catch (err) {
+          // Ignore duplicate SN entry
+          if (err.code !== 'ER_DUP_ENTRY') throw err;
+        }
+      } else {
+        // Bulk item without SN (or with custom generic code)
+        const finalSn = snVal || `ITEM-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        try {
+          const [iRes] = await conn.query(
+            'INSERT INTO inventory_items (model_id, sn, quantity, status) VALUES (?, ?, ?, "in_stock")',
+            [modelId, finalSn, qtyVal]
+          );
+          await conn.query(
+            'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',
+            [iRes.insertId, adminId, qtyVal]
+          );
+          importedCount++;
+        } catch (err) {
+          if (err.code !== 'ER_DUP_ENTRY') throw err;
+        }
+      }
+    }
+
+    await conn.commit();
+    res.json({ message: `นำเข้าข้อมูลสำเร็จ ${importedCount} รายการ` });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Import error:', err);
+    res.status(500).json({ error: 'Server error during import' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ==========================================
 // PHASE 2: DISPATCH TO TECHNICIANS
 // ==========================================
