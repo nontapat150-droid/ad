@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-
+import { Calendar } from './ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { format, parseISO } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { CalendarIcon } from 'lucide-react';
 export default function DateRangeFilter({ startDate, endDate, setStartDate, setEndDate }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -138,26 +142,46 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-[#6B7280] mb-1">ตั้งแต่วันที่</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={tempStart}
-                        onChange={(e) => setTempStart(e.target.value)}
-                        className="w-full pl-3 pr-10 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] focus:ring-2 focus:ring-[#A3E635]/50 focus:border-[#A3E635] transition-all outline-none shadow-sm"
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="w-full flex items-center justify-between pl-3 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] hover:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/50 transition-all outline-none shadow-sm"
+                        >
+                          {tempStart ? format(parseISO(tempStart), "d MMM yyyy", { locale: th }) : <span>เลือกวันที่</span>}
+                          <CalendarIcon className="h-4 w-4 text-[#9CA3AF]" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempStart ? parseISO(tempStart) : undefined}
+                          onSelect={(date) => date && setTempStart(format(date, 'yyyy-MM-dd'))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-[#6B7280] mb-1">ถึงวันที่</label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={tempEnd}
-                        onChange={(e) => setTempEnd(e.target.value)}
-                        className="w-full pl-3 pr-10 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] focus:ring-2 focus:ring-[#A3E635]/50 focus:border-[#A3E635] transition-all outline-none shadow-sm"
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className="w-full flex items-center justify-between pl-3 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] hover:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/50 transition-all outline-none shadow-sm"
+                        >
+                          {tempEnd ? format(parseISO(tempEnd), "d MMM yyyy", { locale: th }) : <span>เลือกวันที่</span>}
+                          <CalendarIcon className="h-4 w-4 text-[#9CA3AF]" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempEnd ? parseISO(tempEnd) : undefined}
+                          onSelect={(date) => date && setTempEnd(format(date, 'yyyy-MM-dd'))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
               </div>
