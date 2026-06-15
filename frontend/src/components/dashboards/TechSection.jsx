@@ -15,37 +15,61 @@ export default function TechSection() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="skeleton h-32 rounded-3xl" />;
+  if (loading) return (
+    <div className="space-y-4 animate-pulse">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {[...Array(5)].map((_, i) => <div key={i} className="h-36 rounded-2xl bg-[#F3F4F6]" />)}
+      </div>
+      <div className="h-36 rounded-2xl bg-[#F3F4F6]" />
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+
+      {/* Stats */}
       <div>
-        <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#374151] to-[#1F2937] flex items-center justify-center shadow-md">
             <span className="text-white text-xs">📋</span>
           </div>
-          สรุปงานประจำวัน (ช่าง)
-        </h3>
+          <h3 className="text-[#1F2937] font-bold text-base">สรุปงานประจำวัน (ช่าง)</h3>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard title="จำนวนงานในวันนี้" value={data?.summary?.jobsToday || 0} suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
-          <StatCard title="งานที่สำเร็จ" value={data?.summary?.jobsCompleted || 0} suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
-          <StatCard title="งานที่ไม่สำเร็จ" value={data?.summary?.jobsFailed || 0} suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
-          <StatCard title="บิลน้ำมันวันนี้" value={data?.summary?.oilToday || 0} suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
-          <StatCard title="ค่าแรกเข้าวันนี้" value={data?.summary?.entryToday || 0} suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
+          <StatCard title="จำนวนงานในวันนี้"
+            value={data?.summary?.jobsToday || 0}
+            suffix="งาน" gradient="from-[#374151] to-[#1F2937]" icon="📋" shadow="shadow-slate-500/20" />
+          <StatCard title="งานที่สำเร็จ"
+            value={data?.summary?.jobsCompleted || 0}
+            suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
+          <StatCard title="งานที่ไม่สำเร็จ"
+            value={data?.summary?.jobsFailed || 0}
+            suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
+          <StatCard title="บิลน้ำมันวันนี้"
+            value={data?.summary?.oilToday || 0}
+            suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
+          <StatCard title="ค่าแรกเข้าวันนี้"
+            value={data?.summary?.entryToday || 0}
+            suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
         </div>
       </div>
 
-      <div className="glass rounded-3xl p-6 border border-white/50 shadow-sm">
-        <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-purple-500/20">
-            <span className="text-white text-xs">⚡</span>
+      {/* Shortcuts */}
+      <div className="bg-white rounded-2xl p-5 border border-[#E5E7EB]"
+        style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center shadow-md shadow-lime-500/20">
+            <span className="text-[#1F2937] text-xs">⚡</span>
           </div>
-          เมนูทางลัด (ช่าง)
-        </h3>
+          <h3 className="text-[#1F2937] font-bold text-base">เมนูทางลัด (ช่าง)</h3>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <ShortcutBtn icon="📋" label="งานที่รับมอบหมาย" onClick={() => navigate('/jobs')} gradient="from-[#185FA5] to-[#378ADD]" shadow="shadow-blue-500/25" />
-          <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน" onClick={() => navigate('/oil')} gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
-          <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า" onClick={() => navigate('/entry-fee')} gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+          <ShortcutBtn icon="📋" label="งานที่รับมอบหมาย"
+            onClick={() => navigate('/jobs')} gradient="from-[#374151] to-[#1F2937]" shadow="shadow-slate-500/25" />
+          <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน"
+            onClick={() => navigate('/oil')} gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
+          <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า"
+            onClick={() => navigate('/entry-fee')} gradient="from-[#A3E635] to-[#65a30d]" shadow="shadow-lime-500/25" />
         </div>
       </div>
     </div>
