@@ -939,18 +939,18 @@ export default function InventoryReceivePage() {
         onConfirm={handleExcelImportConfirm}
       />
 
-      <div className="animate-fade-in-up pb-24">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <div className="pb-24">
+        <div className="space-y-6">
 
               {/* Step 1: Select Product & Model */}
-              <div className="glass p-6 rounded-2xl shadow-sm border border-white/50">
-                <div className="flex justify-between items-center mb-4 border-b pb-2">
-                  <h2 className="text-lg font-bold text-[#042C53]">1. เลือกสินค้าที่จะนำเข้า</h2>
-                  <div className="flex items-center gap-2">
+              <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
+                <div className="flex justify-between items-center mb-6 border-b border-[#E5E7EB] pb-4">
+                  <h2 className="text-xl font-black text-[#1F2937]">1. เลือกสินค้าที่จะนำเข้า</h2>
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setShowExcelModal(true)}
-                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-95"
+                      className="flex items-center gap-2 bg-[#1F2937] hover:bg-[#374151] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95"
                       title="นำเข้าจากไฟล์ Excel"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -958,7 +958,7 @@ export default function InventoryReceivePage() {
                       </svg>
                       Import Excel
                     </button>
-                    <span className="text-sm font-bold text-[#185FA5] bg-[#E6F1FB] px-3 py-1 rounded-full">⚡ สแกนต่อเนื่องอัตโนมัติ</span>
+                    <span className="text-sm font-bold text-[#1F2937] bg-[#A3E635] px-4 py-2 rounded-xl shadow-sm">⚡ สแกนต่อเนื่องอัตโนมัติ</span>
                   </div>
                 </div>
 
@@ -1017,8 +1017,8 @@ export default function InventoryReceivePage() {
 
               {/* Step 2: Receive Data */}
               {selectedProduct && selectedModelId && (
-                <div className="glass p-6 rounded-2xl shadow-sm border border-white/50 animate-fade-in-up">
-                  <h2 className="text-lg font-bold text-[#042C53] mb-4 border-b pb-2">2. ระบุข้อมูลนำเข้า</h2>
+                <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8 animate-[slideUp_0.3s_ease-out]">
+                  <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">2. ระบุข้อมูลนำเข้า</h2>
                   
                   {selectedProduct.has_sn ? (
                     <div className="space-y-6">
@@ -1110,31 +1110,31 @@ export default function InventoryReceivePage() {
 
               {/* Step 3: Staging Area */}
               {stagedItems.length > 0 && (
-                <div className="glass p-6 rounded-2xl shadow-sm border border-white/50 animate-fade-in-up">
-                  <div className="flex justify-between items-end mb-4 border-b pb-2">
+                <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8 animate-[slideUp_0.3s_ease-out]">
+                  <div className="flex justify-between items-end mb-6 border-b border-[#E5E7EB] pb-4">
                     <div>
-                      <h2 className="text-lg font-bold text-[#042C53]">3. รายการพักรอเข้าคลัง (Staging)</h2>
-                      <p className="text-sm text-[#378ADD] mt-1">ตรวจสอบรายการก่อนกดยืนยันทั้งหมด</p>
+                      <h2 className="text-xl font-black text-[#1F2937]">3. รายการพักรอเข้าคลัง (Staging)</h2>
+                      <p className="text-sm font-bold text-[#6B7280] mt-1">ตรวจสอบรายการก่อนกดยืนยันทั้งหมด</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-2xl font-black text-[#185FA5]">{stagedItems.length}</span>
-                      <span className="text-sm text-[#042C53] ml-2">รายการ</span>
+                      <span className="text-3xl font-black text-[#A3E635]">{stagedItems.length}</span>
+                      <span className="text-sm font-bold text-[#1F2937] ml-2">รายการ</span>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <div className="overflow-x-auto rounded-2xl border border-[#E5E7EB] shadow-sm">
                     <table className="w-full text-left text-sm whitespace-nowrap bg-white">
-                      <thead className="bg-[#E6F1FB] text-[#042C53]">
+                      <thead className="bg-[#F9FAFB] text-[#6B7280]">
                         <tr>
-                          <th className="p-3 font-semibold border-b border-slate-200">สินค้า</th>
-                          <th className="p-3 font-semibold border-b border-slate-200">โมเดล</th>
-                          <th className="p-3 font-semibold border-b border-slate-200">SN / รหัส</th>
-                          <th className="p-3 font-semibold border-b border-slate-200">จำนวน/รายการ</th>
-                          <th className="p-3 font-semibold border-b border-slate-200 text-center">แหล่งที่มา</th>
-                          <th className="p-3 font-semibold border-b border-slate-200 text-center">ลบ</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">สินค้า</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">โมเดล</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">SN / รหัส</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">จำนวน/รายการ</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">แหล่งที่มา</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">ลบ</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-[#E5E7EB]">
                         {stagedItems.map((item) => (
                           <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                             <td className="p-3 text-[#042C53]">{item.product_name}</td>

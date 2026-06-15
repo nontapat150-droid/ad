@@ -10,46 +10,47 @@ export default function InventoryDashboardPage() {
   const [activeTab, setActiveTab] = useState('stock');
 
   return (
-    <div className="flex h-dvh font-sans overflow-hidden">
-      <Sidebar 
-        open={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-        activeKey="inventory" 
-      />
+    <div className="flex h-screen bg-[#F9FAFB] text-[#1F2937] font-sans overflow-hidden selection:bg-[#A3E635] selection:text-[#1F2937]">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="inventory" />
 
-      <div className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
-        <header className="flex flex-col p-4 bg-white/60 backdrop-blur-md border-b border-white/50 shrink-0 gap-4">
-          <div className="flex items-center">
-            <button 
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 mr-4 rounded-xl text-[#185FA5] border border-white/50">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h1 className="font-bold text-[#042C53] text-xl flex items-center gap-2">
-              <svg className="w-6 h-6 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              ระบบคลังสินค้า (Inventory)
-            </h1>
-          </div>
-          
-          {/* Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-            <button type="button" onClick={() => setActiveTab('stock')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'stock' ? 'bg-[#185FA5] text-white shadow-md' : 'glass text-[#042C53] hover:bg-[#E6F1FB]'}`}>สินค้าคงเหลือ (Stock)</button>
-            <button type="button" onClick={() => setActiveTab('receive')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'receive' ? 'bg-[#185FA5] text-white shadow-md' : 'glass text-[#042C53] hover:bg-[#E6F1FB]'}`}>นำเข้า (Receive)</button>
-            <button type="button" onClick={() => setActiveTab('dispatch')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'dispatch' ? 'bg-[#185FA5] text-white shadow-md' : 'glass text-[#042C53] hover:bg-[#E6F1FB]'}`}>เบิกจ่าย (Dispatch)</button>
-            <button type="button" onClick={() => setActiveTab('history')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-[#185FA5] text-white shadow-md' : 'glass text-[#042C53] hover:bg-[#E6F1FB]'}`}>ประวัติ (History)</button>
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 md:ml-[280px]">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-[#E5E7EB] flex-shrink-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 lg:px-8 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setSidebarOpen(true)} className="md:hidden w-11 h-11 flex items-center justify-center rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] text-[#1F2937] hover:bg-[#F3F4F6] transition-colors active:scale-95">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-2xl font-black text-[#1F2937] tracking-tight">ระบบคลังสินค้า</h1>
+                <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">จัดการสินค้าคงคลัง นำเข้า เบิกจ่าย และดูประวัติรายการ</p>
+              </div>
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-          {activeTab === 'stock' && <InventoryStockPage />}
-          {activeTab === 'receive' && <InventoryReceivePage />}
-          {activeTab === 'dispatch' && <InventoryDispatchPage />}
-          {activeTab === 'history' && <InventoryHistoryPage />}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Action Bar / Tabs */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-[#E5E7EB] shadow-sm">
+              <div className="flex bg-[#F3F4F6] p-1.5 rounded-xl w-full overflow-x-auto hide-scrollbar">
+                <button onClick={() => setActiveTab('stock')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'stock' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>สินค้าคงเหลือ</button>
+                <button onClick={() => setActiveTab('receive')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'receive' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>นำเข้าสินค้า</button>
+                <button onClick={() => setActiveTab('dispatch')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'dispatch' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>เบิกจ่ายสินค้า</button>
+                <button onClick={() => setActiveTab('history')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>ประวัติรายการ</button>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="animate-[slideUp_0.3s_ease-out]">
+              {activeTab === 'stock' && <InventoryStockPage />}
+              {activeTab === 'receive' && <InventoryReceivePage />}
+              {activeTab === 'dispatch' && <InventoryDispatchPage />}
+              {activeTab === 'history' && <InventoryHistoryPage />}
+            </div>
+          </div>
         </main>
       </div>
     </div>
