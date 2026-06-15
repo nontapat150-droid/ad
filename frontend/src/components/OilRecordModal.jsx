@@ -171,12 +171,22 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
               required
             >
               <option value="">-- กรุณาเลือกช่างเทคนิค --</option>
-              {techs.map(t => (
-                <option key={t.id} value={t.id}>{t.full_name} {t.team_name ? `(${t.team_name})` : ''}</option>
-              ))}
+              {techs.map(t => {
+                const roleText = {
+                  sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office'
+                }[t.role] || t.role || 'พนักงาน';
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.full_name} {t.team_name ? `(ทีม: ${t.team_name})` : ''} [{roleText}]
+                  </option>
+                );
+              })}
             </select>
             {selectedTech && (
-              <p className="text-xs text-[#378ADD] font-medium mt-2">กำลังบันทึกในนาม: {selectedTech.full_name} ({teamName})</p>
+              <p className="text-xs text-[#378ADD] font-medium mt-2">
+                กำลังบันทึกในนาม: <span className="font-bold">{selectedTech.full_name}</span> ({teamName}) - 
+                {' '}{{ sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
+              </p>
             )}
           </div>
         ) : (
@@ -186,7 +196,19 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-[#042C53] truncate">{user?.full_name}</p>
-              <p className="text-xs text-[#378ADD] font-medium truncate">{teamName}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[11px] font-black bg-blue-100/50 text-[#185FA5] px-2 py-0.5 rounded-md truncate max-w-[120px]">{teamName}</span>
+                <span className="text-[11px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200 truncate">
+                  {{
+                    sales: 'เซล',
+                    technician: 'ช่าง Office',
+                    ma_technician: 'ช่าง MA',
+                    office_technician: 'ช่าง Office',
+                    admin: 'แอดมิน',
+                    super_admin: 'ผู้ดูแลระบบสูงสุด',
+                  }[user?.role] || user?.role || 'พนักงาน'}
+                </span>
+              </div>
             </div>
           </div>
         )}
