@@ -508,6 +508,25 @@ export default function TechBagPage() {
   );
 }
 // ── Helper Components ──────────────────────────────────────
+const ROLE_CONFIG = {
+  super_admin: { label: 'Super Admin', color: 'bg-violet-100 text-violet-700 border-violet-200' },
+  admin: { label: 'Admin', color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  technician: { label: 'ช่าง', color: 'bg-[#A3E635]/20 text-[#65a30d] border-[#A3E635]/30' },
+  office_technician: { label: 'ช่าง Office', color: 'bg-[#A3E635]/20 text-[#65a30d] border-[#A3E635]/30' },
+  ma_technician: { label: 'ช่าง MA', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  sales: { label: 'เซล', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  default: { label: 'พนักงาน', color: 'bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB]' }
+};
+
+function getRoleBadge(roleKey) {
+  const cfg = ROLE_CONFIG[roleKey] || { ...ROLE_CONFIG.default, label: roleKey || 'พนักงาน' };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border shrink-0 ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
 function CustomUserSelect({ value, onChange, users }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -534,13 +553,13 @@ function CustomUserSelect({ value, onChange, users }) {
         }`}
         style={{ boxShadow: isOpen ? '0 4px 12px rgba(163,230,53,0.15)' : '0 1px 3px rgba(0,0,0,0.04)' }}
       >
-        <div className="flex flex-col items-start min-w-0 pr-3">
+        <div className="flex flex-col items-start min-w-0 pr-3 w-full">
           {selectedUser ? (
             <>
-              <span className="truncate w-full font-bold text-[#1F2937] leading-tight group-hover:text-[#65a30d] transition-colors flex items-center">
-                {selectedUser.full_name}
-                <RoleBadge role={selectedUser.role} />
-              </span>
+              <div className="flex items-center gap-2 w-full">
+                <span className="truncate font-bold text-[#1F2937] leading-tight group-hover:text-[#65a30d] transition-colors">{selectedUser.full_name}</span>
+                {getRoleBadge(selectedUser.role)}
+              </div>
               {selectedUser.team_name && <span className="text-[10px] text-[#9CA3AF] font-bold tracking-wider uppercase mt-0.5">{selectedUser.team_name}</span>}
             </>
           ) : (
@@ -571,11 +590,11 @@ function CustomUserSelect({ value, onChange, users }) {
                   : 'hover:bg-[#F9FAFB] border border-transparent'
               }`}
             >
-              <div className="flex flex-col min-w-0 pr-3">
-                <span className={`truncate leading-tight font-bold flex items-center ${value == u.id ? 'text-[#1F2937]' : 'text-[#374151] group-hover:text-[#1F2937]'}`}>
-                  {u.full_name}
-                  <RoleBadge role={u.role} />
-                </span>
+              <div className="flex flex-col min-w-0 pr-3 w-full">
+                <div className="flex items-center gap-2 w-full">
+                  <span className={`truncate leading-tight font-bold ${value == u.id ? 'text-[#1F2937]' : 'text-[#374151] group-hover:text-[#1F2937]'}`}>{u.full_name}</span>
+                  {getRoleBadge(u.role)}
+                </div>
                 {u.team_name && <span className={`text-[10px] uppercase font-bold tracking-wider mt-0.5 ${value == u.id ? 'text-[#65a30d]' : 'text-[#9CA3AF] group-hover:text-[#6B7280]'}`}>{u.team_name}</span>}
               </div>
               {value == u.id && (
@@ -590,36 +609,5 @@ function CustomUserSelect({ value, onChange, users }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function RoleBadge({ role }) {
-  if (!role) return null;
-  const roleLower = role.toLowerCase();
-  
-  let bg = 'bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB]';
-  let label = role;
-  
-  if (roleLower.includes('super_admin')) {
-    bg = 'bg-[#1F2937] text-[#A3E635] border-[#374151]';
-    label = 'Super Admin';
-  } else if (roleLower.includes('admin')) {
-    bg = 'bg-violet-100 text-violet-700 border-violet-200';
-    label = 'Admin';
-  } else if (roleLower.includes('tech')) {
-    bg = 'bg-sky-100 text-sky-700 border-sky-200';
-    label = 'ช่างเทคนิค';
-  } else if (roleLower.includes('call')) {
-    bg = 'bg-amber-100 text-amber-700 border-amber-200';
-    label = 'Call Center';
-  } else if (roleLower.includes('warehouse') || roleLower.includes('stock')) {
-    bg = 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    label = 'คลังสินค้า';
-  }
-
-  return (
-    <span className={`ml-2 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border shadow-sm ${bg}`}>
-      {label}
-    </span>
   );
 }
