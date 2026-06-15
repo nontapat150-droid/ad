@@ -116,7 +116,7 @@ function AppRoutes() {
       <Route
         path="/jobs"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['technician', 'ma_technician', 'super_admin', 'admin']}>
             <DispatchDashboardPage />
           </ProtectedRoute>
         }
@@ -140,7 +140,7 @@ function AppRoutes() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['super_admin']}>
             <UserManagementPage />
           </ProtectedRoute>
         }
@@ -154,10 +154,10 @@ function AppRoutes() {
         }
       />
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><InventoryDashboardPage /></ProtectedRoute>} />
-      <Route path="/bag" element={<ProtectedRoute><TechBagPage /></ProtectedRoute>} />
-      <Route path="/entry-fee" element={<ProtectedRoute><EntryFeePage /></ProtectedRoute>} />
-      <Route path="/attendance-summary" element={<ProtectedRoute><AttendanceSummaryPage /></ProtectedRoute>} />
-      <Route path="/ma-performance" element={<ProtectedRoute><MaPerformancePage /></ProtectedRoute>} />
+      <Route path="/bag" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'super_admin', 'admin']}><TechBagPage /></ProtectedRoute>} />
+      <Route path="/entry-fee" element={<ProtectedRoute allowedRoles={['technician', 'super_admin', 'admin']}><EntryFeePage /></ProtectedRoute>} />
+      <Route path="/attendance-summary" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AttendanceSummaryPage /></ProtectedRoute>} />
+      <Route path="/ma-performance" element={<ProtectedRoute allowedRoles={['super_admin']}><MaPerformancePage /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AnnouncementsPage /></ProtectedRoute>} />
       <Route path="/ais-expansion" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'ma_technician', 'technician', 'sales']}><AisExpansionPage /></ProtectedRoute>} />
 

@@ -162,8 +162,10 @@ export default function OfficeTechDashboard() {
                       gradient="from-[#185FA5] to-[#378ADD]" shadow="shadow-blue-500/25" />
                     <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน" onClick={() => navigate('/oil')}
                       gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
-                    <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า" onClick={() => navigate('/entry-fee')}
-                      gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+                    {!isSales && (
+                      <ShortcutBtn icon="💰" label="บันทึกค่าแรกเข้า" onClick={() => navigate('/entry-fee')}
+                        gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+                    )}
                   </div>
                 </div>
               </>
