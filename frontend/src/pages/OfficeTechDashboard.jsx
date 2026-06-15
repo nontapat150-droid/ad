@@ -16,22 +16,34 @@ export default function OfficeTechDashboard() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData] = useState(null);
+  const [maData, setMaData] = useState(null);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const userRoles = user?.roles || [user?.role];
+  const isSales = userRoles.includes('sales') || user?.role === 'sales';
+  const isMATech = userRoles.includes('ma_technician');
+  const isOfficeTech = userRoles.includes('technician') || userRoles.includes('office_technician');  useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [statsRes, annRes] = await Promise.all([
+      const apiCalls = [
         api.get('/stats/office-tech-dashboard'),
         api.get('/announcements/active')
-      ]);
-      setData(statsRes.data);
-      setAnnouncements(annRes.data);
+      ];
+      if (isMATech) {
+        apiCalls.push(api.get('/stats/ma-tech-dashboard'));
+      }
+      
+      const results = await Promise.all(apiCalls);
+      setData(results[0].data);
+      setAnnouncements(results[1].data);
+      if (isMATech) {
+        setMaData(results[2].data);
+      }
     } catch (err) {
       console.error('Failed to fetch office tech dashboard stats', err);
     } finally {
@@ -40,8 +52,12 @@ export default function OfficeTechDashboard() {
   };
 
   const firstName = user?.full_name?.split(' ')[0] || 'ผู้ใช้งาน';
-  const isSales = user?.roles?.includes('sales') || user?.role === 'sales';
-  const roleTitle = isSales ? 'เซล' : 'ช่าง Office';
+  
+  let roleTitle = 'ผู้ใช้งาน';
+  if (isSales) roleTitle = 'เซล';
+  else if (isOfficeTech && isMATech) roleTitle = 'ช่าง Office / MA';
+  else if (isOfficeTech) roleTitle = 'ช่าง Office';
+  else if (isMATech) roleTitle = 'ช่าง MA';
   const greeting = getGreeting();
   const todayDate = new Date().toLocaleDateString('th-TH', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -89,7 +105,7 @@ export default function OfficeTechDashboard() {
               </div>
               {/* Role badge */}
               <div className="absolute top-6 right-6 bg-white/10 border border-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm">
-                🏢 ช่าง Office
+                🏢 {roleTitle}
               </div>
             </div>
 
@@ -126,26 +142,28 @@ export default function OfficeTechDashboard() {
               </div>
             ) : (
               <>
-                <div>
-                  <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
-                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                {!isSales && (
+                  <div>
+                    <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
+                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                      </div>
+                      สรุปงานประจำวัน
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <StatCard title="จำนวนงานในวันนี้" value={data?.summary?.jobsToday || 0}
+                        suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
+                      <StatCard title="งานที่สำเร็จ" value={data?.summary?.jobsCompleted || 0}
+                        suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
+                      <StatCard title="งานที่ไม่สำเร็จ" value={data?.summary?.jobsFailed || 0}
+                        suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
+                      <StatCard title="บิลน้ำมันวันนี้" value={data?.summary?.oilToday || 0}
+                        suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
+                      <StatCard title="ค่าแรกเข้าวันนี้" value={data?.summary?.entryToday || 0}
+                        suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
                     </div>
-                    สรุปงานประจำวัน
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <StatCard title="จำนวนงานในวันนี้" value={data?.summary?.jobsToday || 0}
-                      suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
-                    <StatCard title="งานที่สำเร็จ" value={data?.summary?.jobsCompleted || 0}
-                      suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
-                    <StatCard title="งานที่ไม่สำเร็จ" value={data?.summary?.jobsFailed || 0}
-                      suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
-                    <StatCard title="บิลน้ำมันวันนี้" value={data?.summary?.oilToday || 0}
-                      suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
-                    <StatCard title="ค่าแรกเข้าวันนี้" value={data?.summary?.entryToday || 0}
-                      suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
                   </div>
-                </div>
+                )}
 
                 {/* Shortcuts */}
                 <div className="glass rounded-3xl p-6 border border-white/50 shadow-sm">
@@ -169,6 +187,60 @@ export default function OfficeTechDashboard() {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* MA Tech Section */}
+            {!loading && isMATech && maData && (
+              <div className="mt-8 space-y-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                <div className="flex items-center gap-3 border-b border-gray-200 pb-3">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md">
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </div>
+                  <h2 className="text-[#042C53] font-extrabold text-lg">ภาพรวมงาน MA</h2>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <StatCard title="จำนวนงาน MA วันนี้" value={maData?.summary?.jobsToday || 0}
+                    suffix="งาน" gradient="from-[#185FA5] to-[#378ADD]" icon="📋" shadow="shadow-blue-500/20" />
+                  <StatCard title="งานที่สำเร็จ" value={maData?.summary?.jobsCompleted || 0}
+                    suffix="งาน" gradient="from-emerald-500 to-teal-500" icon="✅" shadow="shadow-emerald-500/20" />
+                  <StatCard title="งานที่ไม่สำเร็จ" value={maData?.summary?.jobsFailed || 0}
+                    suffix="งาน" gradient="from-rose-500 to-pink-500" icon="❌" shadow="shadow-rose-500/20" />
+                </div>
+
+                <div>
+                  <h3 className="text-[#042C53] font-bold text-base flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/20">
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    </div>
+                    เป้าหมายประจำเดือน MA
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <ProgressCard
+                      title="งาน MA สำเร็จเดือนนี้"
+                      current={maData?.summary?.completedMonth || 0}
+                      target={maData?.summary?.targetJobs || 1}
+                      suffix="งาน"
+                      pct={Math.min(100, Math.round(((maData?.summary?.completedMonth || 0) / (maData?.summary?.targetJobs || 1)) * 100))}
+                      icon="🎯"
+                      gradient="from-blue-500 to-indigo-600"
+                      trackColor="bg-blue-100"
+                      barColor="from-blue-500 to-indigo-500"
+                    />
+                    <ProgressCard
+                      title="มาทำงาน (เดือนนี้)"
+                      current={maData?.summary?.checkinsMonth || 0}
+                      target={maData?.summary?.targetDays || 1}
+                      suffix="วัน"
+                      pct={Math.min(100, Math.round(((maData?.summary?.checkinsMonth || 0) / (maData?.summary?.targetDays || 1)) * 100))}
+                      icon="📅"
+                      gradient="from-emerald-500 to-teal-500"
+                      trackColor="bg-emerald-100"
+                      barColor="from-emerald-500 to-teal-500"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
 
           </div>
@@ -206,5 +278,33 @@ function ShortcutBtn({ icon, label, onClick, gradient, shadow }) {
       </div>
       <span className="text-white font-bold text-sm leading-tight">{label}</span>
     </button>
+  );
+}
+
+function ProgressCard({ title, icon, current, target, suffix, pct, gradient, trackColor, barColor }) {
+  return (
+    <div className="glass rounded-2xl p-5 border border-white/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-xl shadow-md`}>
+            {icon}
+          </div>
+          <p className="text-sm font-bold text-[#042C53]">{title}</p>
+        </div>
+        <div className={`text-lg font-black bg-gradient-to-br ${gradient} bg-clip-text text-transparent`}>
+          {pct}%
+        </div>
+      </div>
+      <div className="flex items-baseline gap-1 mb-3">
+        <span className="text-3xl font-black text-[#042C53]">{current}</span>
+        <span className="text-sm text-[#378ADD]">/ {target} {suffix}</span>
+      </div>
+      <div className={`w-full ${trackColor} rounded-full h-2.5 overflow-hidden`}>
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all duration-1000 ease-out`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
   );
 }
