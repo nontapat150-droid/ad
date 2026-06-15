@@ -72,7 +72,13 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
     setLoading(true);
     try {
       const formData = new FormData();
-      Object.keys(form).forEach(key => formData.append(key, form[key]));
+      Object.keys(form).forEach(key => {
+        if (key === 'license_plate' && userHasTeam) {
+          formData.append(key, teamName);
+        } else {
+          formData.append(key, form[key]);
+        }
+      });
       images.forEach(img => formData.append('images', img));
 
       await api.post('/oil/records', formData, {
@@ -230,8 +236,8 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
             <input
               required
               name="license_plate"
-              value={form.license_plate}
-              onChange={handleChange}
+              value={userHasTeam ? teamName : form.license_plate}
+              onChange={(e) => { if (!userHasTeam) handleChange(e); }}
               disabled={userHasTeam}
               className={`w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all uppercase font-medium ${userHasTeam ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed shadow-inner' : 'bg-white focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20'}`}
               placeholder="เช่น กท 1234 หรือ 1กต 5678"
