@@ -141,7 +141,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       ...group,
       items: items.filter(item => {
         if (isSales && !isAdmin) {
-          const allowedForSales = ['home', 'oil', 'checkin', 'ais_expansion'];
+          const allowedForSales = ['home', 'oil', 'checkin', 'ais_expansion', 'report'];
           return allowedForSales.includes(item.key);
         }
         if (isMATech && !isOfficeTech && !isAdmin) {
