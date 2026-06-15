@@ -167,7 +167,7 @@ export default function DispatchDashboardPage() {
 
   // Group jobs by team to draw polylines
   const teamsWithJobs = {};
-  const teamColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+  const teamColors = ['#A3E635', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
   
   jobs.forEach(job => {
     if (job.team_id && job.lat && job.lng) {
@@ -178,7 +178,7 @@ export default function DispatchDashboardPage() {
     }
   });
 
-  const createNumberedIcon = (number, color = '#185FA5') => {
+  const createNumberedIcon = (number, color = '#1F2937') => {
     return L.divIcon({
       className: 'custom-div-icon',
       html: `<div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">${number}</div>`,
@@ -190,7 +190,6 @@ export default function DispatchDashboardPage() {
 
   // Create polylines
   const polylines = Object.keys(teamsWithJobs).map((teamId, index) => {
-    // Sort jobs by seq to draw path correctly
     const teamJobs = teamsWithJobs[teamId].sort((a, b) => parseInt(a.seq || 0) - parseInt(b.seq || 0));
     const positions = teamJobs.map(job => [parseFloat(job.lat), parseFloat(job.lng)]);
     const color = teamColors[index % teamColors.length];
@@ -210,56 +209,69 @@ export default function DispatchDashboardPage() {
     failed: jobs.filter(j => j.status === 'failed').length,
   };
 
+  // Tab icon map
+  const tabIcons = {
+    office: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+    ma: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    map: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>,
+    postponed: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  };
+
   return (
-    <div className="flex h-dvh font-sans overflow-hidden">
+    <div className="flex h-dvh font-sans overflow-hidden bg-[#F3F4F6]">
       <Sidebar 
         open={sidebarOpen} 
         onClose={() => setSidebarOpen(false)} 
         activeKey="jobs" 
       />
 
-      <div className="flex-1 flex flex-col min-w-0 md:ml-[280px]">
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 glass border-b border-white/50 shrink-0 gap-4">
-          <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col min-w-0 md:ml-[272px]">
+        {/* ── Header ─────────────────────────────────────── */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 bg-white border-b border-[#E5E7EB] shrink-0 gap-3"
+          style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl text-[#185FA5] border border-white/50 hover:glass transition-colors">
+              className="md:hidden p-2 rounded-xl text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F3F4F6] transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h1 className="font-bold text-[#042C53] text-lg md:text-xl tracking-tight flex items-center gap-2">
-              <svg className="w-6 h-6 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-              หน้าแจกจ่ายงาน
-            </h1>
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)' }}>
+                <svg className="w-4 h-4 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+              <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">หน้าแจกจ่ายงาน</h1>
+            </div>
           </div>
           
           {isAdmin && (
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setIsImportModalOpen(true)}
-              className="bg-[#E6F1FB] hover:bg-[#B5D4F4] text-[#0C447C] border border-[#185FA5]/20 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+              className="bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] border border-[#E5E7EB] px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              นำเข้า Excel
+              <span className="hidden sm:inline">นำเข้า Excel</span>
             </button>
             <button 
               onClick={() => setIsAutoModalOpen(true)}
-              className="bg-[#E6F1FB] hover:bg-[#B5D4F4] text-[#0C447C] border border-[#185FA5]/20 px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+              className="bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] border border-[#E5E7EB] px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              แจกจ่ายอัตโนมัติ
+              <span className="hidden sm:inline">แจกจ่ายอัตโนมัติ</span>
             </button>
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-sm"
+              className="text-[#1F2937] px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: '0 2px 8px rgba(163,230,53,0.3)' }}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -271,8 +283,9 @@ export default function DispatchDashboardPage() {
           )}
         </header>
 
-        {/* View Toggle / Tabs */}
-        <div className="glass border-b border-white/50 flex shrink-0 overflow-x-auto custom-scrollbar w-full">
+        {/* ── Tab Navigation ──────────────────────────────── */}
+        <div className="bg-white border-b border-[#E5E7EB] flex shrink-0 overflow-x-auto px-2 gap-1 py-1.5"
+          style={{ scrollbarWidth: 'none' }}>
           {['office', 'ma', 'map', 'postponed']
             .filter(tab => {
               if (isAdmin) return true;
@@ -282,49 +295,71 @@ export default function DispatchDashboardPage() {
             })
             .map(tab => {
             const labels = { office: 'งาน Office', ma: 'งาน MA', map: 'แผนที่', postponed: 'ประวัติเลื่อนนัด' };
+            const isActive = activeTab === tab;
             return (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-3 text-sm md:text-base font-semibold border-b-2 transition-colors whitespace-nowrap text-center ${activeTab === tab ? 'border-brand-500 text-[#185FA5] bg-white/40' : 'border-transparent text-[#378ADD] hover:text-[#042C53] hover:bg-white/20'}`}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+                  isActive
+                    ? 'text-[#1F2937] shadow-sm'
+                    : 'text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F9FAFB]'
+                }`}
+                style={isActive ? {
+                  background: 'linear-gradient(135deg, rgba(163,230,53,0.15), rgba(101,163,13,0.08))',
+                  border: '1px solid rgba(163,230,53,0.35)',
+                } : { border: '1px solid transparent' }}
               >
+                <span className={isActive ? 'text-[#65a30d]' : ''}>{tabIcons[tab]}</span>
                 {labels[tab]}
+                {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#A3E635]" />}
               </button>
             )
           })}
         </div>
 
-        {/* Action Controls Toolbar */}
+        {/* ── Action Controls Toolbar (Admin) ─────────────── */}
         {isAdmin && activeTab !== 'map' && activeTab !== 'postponed' && (
-          <div className="bg-white/30 border-b border-white/50 px-4 py-4 flex flex-wrap gap-3 overflow-x-auto custom-scrollbar">
-             <button onClick={handleClearDispatch} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-100 text-orange-700 text-sm font-bold hover:bg-orange-200 transition shadow-sm border border-orange-300">
+          <div className="bg-white border-b border-[#E5E7EB] px-4 py-3 flex flex-wrap gap-2 overflow-x-auto"
+            style={{ scrollbarWidth: 'none' }}>
+             <button onClick={handleClearDispatch}
+               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 text-orange-700 text-sm font-bold hover:bg-orange-100 transition border border-orange-200">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                ล้างการจ่ายงาน
              </button>
-             <button onClick={handleClearQueue} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-100 text-amber-700 text-sm font-bold hover:bg-amber-200 transition shadow-sm border border-amber-300">
+             <button onClick={handleClearQueue}
+               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 text-sm font-bold hover:bg-amber-100 transition border border-amber-200">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
                ล้างคิว
              </button>
-             {/* Note: Sort queue logic would likely need a backend endpoint or frontend drag-and-drop. For now, it's just a button */}
-             <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-100 text-emerald-700 text-sm font-bold hover:bg-emerald-200 transition shadow-sm border border-emerald-300">
+             <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition border border-emerald-200">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
                เรียงคิว
              </button>
-             <button onClick={handleDeleteAll} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-100 text-red-700 text-sm font-bold hover:bg-red-200 transition shadow-sm border border-red-300 ml-auto">
+             <button onClick={handleDeleteAll}
+               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100 transition border border-red-200 ml-auto">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                ลบข้อมูลทั้งหมด
              </button>
           </div>
         )}
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-hidden flex flex-col  relative">
+        {/* ── Main Content ────────────────────────────────── */}
+        <main className="flex-1 overflow-hidden flex flex-col relative">
           {loading ? (
             <div className="flex justify-center items-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500"></div>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center animate-pulse"
+                  style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)' }}>
+                  <svg className="w-5 h-5 text-[#1F2937] animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <span className="text-sm text-[#9CA3AF] font-medium">กำลังโหลดข้อมูล...</span>
+              </div>
             </div>
           ) : activeTab === 'map' ? (
-            // MAP VIEW
+            // ── MAP VIEW ──
             <div className="flex-1 flex flex-col md:flex-row w-full relative z-0 overflow-hidden">
               <div className="h-[50vh] md:h-full md:flex-1 relative z-0 shrink-0 md:shrink">
                 <MapContainer center={mapCenter} zoom={11} className="w-full h-full">
@@ -344,21 +379,21 @@ export default function DispatchDashboardPage() {
                       <Marker 
                         key={job.id} 
                         position={[parseFloat(job.lat), parseFloat(job.lng)]}
-                        icon={createNumberedIcon(job.seq || '?', job.status === 'completed' ? '#10b981' : job.status === 'failed' ? '#ef4444' : '#185FA5')}
+                        icon={createNumberedIcon(job.seq || '?', job.status === 'completed' ? '#10b981' : job.status === 'failed' ? '#ef4444' : '#1F2937')}
                       >
                         <Popup>
                           <div className="font-sans min-w-[200px]">
-                            <div className="flex justify-between items-start mb-2 border-b pb-2">
-                              <strong className="block text-[#185FA5] text-sm">{job.access_no}</strong>
+                            <div className="flex justify-between items-start mb-2 border-b border-[#E5E7EB] pb-2">
+                              <strong className="block text-[#1F2937] text-sm">{job.access_no}</strong>
                               {job.seq && (
-                                <span className="bg-[#B5D4F4] text-[#0C447C] text-xs font-bold px-2 py-1 rounded-md">
+                                <span className="bg-[#A3E635]/20 text-[#374151] text-xs font-bold px-2 py-1 rounded-md">
                                   ลำดับ: {job.seq}
                                 </span>
                               )}
                             </div>
-                            <span className="block text-xs text-[#185FA5] mb-1"><span className="font-semibold">ลูกค้า:</span> {job.customer || '-'}</span>
-                            <span className="block text-xs text-[#185FA5] mb-1"><span className="font-semibold">สถานะ:</span> {job.status}</span>
-                            <span className="block text-xs text-[#185FA5]"><span className="font-semibold">ทีม:</span> {job.team_name || 'ยังไม่ระบุ'}</span>
+                            <span className="block text-xs text-[#374151] mb-1"><span className="font-semibold">ลูกค้า:</span> {job.customer || '-'}</span>
+                            <span className="block text-xs text-[#374151] mb-1"><span className="font-semibold">สถานะ:</span> {job.status}</span>
+                            <span className="block text-xs text-[#374151]"><span className="font-semibold">ทีม:</span> {job.team_name || 'ยังไม่ระบุ'}</span>
                           </div>
                         </Popup>
                       </Marker>
@@ -368,46 +403,65 @@ export default function DispatchDashboardPage() {
               </div>
 
               {/* Right Sidebar for Assigned Jobs */}
-              <div className="w-full md:w-80 lg:w-96 bg-slate-50 border-t md:border-t-0 md:border-l border-slate-200 flex flex-col h-[50vh] md:h-full z-10 shrink-0 shadow-[-4px_0_15px_rgba(0,0,0,0.05)] overflow-hidden">
-                 <div className="p-4 border-b border-slate-200 bg-white shrink-0">
-                   <h3 className="font-bold text-[#042C53] flex items-center gap-2">
-                     <svg className="w-5 h-5 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                     งานที่ได้รับมอบหมาย ({jobs.filter(j => j.lat && j.lng).length})
+              <div className="w-full md:w-80 lg:w-96 bg-white border-t md:border-t-0 md:border-l border-[#E5E7EB] flex flex-col h-[50vh] md:h-full z-10 shrink-0 overflow-hidden"
+                style={{ boxShadow: '-4px 0 15px rgba(0,0,0,0.04)' }}>
+                 <div className="px-4 py-3.5 border-b border-[#E5E7EB] bg-[#F9FAFB] shrink-0">
+                   <h3 className="font-bold text-[#1F2937] flex items-center gap-2 text-sm">
+                     <svg className="w-5 h-5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                     งานที่ได้รับมอบหมาย
+                     <span className="ml-auto text-xs font-bold text-[#65a30d] bg-[#A3E635]/15 px-2 py-0.5 rounded-md">
+                       {jobs.filter(j => j.lat && j.lng).length}
+                     </span>
                    </h3>
                  </div>
-                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                 <div className="flex-1 overflow-y-auto p-3 space-y-3" style={{ scrollbarWidth: 'thin' }}>
                    {jobs.filter(j => j.lat && j.lng)
                      .sort((a,b) => parseInt(a.seq || 999) - parseInt(b.seq || 999))
                      .map(job => (
-                     <div key={job.id} className={`p-4 border rounded-xl transition-all shadow-sm bg-white ${job.status === 'completed' ? 'border-emerald-200 hover:border-emerald-400' : job.status === 'failed' ? 'border-red-200 hover:border-red-400' : 'border-slate-200 hover:border-[#378ADD] hover:shadow-md'}`}>
-                        <div className="flex justify-between items-start mb-3">
+                     <div key={job.id} className={`p-3.5 border rounded-xl transition-all bg-white hover:shadow-md ${
+                       job.status === 'completed' ? 'border-emerald-200' :
+                       job.status === 'failed' ? 'border-red-200' :
+                       'border-[#E5E7EB] hover:border-[#A3E635]/40'
+                     }`}>
+                        <div className="flex justify-between items-start mb-2.5">
                            <div className="flex items-center gap-2">
-                              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 text-white shadow-sm ${job.status === 'completed' ? 'bg-emerald-500' : job.status === 'failed' ? 'bg-red-500' : 'bg-[#185FA5]'}`}>
+                              <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 text-white ${
+                                job.status === 'completed' ? 'bg-emerald-500' :
+                                job.status === 'failed' ? 'bg-red-500' :
+                                'bg-[#1F2937]'
+                              }`}>
                                 {job.seq || '?'}
                               </span>
                               <div>
-                                <strong className="block text-sm text-[#042C53] leading-tight">{job.access_no}</strong>
-                                {isAdmin && job.team_name && <span className="text-[10px] text-slate-500">{job.team_name}</span>}
+                                <strong className="block text-sm text-[#1F2937] leading-tight">{job.access_no}</strong>
+                                {isAdmin && job.team_name && <span className="text-[10px] text-[#9CA3AF]">{job.team_name}</span>}
                               </div>
                            </div>
-                           <span className={`text-[10px] px-2 py-1 rounded-md font-bold whitespace-nowrap ${job.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : job.status === 'failed' ? 'bg-red-100 text-red-700' : job.status === 'postponed' ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'}`}>
+                           <span className={`text-[10px] px-2 py-1 rounded-md font-bold whitespace-nowrap ${
+                             job.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                             job.status === 'failed' ? 'bg-red-50 text-red-700' :
+                             job.status === 'postponed' ? 'bg-purple-50 text-purple-700' :
+                             'bg-amber-50 text-amber-700'
+                           }`}>
                              {job.status === 'completed' ? 'เสร็จสิ้น' : job.status === 'failed' ? 'ล้มเหลว' : job.status === 'postponed' ? 'เลื่อนนัด' : 'รอดำเนินการ'}
                            </span>
                         </div>
-                        <p className="text-xs text-slate-600 mb-1 line-clamp-1"><span className="font-semibold text-slate-800">ลูกค้า:</span> {job.customer || '-'}</p>
-                        <p className="text-xs text-slate-600 mb-4 line-clamp-2" title={job.address}><span className="font-semibold text-slate-800">พิกัด:</span> {job.address || '-'}</p>
+                        <p className="text-xs text-[#6B7280] mb-1 line-clamp-1"><span className="font-semibold text-[#374151]">ลูกค้า:</span> {job.customer || '-'}</p>
+                        <p className="text-xs text-[#6B7280] mb-3 line-clamp-2" title={job.address}><span className="font-semibold text-[#374151]">พิกัด:</span> {job.address || '-'}</p>
                         <div className="flex gap-2">
-                           <button onClick={() => setSelectedJob(job)} className="flex-1 py-2 bg-[#E6F1FB] text-[#185FA5] hover:bg-[#185FA5] hover:text-white rounded-lg text-xs font-bold transition-colors">
+                           <button onClick={() => setSelectedJob(job)}
+                             className="flex-1 py-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg text-xs font-bold transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30">
                              รายละเอียด / อัปเดต
                            </button>
-                           <a href={`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-9 h-9 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors shadow-sm border border-emerald-100" title="นำทางด้วย Google Maps">
+                           <a href={`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}`} target="_blank" rel="noopener noreferrer"
+                             className="flex items-center justify-center w-9 h-9 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors border border-emerald-100" title="นำทางด้วย Google Maps">
                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                            </a>
                         </div>
                      </div>
                    ))}
                    {jobs.filter(j => j.lat && j.lng).length === 0 && (
-                     <div className="text-center p-6 text-slate-400 text-sm font-semibold">
+                     <div className="text-center p-8 text-[#9CA3AF] text-sm font-medium">
                        ไม่พบงานที่มีพิกัดบนแผนที่
                      </div>
                    )}
@@ -415,102 +469,95 @@ export default function DispatchDashboardPage() {
               </div>
             </div>
           ) : (
-            // LIST VIEW
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 reveal animate-fade-in">
-              <div className="w-full flex flex-col gap-6">
+            // ── LIST VIEW ──
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 animate-fade-in">
+              <div className="w-full flex flex-col gap-5">
                 
                 {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center">
-                    <p className="text-3xl font-black text-[#185FA5]">{stats.total}</p>
-                    <p className="text-xs font-semibold text-[#378ADD] mt-1">งานทั้งหมด</p>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center">
-                    <p className="text-3xl font-black text-purple-500">{stats.hasLocation}</p>
-                    <p className="text-xs font-semibold text-purple-400 mt-1">มีพิกัด</p>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center">
-                    <p className="text-3xl font-black text-emerald-500">{stats.assigned}</p>
-                    <p className="text-xs font-semibold text-emerald-600 mt-1">จ่ายแล้ว</p>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center bg-amber-50/50">
-                    <p className="text-3xl font-black text-amber-500">{stats.unassigned}</p>
-                    <p className="text-xs font-semibold text-amber-600 mt-1">รอจ่าย</p>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center bg-emerald-50/50">
-                    <p className="text-3xl font-black text-emerald-600">{stats.completed}</p>
-                    <p className="text-xs font-semibold text-emerald-700 mt-1">จบงานแล้ว</p>
-                  </div>
-                  <div className="glass rounded-2xl p-4 border border-white/50 shadow-sm flex flex-col items-center justify-center bg-red-50/50">
-                    <p className="text-3xl font-black text-red-500">{stats.failed}</p>
-                    <p className="text-xs font-semibold text-red-600 mt-1">ไม่จบงาน</p>
-                  </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                  {[
+                    { value: stats.total, label: 'งานทั้งหมด', color: 'text-[#1F2937]', accent: 'bg-[#1F2937]' },
+                    { value: stats.hasLocation, label: 'มีพิกัด', color: 'text-violet-600', accent: 'bg-violet-500' },
+                    { value: stats.assigned, label: 'จ่ายแล้ว', color: 'text-[#65a30d]', accent: 'bg-[#A3E635]' },
+                    { value: stats.unassigned, label: 'รอจ่าย', color: 'text-amber-600', accent: 'bg-amber-400' },
+                    { value: stats.completed, label: 'จบงานแล้ว', color: 'text-emerald-600', accent: 'bg-emerald-500' },
+                    { value: stats.failed, label: 'ไม่จบงาน', color: 'text-red-600', accent: 'bg-red-500' },
+                  ].map((s, i) => (
+                    <div key={i} className="bg-white rounded-xl p-4 border border-[#E5E7EB] flex flex-col items-center justify-center hover:shadow-md hover:-translate-y-0.5 transition-all"
+                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${s.accent} mb-2`} />
+                      <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+                      <p className="text-[11px] font-semibold text-[#9CA3AF] mt-1">{s.label}</p>
+                    </div>
+                  ))}
                 </div>
 
                 {jobs.length === 0 ? (
-                  <div className="glass rounded-2xl p-12 text-center border border-white/50 mt-4">
-                    <div className="w-20 h-20 bg-[#E6F1FB] text-[#378ADD] rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                      <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <div className="bg-white rounded-2xl p-12 text-center border border-[#E5E7EB] mt-2"
+                    style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                    <div className="w-16 h-16 bg-[#F3F4F6] rounded-2xl flex items-center justify-center mx-auto mb-5">
+                      <svg className="w-8 h-8 text-[#D1D5DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                     </div>
-                    <h3 className="text-lg font-bold text-[#042C53] mb-1">ยังไม่มีงานในระบบ</h3>
-                    <p className="text-[#378ADD] text-sm">คลิก "เพิ่มข้อมูลด้วยตัวเอง" เพื่อสร้างงานใหม่</p>
+                    <h3 className="text-lg font-bold text-[#1F2937] mb-1">ยังไม่มีงานในระบบ</h3>
+                    <p className="text-[#9CA3AF] text-sm">คลิก "เพิ่มข้อมูลด้วยตัวเอง" เพื่อสร้างงานใหม่</p>
                   </div>
                 ) : (
-                  <div className="glass rounded-2xl shadow-sm border border-white/50 overflow-hidden">
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden"
+                    style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead>
-                          <tr className=" border-b border-white/50 text-[#185FA5] text-xs uppercase tracking-wider bg-white/40">
-                            {isAdmin && <th className="p-4 font-bold whitespace-nowrap text-center">
+                          <tr className="border-b border-[#E5E7EB] text-[11px] uppercase tracking-wider bg-[#F9FAFB]">
+                            {isAdmin && <th className="p-3.5 font-bold text-[#9CA3AF] text-center w-12">
                               <input 
                                 type="checkbox" 
                                 onChange={(e) => setSelectedJobIds(e.target.checked ? jobs.map(j => j.id) : [])}
                                 checked={jobs.length > 0 && selectedJobIds.length === jobs.length}
-                                className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500 cursor-pointer"
+                                className="w-4 h-4 rounded border-[#D1D5DB] text-[#65a30d] focus:ring-[#A3E635] cursor-pointer"
                               />
                             </th>}
-                            <th className="p-4 font-bold whitespace-nowrap">Access No.</th>
-                            <th className="p-4 font-bold whitespace-nowrap">ลูกค้า</th>
-                            <th className="p-4 font-bold whitespace-nowrap">เบอร์โทร</th>
-                            <th className="p-4 font-bold w-1/3">พื้นที่</th>
-                            <th className="p-4 font-bold whitespace-nowrap">ทีมช่าง</th>
-                            <th className="p-4 font-bold whitespace-nowrap text-center">สถานะ</th>
-                            <th className="p-4 font-bold whitespace-nowrap text-center">จัดการ</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap">Access No.</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap">ลูกค้า</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap">เบอร์โทร</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] w-1/3">พื้นที่</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap">ทีมช่าง</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap text-center">สถานะ</th>
+                            <th className="p-3.5 font-bold text-[#9CA3AF] whitespace-nowrap text-center">จัดการ</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-[#F3F4F6]">
                           {jobs.map(job => (
-                            <tr key={job.id} className={`transition-colors ${selectedJobIds.includes(job.id) ? 'bg-brand-50/50' : 'hover:bg-white/40'}`}>
-                                {isAdmin && <td className="p-4 text-center">
+                            <tr key={job.id} className={`transition-colors ${selectedJobIds.includes(job.id) ? 'bg-[#A3E635]/5' : 'hover:bg-[#F9FAFB]'}`}>
+                                {isAdmin && <td className="p-3.5 text-center">
                                   <input 
                                     type="checkbox" 
                                     checked={selectedJobIds.includes(job.id)}
                                     onChange={() => handleToggleSelect(job.id)}
-                                    className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500 cursor-pointer"
+                                    className="w-4 h-4 rounded border-[#D1D5DB] text-[#65a30d] focus:ring-[#A3E635] cursor-pointer"
                                   />
                                 </td>}
-                                <td className="p-4 text-sm font-semibold text-[#042C53]">{job.access_no}</td>
-                                <td className="p-4 text-sm font-medium text-[#185FA5]">{job.customer || '-'}</td>
-                                <td className="p-4 text-sm text-[#185FA5]">{job.phone || '-'}</td>
-                                <td className="p-4 text-sm text-[#378ADD] leading-relaxed max-w-[300px] break-words">{job.address || '-'}</td>
-                                <td className="p-4 text-sm text-[#185FA5]">
+                                <td className="p-3.5 text-sm font-bold text-[#1F2937]">{job.access_no}</td>
+                                <td className="p-3.5 text-sm font-medium text-[#374151]">{job.customer || '-'}</td>
+                                <td className="p-3.5 text-sm text-[#6B7280]">{job.phone || '-'}</td>
+                                <td className="p-3.5 text-sm text-[#6B7280] leading-relaxed max-w-[300px] break-words">{job.address || '-'}</td>
+                                <td className="p-3.5 text-sm">
                                   {job.team_name ? (
-                                    <span className="inline-flex items-center px-3 py-1 rounded-lg bg-[#E6F1FB] border border-[#185FA5]/10 text-[#0C447C] font-semibold text-xs whitespace-nowrap shadow-sm">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#A3E635]/10 border border-[#A3E635]/25 text-[#374151] font-semibold text-xs whitespace-nowrap">
                                       {job.team_name}
                                     </span>
                                   ) : (
-                                    <span className="text-red-400 font-medium text-xs bg-red-50 px-3 py-1 rounded-lg border border-red-100 whitespace-nowrap">ยังไม่ระบุ</span>
+                                    <span className="text-red-500 font-medium text-xs bg-red-50 px-2.5 py-1 rounded-lg border border-red-100 whitespace-nowrap">ยังไม่ระบุ</span>
                                   )}
                                 </td>
-                                <td className="p-4 text-sm text-center">
-                                  <span className={`inline-flex items-center justify-center min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm ${
-                                    job.status === 'completed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                    job.status === 'in_progress' ? 'bg-[#B5D4F4] text-[#185FA5] border-[#185FA5]/20' :
-                                    job.status === 'failed' ? 'bg-red-100 text-red-700 border-red-200' :
-                                    job.status === 'postponed' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                    'bg-amber-100 text-amber-600 border-amber-200'
+                                <td className="p-3.5 text-sm text-center">
+                                  <span className={`inline-flex items-center justify-center min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                    job.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                    job.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    job.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' :
+                                    job.status === 'postponed' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                    'bg-amber-50 text-amber-700 border-amber-200'
                                   }`}>
                                     {job.status === 'completed' ? 'เสร็จสิ้น' :
                                      job.status === 'in_progress' ? 'กำลังดำเนินการ' :
@@ -518,12 +565,14 @@ export default function DispatchDashboardPage() {
                                      job.status === 'postponed' ? 'เลื่อนนัด' : 'รอดำเนินการ'}
                                   </span>
                                 </td>
-                                <td className="p-4 text-center whitespace-nowrap">
-                                  <div className="flex gap-2 justify-center">
-                                    <button onClick={() => setSelectedJob(job)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="รายละเอียด/ระบุสถานะ">
+                                <td className="p-3.5 text-center whitespace-nowrap">
+                                  <div className="flex gap-1.5 justify-center">
+                                    <button onClick={() => setSelectedJob(job)}
+                                      className="p-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30" title="รายละเอียด/ระบุสถานะ">
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                     </button>
-                                    {isAdmin && <button onClick={() => handleDelete(job.id)} className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors" title="ลบ">
+                                    {isAdmin && <button onClick={() => handleDelete(job.id)}
+                                      className="p-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors border border-red-100" title="ลบ">
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                     </button>}
                                   </div>
@@ -541,8 +590,11 @@ export default function DispatchDashboardPage() {
 
           {/* Bulk Action Bar */}
           {selectedJobIds.length > 0 && activeTab !== 'map' && activeTab !== 'postponed' && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[#042C53]/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex justify-between items-center shadow-2xl animate-fade-in-up z-20 gap-6 border border-white/20">
-              <span className="font-bold text-sm tracking-wide">เลือกแล้ว <span className="text-brand-300 text-lg">{selectedJobIds.length}</span> รายการ</span>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 backdrop-blur-md text-white px-6 py-3 rounded-2xl flex justify-between items-center shadow-2xl animate-fade-in-up z-20 gap-6"
+              style={{ background: 'rgba(31,41,55,0.92)', border: '1px solid rgba(163,230,53,0.25)' }}>
+              <span className="font-bold text-sm tracking-wide">
+                เลือกแล้ว <span className="text-[#A3E635] text-lg">{selectedJobIds.length}</span> รายการ
+              </span>
               <div className="flex gap-2">
                 <button onClick={() => setSelectedJobIds([])} className="px-4 py-2 text-sm font-semibold hover:bg-white/10 rounded-xl transition-colors">ยกเลิก</button>
                 <button onClick={handleDeleteBulk} className="px-4 py-2 text-sm font-bold bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-md shadow-red-500/20 flex items-center gap-2">
@@ -582,22 +634,23 @@ export default function DispatchDashboardPage() {
         />
       )}
 
-      {/* Confirmation Modal */}
+      {/* ── Confirmation Modal ────────────────────────────── */}
       {confirmDialog.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}></div>
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl w-full max-w-sm p-6 relative z-10 shadow-2xl border border-white/50 animate-fade-in-up">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${confirmDialog.isDanger ? 'bg-red-100 text-red-500' : 'bg-orange-100 text-orange-500'}`}>
+          <div className="absolute inset-0 bg-[#1F2937]/50 backdrop-blur-sm" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}></div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative z-10 border border-[#E5E7EB] animate-fade-in-up"
+            style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${confirmDialog.isDanger ? 'bg-red-50 text-red-500' : 'bg-orange-50 text-orange-500'}`}>
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-[#042C53] mb-2">{confirmDialog.title}</h3>
-            <p className="text-[#185FA5] text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
+            <h3 className="text-lg font-bold text-[#1F2937] mb-2">{confirmDialog.title}</h3>
+            <p className="text-[#6B7280] text-sm mb-6 leading-relaxed">{confirmDialog.message}</p>
             <div className="flex gap-3">
               <button 
                 onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                className="flex-1 py-2.5 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                className="flex-1 py-2.5 rounded-xl font-bold text-[#6B7280] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-colors border border-[#E5E7EB]"
               >
                 ยกเลิก
               </button>
@@ -606,7 +659,7 @@ export default function DispatchDashboardPage() {
                   if (confirmDialog.onConfirm) confirmDialog.onConfirm();
                   setConfirmDialog(prev => ({ ...prev, isOpen: false }));
                 }}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-white shadow-md transition-colors ${confirmDialog.isDanger ? 'bg-red-500 hover:bg-red-600 shadow-red-500/30' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/30'}`}
+                className={`flex-1 py-2.5 rounded-xl font-bold text-white shadow-md transition-colors ${confirmDialog.isDanger ? 'bg-red-500 hover:bg-red-600 shadow-red-500/25' : 'bg-orange-500 hover:bg-orange-600 shadow-orange-500/25'}`}
               >
                 ยืนยัน
               </button>
@@ -615,15 +668,21 @@ export default function DispatchDashboardPage() {
         </div>
       )}
 
-      {/* Toast Notification */}
+      {/* ── Toast Notification ────────────────────────────── */}
       {notification.show && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-fade-in-down border ${notification.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white backdrop-blur-md' : 'bg-red-500/90 border-red-400 text-white backdrop-blur-md'}`}>
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 animate-fade-in-down border ${
+          notification.type === 'success' 
+            ? 'bg-[#1F2937] border-[#A3E635]/30 text-white' 
+            : 'bg-red-500 border-red-400 text-white'
+        }`} style={{ backdropFilter: 'blur(12px)' }}>
           {notification.type === 'success' ? (
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+            <div className="w-6 h-6 rounded-full bg-[#A3E635] flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
           ) : (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
           )}
-          <span className="font-bold tracking-wide">{notification.message}</span>
+          <span className="font-bold tracking-wide text-sm">{notification.message}</span>
         </div>
       )}
     </div>
