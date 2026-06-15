@@ -50,6 +50,15 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+function timeOffline(dateStr) {
+  if (!dateStr) return 'ไม่เคยเข้าใช้งาน';
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60)    return `ออฟไลน์ไปแล้ว ${Math.floor(diff)} วินาที`;
+  if (diff < 3600)  return `ออฟไลน์ไปแล้ว ${Math.floor(diff / 60)} นาที`;
+  if (diff < 86400) return `ออฟไลน์ไปแล้ว ${Math.floor(diff / 3600)} ชั่วโมง`;
+  return `ออฟไลน์ไปแล้ว ${Math.floor(diff / 86400)} วัน`;
+}
+
 function SectionHeader({ icon, title }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
@@ -252,6 +261,9 @@ export default function SuperAdminSection() {
                             {/* Info */}
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-black text-[#1F2937] truncate leading-tight">{u.full_name}</p>
+                              <p className={`text-[10px] ${u.is_online ? 'text-[#65a30d] font-bold' : 'text-[#9CA3AF] font-medium'}`}>
+                                {u.is_online ? '● กำลังใช้งาน' : `○ ${timeOffline(u.last_active)}`}
+                              </p>
                               
                               {/* Multi-roles display */}
                               <div className="flex gap-1 flex-wrap mt-1">
