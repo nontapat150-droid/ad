@@ -240,15 +240,28 @@ export default function AisExpansionPage() {
                     <p className="text-xs font-bold text-[#042C53] leading-tight">{clickedCoord.lon}</p>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lon}`);
-                    alert('คัดลอกพิกัดเรียบร้อยแล้ว!');
-                  }}
-                  className="w-full mt-1 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 text-xs font-bold rounded-lg transition-colors border border-brand-100"
-                >
-                  คัดลอกพิกัด
-                </button>
+                <div className="flex gap-2 mt-2">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lon}`);
+                      alert('คัดลอกพิกัดเรียบร้อยแล้ว!');
+                    }}
+                    className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors border border-slate-200"
+                  >
+                    คัดลอก
+                  </button>
+                  <button 
+                    onClick={() => {
+                      window.open(`https://earth.google.com/web/search/${clickedCoord.lat},+${clickedCoord.lon}`, '_blank');
+                    }}
+                    className="flex-[1.5] py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-bold rounded-lg transition-colors border border-blue-100 flex items-center justify-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Google Earth
+                  </button>
+                </div>
                 
                 {/* Pointer arrow pointing down */}
                 <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 transform rotate-45"></div>
