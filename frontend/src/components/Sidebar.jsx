@@ -165,7 +165,7 @@ export default function Sidebar({
           return { ...item, label: 'งานวันนี้' };
         }
         if (isSales) {
-          return { ...item, label: 'แผนที่จัดงานขยาย', icon: MapIcon };
+          return { ...item, label: 'ระบบงานขยาย AIS (แผนที่บ้าน)', icon: MapIcon };
         }
       }
       
