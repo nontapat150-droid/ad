@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import 'ol/ol.css';
 import { Map, View } from 'ol';
+import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
-import { fromLonLat, transformExtent } from 'ol/proj';
+import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
 import { defaults as defaultControls, FullScreen } from 'ol/control';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
@@ -17,6 +18,10 @@ export default function AisExpansionPage() {
   const [detectionEnabled, setDetectionEnabled] = useState(false);
   const [loadingHouses, setLoadingHouses] = useState(false);
   const [zoomWarning, setZoomWarning] = useState(false);
+  const [clickedCoord, setClickedCoord] = useState(null);
+
+  const popupRef = useRef(null);
+  const popupOverlayRef = useRef(null);
 
   const vectorSourceRef = useRef(new VectorSource());
   const detectionEnabledRef = useRef(detectionEnabled);
@@ -117,12 +122,31 @@ export default function AisExpansionPage() {
         }),
       });
 
+      // Create Popup Overlay
+      const popupOverlay = new Overlay({
+        element: popupRef.current,
+        positioning: 'bottom-center',
+        stopEvent: true,
+        offset: [0, -10],
+      });
+      initialMap.addOverlay(popupOverlay);
+      popupOverlayRef.current = popupOverlay;
+
       setMap(initialMap);
 
       initialMap.on('moveend', () => {
         if (detectionEnabledRef.current) {
           loadBuildings(initialMap);
         }
+      });
+
+      initialMap.on('singleclick', (evt) => {
+        const coords = toLonLat(evt.coordinate);
+        setClickedCoord({
+          lon: coords[0].toFixed(6),
+          lat: coords[1].toFixed(6)
+        });
+        popupOverlay.setPosition(evt.coordinate);
       });
     }
 
@@ -188,6 +212,49 @@ export default function AisExpansionPage() {
               <span className="text-sm font-semibold text-amber-700">กรุณาซูมเข้าใกล้กว่านี้เพื่อโหลดข้อมูลบ้าน</span>
             </div>
           )}
+
+          {/* Coordinates Popup Overlay */}
+          <div ref={popupRef} className={`absolute z-20 ${clickedCoord ? 'block' : 'hidden'} transition-opacity`}>
+            {clickedCoord && (
+              <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 min-w-[200px] relative origin-bottom">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">พิกัดบนแผนที่</span>
+                  <button onClick={() => {
+                    setClickedCoord(null);
+                    if (popupOverlayRef.current) {
+                      popupOverlayRef.current.setPosition(undefined);
+                    }
+                  }} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors -mr-1 -mt-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-500 shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-[#042C53] leading-tight">{clickedCoord.lat}</p>
+                    <p className="text-xs font-bold text-[#042C53] leading-tight">{clickedCoord.lon}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lon}`);
+                    alert('คัดลอกพิกัดเรียบร้อยแล้ว!');
+                  }}
+                  className="w-full mt-1 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 text-xs font-bold rounded-lg transition-colors border border-brand-100"
+                >
+                  คัดลอกพิกัด
+                </button>
+                
+                {/* Pointer arrow pointing down */}
+                <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 transform rotate-45"></div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Layout>
