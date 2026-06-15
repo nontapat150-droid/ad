@@ -80,35 +80,46 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     const [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`);
     const [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`);
 
-    const [feed] = await pool.query(`
-        SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
-        FROM (
-          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 20)
-          UNION ALL
-          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 20)
-          UNION ALL
-          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
-          UNION ALL
-          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
-          UNION ALL
-          (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 20)
-        ) AS c
-        LEFT JOIN users u ON u.id = c.user_id
-        ORDER BY c.created_at DESC
-        LIMIT 50
-    `);
+    let feed = [];
+    try {
+      const [f] = await pool.query(`
+          SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
+          FROM (
+            (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 20)
+            UNION ALL
+            (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 20)
+            UNION ALL
+            (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
+            UNION ALL
+            (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
+            UNION ALL
+            (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 20)
+          ) AS c
+          LEFT JOIN users u ON u.id = c.user_id
+          ORDER BY c.created_at DESC
+          LIMIT 50
+      `);
+      feed = f;
+    } catch (e) {
+      feed = [{ id: 8888, type: 'job', created_at: new Date(), action: 'Feed SQL Error', user_name: e.message }];
+    }
 
-    const [onlineStatus] = await pool.query(`
-      SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
-             (CASE WHEN c.id IS NOT NULL OR mc.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
-             u.profile_image
-      FROM users u
-      LEFT JOIN teams t ON u.team_id = t.id
-      LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
-      LEFT JOIN ma_checkins mc ON u.id = mc.user_id AND DATE(mc.checkin_time) = CURDATE() AND mc.checkout_time IS NULL
-      WHERE u.role NOT IN ('super_admin', 'admin')
-      ORDER BY t.team_name, u.full_name
-    `);
+    let onlineStatus = [];
+    try {
+      const [rows] = await pool.query(`
+        SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
+               (CASE WHEN c.id IS NOT NULL OR mc.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
+               u.profile_image
+        FROM users u
+        LEFT JOIN teams t ON u.team_id = t.id
+        LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
+        LEFT JOIN ma_checkins mc ON u.id = mc.user_id AND DATE(mc.checkin_time) = CURDATE() AND mc.checkout_time IS NULL
+        ORDER BY t.team_name, u.full_name
+      `);
+      onlineStatus = rows;
+    } catch (err) {
+      onlineStatus = [{ id: 9999, full_name: 'SQL Error: ' + err.message, role: 'technician', team_name: 'Error Team', is_online: 0, profile_image: null }];
+    }
 
     res.json({
       summary: {
