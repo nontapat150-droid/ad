@@ -57,7 +57,9 @@ export default function ReportIssuePage() {
       if (message) formData.append('message', message);
       if (image) formData.append('image', image);
 
-      await api.post('/reports', formData);
+      await api.post('/reports', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       Swal.fire({ icon: 'success', title: 'ส่งรายงานสำเร็จ', showConfirmButton: false, timer: 1500 });
       setMessage('');
       setImage(null);
