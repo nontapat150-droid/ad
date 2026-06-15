@@ -36,6 +36,7 @@ export default function CheckinPage() {
   const { user } = useAuth();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
   const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
+  const isSales = user?.role === 'sales' || user?.roles?.includes('sales');
 
   // Camera state
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -386,7 +387,7 @@ export default function CheckinPage() {
         <div className="lg:col-span-7 flex flex-col gap-5">
 
           {/* Type Tabs */}
-          {!isMATech && (
+          {!isMATech && !isSales && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex p-1 glass border border-white/50 rounded-2xl shadow-sm flex-1">
                 {[
@@ -578,19 +579,21 @@ export default function CheckinPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid gap-3 ${isSales ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       <button
                         onClick={() => handleSubmit('checkin')}
                         disabled={loading || !coords}
                         className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-500/20 active:scale-[0.98] transition-all py-3.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
                         {loading ? '⏳' : '✅'} เข้างาน
                       </button>
-                      <button
-                        onClick={() => handleSubmit('checkout')}
-                        disabled={loading || !coords}
-                        className="rounded-xl bg-gradient-to-r from-slate-600 to-slate-800 text-white font-bold shadow-md shadow-slate-700/20 active:scale-[0.98] transition-all py-3.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                        {loading ? '⏳' : '🏁'} เลิกงาน
-                      </button>
+                      {!isSales && (
+                        <button
+                          onClick={() => handleSubmit('checkout')}
+                          disabled={loading || !coords}
+                          className="rounded-xl bg-gradient-to-r from-slate-600 to-slate-800 text-white font-bold shadow-md shadow-slate-700/20 active:scale-[0.98] transition-all py-3.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                          {loading ? '⏳' : '🏁'} เลิกงาน
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
