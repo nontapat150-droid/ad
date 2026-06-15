@@ -1,52 +1,86 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import UserProfileModal from '../components/UserProfileModal';
 import TargetSettingsModal from '../components/TargetSettingsModal';
 
+// ── Role badge config ─────────────────────────────────────────────────────────
+const ROLE_CONFIG = {
+  super_admin: { label: 'Super Admin', bg: 'bg-[#1F2937]',     text: 'text-white'        },
+  admin:       { label: 'Admin',       bg: 'bg-[#A3E635]',     text: 'text-[#1F2937]'    },
+  ma:          { label: 'MA',          bg: 'bg-violet-100',    text: 'text-violet-700'    },
+  technician:  { label: 'ช่าง',        bg: 'bg-sky-100',       text: 'text-sky-700'       },
+  user:        { label: 'พนักงาน',     bg: 'bg-slate-100',     text: 'text-slate-600'     },
+};
+
+const TEAM_COLORS = [
+  { bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500'    },
+  { bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-500'  },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  { bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500'   },
+  { bg: 'bg-rose-100',    text: 'text-rose-700',    dot: 'bg-rose-500'    },
+  { bg: 'bg-cyan-100',    text: 'text-cyan-700',    dot: 'bg-cyan-500'    },
+  { bg: 'bg-orange-100',  text: 'text-orange-700',  dot: 'bg-orange-500'  },
+  { bg: 'bg-pink-100',    text: 'text-pink-700',    dot: 'bg-pink-500'    },
+];
+
+function getRoleStyle(role) {
+  return ROLE_CONFIG[role] || { label: role, bg: 'bg-gray-100', text: 'text-gray-600' };
+}
+
+// Badge for a single role
+function RoleBadge({ role }) {
+  const s = getRoleStyle(role);
+  return (
+    <span className={`inline-flex items-center text-xs font-black px-2 py-0.5 rounded-md ${s.bg} ${s.text}`}>
+      {s.label}
+    </span>
+  );
+}
+
+// Stat cell component
+function StatCell({ value, passed, icon }) {
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-sm transition-all
+      ${passed
+        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+        : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+      <span className="text-base leading-none">{passed ? '✔️' : '⚠️'}</span>
+      {value}
+    </div>
+  );
+}
+
 export default function MaPerformancePage() {
-  const navigate = useNavigate();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const getRoleBadge = (role) => {
-    switch(role) {
-      case 'super_admin': return <span className="px-2 py-1 rounded bg-purple-100 text-purple-700 text-xs font-bold">ผู้ดูแลระบบสูงสุด</span>;
-      case 'admin': return <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs font-bold">ผู้ดูแลระบบ</span>;
-      case 'technician': return <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 text-xs font-bold">ช่างเทคนิค</span>;
-      case 'user': return <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-bold">พนักงานทั่วไป</span>;
-      default: return <span className="px-2 py-1 rounded bg-gray-100 text-gray-600 text-xs font-bold">{role}</span>;
-    }
-  };
-
-  // Month selection
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(
     `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
   );
   const [allowedLateDays, setAllowedLateDays] = useState(0);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [targets, setTargets] = useState({
-    ma_target_days: 26,
-    ma_target_jobs: 130,
-    allowed_late_days: 0
+  const [targets, setTargets] = useState({ ma_target_days: 26, ma_target_jobs: 130, allowed_late_days: 0 });
+
+  // Team color map
+  const teamColorMap = {};
+  let colorIdx = 0;
+  data.forEach(u => {
+    const key = u.team_name || '__none__';
+    if (!teamColorMap[key]) { teamColorMap[key] = TEAM_COLORS[colorIdx % TEAM_COLORS.length]; colorIdx++; }
   });
 
   useEffect(() => {
-    // Load initial targets
     api.get('/settings/targets').then(res => {
       setTargets(res.data);
       setAllowedLateDays(res.data.allowed_late_days);
     }).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, allowedLateDays]);
+  useEffect(() => { fetchData(); }, [selectedMonth, allowedLateDays]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -61,174 +95,237 @@ export default function MaPerformancePage() {
     }
   };
 
-  const handleMonthChange = (e) => {
-    setSelectedMonth(e.target.value);
-  };
-
-  // Metrics
-  const totalMa = data.length;
+  const totalMa  = data.length;
   const passedMa = data.filter(d => d.is_passed).length;
   const failedMa = totalMa - passedMa;
+
+  const getRoleBadge = (role) => <RoleBadge role={role} />;
 
   return (
     <Layout activeKey="checkin" pageTitle="แดชบอร์ดประเมินเงื่อนไขทีม MA">
       <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12">
-        
-        {/* Header & Filter */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-xl p-5 rounded-2xl border border-white/50 shadow-sm">
-          <div>
-            <h2 className="text-xl font-bold text-[#042C53] flex items-center gap-2">
-              <span className="text-2xl">📊</span> ผลประเมินการทำงานทีม MA
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">
-              เงื่อนไข: ทำงาน ≥ {targets.ma_target_days} วัน | สาย ≤ {allowedLateDays} วัน | จบงาน ≥ {targets.ma_target_jobs} งาน
-            </p>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-bold text-slate-700">อนุโลมสาย (วัน):</label>
-              <input 
-                type="number" 
-                min="0"
-                value={allowedLateDays}
-                onChange={(e) => setAllowedLateDays(e.target.value)}
-                className="w-16 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-sm font-medium text-center"
-              />
+
+        {/* ── Header + Filter ── */}
+        <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
+            <div>
+              <h2 className="text-2xl font-black text-[#1F2937] flex items-center gap-3">
+                <span className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center text-xl shrink-0">📊</span>
+                ผลประเมินการทำงานทีม MA
+              </h2>
+              <p className="text-sm font-bold text-[#6B7280] mt-2 ml-13">
+                เงื่อนไข: ทำงาน ≥ <span className="text-[#1F2937]">{targets.ma_target_days}</span> วัน
+                &nbsp;|&nbsp; มาสาย ≤ <span className="text-[#1F2937]">{allowedLateDays}</span> วัน
+                &nbsp;|&nbsp; จบงาน ≥ <span className="text-[#1F2937]">{targets.ma_target_jobs}</span> งาน
+              </p>
             </div>
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-              <label className="text-sm font-bold text-slate-700">ประจำเดือน:</label>
-              <input 
-                type="month" 
-                value={selectedMonth}
-                onChange={handleMonthChange}
-                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 transition-all text-sm font-medium"
-              />
-            </div>
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-              <button 
+
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* อนุโลมสาย */}
+              <div className="flex items-center gap-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl px-4 py-2.5">
+                <label className="text-xs font-black text-[#6B7280] whitespace-nowrap">อนุโลมสาย (วัน)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={allowedLateDays}
+                  onChange={(e) => setAllowedLateDays(e.target.value)}
+                  className="w-14 text-center bg-transparent border-b-2 border-[#A3E635] outline-none text-sm font-black text-[#1F2937] focus:border-[#84CC16]"
+                />
+              </div>
+
+              {/* เลือกเดือน */}
+              <div className="flex items-center gap-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl px-4 py-2.5">
+                <svg className="w-4 h-4 text-[#6B7280]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-transparent outline-none text-sm font-bold text-[#1F2937] cursor-pointer"
+                />
+              </div>
+
+              {/* ตั้งค่าเป้าหมาย */}
+              <button
                 onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors text-sm"
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#1F2937] hover:bg-[#374151] text-white font-bold rounded-2xl transition-all text-sm shadow-[0_4px_15px_rgba(31,41,55,0.2)] active:scale-95"
               >
-                ⚙️ ตั้งค่าเป้าหมาย
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                ตั้งค่าเป้าหมาย
               </button>
             </div>
           </div>
         </div>
 
-        {/* Metric Cards */}
+        {/* ── Metric Cards ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 text-2xl">
-              👥
-            </div>
+          {/* Total */}
+          <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-28 h-28 bg-blue-50 rounded-bl-full opacity-60" />
+            <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">👥</div>
             <div>
-              <p className="text-sm font-semibold text-slate-500">พนักงาน MA ทั้งหมด</p>
-              <p className="text-2xl font-bold text-slate-800">{loading ? '-' : totalMa} <span className="text-base font-normal text-slate-400">คน</span></p>
+              <p className="text-sm font-bold text-[#6B7280]">พนักงาน MA ทั้งหมด</p>
+              <p className="text-3xl font-black text-[#1F2937] mt-0.5">
+                {loading ? <span className="animate-pulse">—</span> : totalMa}
+                <span className="text-base font-bold text-[#6B7280] ml-1">คน</span>
+              </p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-100 flex items-center gap-4 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full -mr-4 -mt-4"></div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 text-2xl">
-              ✅
-            </div>
+
+          {/* Passed */}
+          <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-28 h-28 bg-emerald-50 rounded-bl-full opacity-60" />
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">✅</div>
             <div>
-              <p className="text-sm font-semibold text-emerald-600">ผ่านเงื่อนไข</p>
-              <p className="text-2xl font-bold text-emerald-700">{loading ? '-' : passedMa} <span className="text-base font-normal opacity-70">คน</span></p>
+              <p className="text-sm font-bold text-emerald-600">ผ่านเงื่อนไข</p>
+              <p className="text-3xl font-black text-emerald-700 mt-0.5">
+                {loading ? <span className="animate-pulse">—</span> : passedMa}
+                <span className="text-base font-bold text-emerald-500 ml-1">คน</span>
+              </p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-rose-100 flex items-center gap-4 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-bl-full -mr-4 -mt-4"></div>
-            <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 text-2xl">
-              ❌
-            </div>
+
+          {/* Failed */}
+          <div className="bg-white rounded-3xl border border-rose-100 shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
+            <div className="absolute right-0 top-0 w-28 h-28 bg-rose-50 rounded-bl-full opacity-60" />
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">❌</div>
             <div>
-              <p className="text-sm font-semibold text-rose-600">ผิดเงื่อนไข</p>
-              <p className="text-2xl font-bold text-rose-700">{loading ? '-' : failedMa} <span className="text-base font-normal opacity-70">คน</span></p>
+              <p className="text-sm font-bold text-rose-600">ผิดเงื่อนไข</p>
+              <p className="text-3xl font-black text-rose-700 mt-0.5">
+                {loading ? <span className="animate-pulse">—</span> : failedMa}
+                <span className="text-base font-bold text-rose-400 ml-1">คน</span>
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden">
+        {/* ── Data Table ── */}
+        <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 font-bold">พนักงาน</th>
-                  <th className="px-6 py-4 font-bold text-center">วันทำงาน (≥ {targets.ma_target_days})</th>
-                  <th className="px-6 py-4 font-bold text-center">มาสาย (≤ {allowedLateDays})</th>
-                  <th className="px-6 py-4 font-bold text-center">จบงาน (≥ {targets.ma_target_jobs})</th>
-                  <th className="px-6 py-4 font-bold text-center">สถานะ</th>
+              <thead>
+                <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider">พนักงาน</th>
+                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
+                    วันทำงาน <span className="normal-case font-bold text-[#9CA3AF]">(≥ {targets.ma_target_days})</span>
+                  </th>
+                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
+                    มาสาย <span className="normal-case font-bold text-[#9CA3AF]">(≤ {allowedLateDays})</span>
+                  </th>
+                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
+                    จบงาน <span className="normal-case font-bold text-[#9CA3AF]">(≥ {targets.ma_target_jobs})</span>
+                  </th>
+                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">สถานะ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#F3F4F6]">
                 {loading ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400">
-                      <div className="animate-spin w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                      กำลังโหลดข้อมูล...
-                    </td>
-                  </tr>
-                ) : data.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center text-slate-400">ไม่มีข้อมูลพนักงาน MA</td>
-                  </tr>
-                ) : (
-                  data.map((user, idx) => (
-                    <tr 
-                      key={idx} 
-                      onClick={() => setSelectedUser(user)}
-                      className="bg-white/40 hover:bg-white/60 transition-colors cursor-pointer group"
-                    >
+                  // ── Skeleton ──
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center font-bold shadow-inner">
-                            {user.full_name?.charAt(0) || '?'}
-                          </div>
-                          <div>
-                            <div className="font-bold text-slate-800">{user.full_name}</div>
-                            <div className="text-xs text-slate-500 mt-0.5 opacity-80">{user.role}</div>
+                          <div className="w-10 h-10 rounded-2xl bg-[#F3F4F6]" />
+                          <div className="space-y-2">
+                            <div className="h-3 w-28 bg-[#F3F4F6] rounded-full" />
+                            <div className="h-2.5 w-20 bg-[#F3F4F6] rounded-full" />
                           </div>
                         </div>
                       </td>
-                      
-                      {/* Condition 1: Check-in days */}
-                      <td className="px-6 py-4 text-center">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-sm ${user.total_days >= targets.ma_target_days ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                          {user.total_days >= targets.ma_target_days ? '✔️' : '⚠️'} {user.total_days}
-                        </div>
-                      </td>
-
-                      {/* Condition 2: Late days */}
-                      <td className="px-6 py-4 text-center">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-sm ${user.total_late <= allowedLateDays ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                          {user.total_late <= allowedLateDays ? '✔️' : '⚠️'} {user.total_late}
-                        </div>
-                      </td>
-
-                      {/* Condition 3: Completed jobs */}
-                      <td className="px-6 py-4 text-center">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-sm ${user.total_completed >= targets.ma_target_jobs ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                          {user.total_completed >= targets.ma_target_jobs ? '✔️' : '⚠️'} {user.total_completed}
-                        </div>
-                      </td>
-
-                      {/* Final Status */}
-                      <td className="px-6 py-4 text-center">
-                        {user.is_passed ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-700 shadow-sm border border-emerald-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            ผ่านเงื่อนไข
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-100 text-rose-700 shadow-sm border border-rose-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                            ผิดเงื่อนไข
-                          </span>
-                        )}
-                      </td>
+                      {[...Array(4)].map((_, j) => (
+                        <td key={j} className="px-6 py-4 text-center">
+                          <div className="h-7 w-16 bg-[#F3F4F6] rounded-xl mx-auto" />
+                        </td>
+                      ))}
                     </tr>
                   ))
+                ) : data.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-16 text-center">
+                      <div className="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">👥</div>
+                      <p className="font-black text-[#6B7280] text-lg">ไม่มีพนักงาน MA ในระบบ</p>
+                      <p className="text-sm text-[#9CA3AF] mt-1">กรุณาตั้งค่า role = MA ให้กับผู้ใช้ในหน้าจัดการผู้ใช้</p>
+                    </td>
+                  </tr>
+                ) : (
+                  data.map((user, idx) => {
+                    const tc = teamColorMap[user.team_name || '__none__'];
+                    const roles = user.roles || [user.role];
+                    return (
+                      <tr
+                        key={idx}
+                        onClick={() => setSelectedUser(user)}
+                        className="hover:bg-[#F9FAFB] transition-all cursor-pointer group"
+                        style={{ animation: `fadeInRow 0.3s ease-out ${idx * 30}ms both` }}
+                      >
+                        {/* ── Employee cell ── */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {/* Avatar */}
+                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm transition-transform group-hover:scale-110 ${tc?.bg || 'bg-violet-100'} ${tc?.text || 'text-violet-700'}`}>
+                              {user.full_name?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-black text-[#1F2937] truncate">{user.full_name}</p>
+                              {/* Role badges — show ALL roles */}
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {roles.map(r => <RoleBadge key={r} role={r} />)}
+                                {user.team_name && (
+                                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${tc?.bg} ${tc?.text}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${tc?.dot}`} />
+                                    {user.team_name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* ── Work days ── */}
+                        <td className="px-6 py-4 text-center">
+                          <StatCell
+                            value={user.total_days}
+                            passed={user.total_days >= targets.ma_target_days}
+                          />
+                        </td>
+
+                        {/* ── Late days ── */}
+                        <td className="px-6 py-4 text-center">
+                          <StatCell
+                            value={user.total_late}
+                            passed={user.total_late <= Number(allowedLateDays)}
+                          />
+                        </td>
+
+                        {/* ── Completed jobs ── */}
+                        <td className="px-6 py-4 text-center">
+                          <StatCell
+                            value={user.total_completed}
+                            passed={user.total_completed >= targets.ma_target_jobs}
+                          />
+                        </td>
+
+                        {/* ── Status badge ── */}
+                        <td className="px-6 py-4 text-center">
+                          {user.is_passed ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              ผ่านเงื่อนไข
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              ผิดเงื่อนไข
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -236,16 +333,17 @@ export default function MaPerformancePage() {
         </div>
 
       </div>
-      
+
+      {/* ── Modals ── */}
       {selectedUser && (
-        <UserProfileModal 
-          user={selectedUser} 
-          onClose={() => setSelectedUser(null)} 
+        <UserProfileModal
+          user={selectedUser}
+          onClose={() => setSelectedUser(null)}
           getRoleBadge={getRoleBadge}
         />
       )}
 
-      <TargetSettingsModal 
+      <TargetSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSaved={(newTargets) => {
@@ -254,6 +352,13 @@ export default function MaPerformancePage() {
           fetchData();
         }}
       />
+
+      <style>{`
+        @keyframes fadeInRow {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+      `}</style>
     </Layout>
   );
 }

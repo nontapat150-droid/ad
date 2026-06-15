@@ -259,7 +259,15 @@ router.get('/ma-performance', auth, async (req, res) => {
     const targetJobs = targets.ma_target_jobs;
 
     const [users] = await pool.query(
-      `SELECT id, full_name, role, team_id FROM users WHERE role IN ('technician', 'ma') OR team_id IS NOT NULL`
+      `SELECT u.id, u.full_name, u.role, u.team_id,
+              t.team_name,
+              GROUP_CONCAT(ur2.role ORDER BY ur2.role SEPARATOR ',') AS roles_csv
+       FROM users u
+       LEFT JOIN teams t ON t.id = u.team_id
+       JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'ma'
+       LEFT JOIN user_roles ur2 ON ur2.user_id = u.id
+       WHERE u.status = 'approved'
+       GROUP BY u.id, u.full_name, u.role, u.team_id, t.team_name`
     );
 
     const results = [];
@@ -294,6 +302,8 @@ router.get('/ma-performance', auth, async (req, res) => {
         full_name: u.full_name,
         role: u.role,
         team_id: u.team_id,
+        team_name: u.team_name || null,
+        roles: u.roles_csv ? u.roles_csv.split(',') : [u.role],
         total_days: totalDays,
         total_late: totalLate,
         total_completed: totalCompleted,
