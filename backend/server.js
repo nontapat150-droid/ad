@@ -74,6 +74,8 @@ pool.query(`
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
 `).catch(console.error);
+pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(e => { /* ignore if exists */ });
+pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');

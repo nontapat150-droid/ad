@@ -55,7 +55,7 @@ router.post('/',
       res.status(201).json({ message: 'บันทึกการแจ้งปัญหาสำเร็จ', id: result.insertId });
     } catch (err) {
       console.error('Create report error:', err);
-      res.status(500).json({ error: 'Server error creating report' });
+      res.status(500).json({ error: err.message || 'Server error creating report' });
     }
   }
 );
