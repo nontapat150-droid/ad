@@ -35,7 +35,7 @@ export default function OilDashboardPage() {
 
   const { hasRole } = useAuth();
   const isAdmin = hasRole(['super_admin', 'admin']);
-  const isOfficeTech = hasRole(['technician', 'office_technician']);
+  const isDataEntryOnly = hasRole(['technician', 'office_technician', 'ma_technician', 'sales']);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -176,7 +176,7 @@ export default function OilDashboardPage() {
       <div className="flex flex-col gap-6 pb-12 w-full max-w-7xl mx-auto reveal">
         
         {/* Header & Controls */}
-        {!isOfficeTech && (
+        {!isDataEntryOnly && (
         <div className="relative z-50 flex flex-col md:flex-row md:items-center justify-between gap-4 glass p-6 rounded-3xl animate-fade-in-up">
           <div>
             <h1 className="text-2xl font-extrabold text-[#042C53] flex items-center gap-3">
@@ -190,7 +190,7 @@ export default function OilDashboardPage() {
           
           <div className="flex flex-wrap items-center gap-3 relative">
             
-            {!isOfficeTech && (
+            {!isDataEntryOnly && (
               <>
                 {/* Custom Multi-select Dropdown */}
             <div className="relative">
@@ -256,7 +256,7 @@ export default function OilDashboardPage() {
             </>
             )}
             
-            {!isOfficeTech && (
+            {!isDataEntryOnly && (
               <button
                 onClick={() => setShowModal(true)}
                 className="btn-primary flex items-center gap-2">
@@ -268,7 +268,7 @@ export default function OilDashboardPage() {
         </div>
         )}
 
-        {isOfficeTech ? (
+        {isDataEntryOnly ? (
           <div className="flex justify-center w-full px-4 mb-12">
             <OilRecordModal 
               inline={true} 
