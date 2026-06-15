@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProfileModal from './ProfileModal';
+import AisExpansionMap from './AisExpansionMap';
 
 // ── Menu Definition ────────────────────────────────────────
 const MENU_GROUPS = [
@@ -36,13 +37,19 @@ export default function Sidebar({
   onClose,
   activeKey,
   onNavigate,
-  onOpenMap,
 }) {
   const { user, logout } = useAuth();
   const sidebarRef = useRef(null);
   const navigate = useNavigate();
   const [expandedKeys, setExpandedKeys] = useState({ inventory: true });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenMap = () => setMapOpen(true);
+    window.addEventListener('openAisExpansionMap', handleOpenMap);
+    return () => window.removeEventListener('openAisExpansionMap', handleOpenMap);
+  }, []);
 
   const toggleExpand = (key) => {
     setExpandedKeys(prev => ({ ...prev, [key]: !prev[key] }));
@@ -81,7 +88,7 @@ export default function Sidebar({
 
   const handleNav = (key) => {
     if (key === 'ais_expansion') {
-      if (onOpenMap) onOpenMap();
+      setMapOpen(true);
       if (window.innerWidth < 768) {
         onClose();
       }
@@ -369,6 +376,9 @@ export default function Sidebar({
 
       {/* Profile Modal */}
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      {/* AIS Expansion Map */}
+      <AisExpansionMap open={mapOpen} onClose={() => setMapOpen(false)} />
     </>
   );
 }

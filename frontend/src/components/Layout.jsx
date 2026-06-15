@@ -1,13 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import InboxModal from './InboxModal';
-import AisExpansionMap from './AisExpansionMap';
 import api from '../api/axios';
 
 export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
-  const [mapOpen, setMapOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const close  = useCallback(() => setSidebarOpen(false), []);
@@ -38,7 +36,6 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
         onClose={close}
         activeKey={activeKey}
         onNavigate={onNavigate}
-        onOpenMap={() => setMapOpen(true)}
       />
 
       {/* ── Main Area ───────────────────────────────────────── */}
@@ -69,7 +66,7 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
           <div className="flex items-center gap-2">
             {/* Map Button */}
             <button 
-              onClick={() => setMapOpen(true)}
+              onClick={() => window.dispatchEvent(new CustomEvent('openAisExpansionMap'))}
               className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
               title="แผนที่งานขยาย AIS"
             >
@@ -105,10 +102,6 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
         open={inboxOpen} 
         onClose={() => setInboxOpen(false)} 
         onReadMessage={fetchUnreadCount}
-      />
-      <AisExpansionMap 
-        open={mapOpen} 
-        onClose={() => setMapOpen(false)} 
       />
     </div>
   );
