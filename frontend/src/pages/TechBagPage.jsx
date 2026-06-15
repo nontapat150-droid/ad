@@ -509,13 +509,13 @@ export default function TechBagPage() {
 }
 // ── Helper Components ──────────────────────────────────────
 const ROLE_CONFIG = {
-  super_admin: { label: 'Super Admin', color: 'bg-violet-100 text-violet-700 border-violet-200' },
-  admin: { label: 'Admin', color: 'bg-rose-100 text-rose-700 border-rose-200' },
-  technician: { label: 'ช่าง', color: 'bg-[#A3E635]/20 text-[#65a30d] border-[#A3E635]/30' },
-  office_technician: { label: 'ช่าง Office', color: 'bg-[#A3E635]/20 text-[#65a30d] border-[#A3E635]/30' },
-  ma_technician: { label: 'ช่าง MA', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-  sales: { label: 'เซล', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  default: { label: 'พนักงาน', color: 'bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB]' }
+  super_admin: { label: 'Super Admin', color: 'bg-[#1F2937] text-[#A3E635] border-[#1F2937] shadow-sm' },
+  admin: { label: 'Admin', color: 'bg-rose-500 text-white border-rose-600 shadow-sm' },
+  technician: { label: 'ช่าง', color: 'bg-[#A3E635] text-[#1F2937] border-[#84cc16] shadow-sm' },
+  office_technician: { label: 'ช่าง Office', color: 'bg-[#A3E635] text-[#1F2937] border-[#84cc16] shadow-sm' },
+  ma_technician: { label: 'ช่าง MA', color: 'bg-amber-500 text-white border-amber-600 shadow-sm' },
+  sales: { label: 'เซล', color: 'bg-blue-500 text-white border-blue-600 shadow-sm' },
+  default: { label: 'พนักงาน', color: 'bg-[#F3F4F6] text-[#4B5563] border-[#D1D5DB]' }
 };
 
 function getRoleBadge(roleKey) {
