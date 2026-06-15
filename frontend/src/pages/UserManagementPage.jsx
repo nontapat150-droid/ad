@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
-import Layout from '../components/Layout';
+import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import TeamManagementModal from '../components/TeamManagementModal';
 
 export default function UserManagementPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
+
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingUser, setEditingUser] = useState(null); // null = not editing, {} = new user, {...} = existing user
+  const [editingUser, setEditingUser] = useState(null); 
   const [deletingId, setDeletingId] = useState(null);
 
   const [activeTab, setActiveTab] = useState('users');
@@ -38,7 +42,7 @@ export default function UserManagementPage() {
       setTeams(tRes.data);
     } catch (err) {
       console.error(err);
-      alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการโหลดข้อมูล' });
     } finally {
       setLoading(false);
     }
@@ -53,9 +57,9 @@ export default function UserManagementPage() {
     setSavingSettings(true);
     try {
       await api.put('/users/settings/late_time', lateTimes);
-      alert('บันทึกการตั้งค่าเวลาเรียบร้อย');
+      Swal.fire({ icon: 'success', title: 'บันทึกการตั้งค่าเวลาเรียบร้อย', showConfirmButton: false, timer: 1500 });
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า');
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาดในการบันทึกการตั้งค่า' });
     } finally {
       setSavingSettings(false);
     }
@@ -68,9 +72,9 @@ export default function UserManagementPage() {
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'ใช่, ลบเลย',
-      cancelButtonText: 'ยกเลิก'
+      cancelButtonColor: '#9CA3AF',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonText: 'ใช่, ลบเลย'
     });
 
     if (!result.isConfirmed) return;
@@ -78,10 +82,10 @@ export default function UserManagementPage() {
     setDeletingId(id);
     try {
       await api.delete(`/users/${id}`);
-      Swal.fire('สำเร็จ', 'ลบผู้ใช้เรียบร้อยแล้ว', 'success');
+      Swal.fire({ icon: 'success', title: 'ลบผู้ใช้เรียบร้อยแล้ว', showConfirmButton: false, timer: 1500 });
       fetchData();
     } catch (err) {
-      Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'เกิดข้อผิดพลาดในการลบผู้ใช้', 'error');
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'เกิดข้อผิดพลาดในการลบผู้ใช้' });
     } finally {
       setDeletingId(null);
     }
@@ -93,157 +97,213 @@ export default function UserManagementPage() {
 
   const getRoleBadge = (role) => {
     const roles = {
-      super_admin: { label: 'ผู้ดูแลระบบ', color: 'bg-purple-100 text-purple-700 border-purple-200' },
-      admin: { label: 'แอดมิน', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-      technician: { label: 'ช่างoffice', color: 'bg-[#B5D4F4] text-[#0C447C] border-[#185FA5]/20' },
-      ma_technician: { label: 'ช่างMA', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-      sales: { label: 'เซล', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+      super_admin: { label: 'ผู้ดูแลระบบ', color: 'bg-purple-50 text-purple-600 border-purple-200' },
+      admin: { label: 'แอดมิน', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+      technician: { label: 'ช่าง Office', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+      ma_technician: { label: 'ช่าง MA', color: 'bg-cyan-50 text-cyan-600 border-cyan-200' },
+      sales: { label: 'เซล', color: 'bg-amber-50 text-amber-600 border-amber-200' },
     };
-    const r = roles[role] || { label: role, color: 'glass text-[#042C53] border-white/50' };
-    return <span className={`px-2 py-0.5 rounded-md text-xs font-bold border ${r.color}`}>{r.label}</span>;
+    const r = roles[role] || { label: role, color: 'bg-slate-100 text-slate-600 border-slate-200' };
+    return <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${r.color}`}>{r.label}</span>;
   };
 
   const getStatusBadge = (status) => {
     const statuses = {
-      approved: { label: 'ใช้งานปกติ', color: 'text-emerald-500 bg-emerald-50 border-emerald-200' },
-      pending: { label: 'รออนุมัติ', color: 'text-amber-500 bg-amber-50 border-amber-200' },
-      rejected: { label: 'ถูกระงับ', color: 'text-red-500 bg-red-50 border-red-200' },
+      approved: { label: 'ใช้งานปกติ', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+      pending: { label: 'รออนุมัติ', color: 'text-amber-600 bg-amber-50 border-amber-200' },
+      rejected: { label: 'ถูกระงับ', color: 'text-red-600 bg-red-50 border-red-200' },
     };
     const s = statuses[status] || statuses.approved;
-    return <span className={`px-2 py-0.5 rounded-md text-xs font-bold border ${s.color}`}>{s.label}</span>;
+    return <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${s.color}`}>{s.label}</span>;
   };
 
   return (
-    <Layout activeKey="users" pageTitle="จัดการผู้ใช้">
-      <div className="flex flex-col gap-6 pb-12">
-        
+    <div className="flex h-screen bg-[#F9FAFB] text-[#1F2937] font-sans overflow-hidden selection:bg-[#A3E635] selection:text-[#1F2937]">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="users" />
+
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 md:ml-[280px]">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass p-5 rounded-3xl border border-white/50 shadow-sm">
-          <div>
-            <h1 className="text-xl font-bold text-[#042C53] flex items-center gap-2">
-              <span className="text-indigo-500">👥</span> ระบบจัดการผู้ใช้
-            </h1>
-            <p className="text-sm text-[#378ADD] mt-1">เพิ่ม แก้ไข ลบบัญชี และตั้งค่าเวลาเข้างาน</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button 
-                onClick={() => setActiveTab('users')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-              >ผู้ใช้งาน</button>
-              <button 
-                onClick={() => setActiveTab('settings')}
-                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-              >เวลาเข้างาน</button>
+        <header className="bg-white shadow-sm border-b border-[#E5E7EB] flex-shrink-0 z-10">
+          <div className="max-w-7xl mx-auto px-4 lg:px-8 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setSidebarOpen(true)} className="md:hidden w-11 h-11 flex items-center justify-center rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] text-[#1F2937] hover:bg-[#F3F4F6] transition-colors active:scale-95">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-2xl font-black text-[#1F2937] tracking-tight">ระบบจัดการผู้ใช้</h1>
+                <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">เพิ่ม แก้ไข ลบบัญชี และตั้งค่าเวลาเข้างาน</p>
+              </div>
             </div>
-            {activeTab === 'users' && (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleAddTeam}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-bold shadow-md shadow-teal-500/20 active:scale-95 transition-transform flex items-center gap-2">
-                  <span>🏢</span> เพิ่มทีม
-                </button>
-                <button
-                  onClick={() => setEditingUser({ username: '', full_name: '', password: '', role: 'technician', extra_roles: [], status: 'approved', team_id: '', allow_late_time: '08:30:00' })}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-transform flex items-center gap-2">
-                  <span>➕</span> เพิ่มผู้ใช้ใหม่
-                </button>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto space-y-6">
+            
+            {/* Action Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-2 sm:p-2 rounded-2xl border border-[#E5E7EB] shadow-sm">
+              <div className="flex bg-[#F3F4F6] p-1.5 rounded-xl w-full sm:w-auto">
+                <button 
+                  onClick={() => setActiveTab('users')}
+                  className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}
+                >ผู้ใช้งาน</button>
+                <button 
+                  onClick={() => setActiveTab('settings')}
+                  className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'settings' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}
+                >เวลาเข้างาน</button>
+              </div>
+
+              {activeTab === 'users' && (
+                <div className="flex gap-3 w-full sm:w-auto px-2 pb-2 sm:p-0 sm:pr-2">
+                  <button
+                    onClick={handleAddTeam}
+                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-bold transition-all border-2 border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F9FAFB] active:scale-95 shadow-sm flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    จัดการทีม
+                  </button>
+                  <button
+                    onClick={() => setEditingUser({ username: '', full_name: '', password: '', role: 'technician', extra_roles: [], status: 'approved', team_id: '', allow_late_time: '08:30:00' })}
+                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-black transition-all flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 bg-[#A3E635] text-[#1F2937] hover:bg-[#84CC16]">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                    เพิ่มผู้ใช้ใหม่
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Content Area */}
+            {activeTab === 'users' ? (
+              <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden" data-aos="fade-up">
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                    <svg className="animate-spin h-10 w-10 text-[#A3E635]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span className="text-sm font-bold text-[#9CA3AF]">กำลังโหลดข้อมูล...</span>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[800px]">
+                      <thead>
+                        <tr className="border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                          <th className="p-5 text-xs font-black text-[#6B7280] uppercase tracking-wider">ผู้ใช้งาน</th>
+                          <th className="p-5 text-xs font-black text-[#6B7280] uppercase tracking-wider">บทบาท</th>
+                          <th className="p-5 text-xs font-black text-[#6B7280] uppercase tracking-wider">ทีม</th>
+                          <th className="p-5 text-xs font-black text-[#6B7280] uppercase tracking-wider">สถานะ</th>
+                          <th className="p-5 text-xs font-black text-[#6B7280] uppercase tracking-wider text-right">จัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E5E7EB]">
+                        {users.map((u) => (
+                          <tr key={u.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                            <td className="p-5">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center font-black text-lg text-[#1F2937] shrink-0 group-hover:bg-white group-hover:border-[#A3E635] transition-all">
+                                  {u.full_name[0]}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-[#1F2937] text-base">{u.full_name}</p>
+                                  <p className="text-xs font-medium text-[#6B7280] bg-[#E5E7EB]/50 inline-block px-2 py-0.5 rounded-md mt-1">@{u.username}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-5">
+                              <div className="flex flex-wrap gap-2 items-center min-h-[3rem]">
+                                {u.roles ? u.roles.map((r, idx) => <span key={idx}>{getRoleBadge(r)}</span>) : getRoleBadge(u.role)}
+                              </div>
+                            </td>
+                            <td className="p-5">
+                              {u.team_name ? (
+                                <span className="inline-flex items-center gap-1.5 text-sm font-bold text-[#1F2937] px-3 py-1.5 bg-[#F3F4F6] rounded-xl border border-[#E5E7EB]">
+                                  🏢 {u.team_name}
+                                </span>
+                              ) : (
+                                <span className="text-sm font-medium text-[#9CA3AF]">-</span>
+                              )}
+                            </td>
+                            <td className="p-5">{getStatusBadge(u.status)}</td>
+                            <td className="p-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setEditingUser({ ...u, password: '', extra_roles: u.roles ? u.roles.filter(r => r !== u.role) : [] })}
+                                  className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center transition-colors shadow-sm border border-blue-100"
+                                  title="แก้ไขข้อมูล">
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(u.id)}
+                                  disabled={deletingId === u.id || u.id === user.id}
+                                  className="w-10 h-10 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition-colors disabled:opacity-50 shadow-sm border border-red-100"
+                                  title={u.id === user.id ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}>
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8" data-aos="fade-up">
+                <div className="flex items-center gap-3 mb-8 pb-4 border-b border-[#E5E7EB]">
+                  <div className="w-12 h-12 rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center shadow-inner">
+                    <svg className="w-6 h-6 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-[#1F2937]">ตั้งค่าเวลาเข้างานพื้นฐาน (สาย)</h2>
+                    <p className="text-sm font-medium text-[#6B7280]">กำหนดเวลาสายสำหรับแต่ละบทบาท</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
+                    <label className="block text-sm font-bold text-[#1F2937] mb-3">ทั่วไป (Global)</label>
+                    <ShadcnTimePicker value={lateTimes['late_time']} onChange={(v) => setLateTimes({...lateTimes, 'late_time': v})} placeholder="--:--" />
+                  </div>
+                  <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
+                    <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่าง Office</label>
+                    <ShadcnTimePicker value={lateTimes['late_time_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_technician': v})} placeholder="--:--" />
+                  </div>
+                  <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
+                    <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่าง MA</label>
+                    <ShadcnTimePicker value={lateTimes['late_time_ma_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_ma_technician': v})} placeholder="--:--" />
+                  </div>
+                  <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
+                    <label className="block text-sm font-bold text-[#1F2937] mb-3">เซล (Sales)</label>
+                    <ShadcnTimePicker value={lateTimes['late_time_sales']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_sales': v})} placeholder="--:--" />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end pt-6 border-t border-[#E5E7EB]">
+                  <button 
+                    onClick={handleSaveSettings} 
+                    disabled={savingSettings} 
+                    className={`px-8 py-3.5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-[0.98] ${savingSettings ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-[#A3E635] text-[#1F2937] hover:bg-[#84CC16]'}`}
+                  >
+                    {savingSettings ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-[#1F2937]/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        กำลังบันทึก...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                        บันทึกการตั้งค่า
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        </div>
-
-        {activeTab === 'users' ? (
-        <div className="glass p-5 rounded-3xl border border-white/50 shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 w-full rounded-2xl" />)}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                  <tr className="border-b border-white/50 ">
-                    <th className="p-4 text-xs font-bold text-[#378ADD] uppercase tracking-wider rounded-tl-xl">ผู้ใช้งาน</th>
-                    <th className="p-4 text-xs font-bold text-[#378ADD] uppercase tracking-wider">บทบาท</th>
-                    <th className="p-4 text-xs font-bold text-[#378ADD] uppercase tracking-wider">ทีม</th>
-                    <th className="p-4 text-xs font-bold text-[#378ADD] uppercase tracking-wider">สถานะ</th>
-                    <th className="p-4 text-xs font-bold text-[#378ADD] uppercase tracking-wider text-right rounded-tr-xl">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} className="border-b border-white/30 hover:/80 transition-colors">
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full glass flex items-center justify-center font-bold text-[#378ADD] border border-white/50">
-                            {u.full_name[0]}
-                          </div>
-                          <div>
-                            <p className="font-bold text-[#042C53]">{u.full_name}</p>
-                            <p className="text-xs text-[#378ADD] font-mono">@{u.username}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 flex flex-wrap gap-1 mt-2">{u.roles ? u.roles.map((r, idx) => <span key={idx}>{getRoleBadge(r)}</span>) : getRoleBadge(u.role)}</td>
-                      <td className="p-4 text-sm font-semibold text-[#185FA5]">{u.team_name || '-'}</td>
-                      <td className="p-4">{getStatusBadge(u.status)}</td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setEditingUser({ ...u, password: '', extra_roles: u.roles ? u.roles.filter(r => r !== u.role) : [] })}
-                            className="p-2 rounded-lg glass hover:bg-[#E6F1FB] text-[#185FA5] transition-colors"
-                            title="แก้ไขข้อมูล">
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.id)}
-                            disabled={deletingId === u.id || u.id === user.id}
-                            className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 transition-colors disabled:opacity-50"
-                            title={u.id === user.id ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}>
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        ) : (
-          <div className="glass p-5 rounded-3xl border border-white/50 shadow-sm">
-            <h2 className="text-lg font-bold text-[#042C53] mb-4">ตั้งค่าเวลาเข้างานพื้นฐาน (สาย)</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1">เวลาเข้างานทั่วไป (Global)</label>
-                <ShadcnTimePicker value={lateTimes['late_time']} onChange={(v) => setLateTimes({...lateTimes, 'late_time': v})} placeholder="--:--" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1">เวลาเข้างาน ช่าง office</label>
-                <ShadcnTimePicker value={lateTimes['late_time_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_technician': v})} placeholder="--:--" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1">เวลาเข้างาน ช่าง MA</label>
-                <ShadcnTimePicker value={lateTimes['late_time_ma_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_ma_technician': v})} placeholder="--:--" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1">เวลาเข้างาน เซล</label>
-                <ShadcnTimePicker value={lateTimes['late_time_sales']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_sales': v})} placeholder="--:--" />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button onClick={handleSaveSettings} disabled={savingSettings} className="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold shadow-md shadow-emerald-500/20 active:scale-95 transition-transform">
-                {savingSettings ? 'กำลังบันทึก...' : '💾 บันทึกการตั้งค่า'}
-              </button>
-            </div>
-          </div>
-        )}
+        </main>
       </div>
 
-      {/* Add / Edit Modal */}
+      {/* Modals */}
       {editingUser && (
         <UserFormModal
           user={editingUser}
@@ -258,7 +318,7 @@ export default function UserManagementPage() {
           refreshParent={fetchData} 
         />
       )}
-    </Layout>
+    </div>
   );
 }
 
@@ -275,77 +335,90 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    console.log('[DEBUG] Submitting form...', form);
     try {
       const payload = { ...form };
       if (payload.team_id === '') payload.team_id = null;
 
       if (isEdit) {
-        if (!payload.password) delete payload.password; // Don't update password if empty
-        // ensure extra_roles doesn't include the primary role
+        if (!payload.password) delete payload.password;
         if (payload.extra_roles) payload.extra_roles = payload.extra_roles.filter(r => r !== payload.role);
-        console.log('[DEBUG] Updating existing user (PUT)', payload);
-        const res = await api.put(`/users/${user.id}`, payload);
-        console.log('[DEBUG] PUT response:', res.data);
+        await api.put(`/users/${user.id}`, payload);
       } else {
         if (payload.extra_roles) payload.extra_roles = payload.extra_roles.filter(r => r !== payload.role);
-        console.log('[DEBUG] Creating new user (POST)', payload);
-        const res = await api.post('/users', payload);
-        console.log('[DEBUG] POST response:', res.data);
+        await api.post('/users', payload);
       }
       onSuccess();
       onClose();
     } catch (err) {
-      console.error('[DEBUG] Save error:', err);
-      console.error('[DEBUG] Error response data:', err.response?.data);
-      alert(`Error: ${err.response?.data?.error || err.response?.data?.message || err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล'}`);
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || err.message || 'ไม่สามารถบันทึกข้อมูลได้' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-sheet animate-[slideUp_0.3s_ease-out] relative max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-[#042C53]">
-            {isEdit ? '✏️ แก้ไขข้อมูลผู้ใช้' : '➕ เพิ่มผู้ใช้ใหม่'}
-          </h2>
-          <button type="button" onClick={onClose} className="w-8 h-8 rounded-lg  hover:glass border border-white/50 flex items-center justify-center text-[#378ADD] opacity-80">✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">ชื่อผู้ใช้ (Username)</label>
-              <input required name="username" value={form.username} onChange={handleChange} className="input-field" disabled={isEdit && user.username === 'admin'} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1F2937]/80 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-2xl bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-[#E5E7EB] animate-[slideUp_0.3s_ease-out] max-h-[90vh] overflow-y-auto">
+        
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#1F2937] flex items-center justify-center shadow-inner shrink-0">
+              <svg className="w-6 h-6 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </div>
             <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">รหัสผ่าน</label>
-              <input type="password" required={!isEdit} name="password" value={form.password || ''} onChange={handleChange} className="input-field" placeholder={isEdit ? '(ปล่อยว่างถ้าไม่เปลี่ยน)' : 'ตั้งรหัสผ่าน'} />
+              <h2 className="text-xl font-black text-[#1F2937] tracking-tight">
+                {isEdit ? 'แก้ไขข้อมูลผู้ใช้' : 'เพิ่มผู้ใช้ใหม่'}
+              </h2>
+              <p className="text-sm font-medium text-[#6B7280]">กรอกข้อมูลผู้ใช้งานและกำหนดสิทธิ์</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] hover:text-[#1F2937] hover:bg-[#F3F4F6] transition-colors shadow-sm shrink-0 active:scale-95">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">ชื่อผู้ใช้ (Username) <span className="text-red-500">*</span></label>
+              <input 
+                required name="username" value={form.username} onChange={handleChange} 
+                disabled={isEdit && user.username === 'admin'}
+                className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-medium text-[#1F2937] bg-white disabled:bg-[#F9FAFB] disabled:text-[#9CA3AF]" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">รหัสผ่าน {isEdit ? '' : <span className="text-red-500">*</span>}</label>
+              <input 
+                type="password" required={!isEdit} name="password" value={form.password || ''} onChange={handleChange} 
+                placeholder={isEdit ? '(ปล่อยว่างถ้าไม่เปลี่ยน)' : 'ตั้งรหัสผ่าน'}
+                className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-medium text-[#1F2937] bg-white" 
+              />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-[#042C53] mb-1">ชื่อ-นามสกุล</label>
-            <input required name="full_name" value={form.full_name} onChange={handleChange} className="input-field" />
+            <label className="block text-sm font-bold text-[#1F2937] mb-2">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
+            <input 
+              required name="full_name" value={form.full_name} onChange={handleChange} 
+              className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-medium text-[#1F2937] bg-white" 
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">บทบาท (Role)</label>
-              <select name="role" value={form.role} onChange={handleChange} className="input-field glass">
-                <option value="technician">ช่างoffice</option>
-                <option value="ma_technician">ช่างMA</option>
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">บทบาทหลัก (Role)</label>
+              <select name="role" value={form.role} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
+                <option value="technician">ช่าง Office</option>
+                <option value="ma_technician">ช่าง MA</option>
                 <option value="admin">แอดมิน</option>
-                <option value="super_admin">ผู้ดูแลระบบ</option>
+                <option value="super_admin">ผู้ดูแลระบบสูงสุด</option>
                 <option value="sales">เซล</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">สถานะ</label>
-              <select name="status" value={form.status} onChange={handleChange} className="input-field glass">
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">สถานะ</label>
+              <select name="status" value={form.status} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
                 <option value="approved">ใช้งานปกติ</option>
                 <option value="pending">รออนุมัติ</option>
                 <option value="rejected">ระงับการใช้งาน</option>
@@ -353,8 +426,8 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="bg-white/50 p-4 rounded-xl border border-white/60">
-            <label className="block text-sm font-bold text-[#042C53] mb-3">บทบาทเพิ่มเติม (Extra Roles)</label>
+          <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
+            <label className="block text-sm font-bold text-[#1F2937] mb-3">บทบาทเพิ่มเติม (Extra Roles)</label>
             <div className="flex flex-wrap gap-3">
               {['technician', 'ma_technician', 'admin', 'super_admin', 'sales']
                 .filter(r => r !== form.role)
@@ -365,8 +438,8 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
                       key={r} 
                       className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl cursor-pointer transition-all border ${
                         isChecked 
-                          ? 'bg-[#E6F1FB] border-[#185FA5]/40 shadow-sm ring-1 ring-[#185FA5]/20 text-[#042C53]' 
-                          : 'bg-white border-white hover:border-[#185FA5]/30 hover:bg-slate-50 shadow-sm text-slate-500'
+                          ? 'bg-white border-[#A3E635] shadow-sm ring-1 ring-[#A3E635]/50' 
+                          : 'bg-white border-[#E5E7EB] hover:border-[#1F2937]/30 shadow-sm'
                       }`}
                     >
                       <input 
@@ -385,15 +458,15 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
                         className="hidden"
                       />
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
-                        isChecked ? 'bg-[#185FA5] border-[#185FA5] scale-110 shadow-md shadow-blue-500/20' : 'bg-slate-100 border-slate-300'
+                        isChecked ? 'bg-[#A3E635] border-[#A3E635] shadow-sm' : 'bg-[#F3F4F6] border-[#E5E7EB]'
                       }`}>
                         {isChecked && (
-                          <svg className="w-3.5 h-3.5 text-white animate-[scaleIn_0.2s_ease-out]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-3.5 h-3.5 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                         )}
                       </div>
-                      <span className={`text-sm ${isChecked ? 'font-black text-[#185FA5]' : 'font-semibold'}`}>{
+                      <span className={`text-sm ${isChecked ? 'font-black text-[#1F2937]' : 'font-bold text-[#4B5563]'}`}>{
                         r === 'technician' ? 'ช่าง Office' :
                         r === 'ma_technician' ? 'ช่าง MA' :
                         r === 'admin' ? 'แอดมิน' :
@@ -405,26 +478,46 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">ทีม</label>
-              <select name="team_id" value={form.team_id || ''} onChange={handleChange} className="input-field glass">
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">ทีมสังกัด</label>
+              <select name="team_id" value={form.team_id || ''} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
                 <option value="">-- ไม่ระบุทีม --</option>
                 {teams.map(t => (
                   <option key={t.id} value={t.id}>{t.team_name}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-[#042C53] mb-1">เวลาเข้างาน (เฉพาะบุคคล)</label>
+            <div className="relative z-40">
+              <label className="block text-sm font-bold text-[#1F2937] mb-2">เวลาเข้างาน (เฉพาะบุคคล)</label>
               <ShadcnTimePicker value={form.allow_late_time} onChange={(v) => handleChange({ target: { name: 'allow_late_time', value: v }})} placeholder="ไม่ตั้งค่า (ใช้ตามบทบาท)" />
             </div>
           </div>
 
-          <div className="pt-4 flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 btn-ghost h-12">ยกเลิก</button>
-            <button type="submit" disabled={loading} className="flex-1 h-12 rounded-xl bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-transform">
-              {loading ? 'กำลังบันทึก...' : '💾 บันทึก'}
+          <div className="pt-6 flex gap-4 border-t border-[#F3F4F6]">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="flex-1 py-4 rounded-2xl font-bold text-[#4B5563] bg-white border-2 border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937] transition-all active:scale-95 shadow-sm"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className={`flex-[1.5] py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-[0.98] ${loading ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-[#A3E635] text-[#1F2937] hover:bg-[#84CC16]'}`}
+            >
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-[#1F2937]/50" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  กำลังบันทึก...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                  บันทึกข้อมูล
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -476,15 +569,15 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
       <button 
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-4 py-3 bg-white border ${isOpen ? 'border-indigo-500 ring-4 ring-indigo-500/10' : 'border-slate-200 hover:border-slate-300'} rounded-xl shadow-sm text-sm font-bold text-[#042C53] transition-all`}
+        className={`w-full flex items-center justify-between px-4 py-3.5 bg-white border ${isOpen ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'border-[#E5E7EB] hover:border-[#D1D5DB]'} rounded-xl shadow-sm text-sm font-bold text-[#1F2937] transition-all`}
       >
         <div className="flex items-center gap-3">
-          <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {value ? `${hour}:${minute}` : placeholder}
+          <svg className="w-5 h-5 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          {value ? `${hour}:${minute}` : <span className="text-[#9CA3AF]">{placeholder}</span>}
         </div>
         {value && (
-          <div onClick={handleClear} className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          <div onClick={handleClear} className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#4B5563] transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </div>
         )}
       </button>
@@ -492,11 +585,11 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-50 mt-2 w-full min-w-[240px] p-4 bg-white border border-slate-200 rounded-2xl shadow-xl animate-[slideDown_0.2s_ease-out]">
+          <div className="absolute z-50 mt-2 w-full min-w-[240px] p-4 bg-white border border-[#E5E7EB] rounded-2xl shadow-xl animate-[slideDown_0.2s_ease-out]">
             <div className="flex items-center justify-center gap-2 mb-4">
               <div className="flex-1 max-w-[100px]">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">ชั่วโมง</label>
-                <div ref={hourRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-slate-100 relative">
+                <label className="block text-xs font-black text-[#9CA3AF] uppercase tracking-wider mb-2 text-center">ชั่วโมง</label>
+                <div ref={hourRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-[#F3F4F6] relative">
                   {Array.from({length: 24}).map((_, i) => {
                     const val = i.toString().padStart(2, '0');
                     const isSelected = hour === val;
@@ -505,7 +598,7 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
                         id={`hour-${val}`}
                         key={val} 
                         onClick={() => setHour(val)}
-                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-indigo-600 bg-indigo-50 rounded-lg' : 'font-medium text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-[#1F2937] bg-[#A3E635] rounded-xl shadow-sm' : 'font-bold text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F9FAFB] rounded-xl'}`}
                       >
                         {val}
                       </div>
@@ -513,10 +606,10 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
                   })}
                 </div>
               </div>
-              <div className="text-2xl text-slate-300 font-bold mb-4 px-2">:</div>
+              <div className="text-2xl text-[#D1D5DB] font-black mb-4 px-2">:</div>
               <div className="flex-1 max-w-[100px]">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">นาที</label>
-                <div ref={minRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-slate-100 relative">
+                <label className="block text-xs font-black text-[#9CA3AF] uppercase tracking-wider mb-2 text-center">นาที</label>
+                <div ref={minRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-[#F3F4F6] relative">
                   {Array.from({length: 60}).map((_, i) => {
                     const val = i.toString().padStart(2, '0');
                     const isSelected = minute === val;
@@ -525,7 +618,7 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
                         id={`min-${val}`}
                         key={val} 
                         onClick={() => setMinute(val)}
-                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-indigo-600 bg-indigo-50 rounded-lg' : 'font-medium text-slate-400 hover:text-slate-700 hover:bg-slate-50'}`}
+                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-[#1F2937] bg-[#A3E635] rounded-xl shadow-sm' : 'font-bold text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F9FAFB] rounded-xl'}`}
                       >
                         {val}
                       </div>
@@ -534,8 +627,9 @@ function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเ�
                 </div>
               </div>
             </div>
-            <button type="button" onClick={handleSave} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-500/20 active:scale-[0.98] transition-all">
-              💾 ยืนยันเวลา
+            <button type="button" onClick={handleSave} className="w-full py-3.5 bg-[#1F2937] hover:bg-black text-[#A3E635] rounded-xl text-sm font-black shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+              ยืนยันเวลา
             </button>
           </div>
         </>
