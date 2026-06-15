@@ -532,8 +532,7 @@ export default function OilDashboardPage() {
                   <thead>
                     <tr className="border-b-2 border-[#185FA5]/10 bg-slate-50/50">
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">วันที่/เวลา</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ช่าง (ผู้เบิก)</th>
-                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ทีม/ป้ายทะเบียน(โดยแสดงเฉพาะทีม)</th>
+                      <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider">ชื่อผู้เติม / ทีม / ตำแหน่ง</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">เลขไมล์</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
                       <th className="p-3 text-xs font-bold text-[#185FA5] uppercase tracking-wider text-right">กม./ลิตร</th>
@@ -559,10 +558,22 @@ export default function OilDashboardPage() {
                             {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="p-3 text-sm text-[#042C53] whitespace-nowrap">
-                            {r.tech_name || 'N/A'}
-                          </td>
-                          <td className="p-3 text-sm font-black text-[#185FA5] whitespace-nowrap">
-                            <span className="bg-blue-100/50 px-2 py-1 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
+                            <div className="flex flex-col gap-1.5">
+                              <span className="font-bold text-[#042C53]">{r.tech_name || 'N/A'}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black bg-blue-100 text-[#185FA5] px-2 py-0.5 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
+                                <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                                  {{
+                                    sales: 'เซล',
+                                    technician: 'ช่าง Office',
+                                    ma_technician: 'ช่าง MA',
+                                    office_technician: 'ช่าง Office',
+                                    admin: 'แอดมิน',
+                                    super_admin: 'แอดมินสูงสุด'
+                                  }[r.tech_role] || r.tech_role || 'พนักงาน'}
+                                </span>
+                              </div>
+                            </div>
                           </td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
                           <td className="p-3 text-sm font-mono text-[#042C53] whitespace-nowrap text-right">{r.distance || 0}</td>

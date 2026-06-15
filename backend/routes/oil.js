@@ -40,6 +40,7 @@ router.get('/records', auth, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT r.*,
               u.full_name AS tech_name,
+              u.role AS tech_role,
               u.team_id,
               t.team_name,
               GROUP_CONCAT(i.image_path SEPARATOR ',') AS images
@@ -48,7 +49,7 @@ router.get('/records', auth, async (req, res) => {
        LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN oil_images i ON i.record_id = r.id
        ${whereClause}
-       GROUP BY r.id, u.full_name, u.team_id, t.team_name
+       GROUP BY r.id, u.full_name, u.role, u.team_id, t.team_name
        ORDER BY r.date_recorded DESC
        LIMIT ?`,
       [...params, parseInt(limit)]
