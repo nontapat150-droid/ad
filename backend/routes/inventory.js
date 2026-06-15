@@ -581,4 +581,30 @@ router.delete('/items/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   }
 });
 
+// ── POST /api/inventory/check-sn-duplicates ──
+// Check which SNs from a provided list already exist in the system
+router.post('/check-sn-duplicates', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { sns } = req.body;
+  if (!sns || !Array.isArray(sns) || sns.length === 0) {
+    return res.json({ duplicates: [] });
+  }
+
+  try {
+    const placeholders = sns.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT ii.sn, pm.model_name, p.name AS product_name
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.sn IN (${placeholders})`,
+      sns
+    );
+    res.json({ duplicates: rows });
+  } catch (err) {
+    console.error('Check SN duplicates error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
+
