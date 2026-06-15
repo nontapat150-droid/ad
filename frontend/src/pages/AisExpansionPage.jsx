@@ -27,17 +27,17 @@ export default function AisExpansionPage() {
 
   const loadBuildings = async (mapInstance) => {
     if (!detectionEnabledRef.current) return;
-    
+
     const view = mapInstance.getView();
     const zoom = view.getZoom();
-    
+
     if (zoom < 16) {
       setZoomWarning(true);
       vectorSourceRef.current.clear();
       return;
     }
     setZoomWarning(false);
-    
+
     const extent = view.calculateExtent(mapInstance.getSize());
     const extent4326 = transformExtent(extent, 'EPSG:3857', 'EPSG:4326');
     const [minx, miny, maxx, maxy] = extent4326;
@@ -82,22 +82,31 @@ export default function AisExpansionPage() {
         target: mapRef.current,
         controls: defaultControls().extend([new FullScreen()]),
         layers: [
+          // 1. Layer ภาพถ่ายดาวเทียม (ArcGIS World Imagery)
           new TileLayer({
             source: new XYZ({
-              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-              attributions: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012',
+              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              attributions: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
               crossOrigin: 'anonymous',
             }),
           }),
+          // 2. Layer ป้ายชื่อสถานที่และขอบเขต (ArcGIS Reference Labels)
+          new TileLayer({
+            source: new XYZ({
+              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+              crossOrigin: 'anonymous',
+            }),
+          }),
+          // 3. Layer สำหรับวาดขอบเขตบ้านสีแดง
           new VectorLayer({
             source: vectorSourceRef.current,
             style: new Style({
               stroke: new Stroke({
-                color: 'rgba(239, 68, 68, 0.8)', // Red outline
+                color: 'rgba(239, 68, 68, 0.9)', // ปรับสีแดงให้เข้มขึ้นเล็กน้อยเพื่อให้ตัดกับภาพดาวเทียม
                 width: 2,
               }),
               fill: new Fill({
-                color: 'rgba(239, 68, 68, 0.2)', // Light red fill
+                color: 'rgba(239, 68, 68, 0.3)', // ปรับ fill ให้ชัดขึ้นบนภาพดาวเทียม
               }),
             }),
           }),
@@ -126,7 +135,7 @@ export default function AisExpansionPage() {
   }, [map]);
 
   return (
-    <Layout activeKey="ais_expansion" pageTitle="ระบบงานขยาย AIS (แผนที่บ้าน)">
+    <Layout activeKey="ais_expansion" pageTitle="ระบบงานขยาย AIS (แผนที่ดาวเทียม)">
       <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
         {/* Header toolbar */}
         <div className="flex items-center justify-between p-4 border-b bg-slate-50 shrink-0">
@@ -135,17 +144,17 @@ export default function AisExpansionPage() {
               <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
-              แผนที่บ้าน
+              แผนที่ดาวเทียมตรวจจับบ้าน
             </h3>
-            <p className="text-xs text-slate-500 mt-1">OpenLayers & ArcGIS</p>
+            <p className="text-xs text-slate-500 mt-1">ArcGIS Satellite & Overpass API</p>
           </div>
-          
+
           {/* Detection Toggle */}
           <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
             <div className="relative">
-              <input 
-                type="checkbox" 
-                className="sr-only" 
+              <input
+                type="checkbox"
+                className="sr-only"
                 checked={detectionEnabled}
                 onChange={(e) => setDetectionEnabled(e.target.checked)}
               />
@@ -159,7 +168,7 @@ export default function AisExpansionPage() {
         </div>
 
         {/* Map Container */}
-        <div className="flex-1 relative bg-slate-100">
+        <div className="flex-1 relative bg-slate-800">
           <div ref={mapRef} className="absolute inset-0 w-full h-full" />
 
           {/* Loading Indicator */}
