@@ -39,7 +39,9 @@ export default function OfficeTechDashboard() {
     }
   };
 
-  const firstName = user?.full_name?.split(' ')[0] || 'ช่าง';
+  const firstName = user?.full_name?.split(' ')[0] || 'ผู้ใช้งาน';
+  const isSales = user?.roles?.includes('sales') || user?.role === 'sales';
+  const roleTitle = isSales ? 'เซล' : 'ช่าง Office';
   const greeting = getGreeting();
   const todayDate = new Date().toLocaleDateString('th-TH', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -60,7 +62,7 @@ export default function OfficeTechDashboard() {
             <span className="block w-[18px] h-[2px] rounded-full bg-slate-600" />
           </button>
           <div className="flex-1">
-            <h2 className="text-[#042C53] font-bold text-lg">หน้าแรก (ช่าง Office)</h2>
+            <h2 className="text-[#042C53] font-bold text-lg">หน้าแรก ({roleTitle})</h2>
           </div>
           <button onClick={fetchDashboardData}
             className="flex items-center gap-1.5 text-xs text-[#185FA5] hover:text-[#0C447C] font-semibold bg-[#E6F1FB] hover:bg-[#B5D4F4] px-3 py-1.5 rounded-lg border border-[#185FA5]/20 transition-all">
@@ -79,7 +81,7 @@ export default function OfficeTechDashboard() {
               <div className="absolute -right-10 -top-10 w-48 h-48 rounded-full opacity-10 bg-white blur-2xl pointer-events-none" />
               <div className="absolute right-10 -bottom-12 w-36 h-36 rounded-full opacity-10 bg-white blur-2xl pointer-events-none" />
               <div className="relative z-10">
-                <p className="text-blue-200 text-sm font-medium mb-1">{todayDate}</p>
+                <p className="text-blue-200 text-sm font-medium mb-1"><span className="text-white/80 text-sm font-medium">{roleTitle}</span> {todayDate}</p>
                 <h1 className="text-white text-2xl md:text-3xl font-bold leading-snug">
                   {greeting}, <span className="text-blue-200">{firstName}</span> 👋
                 </h1>

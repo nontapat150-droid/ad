@@ -100,7 +100,7 @@ function AppRoutes() {
       <Route
         path="/office-tech"
         element={
-          <ProtectedRoute allowedRoles={['technician', 'super_admin', 'admin']}>
+          <ProtectedRoute allowedRoles={['technician', 'super_admin', 'admin', 'sales']}>
             <OfficeTechDashboard />
           </ProtectedRoute>
         }
