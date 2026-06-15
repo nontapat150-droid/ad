@@ -1,82 +1,78 @@
 import React, { useEffect, useRef, useState } from 'react';
 import 'ol/ol.css';
-import { Map, View } from 'ol';
+import { Map, View, Feature } from 'ol';
 import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
-import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
+import { fromLonLat, toLonLat } from 'ol/proj';
 import { defaults as defaultControls, FullScreen } from 'ol/control';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import OSMXML from 'ol/format/OSMXML';
-import { Style, Fill, Stroke } from 'ol/style';
+import Point from 'ol/geom/Point';
+import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import Layout from '../components/Layout';
 
 export default function AisExpansionPage() {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
-  const [detectionEnabled, setDetectionEnabled] = useState(false);
-  const [loadingHouses, setLoadingHouses] = useState(false);
-  const [zoomWarning, setZoomWarning] = useState(false);
   const [clickedCoord, setClickedCoord] = useState(null);
+  const [splitterInput, setSplitterInput] = useState('');
+  const [searchError, setSearchError] = useState('');
 
   const popupRef = useRef(null);
   const popupOverlayRef = useRef(null);
-
   const vectorSourceRef = useRef(new VectorSource());
-  const detectionEnabledRef = useRef(detectionEnabled);
 
-  useEffect(() => {
-    detectionEnabledRef.current = detectionEnabled;
-  }, [detectionEnabled]);
-
-  const loadBuildings = async (mapInstance) => {
-    if (!detectionEnabledRef.current) return;
-
-    const view = mapInstance.getView();
-    const zoom = view.getZoom();
-
-    if (zoom < 16) {
-      setZoomWarning(true);
-      vectorSourceRef.current.clear();
+  const handleSearchSplitter = (e) => {
+    e.preventDefault();
+    setSearchError('');
+    
+    if (!splitterInput.trim()) {
+      setSearchError('กรุณาระบุพิกัด');
       return;
     }
-    setZoomWarning(false);
 
-    const extent = view.calculateExtent(mapInstance.getSize());
-    const extent4326 = transformExtent(extent, 'EPSG:3857', 'EPSG:4326');
-    const [minx, miny, maxx, maxy] = extent4326;
-
-    setLoadingHouses(true);
-    try {
-      const query = `[out:xml][timeout:25];(way["building"](${miny},${minx},${maxy},${maxx});relation["building"](${miny},${minx},${maxy},${maxx}););out body;>;out skel qt;`;
-      const res = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: query
-      });
-      const text = await res.text();
-      const format = new OSMXML();
-      const features = format.readFeatures(text, { featureProjection: 'EPSG:3857' });
-      vectorSourceRef.current.clear();
-      vectorSourceRef.current.addFeatures(features);
-    } catch (err) {
-      console.error('Failed to fetch buildings', err);
-    } finally {
-      setLoadingHouses(false);
+    // Attempt to parse "lat, lon" or "lat lon"
+    const parts = splitterInput.split(/[, ]+/).filter(Boolean);
+    if (parts.length < 2) {
+      setSearchError('รูปแบบพิกัดไม่ถูกต้อง (เช่น 13.75, 100.50)');
+      return;
     }
-  };
 
-  // React to toggle
-  useEffect(() => {
+    const lat = parseFloat(parts[0]);
+    const lon = parseFloat(parts[1]);
+
+    if (isNaN(lat) || isNaN(lon)) {
+      setSearchError('พิกัดต้องเป็นตัวเลข');
+      return;
+    }
+
+    // Clear old features
+    vectorSourceRef.current.clear();
+
+    const centerCoord = fromLonLat([lon, lat]);
+
+    // Create marker feature
+    const marker = new Feature({
+      geometry: new Point(centerCoord)
+    });
+
+    vectorSourceRef.current.addFeature(marker);
+
+    // Animate map to location
     if (map) {
-      if (detectionEnabled) {
-        loadBuildings(map);
-      } else {
-        vectorSourceRef.current.clear();
-        setZoomWarning(false);
+      map.getView().animate({
+        center: centerCoord,
+        zoom: 18,
+        duration: 1000
+      });
+      // Close the clicked coordinate popup if it's open
+      setClickedCoord(null);
+      if (popupOverlayRef.current) {
+        popupOverlayRef.current.setPosition(undefined);
       }
     }
-  }, [detectionEnabled, map]);
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -102,16 +98,19 @@ export default function AisExpansionPage() {
               crossOrigin: 'anonymous',
             }),
           }),
-          // 3. Layer สำหรับวาดขอบเขตบ้านสีแดง
+          // 3. Layer สำหรับวาดหมุด Splitter
           new VectorLayer({
             source: vectorSourceRef.current,
             style: new Style({
-              stroke: new Stroke({
-                color: 'rgba(239, 68, 68, 0.9)', // ปรับสีแดงให้เข้มขึ้นเล็กน้อยเพื่อให้ตัดกับภาพดาวเทียม
-                width: 2,
-              }),
-              fill: new Fill({
-                color: 'rgba(239, 68, 68, 0.3)', // ปรับ fill ให้ชัดขึ้นบนภาพดาวเทียม
+              image: new CircleStyle({
+                radius: 8,
+                fill: new Fill({
+                  color: '#3B82F6', // Blue for Splitter
+                }),
+                stroke: new Stroke({
+                  color: '#ffffff',
+                  width: 3,
+                }),
               }),
             }),
           }),
@@ -133,12 +132,6 @@ export default function AisExpansionPage() {
       popupOverlayRef.current = popupOverlay;
 
       setMap(initialMap);
-
-      initialMap.on('moveend', () => {
-        if (detectionEnabledRef.current) {
-          loadBuildings(initialMap);
-        }
-      });
 
       initialMap.on('singleclick', (evt) => {
         const coords = toLonLat(evt.coordinate);
@@ -162,56 +155,53 @@ export default function AisExpansionPage() {
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขยาย AIS (แผนที่ดาวเทียม)">
       <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
         {/* Header toolbar */}
-        <div className="flex items-center justify-between p-4 border-b bg-slate-50 shrink-0">
+        <div className="flex items-center justify-between p-4 border-b bg-slate-50 shrink-0 flex-wrap gap-4">
           <div>
             <h3 className="font-bold text-[#042C53] flex items-center gap-2">
               <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
-              แผนที่ดาวเทียมตรวจจับบ้าน
+              แผนที่ดาวเทียมระบุพิกัด Splitter
             </h3>
-            <p className="text-xs text-slate-500 mt-1">ArcGIS Satellite & Overpass API</p>
+            <p className="text-xs text-slate-500 mt-1">ค้นหาและแสดงตำแหน่ง Splitter</p>
           </div>
 
-          {/* Detection Toggle */}
-          <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
-            <div className="relative">
+          {/* Search Splitter Input */}
+          <form onSubmit={handleSearchSplitter} className="flex items-start gap-2 relative">
+            <div className="flex flex-col">
               <input
-                type="checkbox"
-                className="sr-only"
-                checked={detectionEnabled}
-                onChange={(e) => setDetectionEnabled(e.target.checked)}
+                type="text"
+                placeholder="พิกัด: 13.75, 100.50"
+                value={splitterInput}
+                onChange={(e) => {
+                  setSplitterInput(e.target.value);
+                  if (searchError) setSearchError('');
+                }}
+                className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 w-[220px] transition-colors ${
+                  searchError ? 'border-red-300 focus:ring-red-200 bg-red-50' : 'border-slate-200 focus:ring-brand-100 focus:border-brand-400'
+                }`}
               />
-              <div className={`block w-10 h-6 rounded-full transition-colors ${detectionEnabled ? 'bg-brand-500' : 'bg-slate-300'}`}></div>
-              <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${detectionEnabled ? 'transform translate-x-4' : ''}`}></div>
+              {searchError && (
+                <span className="absolute -bottom-5 left-1 text-[10px] text-red-500 font-medium whitespace-nowrap">
+                  {searchError}
+                </span>
+              )}
             </div>
-            <span className={`text-sm font-bold ${detectionEnabled ? 'text-brand-600' : 'text-slate-500'}`}>
-              เปิดโหมดตรวจจับบ้าน
-            </span>
-          </label>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              ค้นหา
+            </button>
+          </form>
         </div>
 
         {/* Map Container */}
         <div className="flex-1 relative bg-slate-800">
           <div ref={mapRef} className="absolute inset-0 w-full h-full" />
-
-          {/* Loading Indicator */}
-          {loadingHouses && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-md border border-brand-100 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-sm font-semibold text-brand-700">กำลังสแกนหาบ้าน...</span>
-            </div>
-          )}
-
-          {/* Zoom Warning Indicator */}
-          {zoomWarning && detectionEnabled && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-amber-50 px-4 py-2 rounded-full shadow-md border border-amber-200 flex items-center gap-2 animate-fade-in-up">
-              <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span className="text-sm font-semibold text-amber-700">กรุณาซูมเข้าใกล้กว่านี้เพื่อโหลดข้อมูลบ้าน</span>
-            </div>
-          )}
 
           {/* Coordinates Popup Overlay */}
           <div ref={popupRef} className={`absolute z-20 ${clickedCoord ? 'block' : 'hidden'} transition-opacity`}>
