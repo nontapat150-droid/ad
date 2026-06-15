@@ -3,6 +3,14 @@ import * as XLSX from 'xlsx';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
 
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+});
+
 // ─── Excel Import Modal ──────────────────────────────────────────────────────
 function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   const [importRows, setImportRows] = useState([]);
@@ -848,6 +856,17 @@ export default function InventoryReceivePage() {
   // Auto-create products/models if not found, then add to staging
   const handleExcelImportConfirm = async (validRows) => {
     setLoading(true);
+    
+    // Show progress popup because 300+ items can take a few seconds
+    Swal.fire({
+      title: 'กำลังประมวลผลข้อมูล',
+      text: `กำลังเตรียมข้อมูล ${validRows.length} แถว กรุณารอสักครู่...`,
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     const newItems = [];
     let createdCount = 0;
     let skipCount = 0;
@@ -916,6 +935,8 @@ export default function InventoryReceivePage() {
     }
 
     setLoading(false);
+    Swal.close();
+    Swal.close();
     setStagedItems(prev => [...prev, ...newItems]);
 
     let msg = `เพิ่ม ${newItems.length} รายการลงพักรอแล้ว`;
