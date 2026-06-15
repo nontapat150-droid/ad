@@ -55,13 +55,7 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
 function RootRedirect() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  const userRoles = user.roles || [user.role];
-  if (userRoles.includes('super_admin')) return <Navigate to="/super-admin" replace />;
-  if (userRoles.includes('admin')) return <Navigate to="/admin" replace />;
-  if (userRoles.includes('sales')) return <Navigate to="/office-tech" replace />;
-  if (userRoles.includes('technician') || userRoles.includes('office_technician')) return <Navigate to="/office-tech" replace />;
-  if (userRoles.includes('ma_technician')) return <Navigate to="/ma-tech" replace />;
-  return <Navigate to="/office-tech" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 // ── App Routes ────────────────────────────────────────────────
