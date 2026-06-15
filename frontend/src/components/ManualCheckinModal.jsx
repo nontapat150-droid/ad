@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { DateTimePicker } from './DateTimePicker';
@@ -45,6 +45,20 @@ export default function ManualCheckinModal({ onClose, onSuccess }) {
 
   const [checkinImg, setCheckinImg] = useState(null);
   const [checkoutImg, setCheckoutImg] = useState(null);
+
+  // Dropdown state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     api.get('/users').then(res => setUsersList(res.data)).catch(console.error);
@@ -167,15 +181,47 @@ export default function ManualCheckinModal({ onClose, onSuccess }) {
             <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
               <div>
                 <label className="block text-sm font-bold text-[#1F2937] mb-2">พนักงาน *</label>
-                <select 
-                  name="user_id" 
-                  value={formData.user_id} 
-                  onChange={handleChange} 
-                  className="w-full border border-[#E5E7EB] rounded-2xl px-4 py-3.5 focus:ring-2 focus:ring-[#A3E635]/50 focus:border-[#A3E635] outline-none text-sm font-bold text-[#1F2937] transition-all bg-white shadow-sm"
-                >
-                  <option value="">-- เลือกพนักงาน --</option>
-                  {usersList.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                </select>
+                {/* Custom Premium Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <div 
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className={`w-full bg-white border ${isDropdownOpen ? 'border-[#A3E635] ring-2 ring-[#A3E635]/50' : 'border-[#E5E7EB] hover:border-[#A3E635]/50'} rounded-2xl px-4 py-3.5 cursor-pointer flex items-center justify-between shadow-sm transition-all duration-300`}
+                  >
+                    <span className={`text-sm font-bold ${formData.user_id ? 'text-[#1F2937]' : 'text-[#9CA3AF]'}`}>
+                      {formData.user_id ? usersList.find(u => u.id.toString() === formData.user_id)?.full_name : '-- เลือกพนักงาน --'}
+                    </span>
+                    <svg className={`w-5 h-5 text-[#9CA3AF] transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-[#1F2937]' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  
+                  {isDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-2 bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] py-2 max-h-60 overflow-y-auto animate-[slideDown_0.2s_ease-out]">
+                      <div 
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, user_id: '' }));
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`px-4 py-3 cursor-pointer text-sm font-bold transition-colors ${!formData.user_id ? 'bg-[#F9FAFB] text-[#1F2937]' : 'text-[#4B5563] hover:bg-[#F9FAFB] hover:text-[#1F2937]'}`}
+                      >
+                        -- เลือกพนักงาน --
+                      </div>
+                      {usersList.map(u => (
+                        <div 
+                          key={u.id}
+                          onClick={() => {
+                            setFormData(prev => ({ ...prev, user_id: u.id.toString() }));
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`px-4 py-3 cursor-pointer text-sm font-bold flex items-center justify-between transition-colors ${formData.user_id === u.id.toString() ? 'bg-[#F9FAFB] text-[#A3E635]' : 'text-[#1F2937] hover:bg-[#F9FAFB]'}`}
+                        >
+                          {u.full_name}
+                          {formData.user_id === u.id.toString() && (
+                            <svg className="w-5 h-5 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
