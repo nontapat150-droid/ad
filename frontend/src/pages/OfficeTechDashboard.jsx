@@ -156,7 +156,7 @@ export default function OfficeTechDashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <ShortcutBtn icon="📍" label="เช็คอินเข้างาน" onClick={() => navigate('/checkin')}
                       gradient="from-indigo-500 to-violet-600" shadow="shadow-indigo-500/25" />
-                    <ShortcutBtn icon="📋" label="งานที่รับมอบหมาย" onClick={() => navigate('/jobs')}
+                    <ShortcutBtn icon="📋" label={isSales ? 'ระบบงานขยาย AIS' : 'งานที่รับมอบหมาย'} onClick={() => navigate(isSales ? '/ais-expansion' : '/jobs')}
                       gradient="from-[#185FA5] to-[#378ADD]" shadow="shadow-blue-500/25" />
                     <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน" onClick={() => navigate('/oil')}
                       gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />

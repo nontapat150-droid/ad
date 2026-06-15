@@ -74,6 +74,7 @@ export default function Sidebar({
   const isAdmin = isSuperAdmin || isAdminOnly;
   const isMATech = userRoles.includes('ma_technician');
   const isOfficeTech = userRoles.includes('technician');
+  const isSales = userRoles.includes('sales');
 
   const initials = user?.full_name ? user.full_name.substring(0, 2).toUpperCase() : 'U';
   const teamName = user?.team_name || '';
@@ -130,27 +131,40 @@ export default function Sidebar({
   const techGroups = MENU_GROUPS.map(group => {
     let items = group.items;
     
-    // จัดการเมนูหน้าแรก
+    // Modify labels/home item based on tech roles
     items = items.map(item => {
+      if (item.key === 'jobs' && (isOfficeTech || isMATech) && !isAdmin) {
+        return { ...item, label: 'งานวันนี้' };
+      }
+      
       if (item.key === 'home') {
-        if (isMATech && isOfficeTech) {
-          return [
-            { key: 'home', label: 'หน้าแรก', icon: item.icon },
-            { key: 'home_ma', label: 'สรุปผล MA ของฉัน', icon: item.icon }
-          ];
-        } else if (isMATech && !isOfficeTech) {
-          return { key: 'home_ma', label: 'สรุปผล MA ของฉัน', icon: item.icon };
+        let homeItems = [];
+        if (isAdmin || isOfficeTech || isSales || (!isMATech && !isOfficeTech && !isSales)) {
+          homeItems.push({ key: 'home', label: 'หน้าแรก', icon: item.icon });
         }
+        if (isMATech) {
+          homeItems.push({ key: 'home_ma', label: 'สรุปผล MA ของฉัน', icon: item.icon });
+        }
+        return homeItems;
       }
       return item;
     }).flat();
 
+    // Filter items based on roles
     return {
       ...group,
       items: items.filter(item => {
-        // ถ้าเป็นช่าง MA อย่างเดียว (ไม่มี Office) ให้ซ่อนเมนูพวกนี้
-        if (isMATech && !isOfficeTech && ['entry_fee', 'oil', 'bag'].includes(item.key)) {
-          return false;
+        if (isSales && !isAdmin) {
+          const allowedForSales = ['home', 'oil', 'checkin', 'ais_expansion'];
+          return allowedForSales.includes(item.key);
+        }
+        if (isMATech && !isOfficeTech && !isAdmin) {
+          const allowedForMATech = ['home_ma', 'bag', 'oil', 'checkin', 'report', 'jobs'];
+          return allowedForMATech.includes(item.key);
+        }
+        if (isOfficeTech && !isAdmin) {
+          const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'checkin', 'report', 'jobs'];
+          return allowedForOfficeTech.includes(item.key);
         }
         return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
       })
