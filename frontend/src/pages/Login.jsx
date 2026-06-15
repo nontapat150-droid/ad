@@ -59,7 +59,6 @@ export default function Login() {
       let redirectUrl = '/office-tech';
       if (userRoles.includes('super_admin')) redirectUrl = '/super-admin';
       else if (userRoles.includes('admin')) redirectUrl = '/admin';
-      else if (userRoles.includes('sales')) redirectUrl = '/checkin';
       else if (userRoles.includes('ma_technician') && !userRoles.includes('office_technician') && !userRoles.includes('technician')) redirectUrl = '/ma-tech';
 
       setTimeout(() => {

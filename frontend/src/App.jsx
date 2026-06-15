@@ -61,10 +61,10 @@ function RootRedirect() {
   const userRoles = user.roles || [user.role];
   if (userRoles.includes('super_admin')) return <Navigate to="/super-admin" replace />;
   if (userRoles.includes('admin')) return <Navigate to="/admin" replace />;
-  if (userRoles.includes('sales')) return <Navigate to="/checkin" replace />;
+  if (userRoles.includes('sales')) return <Navigate to="/office-tech" replace />;
   if (userRoles.includes('technician') || userRoles.includes('office_technician')) return <Navigate to="/office-tech" replace />;
   if (userRoles.includes('ma_technician')) return <Navigate to="/ma-tech" replace />;
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/office-tech" replace />;
 }
 
 // ── App Routes ────────────────────────────────────────────────
@@ -101,7 +101,7 @@ function AppRoutes() {
       <Route
         path="/office-tech"
         element={
-          <ProtectedRoute allowedRoles={['technician', 'office_technician', 'super_admin', 'admin']}>
+          <ProtectedRoute allowedRoles={['technician', 'office_technician', 'super_admin', 'admin', 'sales']}>
             <OfficeTechDashboard />
           </ProtectedRoute>
         }
