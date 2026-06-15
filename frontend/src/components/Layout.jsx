@@ -38,6 +38,7 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
         onClose={close}
         activeKey={activeKey}
         onNavigate={onNavigate}
+        onOpenMap={() => setMapOpen(true)}
       />
 
       {/* ── Main Area ───────────────────────────────────────── */}

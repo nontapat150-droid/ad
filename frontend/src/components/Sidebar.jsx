@@ -20,6 +20,7 @@ const MENU_GROUPS = [
       { key: 'entry_fee', label: 'ค่าแรกเข้า',  icon: EntryFeeIcon },
       { key: 'oil',       label: 'เติมน้ำมัน',    icon: OilIcon     },
       { key: 'checkin',   label: 'ลงเวลาเข้างาน', icon: CheckinIcon },
+      { key: 'ais_expansion', label: 'งานขยาย', icon: MapIcon },
     ],
   },
   {
@@ -35,6 +36,7 @@ export default function Sidebar({
   onClose,
   activeKey,
   onNavigate,
+  onOpenMap,
 }) {
   const { user, logout } = useAuth();
   const sidebarRef = useRef(null);
@@ -78,6 +80,13 @@ export default function Sidebar({
   const teamName = user?.team_name || '';
 
   const handleNav = (key) => {
+    if (key === 'ais_expansion') {
+      if (onOpenMap) onOpenMap();
+      if (window.innerWidth < 768) {
+        onClose();
+      }
+      return;
+    }
     onNavigate?.(key);
     if (!onNavigate) {
       if (key === 'home') {
@@ -150,7 +159,7 @@ export default function Sidebar({
         if (isMATech && !isOfficeTech && ['entry_fee', 'oil', 'bag'].includes(item.key)) {
           return false;
         }
-        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report'].includes(item.key);
+        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
       })
     };
   }).filter(group => group.items.length > 0);
