@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import 'ol/ol.css';
 import { Map, View } from 'ol';
 import TileLayer from 'ol/layer/Tile';
-import OSM from 'ol/source/OSM';
+import XYZ from 'ol/source/XYZ';
 import { fromLonLat, transformExtent } from 'ol/proj';
 import { defaults as defaultControls, FullScreen } from 'ol/control';
 import VectorLayer from 'ol/layer/Vector';
@@ -85,7 +85,11 @@ export default function AisExpansionMap({ open, onClose }) {
         controls: defaultControls().extend([new FullScreen()]),
         layers: [
           new TileLayer({
-            source: new OSM(),
+            source: new XYZ({
+              url: 'https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=UlpKF4zHaO6RzT8Jbnke',
+              attributions: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+              crossOrigin: 'anonymous',
+            }),
           }),
           new VectorLayer({
             source: vectorSourceRef.current,
