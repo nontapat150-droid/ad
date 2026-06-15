@@ -80,19 +80,30 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     const [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`);
 
     const [feed] = await pool.query(`
-      SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
-      FROM (
-        (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records ORDER BY date_recorded DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees ORDER BY created_at DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins ORDER BY checkin_time DESC LIMIT 10)
-        UNION ALL
-        (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' ORDER BY timestamp DESC LIMIT 10)
-      ) AS c
-      LEFT JOIN users u ON u.id = c.user_id
-      ORDER BY c.created_at DESC
-      LIMIT 20
+        SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
+        FROM (
+          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 20)
+          UNION ALL
+          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 20)
+          UNION ALL
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
+          UNION ALL
+          (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 20)
+        ) AS c
+        LEFT JOIN users u ON u.id = c.user_id
+        ORDER BY c.created_at DESC
+        LIMIT 50
+    `);
+
+    const [onlineStatus] = await pool.query(`
+      SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
+             (CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
+             u.profile_image
+      FROM users u
+      LEFT JOIN teams t ON u.team_id = t.id
+      LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
+      WHERE u.status = 'approved' AND u.role NOT IN ('super_admin', 'admin')
+      ORDER BY t.team_name, u.full_name
     `);
 
     res.json({
@@ -104,7 +115,8 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         monthlyOilBills: oilResult.cnt || 0,
         monthlyEntryFees: entryResult.cnt || 0
       },
-      feed
+      feed,
+      onlineStatus
     });
   } catch (err) {
     console.error('Super Admin Dashboard Stats Error:', err);
