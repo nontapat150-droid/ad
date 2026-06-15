@@ -54,6 +54,7 @@ apiRouter.use('/users', usersRouter);
 apiRouter.use('/stats', statsRouter);
 apiRouter.use('/messages', messagesRouter);
 apiRouter.use('/announcements', announcementsRouter);
+apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
