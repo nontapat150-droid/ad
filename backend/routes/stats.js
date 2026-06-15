@@ -72,13 +72,15 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 // ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
   try {
-    const [[usersResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`);
-    const [[onlineResult1]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
-    const [[onlineResult2]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`);
-    const [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
-    const [[nonResult]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`);
-    const [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`);
-    const [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`);
+    let usersResult = {cnt: 0}, onlineResult1 = {cnt: 0}, onlineResult2 = {cnt: 0};
+    let inventoryResult = {cnt: 0}, nonResult = {cnt: 0}, oilResult = {cnt: 0}, entryResult = {cnt: 0};
+    try { [[usersResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`); } catch(e) {}
+    try { [[onlineResult1]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`); } catch(e) {}
+    try { [[onlineResult2]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`); } catch(e) {}
+    try { [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`); } catch(e) {}
+    try { [[nonResult]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`); } catch(e) {}
+    try { [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`); } catch(e) {}
+    try { [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`); } catch(e) {}
 
     let feed = [];
     try {
