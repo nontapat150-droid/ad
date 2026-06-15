@@ -683,9 +683,15 @@ export default function CheckinPage() {
                   const isCheckoutTab = historyTab === 'checkout';
                   if (isCheckoutTab && !record.checkout_time) return null;
                   const time = isCheckoutTab ? record.checkout_time : record.checkin_time;
-                  const imgUrl = isCheckoutTab
-                    ? (record.checkout_image ? `/uploads/checkouts/${record.checkout_image}` : null)
-                    : (record.image_path ? `/uploads/checkins/${record.image_path}` : null);
+                  
+                  const getImgUrl = (filename) => {
+                    if (!filename || filename === 'null') return null;
+                    if (filename.startsWith('checkouts_')) return `/uploads/checkouts/${filename}`;
+                    if (filename.startsWith('checkins_')) return `/uploads/checkins/${filename}`;
+                    return isCheckoutTab ? `/uploads/checkouts/${filename}` : `/uploads/checkins/${filename}`;
+                  };
+                  const imgUrl = isCheckoutTab ? getImgUrl(record.checkout_image) : getImgUrl(record.image_path);
+
                   const isToday = new Date(record.checkin_time).toDateString() === new Date().toDateString();
                   const isUserOwn = !isAdmin && record.id === history[0]?.id && isToday && !isCheckoutTab;
 
