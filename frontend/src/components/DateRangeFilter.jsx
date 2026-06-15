@@ -12,6 +12,9 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
   const [tempStart, setTempStart] = useState(startDate);
   const [tempEnd, setTempEnd] = useState(endDate);
 
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+
   useEffect(() => {
     setTempStart(startDate);
     setTempEnd(endDate);
@@ -20,7 +23,12 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      // Ignore clicks if they are inside the date picker popover portal
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target) &&
+        !event.target.closest('.date-picker-popover')
+      ) {
         setIsOpen(false);
       }
     };
@@ -142,7 +150,7 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-[#6B7280] mb-1">ตั้งแต่วันที่</label>
-                    <Popover>
+                    <Popover open={startOpen} onOpenChange={setStartOpen}>
                       <PopoverTrigger asChild>
                         <button
                           className="w-full flex items-center justify-between pl-3 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] hover:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/50 transition-all outline-none shadow-sm"
@@ -151,11 +159,16 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
                           <CalendarIcon className="h-4 w-4 text-[#9CA3AF]" />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent" align="start">
+                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent date-picker-popover" align="start">
                         <Calendar
                           mode="single"
                           selected={tempStart ? parseISO(tempStart) : undefined}
-                          onSelect={(date) => date && setTempStart(format(date, 'yyyy-MM-dd'))}
+                          onSelect={(date) => {
+                            if (date) {
+                              setTempStart(format(date, 'yyyy-MM-dd'));
+                              setStartOpen(false);
+                            }
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
@@ -164,7 +177,7 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
 
                   <div>
                     <label className="block text-xs font-bold text-[#6B7280] mb-1">ถึงวันที่</label>
-                    <Popover>
+                    <Popover open={endOpen} onOpenChange={setEndOpen}>
                       <PopoverTrigger asChild>
                         <button
                           className="w-full flex items-center justify-between pl-3 pr-3 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#1F2937] hover:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/50 transition-all outline-none shadow-sm"
@@ -173,11 +186,16 @@ export default function DateRangeFilter({ startDate, endDate, setStartDate, setE
                           <CalendarIcon className="h-4 w-4 text-[#9CA3AF]" />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent" align="start">
+                      <PopoverContent className="w-auto p-0 z-[110] border-none shadow-none bg-transparent date-picker-popover" align="start">
                         <Calendar
                           mode="single"
                           selected={tempEnd ? parseISO(tempEnd) : undefined}
-                          onSelect={(date) => date && setTempEnd(format(date, 'yyyy-MM-dd'))}
+                          onSelect={(date) => {
+                            if (date) {
+                              setTempEnd(format(date, 'yyyy-MM-dd'));
+                              setEndOpen(false);
+                            }
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
