@@ -138,7 +138,13 @@ export default function Sidebar({
         return allowedForOfficeTech.includes(item.key);
       }
       
-      // For others (Admin, SuperAdmin, MA Tech)
+      if (isMATech && !isAdmin) {
+        // MA Tech allowed menu items exactly as requested
+        const allowedForMATech = ['home', 'bag', 'oil', 'checkin', 'report', 'jobs'];
+        return allowedForMATech.includes(item.key);
+      }
+      
+      // For others (Admin, SuperAdmin)
       if (['oil', 'entry_fee', 'bag'].includes(item.key)) {
         return isSuperAdmin;
       }
@@ -147,7 +153,7 @@ export default function Sidebar({
 
     // Modify labels/home item based on tech roles
     items = items.map(item => {
-      if (item.key === 'jobs' && isOfficeTech && !isAdmin) {
+      if (item.key === 'jobs' && (isOfficeTech || isMATech) && !isAdmin) {
         return { ...item, label: 'งานวันนี้' };
       }
       
