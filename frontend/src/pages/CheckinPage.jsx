@@ -389,7 +389,7 @@ export default function CheckinPage() {
           {/* Type Tabs */}
           {!isMATech && !isSales && (
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex p-1 glass border border-white/50 rounded-2xl shadow-sm flex-1">
+              <div className="flex p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl shadow-sm flex-1">
                 {[
                   { id: 'general', label: 'ทั่วไป', icon: '📝' },
                   { id: 'ma', label: 'ทีม MA', icon: '🛠️' },
@@ -397,10 +397,10 @@ export default function CheckinPage() {
                   <button
                     key={tab.id}
                     onClick={() => setCheckinType(tab.id)}
-                    className={`flex-1 py-2.5 px-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-2.5 px-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                       checkinType === tab.id
-                        ? 'bg-[#185FA5] text-white shadow-md'
-                        : 'text-slate-500 hover:bg-white/60'
+                        ? 'bg-[#1F2937] text-[#A3E635] shadow-md'
+                        : 'text-[#6B7280] hover:bg-white hover:text-[#1F2937]'
                     }`}
                   >
                     {tab.icon} {tab.label}
@@ -410,7 +410,7 @@ export default function CheckinPage() {
               {isAdmin && checkinType === 'ma' && (
                 <button
                   onClick={() => navigate('/ma-performance')}
-                  className="bg-gradient-to-r from-violet-500 to-purple-600 text-white text-sm font-bold py-2.5 px-5 rounded-2xl shadow-md transition-all hover:shadow-lg hover:-translate-y-0.5 active:scale-95 flex items-center gap-2">
+                  className="bg-[#1F2937] hover:bg-[#374151] text-[#A3E635] text-sm font-bold py-2.5 px-5 rounded-2xl shadow-sm transition-all active:scale-95 flex items-center gap-2">
                   📊 ดูสรุปผล MA
                 </button>
               )}
@@ -437,39 +437,40 @@ export default function CheckinPage() {
           )}
 
           {/* Camera Card */}
-          <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden transition-all">
             {/* Card header */}
-            <div className="px-5 py-4 border-b border-white/30 flex items-center justify-between">
-              <h2 className="font-bold text-[#042C53] flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center shadow-md">
-                  <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
+            <div className="px-6 py-5 border-b border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between">
+              <h2 className="font-black text-[#1F2937] flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#1F2937] flex items-center justify-center shadow-sm">
+                  <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
                 </div>
                 {isEditMode ? 'แก้ไขรูปเช็คอิน' : adminEditPhotoRecord ? 'แอดมิน: แก้ไขรูป' : 'ถ่ายรูปบันทึกเวลา'}
               </h2>
               {isEditMode && (
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-bold text-[#D97706] bg-[#FEF3C7] border border-[#FDE68A] px-3 py-1 rounded-full shadow-sm">
                   ✏️ โหมดแก้ไขรูป
                 </span>
               )}
             </div>
 
-            <div className="p-5">
+            <div className="p-6">
               {/* Viewfinder */}
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner mb-5">
+              <div className="relative w-full aspect-[4/3] sm:aspect-video md:aspect-[4/3] rounded-3xl overflow-hidden bg-[#1F2937] shadow-inner mb-6 transition-all duration-300">
                 {!isCameraOn && !photo ? (
                   /* Idle state */
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6">
-                    <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-                      <svg className="w-9 h-9 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 animate-fade-in">
+                    <div className="w-24 h-24 rounded-full bg-[#374151] border-4 border-[#4B5563] flex items-center justify-center shadow-inner">
+                      <svg className="w-10 h-10 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
                     </div>
                     <div className="text-center">
-                      <p className="text-white font-bold text-base mb-1">กล้องยังไม่เปิด</p>
-                      <p className="text-slate-400 text-sm">กดปุ่มด้านล่างเพื่อเปิดกล้อง</p>
+                      <p className="text-white font-bold text-lg mb-1">กล้องยังไม่เปิด</p>
+                      <p className="text-[#9CA3AF] text-sm">กดปุ่มด้านล่างเพื่ออนุญาตการใช้งานกล้อง</p>
                     </div>
                     <button
                       onClick={() => startCamera()}
-                      className="bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold py-3 px-8 rounded-2xl shadow-lg shadow-[#185FA5]/30 transition-all active:scale-95 text-sm">
-                      📷 เปิดกล้อง
+                      className="bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black py-3.5 px-8 rounded-2xl shadow-[0_4px_20px_rgba(163,230,53,0.3)] transition-all active:scale-95 text-base flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                      เปิดกล้องเลย
                     </button>
                   </div>
                 ) : isCameraOn && !photo ? (
@@ -501,7 +502,7 @@ export default function CheckinPage() {
                       <button
                         onClick={handleCapture}
                         disabled={loading}
-                        className={`w-16 h-16 rounded-full border-4 border-white ${loading ? 'bg-slate-300' : 'bg-gradient-to-tr from-[#185FA5] to-[#378ADD] hover:scale-105'} shadow-xl transition-all flex items-center justify-center`}>
+                        className={`w-16 h-16 rounded-full border-4 border-white ${loading ? 'bg-slate-300' : 'bg-[#A3E635] hover:bg-[#84CC16] hover:scale-105'} shadow-[0_4px_20px_rgba(163,230,53,0.4)] transition-all flex items-center justify-center`}>
                         {loading && <span className="text-xl animate-spin">⏳</span>}
                       </button>
                       <div className="w-11 h-11" /> {/* spacer */}
@@ -545,11 +546,11 @@ export default function CheckinPage() {
               )}
 
               {photo && (
-                <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
+                <div className="space-y-4 mt-6 animate-[fadeInUp_0.3s_ease-out]">
                   {/* Retake */}
                   <button
                     onClick={retakePhoto}
-                    className="w-full h-11 rounded-xl border-2 border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 text-sm">
+                    className="w-full h-12 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563] font-bold hover:bg-[#F3F4F6] hover:text-[#1F2937] hover:border-[#A3E635] transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-95">
                     🔄 ถ่ายรูปใหม่
                   </button>
 
@@ -583,14 +584,14 @@ export default function CheckinPage() {
                       <button
                         onClick={() => handleSubmit('checkin')}
                         disabled={loading || !coords}
-                        className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold shadow-md shadow-emerald-500/20 active:scale-[0.98] transition-all py-3.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                        className="rounded-xl bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
                         {loading ? '⏳' : '✅'} เข้างาน
                       </button>
                       {!isSales && (
                         <button
                           onClick={() => handleSubmit('checkout')}
                           disabled={loading || !coords}
-                          className="rounded-xl bg-gradient-to-r from-slate-600 to-slate-800 text-white font-bold shadow-md shadow-slate-700/20 active:scale-[0.98] transition-all py-3.5 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                          className="rounded-xl bg-[#1F2937] hover:bg-[#374151] text-white font-bold shadow-[0_4px_15px_rgba(0,0,0,0.1)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
                           {loading ? '⏳' : '🏁'} เลิกงาน
                         </button>
                       )}
@@ -607,31 +608,29 @@ export default function CheckinPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="glass rounded-2xl border border-white/50 p-4 flex items-center gap-3 hover:shadow-md transition-shadow overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 to-transparent pointer-events-none" />
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20 shrink-0">✅</div>
+            <div className="bg-white rounded-3xl border border-[#E5E7EB] p-5 flex items-center gap-4 shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center text-2xl shadow-sm shrink-0">✅</div>
               <div>
-                <p className="text-xs text-slate-500 font-medium">มาตรงเวลา</p>
-                <p className="text-2xl font-black text-[#042C53]">{stats.ontime} <span className="text-sm font-normal text-slate-400">รอบ</span></p>
+                <p className="text-xs text-[#6B7280] font-bold uppercase tracking-wider mb-1">มาตรงเวลา</p>
+                <p className="text-3xl font-black text-[#1F2937]">{stats.ontime} <span className="text-sm font-bold text-[#9CA3AF]">รอบ</span></p>
               </div>
             </div>
-            <div className="glass rounded-2xl border border-white/50 p-4 flex items-center gap-3 hover:shadow-md transition-shadow overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 to-transparent pointer-events-none" />
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center text-xl shadow-lg shadow-orange-500/20 shrink-0">⚠️</div>
+            <div className="bg-white rounded-3xl border border-[#E5E7EB] p-5 flex items-center gap-4 shadow-[0_4px_20px_rgb(0,0,0,0.02)] transition-all">
+              <div className="w-14 h-14 rounded-2xl bg-[#FFF7ED] border border-[#FFEDD5] flex items-center justify-center text-2xl shadow-sm shrink-0">⚠️</div>
               <div>
-                <p className="text-xs text-slate-500 font-medium">มาสาย</p>
-                <p className="text-2xl font-black text-[#042C53]">{stats.late} <span className="text-sm font-normal text-slate-400">รอบ</span></p>
+                <p className="text-xs text-[#EA580C] font-bold uppercase tracking-wider mb-1">มาสาย</p>
+                <p className="text-3xl font-black text-[#1F2937]">{stats.late} <span className="text-sm font-bold text-[#9CA3AF]">รอบ</span></p>
               </div>
             </div>
           </div>
 
           {/* History Card */}
-          <div className="glass rounded-3xl border border-white/50 shadow-sm overflow-hidden flex flex-col" style={{ minHeight: '520px', maxHeight: '680px' }}>
+          <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col transition-all" style={{ minHeight: '520px', maxHeight: '680px' }}>
             {/* Header */}
-            <div className="px-5 py-4 border-b border-white/30 flex flex-col sm:flex-row justify-between sm:items-center gap-3 shrink-0">
-              <h3 className="font-bold text-[#042C53] flex items-center gap-2 text-sm">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#185FA5] to-[#0C447C] flex items-center justify-center">
-                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="px-6 py-5 border-b border-[#F3F4F6] bg-[#F9FAFB] flex flex-col sm:flex-row justify-between sm:items-center gap-4 shrink-0">
+              <h3 className="font-black text-[#1F2937] flex items-center gap-3 text-base">
+                <div className="w-8 h-8 rounded-lg bg-[#1F2937] flex items-center justify-center shadow-sm">
+                  <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 ประวัติการลงเวลา
               </h3>
@@ -639,13 +638,13 @@ export default function CheckinPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowManualCheckin(true)}
-                    className="text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    className="text-xs font-bold text-[#4B5563] bg-white hover:bg-[#F3F4F6] border border-[#E5E7EB] hover:text-[#1F2937] px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                     เพิ่มย้อนหลัง
                   </button>
                   <button
                     onClick={() => navigate('/attendance-summary')}
-                    className="text-xs font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 px-3 py-1.5 rounded-lg shadow-sm transition-all active:scale-95">
+                    className="text-xs font-bold text-[#A3E635] bg-[#1F2937] hover:bg-[#374151] px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
                     📊 ภาพรวม
                   </button>
                   <FilterDropdown value={filterUserId} onChange={setFilterUserId} usersList={usersList} />
@@ -654,16 +653,16 @@ export default function CheckinPage() {
             </div>
 
             {/* Tabs */}
-            <div className="px-4 pt-3 shrink-0">
-              <div className="flex p-1 glass rounded-xl relative">
-                <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-all duration-300 ease-out ${historyTab === 'checkout' ? 'left-[50%]' : 'left-1'}`} />
+            <div className="px-5 pt-4 shrink-0">
+              <div className="flex p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl relative shadow-inner">
+                <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white border border-[#E5E7EB] rounded-xl shadow-sm transition-all duration-300 ease-out ${historyTab === 'checkout' ? 'left-[50%]' : 'left-1'}`} />
                 {[
-                  { id: 'checkin', label: '📍 เข้างาน', col: 'text-[#185FA5]' },
-                  { id: 'checkout', label: '🏁 เลิกงาน', col: 'text-indigo-600' },
+                  { id: 'checkin', label: '📍 เข้างาน', col: 'text-[#1F2937]' },
+                  { id: 'checkout', label: '🏁 เลิกงาน', col: 'text-[#1F2937]' },
                 ].map(tab => (
                   <button key={tab.id}
                     onClick={() => setHistoryTab(tab.id)}
-                    className={`flex-1 py-2 text-xs font-bold z-10 transition-colors relative ${historyTab === tab.id ? tab.col : 'text-slate-400 hover:text-slate-600'}`}>
+                    className={`flex-1 py-2.5 text-xs font-bold z-10 transition-colors relative ${historyTab === tab.id ? tab.col : 'text-[#9CA3AF] hover:text-[#4B5563]'}`}>
                     {tab.label}
                   </button>
                 ))}
@@ -701,19 +700,19 @@ export default function CheckinPage() {
 
                   return (
                     <div key={`${record.id}-${historyTab}`}
-                      className="p-3 rounded-2xl border border-white/40 glass hover:shadow-sm transition-all flex items-center gap-3">
+                      className="p-4 rounded-2xl border border-[#E5E7EB] bg-white hover:border-[#A3E635] hover:shadow-md transition-all flex items-center gap-4 group">
                       {/* Photo thumbnail — clickable */}
                       {imgUrl ? (
                         <button
                           onClick={() => setViewerPhoto({ url: imgUrl, name: personName, time })}
-                          className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/60 shrink-0 shadow-sm hover:ring-2 hover:ring-[#185FA5]/40 transition-all group relative">
+                          className="w-14 h-14 rounded-xl overflow-hidden border-2 border-[#E5E7EB] shrink-0 shadow-sm group-hover:border-[#A3E635] transition-all relative">
                           <img src={imgUrl} alt="selfie" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                           </div>
                         </button>
                       ) : (
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm ${isCheckoutTab ? 'bg-slate-100 text-slate-500' : 'bg-[#E6F1FB] text-[#378ADD]'}`}>
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 shadow-sm ${isCheckoutTab ? 'bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563]' : 'bg-[#1F2937] text-[#A3E635]'}`}>
                           {isCheckoutTab ? '🏁' : '✅'}
                         </div>
                       )}
@@ -721,25 +720,25 @@ export default function CheckinPage() {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         {isAdmin && record.full_name && (
-                          <p className="font-bold text-[#185FA5] text-xs truncate mb-0.5">{record.full_name}</p>
+                          <p className="font-bold text-[#4B5563] text-xs truncate mb-1">{record.full_name}</p>
                         )}
-                        <p className="font-black text-[#042C53] text-base leading-tight">{fmtTime(time)}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-[11px] text-slate-400">{fmtDate(time)}</span>
+                        <p className="font-black text-[#1F2937] text-lg leading-none">{fmtTime(time)}</p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-[#9CA3AF]">{fmtDate(time)}</span>
                           {/* Map link */}
                           {mapUrl && (
                             <a
                               href={mapUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md hover:bg-emerald-100 transition-colors">
-                              🗺️ แผนที่
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1F2937] bg-[#F3F4F6] hover:bg-[#A3E635] border border-[#E5E7EB] hover:border-[#A3E635] px-2 py-0.5 rounded-lg transition-colors">
+                              📍 แผนที่
                             </a>
                           )}
                         </div>
                         {!isCheckoutTab && record.is_edited === 1 && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md mt-0.5">
-                            ✏️ มีการแก้ไขรูป
+                          <span className="inline-flex items-center gap-1 text-[10px] text-[#D97706] font-bold bg-[#FEF3C7] border border-[#FDE68A] px-2 py-0.5 rounded-lg mt-1">
+                            ✏️ แก้ไขรูป
                           </span>
                         )}
                       </div>
@@ -747,7 +746,7 @@ export default function CheckinPage() {
                       {/* Right actions */}
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
                         {!isCheckoutTab && record.is_late === 1 && (
-                          <span className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-bold text-[#EA580C] bg-[#FFF7ED] border border-[#FFEDD5] px-2 py-1 rounded-full shadow-sm">
                             มาสาย
                           </span>
                         )}
@@ -755,7 +754,7 @@ export default function CheckinPage() {
                         {isUserOwn && !isEditMode && (
                           <button
                             onClick={() => { setIsEditMode(true); startCamera(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                            className="text-[11px] font-bold text-[#185FA5] bg-[#E6F1FB] hover:bg-[#185FA5] hover:text-white px-2 py-1 rounded-lg border border-[#185FA5]/20 transition-colors">
+                            className="text-[11px] font-bold text-[#4B5563] bg-[#F9FAFB] hover:bg-[#A3E635] hover:text-[#1F2937] px-3 py-1.5 rounded-lg border border-[#E5E7EB] hover:border-[#A3E635] transition-all shadow-sm active:scale-95">
                             ✏️ แก้ไขรูป
                           </button>
                         )}
