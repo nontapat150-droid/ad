@@ -73,16 +73,16 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
           type="button"
           variant={"outline"}
           className={cn(
-            "w-full justify-start text-left font-normal bg-white/65 backdrop-blur-sm border-slate-200 h-11 rounded-xl",
-            !date && "text-slate-500",
+            "w-full justify-start text-left font-bold bg-white border-[#E5E7EB] h-[52px] px-4 rounded-xl hover:border-[#A3E635] hover:ring-2 hover:ring-[#A3E635]/20 hover:bg-white transition-all shadow-sm",
+            !date ? "text-[#9CA3AF]" : "text-[#1F2937]",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4 text-indigo-500" />
+          <CalendarIcon className={cn("mr-3 h-5 w-5", date ? "text-[#A3E635]" : "text-[#9CA3AF]")} />
           {date ? formatThaiDate(date) : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 border border-slate-200 shadow-xl rounded-2xl overflow-hidden" align="start">
+      <PopoverContent className="w-auto p-0 border border-[#E5E7EB] shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-3xl overflow-hidden animate-[slideUp_0.2s_ease-out]" align="start">
         <div className="bg-white">
           <Calendar
             mode="single"
@@ -91,16 +91,16 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
             initialFocus
             locale={th}
           />
-          <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-              <Clock className="w-4 h-4 text-indigo-500" />
-              เวลา
+          <div className="p-4 border-t border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#4B5563]">
+              <Clock className="w-4 h-4 text-[#A3E635]" />
+              ระบุเวลา
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-[#E5E7EB] shadow-sm">
               <select
                 value={hour}
                 onChange={(e) => handleTimeChange('hour', e.target.value)}
-                className="p-1 border border-slate-200 rounded-md text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                className="p-1.5 rounded-lg text-sm font-bold text-[#1F2937] outline-none hover:bg-[#F3F4F6] focus:ring-2 focus:ring-[#A3E635]/50 bg-transparent cursor-pointer appearance-none text-center min-w-[40px]"
               >
                 {Array.from({ length: 24 }).map((_, i) => (
                   <option key={i} value={i.toString().padStart(2, '0')}>
@@ -108,11 +108,11 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
                   </option>
                 ))}
               </select>
-              <span className="text-slate-500 font-bold">:</span>
+              <span className="text-[#9CA3AF] font-bold">:</span>
               <select
                 value={minute}
                 onChange={(e) => handleTimeChange('minute', e.target.value)}
-                className="p-1 border border-slate-200 rounded-md text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                className="p-1.5 rounded-lg text-sm font-bold text-[#1F2937] outline-none hover:bg-[#F3F4F6] focus:ring-2 focus:ring-[#A3E635]/50 bg-transparent cursor-pointer appearance-none text-center min-w-[40px]"
               >
                 {Array.from({ length: 60 }).map((_, i) => (
                   <option key={i} value={i.toString().padStart(2, '0')}>
@@ -127,3 +127,4 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
     </Popover>
   );
 }
+

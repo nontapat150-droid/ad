@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import { DateTimePicker } from './DateTimePicker';
+import { format } from 'date-fns';
 
 export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const { user } = useAuth();
@@ -244,23 +246,19 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
           <div className="grid grid-cols-2 gap-5">
             {/* Date Time */}
-            <div className="col-span-2 group">
+            <div className="col-span-2 group relative z-50">
               <label className="block text-sm font-bold text-[#1F2937] mb-2">วันที่และเวลาเติมน้ำมัน</label>
-              <div className="relative flex items-center">
-                <input
-                  required
-                  type="datetime-local"
-                  name="date_recorded"
-                  value={form.date_recorded}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] pr-12 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer relative z-10 bg-white"
-                />
-                <div className="absolute right-3 z-20 pointer-events-none flex items-center justify-center w-8 h-8 rounded-lg bg-[#F3F4F6] text-[#4B5563] group-hover:bg-[#E5E7EB] transition-colors border border-[#E5E7EB]">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              </div>
+              <DateTimePicker
+                value={form.date_recorded}
+                onChange={(newDate) => {
+                  handleChange({
+                    target: {
+                      name: 'date_recorded',
+                      value: newDate ? format(newDate, "yyyy-MM-dd'T'HH:mm") : ''
+                    }
+                  });
+                }}
+              />
             </div>
 
             {/* Liters */}
