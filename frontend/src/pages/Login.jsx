@@ -92,6 +92,20 @@ export default function Login() {
 
   return (
     <div className="min-h-dvh w-full flex items-center justify-center p-3 sm:p-4 md:p-8 relative overflow-hidden font-sans bg-[#03132A]">
+      <style>
+        {`
+          /* Fix Chrome Autofill white background */
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover, 
+          input:-webkit-autofill:focus, 
+          input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #0b3765 inset !important;
+            -webkit-text-fill-color: #FAEEDA !important;
+            transition: background-color 5000s ease-in-out 0s;
+            border-radius: 0.75rem;
+          }
+        `}
+      </style>
 
       {/* Ambient premium glow background */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#042C53] via-[#0C447C] to-[#04342C]" />
