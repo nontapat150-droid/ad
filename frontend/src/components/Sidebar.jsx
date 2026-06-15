@@ -81,6 +81,7 @@ export default function Sidebar({
   const isAdmin = isSuperAdmin || isAdminOnly;
   const isMATech = userRoles.includes('ma_technician');
   const isOfficeTech = userRoles.includes('technician');
+  const isSales = userRoles.includes('sales');
 
   const initials = user?.full_name ? user.full_name.substring(0, 2).toUpperCase() : 'U';
   const teamName = user?.team_name || '';
@@ -144,6 +145,12 @@ export default function Sidebar({
         return allowedForMATech.includes(item.key);
       }
       
+      if (isSales && !isAdmin) {
+        // Sales allowed menu items exactly as requested
+        const allowedForSales = ['home', 'oil', 'jobs', 'checkin'];
+        return allowedForSales.includes(item.key);
+      }
+      
       // For others (Admin, SuperAdmin)
       if (['oil', 'entry_fee', 'bag'].includes(item.key)) {
         return isSuperAdmin;
@@ -153,13 +160,18 @@ export default function Sidebar({
 
     // Modify labels/home item based on tech roles
     items = items.map(item => {
-      if (item.key === 'jobs' && (isOfficeTech || isMATech) && !isAdmin) {
-        return { ...item, label: 'งานวันนี้' };
+      if (item.key === 'jobs' && !isAdmin) {
+        if (isOfficeTech || isMATech) {
+          return { ...item, label: 'งานวันนี้' };
+        }
+        if (isSales) {
+          return { ...item, label: 'แผนที่จัดงานขยาย', icon: MapIcon };
+        }
       }
       
       if (item.key === 'home') {
         let homeItems = [];
-        if (isAdmin || isOfficeTech || (!isMATech && !isOfficeTech)) {
+        if (isAdmin || isOfficeTech || isSales || (!isMATech && !isOfficeTech && !isSales)) {
           homeItems.push({ key: 'home', label: 'หน้าแรก', icon: item.icon });
         }
         if (isMATech) {
