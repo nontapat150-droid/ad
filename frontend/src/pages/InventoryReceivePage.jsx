@@ -917,7 +917,8 @@ export default function InventoryReceivePage() {
 
         // ── Build staging item ──────────────────────────────────────
         const hasSn = product.has_sn;
-        const cleanSn = hasSn ? row.sn.replace(/\D/g, '') : row.sn;
+        // Keep full SN string — do NOT strip non-digit chars (SN may contain letters like ZTEGDD20ADB9)
+        const cleanSn = row.sn.trim();
         newItems.push({
           id: Date.now() + Math.random(),
           product_name: product.name,
