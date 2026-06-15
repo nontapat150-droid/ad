@@ -74,9 +74,12 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
     reader.onload = (evt) => {
       try {
         const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        // raw: true  → don't auto-parse numbers, keep cell values as-is
+        // cellText: true → also read formatted text in case of custom number formats
+        const workbook = XLSX.read(data, { type: 'array', raw: true, cellText: true });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        // raw: false → prefer formatted text over raw numeric values
+        const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
         if (json.length === 0) {
           setParseError('ไฟล์ Excel ว่างเปล่า หรือไม่มีข้อมูล');
