@@ -17,9 +17,10 @@ router.post('/login', async (req, res) => {
   try {
     // Fetch user + all roles from user_roles
     const [users] = await pool.query(
-      `SELECT u.*,
+      `SELECT u.*, t.team_name,
               GROUP_CONCAT(ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv
        FROM users u
+       LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id
        WHERE u.username = ? AND u.status = 'approved'
        GROUP BY u.id
@@ -51,6 +52,7 @@ router.post('/login', async (req, res) => {
       role:      user.role,
       roles:     rolesArr,
       team_id:   user.team_id,
+      team_name: user.team_name,
       full_name: user.full_name,
     };
 
@@ -67,6 +69,7 @@ router.post('/login', async (req, res) => {
         role:          user.role,
         roles:         rolesArr,
         team_id:       user.team_id,
+        team_name:     user.team_name,
         profile_image: user.profile_image,
       },
     });
