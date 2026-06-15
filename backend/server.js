@@ -14,6 +14,7 @@ const usersRouter = require('./routes/users');
 const statsRouter = require('./routes/stats');
 const messagesRouter = require('./routes/messages');
 const announcementsRouter = require('./routes/announcements');
+const migrateRouter = require('./routes/migrate');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -56,6 +57,7 @@ apiRouter.use('/messages', messagesRouter);
 apiRouter.use('/announcements', announcementsRouter);
 apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
+apiRouter.use('/migrate', migrateRouter);
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
 app.use('/api', apiRouter);
@@ -77,6 +79,12 @@ pool.query(`
 pool.query('ALTER TABLE issue_reports MODIFY id INT AUTO_INCREMENT').catch(e => { /* ignore if fails */ });
 pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(e => { /* ignore if exists */ });
 pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
+
+// ── Auto-fix inventory tables: ensure id is AUTO_INCREMENT ──────────────────
+pool.query(`ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_products id fix:', e.message));
+pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_models id fix:', e.message));
+pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_items id fix:', e.message));
+pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_logs id fix:', e.message));
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');
