@@ -94,7 +94,7 @@ export default function ReportIssuePage() {
     <div className="flex h-screen bg-[#F9FAFB] text-[#1F2937] font-sans overflow-hidden selection:bg-[#A3E635] selection:text-[#1F2937]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="report" />
 
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 md:ml-[280px]">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-[#E5E7EB] flex-shrink-0 z-10">
           <div className="max-w-6xl mx-auto px-4 lg:px-8 h-20 flex items-center justify-between">
