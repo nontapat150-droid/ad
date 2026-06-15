@@ -4,6 +4,116 @@ import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 
+const CustomMonthPicker = ({ value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentYear, setCurrentYear] = useState(() => {
+    return value ? parseInt(value.split('-')[0], 10) : new Date().getFullYear();
+  });
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const months = [
+    { value: '01', label: 'January', labelTh: 'ม.ค.' },
+    { value: '02', label: 'February', labelTh: 'ก.พ.' },
+    { value: '03', label: 'March', labelTh: 'มี.ค.' },
+    { value: '04', label: 'April', labelTh: 'เม.ย.' },
+    { value: '05', label: 'May', labelTh: 'พ.ค.' },
+    { value: '06', label: 'June', labelTh: 'มิ.ย.' },
+    { value: '07', label: 'July', labelTh: 'ก.ค.' },
+    { value: '08', label: 'August', labelTh: 'ส.ค.' },
+    { value: '09', label: 'September', labelTh: 'ก.ย.' },
+    { value: '10', label: 'October', labelTh: 'ต.ค.' },
+    { value: '11', label: 'November', labelTh: 'พ.ย.' },
+    { value: '12', label: 'December', labelTh: 'ธ.ค.' }
+  ];
+
+  const handleMonthSelect = (monthVal) => {
+    onChange(`${currentYear}-${monthVal}`);
+    setIsOpen(false);
+  };
+
+  const getDisplayLabel = () => {
+    if (!value) return 'เลือกเดือน';
+    const [y, m] = value.split('-');
+    const monthObj = months.find(x => x.value === m);
+    return monthObj ? `${monthObj.label} ${y}` : value;
+  };
+
+  return (
+    <div className="relative" ref={pickerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between w-full sm:w-[200px] px-4 py-2 bg-[#F9FAFB] border ${isOpen ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'border-[#E5E7EB] hover:border-[#A3E635]'} rounded-xl outline-none text-[#1F2937] font-bold transition-all shadow-sm group`}
+      >
+        <span className="flex items-center gap-2">
+          {getDisplayLabel()}
+        </span>
+        <svg className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#65a30d]' : 'text-[#9CA3AF] group-hover:text-[#65a30d]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </button>
+
+      <div 
+        className={`absolute right-0 mt-2 p-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E5E7EB] w-[280px] z-50 transition-all duration-300 origin-top-right ${
+          isOpen ? 'opacity-100 transform scale-100 translate-y-0' : 'opacity-0 transform scale-95 -translate-y-2 pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center justify-between mb-4 px-1">
+          <button 
+            type="button" 
+            onClick={() => setCurrentYear(prev => prev - 1)}
+            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#1F2937] transition-colors border border-transparent hover:border-[#E5E7EB]"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <span className="font-bold text-[#1F2937] text-base">{currentYear}</span>
+          <button 
+            type="button" 
+            onClick={() => setCurrentYear(prev => prev + 1)}
+            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#F3F4F6] text-[#6B7280] hover:text-[#1F2937] transition-colors border border-transparent hover:border-[#E5E7EB]"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {months.map(m => {
+            const isSelected = value === `${currentYear}-${m.value}`;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => handleMonthSelect(m.value)}
+                className={`py-2.5 rounded-xl text-sm font-bold transition-all flex flex-col items-center justify-center ${
+                  isSelected 
+                    ? 'bg-gradient-to-br from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-md shadow-lime-500/20 scale-105' 
+                    : 'text-[#4B5563] bg-transparent hover:bg-[#F3F4F6] hover:text-[#1F2937] border border-transparent hover:border-[#E5E7EB]'
+                }`}
+              >
+                <span>{m.label.substring(0, 3)}</span>
+                <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-[#1F2937]/70' : 'text-[#9CA3AF]'}`}>{m.labelTh}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
 export default function EntryFeePage() {
   const { user } = useAuth();
   const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician';
@@ -276,11 +386,9 @@ export default function EntryFeePage() {
                   <h2 className="text-lg font-bold text-[#1F2937]">ประวัติค่าแรกเข้า</h2>
                   <div className="flex items-center gap-3 w-full sm:w-auto">
                     <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">เดือนที่บันทึก</label>
-                    <input 
-                      type="month"
+                    <CustomMonthPicker 
                       value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="px-4 py-2 border border-[#E5E7EB] bg-[#F9FAFB] rounded-xl outline-none focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 text-[#1F2937] font-bold w-full sm:w-auto transition-all"
+                      onChange={setSelectedMonth}
                     />
                   </div>
                 </div>
