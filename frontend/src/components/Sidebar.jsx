@@ -132,15 +132,25 @@ export default function Sidebar({
 
     // Filter items based on roles
     items = items.filter(item => {
-      // Only SuperAdmin and OfficeTech can see these
+      if (isOfficeTech && !isAdmin) {
+        // Office Tech allowed menu items exactly as requested
+        const allowedForOfficeTech = ['home', 'bag', 'entry_fee', 'oil', 'checkin', 'report', 'jobs'];
+        return allowedForOfficeTech.includes(item.key);
+      }
+      
+      // For others (Admin, SuperAdmin, MA Tech)
       if (['oil', 'entry_fee', 'bag'].includes(item.key)) {
-        return isSuperAdmin || isOfficeTech;
+        return isSuperAdmin;
       }
       return true;
     });
 
-    // Modify home item based on tech roles
+    // Modify labels/home item based on tech roles
     items = items.map(item => {
+      if (item.key === 'jobs' && isOfficeTech && !isAdmin) {
+        return { ...item, label: 'งานวันนี้' };
+      }
+      
       if (item.key === 'home') {
         let homeItems = [];
         if (isAdmin || isOfficeTech || (!isMATech && !isOfficeTech)) {
