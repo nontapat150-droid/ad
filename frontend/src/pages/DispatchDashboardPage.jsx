@@ -102,9 +102,9 @@ export default function DispatchDashboardPage() {
     setSelectedJobIds([]);
   };
 
-  const handleToggleSelect = (jobId) => {
+  const handleToggleSelect = (accessNo) => {
     setSelectedJobIds(prev => 
-      prev.includes(jobId) ? prev.filter(id => id !== jobId) : [...prev, jobId]
+      prev.includes(accessNo) ? prev.filter(acc => acc !== accessNo) : [...prev, accessNo]
     );
   };
 
@@ -543,7 +543,7 @@ export default function DispatchDashboardPage() {
                             {isAdmin && <th className="p-3.5 font-bold text-[#9CA3AF] text-center w-12">
                               <input 
                                 type="checkbox" 
-                                onChange={(e) => setSelectedJobIds(e.target.checked ? jobs.map(j => j.id) : [])}
+                                onChange={(e) => setSelectedJobIds(e.target.checked ? jobs.map(j => j.access_no) : [])}
                                 checked={jobs.length > 0 && selectedJobIds.length === jobs.length}
                                 className="w-4 h-4 rounded border-[#D1D5DB] text-[#65a30d] focus:ring-[#A3E635] cursor-pointer"
                               />
@@ -559,12 +559,12 @@ export default function DispatchDashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-[#F3F4F6]">
                           {jobs.map(job => (
-                            <tr key={job.id} className={`transition-colors ${selectedJobIds.includes(job.id) ? 'bg-[#A3E635]/5' : 'hover:bg-[#F9FAFB]'}`}>
+                            <tr key={job.access_no} className={`transition-colors ${selectedJobIds.includes(job.access_no) ? 'bg-[#A3E635]/5' : 'hover:bg-[#F9FAFB]'}`}>
                                 {isAdmin && <td className="p-3.5 text-center">
                                   <input 
                                     type="checkbox" 
-                                    checked={selectedJobIds.includes(job.id)}
-                                    onChange={() => handleToggleSelect(job.id)}
+                                    checked={selectedJobIds.includes(job.access_no)}
+                                    onChange={() => handleToggleSelect(job.access_no)}
                                     className="w-4 h-4 rounded border-[#D1D5DB] text-[#65a30d] focus:ring-[#A3E635] cursor-pointer"
                                   />
                                 </td>}

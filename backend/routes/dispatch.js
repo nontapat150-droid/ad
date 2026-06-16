@@ -290,7 +290,8 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   
   try {
-    await pool.query(`UPDATE ${table} SET team_id = ? WHERE id IN (?)`, [team_id, ids]);
+    // ids is an array of access_no from the frontend
+    await pool.query(`UPDATE ${table} SET team_id = ? WHERE access_no IN (?)`, [team_id, ids]);
     res.json({ message: 'Teams assigned successfully' });
   } catch (err) {
     console.error('Bulk Assign Error:', err);
@@ -584,7 +585,7 @@ router.delete('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
     const placeholders = ids.map(() => '?').join(',');
-    await pool.query(`DELETE FROM ${table} WHERE id IN (${placeholders})`, ids);
+    await pool.query(`DELETE FROM ${table} WHERE access_no IN (${placeholders})`, ids);
     res.json({ message: 'Jobs deleted successfully' });
   } catch (err) {
     console.error('Bulk delete error:', err);
