@@ -41,6 +41,7 @@ export default function CheckinPage() {
   const userRolesList = user?.roles || (user?.role ? [user.role] : []);
   const hasGeneral = userRolesList.includes('technician') || userRolesList.includes('office_technician');
   const hasMA = userRolesList.includes('ma_technician');
+  const hasSales = userRolesList.includes('sales');
   
   const availableTabs = [];
   if (hasGeneral || isAdmin) availableTabs.push({ id: 'general', label: 'ช่าง Office', icon: '📝' });
