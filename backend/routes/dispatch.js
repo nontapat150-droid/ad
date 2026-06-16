@@ -270,6 +270,9 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // IMPORTANT: This route MUST be defined BEFORE /jobs/:id routes to avoid Express treating 'bulk-assign' as an :id
 router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { ids, team_id, type } = req.body;
+  
+  console.log('[bulk-assign] received ids:', ids, 'team_id:', team_id, 'type:', type);
+  
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'No jobs selected' });
   }
@@ -280,10 +283,11 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   
   try {
-    // ids is an array of access_no strings — use individual placeholders
+    // ids is an array of numeric database IDs
     const placeholders = ids.map(() => '?').join(',');
-    await pool.query(`UPDATE ${table} SET team_id = ? WHERE access_no IN (${placeholders})`, [team_id, ...ids]);
-    res.json({ message: 'Teams assigned successfully', updatedCount: ids.length });
+    const [result] = await pool.query(`UPDATE ${table} SET team_id = ? WHERE id IN (${placeholders})`, [team_id, ...ids]);
+    console.log('[bulk-assign] updated rows:', result.affectedRows);
+    res.json({ message: 'Teams assigned successfully', updatedCount: result.affectedRows });
   } catch (err) {
     console.error('Bulk Assign Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -587,7 +591,7 @@ router.delete('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
     const placeholders = ids.map(() => '?').join(',');
-    await pool.query(`DELETE FROM ${table} WHERE access_no IN (${placeholders})`, ids);
+    await pool.query(`DELETE FROM ${table} WHERE id IN (${placeholders})`, ids);
     res.json({ message: 'Jobs deleted successfully' });
   } catch (err) {
     console.error('Bulk delete error:', err);
