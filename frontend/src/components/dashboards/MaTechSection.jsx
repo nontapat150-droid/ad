@@ -117,11 +117,20 @@ export default function MaTechSection() {
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
             {jobs.map(job => (
               <div key={job.id} onClick={() => window.location.href = '/jobs?tab=ma'} className="p-3.5 rounded-xl border border-[#E5E7EB] hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer">
-                <div>
+                <div className="flex-1 min-w-0">
                   <div className="font-bold text-slate-800">{job.access_no}</div>
                   <div className="text-sm text-slate-500 line-clamp-1">{job.customer || job.address}</div>
+                  {job.plan_arrival_date && (
+                    <div className="flex items-center gap-1 mt-1 text-[11px] text-slate-400 font-medium">
+                      <span>📅</span>
+                      <span>
+                        {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {job.plan_arrival_time ? ` · ${job.plan_arrival_time.slice(0,5)} น.` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                <div className={`ml-3 shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
                   job.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                   job.status === 'failed' ? 'bg-red-100 text-red-700' :
                   job.status === 'assigned' ? 'bg-blue-100 text-blue-700' :
