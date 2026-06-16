@@ -277,6 +277,27 @@ router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) 
   }
 });
 
+// ── PUT /api/dispatch/jobs/bulk-assign — Assign team to multiple jobs ──────
+router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { ids, team_id, type } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'No jobs selected' });
+  }
+  if (!team_id) {
+    return res.status(400).json({ error: 'No team selected' });
+  }
+  
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
+  
+  try {
+    await pool.query(`UPDATE ${table} SET team_id = ? WHERE id IN (?)`, [team_id, ids]);
+    res.json({ message: 'Teams assigned successfully' });
+  } catch (err) {
+    console.error('Bulk Assign Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Function to calculate distance between two lat/lng coordinates (Haversine formula)
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Radius of the earth in km
@@ -540,10 +561,11 @@ router.put('/jobs/clear-queue', auth, requireRole(ADMIN_ROLES), async (req, res)
 
 // ── PUT /api/dispatch/jobs/:id — Update job details ─
 router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { customer, phone, address, team_id, field_engineer_id, lat, lng } = req.body;
+  const { customer, phone, address, team_id, field_engineer_id, lat, lng, type } = req.body;
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
     await pool.query(
-      'UPDATE jobs SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ? WHERE id = ?',
+      `UPDATE ${table} SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ? WHERE id = ?`,
       [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, req.params.id]
     );
     res.json({ message: 'Job updated' });
@@ -555,13 +577,14 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── DELETE /api/dispatch/jobs/bulk — Admin deletes multiple jobs ─
 router.delete('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { ids } = req.body;
+  const { ids, type } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'No job IDs provided' });
   }
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
     const placeholders = ids.map(() => '?').join(',');
-    await pool.query(`DELETE FROM jobs WHERE id IN (${placeholders})`, ids);
+    await pool.query(`DELETE FROM ${table} WHERE id IN (${placeholders})`, ids);
     res.json({ message: 'Jobs deleted successfully' });
   } catch (err) {
     console.error('Bulk delete error:', err);
@@ -571,9 +594,10 @@ router.delete('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => 
 
 // ── DELETE /api/dispatch/jobs/all — Admin deletes all pending jobs ─
 router.delete('/jobs/all', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { date } = req.query;
+  const { date, type } = req.query;
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
-    let query = 'DELETE FROM jobs WHERE status = \'pending\'';
+    let query = `DELETE FROM ${table} WHERE status = 'pending'`;
     let params = [];
     if (date) {
       query += ' AND plan_arrival_date = ?';
@@ -589,8 +613,10 @@ router.delete('/jobs/all', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── DELETE /api/dispatch/jobs/:id — Admin deletes a single job ─
 router.delete('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { type } = req.query;
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
-    await pool.query('DELETE FROM jobs WHERE id = ?', [req.params.id]);
+    await pool.query(`DELETE FROM ${table} WHERE id = ?`, [req.params.id]);
     res.json({ message: 'Job deleted' });
   } catch (err) {
     console.error('Single delete error:', err);

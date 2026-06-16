@@ -54,6 +54,43 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
        ORDER BY created_at DESC LIMIT 5`
     );
 
+    // Also fetch onlineStatus for admin
+    const [onlineRows] = await pool.query(`
+      SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
+             (CASE WHEN MAX(c.id) IS NOT NULL OR MAX(mc.id) IS NOT NULL THEN 1 ELSE 0 END) AS is_online,
+             u.profile_image,
+             GROUP_CONCAT(DISTINCT ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv,
+             (SELECT MAX(checkout_time) FROM checkins WHERE user_id = u.id) as max_c_out,
+             (SELECT MAX(checkout_time) FROM ma_checkins WHERE user_id = u.id) as max_mc_out
+      FROM users u
+      LEFT JOIN teams t ON u.team_id = t.id
+      LEFT JOIN checkins c ON u.id = c.user_id AND DATE(c.checkin_time) = CURDATE() AND c.checkout_time IS NULL
+      LEFT JOIN ma_checkins mc ON u.id = mc.user_id AND DATE(mc.checkin_time) = CURDATE() AND mc.checkout_time IS NULL
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.status = 'approved'
+      GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image
+      ORDER BY t.team_name, u.full_name
+    `);
+    
+    const onlineStatus = onlineRows.map(r => {
+      let last_active = null;
+      if (r.max_c_out || r.max_mc_out) {
+        const t1 = r.max_c_out ? new Date(r.max_c_out).getTime() : 0;
+        const t2 = r.max_mc_out ? new Date(r.max_mc_out).getTime() : 0;
+        last_active = new Date(Math.max(t1, t2)).toISOString();
+      }
+      return {
+        id: r.id,
+        full_name: r.full_name,
+        role: r.role,
+        team_name: r.team_name,
+        is_online: r.is_online,
+        profile_image: r.profile_image,
+        roles_csv: r.roles_csv,
+        last_active: last_active
+      };
+    });
+
     res.json({
       summary: {
         totalInventory: inventoryResult.cnt || 0,
@@ -61,7 +98,8 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
         maAssignedToday: maAssigned.cnt || 0,
         unassignedToday: unassignedTotal
       },
-      announcements
+      announcements,
+      onlineStatus
     });
   } catch (err) {
     console.error('Admin Dashboard Stats Error:', err);

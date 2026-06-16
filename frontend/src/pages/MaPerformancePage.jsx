@@ -33,7 +33,7 @@ function getRoleStyle(role) {
 function RoleBadge({ role }) {
   const s = getRoleStyle(role);
   return (
-    <span className={`inline-flex items-center text-xs font-black px-2 py-0.5 rounded-md ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center text-[10px] font-black px-1.5 py-0.5 rounded-md ${s.bg} ${s.text} shadow-sm border border-black/5`}>
       {s.label}
     </span>
   );
@@ -98,8 +98,6 @@ export default function MaPerformancePage() {
   const totalMa  = data.length;
   const passedMa = data.filter(d => d.is_passed).length;
   const failedMa = totalMa - passedMa;
-
-  const getRoleBadge = (role) => <RoleBadge role={role} />;
 
   return (
     <Layout activeKey="checkin" pageTitle="แดชบอร์ดประเมินเงื่อนไขทีม MA">
@@ -274,52 +272,43 @@ export default function MaPerformancePage() {
                               {/* Role badges — show ALL roles */}
                               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                 {roles.map(r => <RoleBadge key={r} role={r} />)}
-                                {user.team_name && (
-                                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${tc?.bg} ${tc?.text}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${tc?.dot}`} />
-                                    {user.team_name}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           </div>
                         </td>
 
-                        {/* ── Work days ── */}
-                        <td className="px-6 py-4 text-center">
-                          <StatCell
-                            value={user.total_days}
-                            passed={user.total_days >= targets.ma_target_days}
-                          />
+                        {/* Team */}
+                        <td className="px-6 py-4">
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${tc?.bg || 'bg-gray-100'} ${tc?.text || 'text-gray-600'} border ${tc?.border || 'border-transparent'}`}>
+                            <span className={`w-2 h-2 rounded-full ${tc?.dot || 'bg-gray-400'}`} />
+                            <span className="text-[11px] font-black uppercase tracking-wider">{u.team_name || 'ไม่มีทีม'}</span>
+                          </div>
                         </td>
 
-                        {/* ── Late days ── */}
+                        {/* Work Days */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell
-                            value={user.total_late}
-                            passed={user.total_late <= Number(allowedLateDays)}
-                          />
+                          <StatCell value={`${u.total_days} / ${targets.ma_target_days}`} passed={u.total_days >= targets.ma_target_days} />
                         </td>
 
-                        {/* ── Completed jobs ── */}
+                        {/* Late Days */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell
-                            value={user.total_completed}
-                            passed={user.total_completed >= targets.ma_target_jobs}
-                          />
+                          <StatCell value={`${u.total_late} / ${allowedLateDays}`} passed={u.total_late <= allowedLateDays} />
                         </td>
 
-                        {/* ── Status badge ── */}
+                        {/* Jobs Done */}
                         <td className="px-6 py-4 text-center">
-                          {user.is_passed ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              ผ่านเงื่อนไข
+                          <StatCell value={`${u.total_jobs} / ${targets.ma_target_jobs}`} passed={u.total_jobs >= targets.ma_target_jobs} />
+                        </td>
+
+                        {/* Result */}
+                        <td className="px-6 py-4 text-center font-bold">
+                          {u.is_passed ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 shadow-sm text-sm">
+                              <span className="text-base leading-none">✅</span> ผ่าน
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                              ผิดเงื่อนไข
+                            <span className="inline-flex items-center gap-1 text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 shadow-sm text-sm">
+                              <span className="text-base leading-none">❌</span> ไม่ผ่าน
                             </span>
                           )}
                         </td>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 
-export default function EditJobModal({ isOpen, onClose, job, onSuccess }) {
+export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = 'office' }) {
   const [formData, setFormData] = useState({
     customer: '',
     phone: '',
@@ -71,7 +71,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess }) {
     try {
       setLoading(true);
       setError(null);
-      await api.put(`/dispatch/jobs/${job.id}`, formData);
+      await api.put(`/dispatch/jobs/${job.id}`, { ...formData, type });
       onSuccess();
       onClose();
     } catch (err) {

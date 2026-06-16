@@ -31,7 +31,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
   const [form, setForm] = useState({ 
     tech_id: '',
-    license_plate: user?.team_name || '', 
+    license_plate: '', 
     liters: '', 
     price_per_liter: '', 
     mileage: '', 
@@ -46,21 +46,15 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
     const tech = techs.find(t => String(t.id) === String(tId));
     setSelectedTech(tech || null);
     
-    const techTeamName = tech ? (tech.team_name || (tech.team_id ? `ทีม ${tech.team_id}` : '')) : '';
     setForm(prev => ({
       ...prev,
-      tech_id: tId,
-      license_plate: techTeamName || prev.license_plate
+      tech_id: tId
     }));
   };
 
   useEffect(() => {
-    if (!isAdmin && user) {
-      const uTeamName = user.team_name || (user.team_id ? `ทีม ${user.team_id}` : '');
-      if (uTeamName) {
-        setForm(prev => ({ ...prev, license_plate: uTeamName }));
-      }
-    }
+    // We no longer auto-fill license_plate with team name.
+    // Let the user type their actual vehicle license plate.
   }, [isAdmin, user]);
 
 
@@ -73,11 +67,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
     try {
       const formData = new FormData();
       Object.keys(form).forEach(key => {
-        if (key === 'license_plate' && userHasTeam) {
-          formData.append(key, teamName);
-        } else {
-          formData.append(key, form[key]);
-        }
+        formData.append(key, form[key]);
       });
       images.forEach(img => formData.append('images', img));
 
@@ -236,18 +226,11 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
             <input
               required
               name="license_plate"
-              value={userHasTeam ? teamName : form.license_plate}
-              onChange={(e) => { if (!userHasTeam) handleChange(e); }}
-              disabled={userHasTeam}
-              className={`w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all uppercase font-medium ${userHasTeam ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed shadow-inner' : 'bg-white focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20'}`}
+              value={form.license_plate}
+              onChange={handleChange}
+              className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all uppercase font-medium bg-white focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
               placeholder="เช่น กท 1234 หรือ 1กต 5678"
             />
-            {userHasTeam && (
-              <p className="text-xs text-[#65a30d] mt-2 font-bold flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                ผูกกับทีมอัตโนมัติ ไม่สามารถเปลี่ยนได้
-              </p>
-            )}
           </div>
 
           <div className="grid grid-cols-2 gap-5">

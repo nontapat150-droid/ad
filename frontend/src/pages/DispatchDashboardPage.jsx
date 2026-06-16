@@ -51,6 +51,8 @@ export default function DispatchDashboardPage() {
     isDanger: true,
   });
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [teams, setTeams] = useState([]);
+  const [bulkAssignTeam, setBulkAssignTeam] = useState('');
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -60,7 +62,17 @@ export default function DispatchDashboardPage() {
   useEffect(() => {
     AOS.refresh();
     fetchJobs();
+    fetchTeams();
   }, []);
+
+  const fetchTeams = async () => {
+    try {
+      const res = await axios.get('/users/teams');
+      setTeams(res.data);
+    } catch (err) {
+      console.error('Failed to fetch teams', err);
+    }
+  };
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -103,7 +115,8 @@ export default function DispatchDashboardPage() {
   const handleDelete = (jobId) => {
     requestConfirm('ยืนยันการลบงาน', 'คุณแน่ใจหรือไม่ว่าต้องการลบงานนี้? การกระทำนี้ไม่สามารถย้อนกลับได้', async () => {
       try {
-        await axios.delete(`/dispatch/jobs/${jobId}`);
+        const type = activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab;
+        await axios.delete(`/dispatch/jobs/${jobId}`, { params: { type } });
         handleActionComplete();
         showNotification('ลบข้อมูลสำเร็จ', 'success');
       } catch (err) {
@@ -115,7 +128,8 @@ export default function DispatchDashboardPage() {
   const handleDeleteBulk = () => {
     requestConfirm('ยืนยันลบหลายรายการ', `คุณแน่ใจหรือไม่ว่าต้องการลบงานที่เลือกจำนวน ${selectedJobIds.length} รายการ?`, async () => {
       try {
-        await axios.delete('/dispatch/jobs/bulk', { data: { ids: selectedJobIds } });
+        const type = activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab;
+        await axios.delete('/dispatch/jobs/bulk', { data: { ids: selectedJobIds, type } });
         handleActionComplete();
         showNotification('ลบข้อมูลที่เลือกสำเร็จ', 'success');
       } catch (err) {
@@ -124,10 +138,26 @@ export default function DispatchDashboardPage() {
     });
   };
 
+  const handleBulkAssign = async () => {
+    if (!bulkAssignTeam) return showNotification('กรุณาเลือกทีมที่ต้องการมอบหมาย', 'error');
+    requestConfirm('ยืนยันมอบหมายทีม', `คุณต้องการมอบหมาย ${selectedJobIds.length} งาน ให้กับทีมนี้ใช่หรือไม่?`, async () => {
+      try {
+        const type = activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab;
+        await axios.put('/dispatch/jobs/bulk-assign', { ids: selectedJobIds, team_id: bulkAssignTeam, type });
+        showNotification('มอบหมายทีมสำเร็จ', 'success');
+        setBulkAssignTeam('');
+        handleActionComplete();
+      } catch (err) {
+        showNotification('เกิดข้อผิดพลาดในการมอบหมายทีม', 'error');
+      }
+    });
+  };
+
   const handleDeleteAll = () => {
     requestConfirm('ยืนยันลบงานทั้งหมด', 'คุณแน่ใจหรือไม่ว่าต้องการลบงานที่ยังรอดำเนินการ (Pending) ทั้งหมดในระบบ?', async () => {
       try {
-        await axios.delete('/dispatch/jobs/all');
+        const type = activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab;
+        await axios.delete('/dispatch/jobs/all', { params: { type } });
         handleActionComplete();
         showNotification('ลบข้อมูลที่รอดำเนินการทั้งหมดสำเร็จ', 'success');
       } catch (err) {
@@ -596,6 +626,20 @@ export default function DispatchDashboardPage() {
                 เลือกแล้ว <span className="text-[#A3E635] text-lg">{selectedJobIds.length}</span> รายการ
               </span>
               <div className="flex gap-2">
+                <select 
+                  value={bulkAssignTeam} 
+                  onChange={(e) => setBulkAssignTeam(e.target.value)}
+                  className="px-3 py-2 text-sm font-semibold rounded-xl bg-white text-[#1F2937] border-0 outline-none"
+                >
+                  <option value="">-- เลือกทีม --</option>
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.team_name}</option>
+                  ))}
+                </select>
+                <button onClick={handleBulkAssign} className="px-4 py-2 text-sm font-bold bg-[#A3E635] text-[#1F2937] hover:bg-[#84cc16] rounded-xl transition-colors shadow-md flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  มอบหมายทีม
+                </button>
                 <button onClick={() => setSelectedJobIds([])} className="px-4 py-2 text-sm font-semibold hover:bg-white/10 rounded-xl transition-colors">ยกเลิก</button>
                 <button onClick={handleDeleteBulk} className="px-4 py-2 text-sm font-bold bg-red-500 hover:bg-red-600 rounded-xl transition-colors shadow-md shadow-red-500/20 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -631,6 +675,7 @@ export default function DispatchDashboardPage() {
           isOpen={!!selectedJob}
           onClose={() => setSelectedJob(null)}
           onSuccess={handleActionComplete}
+          type={activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab}
         />
       )}
 
