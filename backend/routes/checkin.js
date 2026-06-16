@@ -76,9 +76,9 @@ router.post(
       const lng = req.body.lng ? parseFloat(req.body.lng) : null;
 
       const [result] = await pool.query(
-        `INSERT INTO checkins (user_id, image_path, checkin_lat, checkin_lng, is_late)
-         VALUES (?, ?, ?, ?, ?)`,
-        [userId, imagePath, lat, lng, isLate]
+        `INSERT INTO checkins (user_id, image_path, checkin_lat, checkin_lng, is_late, checkin_type)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, imagePath, lat, lng, isLate, type]
       );
 
       res.status(201).json({
@@ -136,6 +136,20 @@ router.post(
     }
   }
 );
+
+// ── GET /api/checkin/migrate-db ────────────────────────────
+router.get('/migrate-db', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE checkins ADD COLUMN checkin_type VARCHAR(50) DEFAULT 'general'`);
+    res.json({ message: 'Migration successful' });
+  } catch (err) {
+    if (err.code === 'ER_DUP_FIELDNAME') {
+      res.json({ message: 'Column already exists' });
+    } else {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
 
 // ── GET /api/checkin/ma-threshold — Get MA Check-in Deadline ───────────────
 router.get('/ma-threshold', auth, async (req, res) => {

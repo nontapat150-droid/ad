@@ -38,6 +38,14 @@ export default function CheckinPage() {
   const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
   const isSales = user?.role === 'sales' || user?.roles?.includes('sales');
 
+  const userRolesList = user?.roles || (user?.role ? [user.role] : []);
+  const hasGeneral = userRolesList.includes('technician') || userRolesList.includes('office_technician');
+  const hasMA = userRolesList.includes('ma_technician');
+  
+  const availableTabs = [];
+  if (hasGeneral || isAdmin) availableTabs.push({ id: 'general', label: 'ช่าง Office', icon: '📝' });
+  if (hasMA || isAdmin) availableTabs.push({ id: 'ma', label: 'ทีม MA', icon: '🛠️' });
+  if (hasSales || isAdmin) availableTabs.push({ id: 'sales', label: 'เซลส์', icon: '💼' });
   // Camera state
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [stream, setStream] = useState(null);
@@ -53,7 +61,8 @@ export default function CheckinPage() {
 
   // UI state
   const [loading, setLoading] = useState(false);
-  const [checkinType, setCheckinType] = useState(isMATech ? 'ma' : 'general');
+  const initialTab = availableTabs.length > 0 ? availableTabs[0].id : 'general';
+  const [checkinType, setCheckinType] = useState(initialTab);
   const [maThreshold, setMaThreshold] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false); // user editing their own photo
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
@@ -378,6 +387,10 @@ export default function CheckinPage() {
   const todayCheckin = history.find(r => new Date(r.checkin_time).toDateString() === new Date().toDateString());
   const alreadyCheckedInToday = !!todayCheckin;
   const canEditToday = !isAdmin && alreadyCheckedInToday && !isEditMode;
+  
+  const checkedInRole = todayCheckin?.checkin_type;
+  const showRoleAlert = alreadyCheckedInToday && checkedInRole && checkedInRole !== checkinType && !isAdmin;
+  const roleNameMap = { general: 'ช่าง Office', ma: 'ทีม MA', sales: 'เซลส์' };
 
   return (
     <Layout activeKey="checkin" pageTitle="บันทึกเวลาเข้า-ออกงาน">
@@ -387,16 +400,16 @@ export default function CheckinPage() {
         <div className="lg:col-span-7 flex flex-col gap-5">
 
           {/* Type Tabs */}
-          {!isMATech && !isSales && (
+          {availableTabs.length > 1 && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl shadow-sm flex-1">
-                {[
-                  { id: 'general', label: 'ทั่วไป', icon: '📝' },
-                  { id: 'ma', label: 'ทีม MA', icon: '🛠️' },
-                ].map(tab => (
+                {availableTabs.map(tab => (
                   <button
                     key={tab.id}
-                    onClick={() => setCheckinType(tab.id)}
+                    onClick={() => {
+                      setCheckinType(tab.id);
+                      cancelAll(); // Reset camera when switching tabs
+                    }}
                     className={`flex-1 py-2.5 px-3 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                       checkinType === tab.id
                         ? 'bg-[#1F2937] text-[#A3E635] shadow-md'
@@ -454,150 +467,171 @@ export default function CheckinPage() {
             </div>
 
             <div className="p-6">
-              {/* Viewfinder */}
-              <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-[4/3] rounded-3xl overflow-hidden bg-[#1F2937] shadow-inner mb-6 transition-all duration-300">
-                {!isCameraOn && !photo ? (
-                  /* Idle state */
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 animate-fade-in">
-                    <div className="w-24 h-24 rounded-full bg-[#374151] border-4 border-[#4B5563] flex items-center justify-center shadow-inner">
-                      <svg className="w-10 h-10 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-white font-bold text-lg mb-1">กล้องยังไม่เปิด</p>
-                      <p className="text-[#9CA3AF] text-sm">กดปุ่มด้านล่างเพื่ออนุญาตการใช้งานกล้อง</p>
-                    </div>
-                    <button
-                      onClick={() => startCamera()}
-                      className="bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black py-3.5 px-8 rounded-2xl shadow-[0_4px_20px_rgba(163,230,53,0.3)] transition-all active:scale-95 text-base flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                      เปิดกล้องเลย
-                    </button>
+              {showRoleAlert ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center bg-slate-50 rounded-3xl border border-slate-200">
+                  <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-4">
+                    ℹ️
                   </div>
-                ) : isCameraOn && !photo ? (
-                  /* Live camera — mirror preview for front camera only in the display */
-                  <>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                      style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-                    />
-                    {/* Overlay controls */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute inset-0 border-2 border-white/10 rounded-2xl" />
-                      {/* Corner guides */}
-                      <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-white/60 rounded-tl-lg" />
-                      <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-white/60 rounded-tr-lg" />
-                      <div className="absolute bottom-20 left-4 w-8 h-8 border-b-2 border-l-2 border-white/60 rounded-bl-lg" />
-                      <div className="absolute bottom-20 right-4 w-8 h-8 border-b-2 border-r-2 border-white/60 rounded-br-lg" />
-                    </div>
-                    {/* Flip + Capture */}
-                    <div className="absolute bottom-5 left-0 right-0 flex justify-center items-center gap-6 pointer-events-auto">
-                      <button
-                        onClick={flipCamera}
-                        className="w-11 h-11 rounded-full bg-white/20 border border-white/30 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors active:scale-95">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                      </button>
-                      <button
-                        onClick={handleCapture}
-                        disabled={loading}
-                        className={`w-16 h-16 rounded-full border-4 border-white ${loading ? 'bg-slate-300' : 'bg-[#A3E635] hover:bg-[#84CC16] hover:scale-105'} shadow-[0_4px_20px_rgba(163,230,53,0.4)] transition-all flex items-center justify-center`}>
-                        {loading && <span className="text-xl animate-spin">⏳</span>}
-                      </button>
-                      <div className="w-11 h-11" /> {/* spacer */}
-                    </div>
-                    {/* Label */}
-                    <div className="absolute top-4 left-0 right-0 flex justify-center">
-                      <span className="text-white/80 text-xs font-medium bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
-                        {facingMode === 'user' ? '📷 กล้องหน้า' : '📷 กล้องหลัง'}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  /* Photo preview */
-                  <>
-                    <img src={photo} alt="ถ่ายแล้ว" className="w-full h-full object-cover" />
-                    {coords && (
-                      <div className="absolute top-3 left-3 right-3 bg-slate-900/75 backdrop-blur-md rounded-xl p-2.5 border border-white/20">
-                        <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider mb-0.5">📍 พิกัด GPS</p>
-                        <p className="text-xs font-mono text-blue-300 font-bold">
-                          {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
-                        </p>
-                      </div>
-                    )}
-                    {!coords && (
-                      <div className="absolute top-3 left-3 right-3 bg-amber-900/70 backdrop-blur-md rounded-xl p-2.5 border border-amber-400/30 flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin shrink-0" />
-                        <p className="text-xs text-amber-200 font-medium">กำลังดึงข้อมูล GPS...</p>
-                      </div>
-                    )}
-                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md">
-                      ✅ พร้อมส่ง
-                    </div>
-                  </>
-                )}
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
-              </div>
-
-              {/* Action Buttons */}
-              {!photo && !isCameraOn && (
-                <p className="text-center text-sm text-slate-400 pb-2">เปิดกล้องเพื่อเริ่มบันทึกเวลา</p>
-              )}
-
-              {photo && (
-                <div className="space-y-4 mt-6 animate-[fadeInUp_0.3s_ease-out]">
-                  {/* Retake */}
-                  <button
-                    onClick={retakePhoto}
-                    className="w-full h-12 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563] font-bold hover:bg-[#F3F4F6] hover:text-[#1F2937] hover:border-[#A3E635] transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-95">
-                    🔄 ถ่ายรูปใหม่
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">
+                    เช็คอินในบทบาทอื่นแล้ว
+                  </h3>
+                  <p className="text-slate-600 mb-6">
+                    วันนี้คุณได้ทำการบันทึกเวลาเข้างานในบทบาท <strong className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{roleNameMap[checkedInRole] || checkedInRole}</strong> ไปเรียบร้อยแล้ว<br/>คุณไม่จำเป็นต้องเช็คอินซ้ำอีก
+                  </p>
+                  <button 
+                    onClick={() => setCheckinType(checkedInRole)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors shadow-md shadow-blue-500/20 active:scale-95">
+                    กลับไปหน้าเช็คอิน {roleNameMap[checkedInRole] || checkedInRole}
                   </button>
-
-                  {/* Main action buttons */}
-                  {adminEditPhotoRecord ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <button onClick={cancelAll} className="h-13 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm py-3">
-                        ยกเลิก
-                      </button>
-                      <button
-                        onClick={() => handleSubmit('admin-photo')}
-                        disabled={loading || !coords}
-                        className="h-13 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all text-sm py-3 disabled:opacity-50">
-                        {loading ? '⏳ กำลังอัปเดต...' : '💾 บันทึกรูปใหม่'}
-                      </button>
-                    </div>
-                  ) : isEditMode ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <button onClick={cancelAll} className="h-13 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm py-3">
-                        ยกเลิก
-                      </button>
-                      <button
-                        onClick={() => handleSubmit('edit')}
-                        disabled={loading || !coords}
-                        className="h-13 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-md shadow-amber-500/20 active:scale-[0.98] transition-all text-sm py-3 disabled:opacity-50">
-                        {loading ? '⏳ กำลังบันทึก...' : '✏️ ยืนยันแก้ไขรูป'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className={`grid gap-3 ${isSales ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                      <button
-                        onClick={() => handleSubmit('checkin')}
-                        disabled={loading || !coords}
-                        className="rounded-xl bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
-                        {loading ? '⏳' : '✅'} เข้างาน
-                      </button>
-                      {!isSales && (
+                </div>
+              ) : (
+                <>
+                  {/* Viewfinder */}
+                  <div className="relative w-full aspect-[3/4] sm:aspect-[4/3] md:aspect-[4/3] rounded-3xl overflow-hidden bg-[#1F2937] shadow-inner mb-6 transition-all duration-300">
+                    {!isCameraOn && !photo ? (
+                      /* Idle state */
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-6 animate-fade-in">
+                        <div className="w-24 h-24 rounded-full bg-[#374151] border-4 border-[#4B5563] flex items-center justify-center shadow-inner">
+                          <svg className="w-10 h-10 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"/></svg>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-white font-bold text-lg mb-1">กล้องยังไม่เปิด</p>
+                          <p className="text-[#9CA3AF] text-sm">กดปุ่มด้านล่างเพื่ออนุญาตการใช้งานกล้อง</p>
+                        </div>
                         <button
-                          onClick={() => handleSubmit('checkout')}
-                          disabled={loading || !coords}
-                          className="rounded-xl bg-[#1F2937] hover:bg-[#374151] text-white font-bold shadow-[0_4px_15px_rgba(0,0,0,0.1)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
-                          {loading ? '⏳' : '🏁'} เลิกงาน
+                          onClick={() => startCamera()}
+                          className="bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black py-3.5 px-8 rounded-2xl shadow-[0_4px_20px_rgba(163,230,53,0.3)] transition-all active:scale-95 text-base flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                          เปิดกล้องเลย
                         </button>
+                      </div>
+                    ) : isCameraOn && !photo ? (
+                      /* Live camera — mirror preview for front camera only in the display */
+                      <>
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          className="w-full h-full object-cover"
+                          style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                        />
+                        {/* Overlay controls */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          <div className="absolute inset-0 border-2 border-white/10 rounded-2xl" />
+                          {/* Corner guides */}
+                          <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-white/60 rounded-tl-lg" />
+                          <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-white/60 rounded-tr-lg" />
+                          <div className="absolute bottom-20 left-4 w-8 h-8 border-b-2 border-l-2 border-white/60 rounded-bl-lg" />
+                          <div className="absolute bottom-20 right-4 w-8 h-8 border-b-2 border-r-2 border-white/60 rounded-br-lg" />
+                        </div>
+                        {/* Flip + Capture */}
+                        <div className="absolute bottom-5 left-0 right-0 flex justify-center items-center gap-6 pointer-events-auto">
+                          <button
+                            onClick={flipCamera}
+                            className="w-11 h-11 rounded-full bg-white/20 border border-white/30 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors active:scale-95">
+                            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                          </button>
+                          <button
+                            onClick={handleCapture}
+                            disabled={loading}
+                            className={`w-16 h-16 rounded-full border-4 border-white ${loading ? 'bg-slate-300' : 'bg-[#A3E635] hover:bg-[#84CC16] hover:scale-105'} shadow-[0_4px_20px_rgba(163,230,53,0.4)] transition-all flex items-center justify-center`}>
+                            {loading && <span className="text-xl animate-spin">⏳</span>}
+                          </button>
+                          <div className="w-11 h-11" /> {/* spacer */}
+                        </div>
+                        {/* Label */}
+                        <div className="absolute top-4 left-0 right-0 flex justify-center">
+                          <span className="text-white/80 text-xs font-medium bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
+                            {facingMode === 'user' ? '📷 กล้องหน้า' : '📷 กล้องหลัง'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      /* Photo preview */
+                      <>
+                        <img src={photo} alt="ถ่ายแล้ว" className="w-full h-full object-cover" />
+                        {coords && (
+                          <div className="absolute top-3 left-3 right-3 bg-slate-900/75 backdrop-blur-md rounded-xl p-2.5 border border-white/20">
+                            <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider mb-0.5">📍 พิกัด GPS</p>
+                            <p className="text-xs font-mono text-blue-300 font-bold">
+                              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                            </p>
+                          </div>
+                        )}
+                        {!coords && (
+                          <div className="absolute top-3 left-3 right-3 bg-amber-900/70 backdrop-blur-md rounded-xl p-2.5 border border-amber-400/30 flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin shrink-0" />
+                            <p className="text-xs text-amber-200 font-medium">กำลังดึงข้อมูล GPS...</p>
+                          </div>
+                        )}
+                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md">
+                          ✅ พร้อมส่ง
+                        </div>
+                      </>
+                    )}
+                    <canvas ref={canvasRef} style={{ display: 'none' }} />
+                  </div>
+
+                  {/* Action Buttons */}
+                  {!photo && !isCameraOn && (
+                    <p className="text-center text-sm text-slate-400 pb-2">เปิดกล้องเพื่อเริ่มบันทึกเวลา</p>
+                  )}
+
+                  {photo && (
+                    <div className="space-y-4 mt-6 animate-[fadeInUp_0.3s_ease-out]">
+                      {/* Retake */}
+                      <button
+                        onClick={retakePhoto}
+                        className="w-full h-12 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563] font-bold hover:bg-[#F3F4F6] hover:text-[#1F2937] hover:border-[#A3E635] transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-95">
+                        🔄 ถ่ายรูปใหม่
+                      </button>
+
+                      {/* Main action buttons */}
+                      {adminEditPhotoRecord ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <button onClick={cancelAll} className="h-13 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm py-3">
+                            ยกเลิก
+                          </button>
+                          <button
+                            onClick={() => handleSubmit('admin-photo')}
+                            disabled={loading || !coords}
+                            className="h-13 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all text-sm py-3 disabled:opacity-50">
+                            {loading ? '⏳ กำลังอัปเดต...' : '💾 บันทึกรูปใหม่'}
+                          </button>
+                        </div>
+                      ) : isEditMode ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <button onClick={cancelAll} className="h-13 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors text-sm py-3">
+                            ยกเลิก
+                          </button>
+                          <button
+                            onClick={() => handleSubmit('edit')}
+                            disabled={loading || !coords}
+                            className="h-13 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-md shadow-amber-500/20 active:scale-[0.98] transition-all text-sm py-3 disabled:opacity-50">
+                            {loading ? '⏳ กำลังบันทึก...' : '✏️ ยืนยันแก้ไขรูป'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`grid gap-3 ${isSales ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                          <button
+                            onClick={() => handleSubmit('checkin')}
+                            disabled={loading || !coords}
+                            className="rounded-xl bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
+                            {loading ? '⏳' : '✅'} เข้างาน
+                          </button>
+                          {!isSales && (
+                            <button
+                              onClick={() => handleSubmit('checkout')}
+                              disabled={loading || !coords}
+                              className="rounded-xl bg-[#1F2937] hover:bg-[#374151] text-white font-bold shadow-[0_4px_15px_rgba(0,0,0,0.1)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
+                              {loading ? '⏳' : '🏁'} เลิกงาน
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
