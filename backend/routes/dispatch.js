@@ -44,7 +44,7 @@ router.get('/jobs', auth, async (req, res) => {
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
     const [rows] = await pool.query(
-      `SELECT j.*, t.team_name,
+      `SELECT j.*, j.id AS id, t.team_name,
               u.full_name AS completed_by_name
        FROM ${table} j
        LEFT JOIN teams t ON t.id = j.team_id
