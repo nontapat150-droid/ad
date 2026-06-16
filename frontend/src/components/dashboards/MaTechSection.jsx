@@ -15,9 +15,11 @@ export default function MaTechSection() {
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
 
-    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-    api.get(`/dispatch/jobs?type=ma&date=${today}`)
-      .then(res => setJobs(res.data))
+    api.get(`/dispatch/jobs?type=ma`)
+      .then(res => {
+        const activeJobs = res.data.filter(job => ['pending', 'assigned', 'in_progress', 'paused'].includes(job.status));
+        setJobs(activeJobs);
+      })
       .catch(err => console.error(err))
       .finally(() => setLoadingJobs(false));
   }, []);
@@ -98,7 +100,7 @@ export default function MaTechSection() {
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-purple-500/20">
               <span className="text-white text-xs">🚗</span>
             </div>
-            <h3 className="text-[#1F2937] font-bold text-base">งาน MA ที่ได้รับมอบหมายวันนี้</h3>
+            <h3 className="text-[#1F2937] font-bold text-base">งาน MA ที่ต้องดำเนินการ</h3>
           </div>
           <button onClick={() => window.location.href = '/jobs?tab=ma'} className="text-sm text-blue-600 hover:text-blue-800 font-bold px-2 py-1 bg-blue-50 rounded-lg">ดูทั้งหมด</button>
         </div>
@@ -109,7 +111,7 @@ export default function MaTechSection() {
           </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-6 text-slate-500 bg-slate-50 rounded-xl border border-slate-100 font-medium">
-            ยังไม่มีงานในวันนี้
+            ยังไม่มีงานที่ต้องดำเนินการ
           </div>
         ) : (
           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
