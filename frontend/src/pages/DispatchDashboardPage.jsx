@@ -32,7 +32,9 @@ export default function DispatchDashboardPage() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   let initialTab = searchParams.get('tab') || 'office';
-  if (isMATech && initialTab === 'office') initialTab = 'ma';
+  if (!isAdmin && !isOfficeTech && isMATech && initialTab === 'office') {
+    initialTab = 'ma';
+  }
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -320,9 +322,10 @@ export default function DispatchDashboardPage() {
           {['office', 'ma', 'map', 'postponed']
             .filter(tab => {
               if (isAdmin) return true;
-              if (isMATech) return tab === 'ma' || tab === 'map';
-              if (isOfficeTech) return tab === 'office' || tab === 'map';
-              return false;
+              let allowed = ['map']; // everyone gets map? Actually map might only be needed. Let's build allowed tabs dynamically.
+              if (isMATech) allowed.push('ma');
+              if (isOfficeTech) allowed.push('office');
+              return allowed.includes(tab);
             })
             .map(tab => {
             const labels = { office: 'งาน Office', ma: 'งาน MA', map: 'แผนที่', postponed: 'ประวัติเลื่อนนัด' };
