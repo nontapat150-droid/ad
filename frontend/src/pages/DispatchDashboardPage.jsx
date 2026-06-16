@@ -83,6 +83,7 @@ export default function DispatchDashboardPage() {
 
   useEffect(() => {
     fetchJobs();
+    setSelectedJobIds([]); // Clear selection when tab changes
   }, [activeTab]);
 
   const fetchJobs = async () => {

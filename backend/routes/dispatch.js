@@ -266,18 +266,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 
-// ── PUT /api/dispatch/jobs/:id/assign — Reassign team ──────
-router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { team_id } = req.body;
-  try {
-    await pool.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [team_id, req.params.id]);
-    res.json({ message: 'Team assigned' });
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // ── PUT /api/dispatch/jobs/bulk-assign — Assign team to multiple jobs ──────
+// IMPORTANT: This route MUST be defined BEFORE /jobs/:id routes to avoid Express treating 'bulk-assign' as an :id
 router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { ids, team_id, type } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -290,11 +280,23 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   
   try {
-    // ids is an array of access_no from the frontend
-    await pool.query(`UPDATE ${table} SET team_id = ? WHERE access_no IN (?)`, [team_id, ids]);
-    res.json({ message: 'Teams assigned successfully' });
+    // ids is an array of access_no strings — use individual placeholders
+    const placeholders = ids.map(() => '?').join(',');
+    await pool.query(`UPDATE ${table} SET team_id = ? WHERE access_no IN (${placeholders})`, [team_id, ...ids]);
+    res.json({ message: 'Teams assigned successfully', updatedCount: ids.length });
   } catch (err) {
     console.error('Bulk Assign Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /api/dispatch/jobs/:id/assign — Reassign team ──────
+router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { team_id } = req.body;
+  try {
+    await pool.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [team_id, req.params.id]);
+    res.json({ message: 'Team assigned' });
+  } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
