@@ -167,36 +167,33 @@ export default function SuperAdminSection() {
           </div>
 
           {/* Feed Items */}
-          <div className="flex-1 overflow-hidden relative bg-[#F9FAFB]">
+          {/* Feed Items */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-[#F9FAFB]">
             {data?.feed?.length > 0 ? (
-              <div className="absolute w-full animate-scroll-feed">
-                <div className="space-y-3 p-4">
-                  {[...data.feed, ...data.feed].map((item, idx) => {
-                    const cfg = FEED_CONFIG[item.type] || { icon: '📌', label: 'กิจกรรม', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' };
-                    return (
-                      <div
-                        key={`feed-${item.type}-${item.id}-${idx}`}
-                        className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
-                      >
-                        <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5`}>
-                          {cfg.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[#1F2937] text-sm font-medium truncate">
-                            <span className="font-black text-base">{item.user_name || 'ผู้ใช้'}</span>
-                            {' '}
-                            <span className="text-[#6B7280] font-bold">{item.action}</span>
-                          </p>
-                          <p className="text-[#9CA3AF] text-xs font-bold mt-1">{timeAgo(item.created_at)}</p>
-                        </div>
-                        <span className={`shrink-0 text-[10px] font-black px-2.5 py-1 rounded-lg ${cfg.color} border border-black/5 hidden sm:block shadow-sm`}>
-                          {cfg.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              data.feed.map((item, idx) => {
+                const cfg = FEED_CONFIG[item.type] || { icon: '📌', label: 'กิจกรรม', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' };
+                return (
+                  <div
+                    key={`feed-${item.type}-${item.id}-${idx}`}
+                    className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
+                  >
+                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5`}>
+                      {cfg.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[#1F2937] text-sm font-medium truncate">
+                        <span className="font-black text-base">{item.user_name || 'ผู้ใช้'}</span>
+                        {' '}
+                        <span className="text-[#6B7280] font-bold">{item.action}</span>
+                      </p>
+                      <p className="text-[#9CA3AF] text-xs font-bold mt-1">{timeAgo(item.created_at)}</p>
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-black px-2.5 py-1 rounded-lg ${cfg.color} border border-black/5 hidden sm:block shadow-sm`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                );
+              })
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-6">
                 <div className="w-16 h-16 bg-white shadow-sm border border-[#E5E7EB] rounded-full flex items-center justify-center text-3xl mb-4">📭</div>
