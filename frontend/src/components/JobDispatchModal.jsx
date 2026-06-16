@@ -72,6 +72,18 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleTechChange = (e) => {
+    const techId = e.target.value;
+    const updates = { field_engineer_id: techId };
+    if (techId) {
+      const selectedTech = users.find(u => String(u.id) === String(techId));
+      if (selectedTech && selectedTech.team_id) {
+        updates.team_id = selectedTech.team_id;
+      }
+    }
+    setForm(prev => ({ ...prev, ...updates }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.access_no) {
@@ -188,7 +200,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
                     <select 
                       name="field_engineer_id" 
                       value={form.field_engineer_id} 
-                      onChange={handleChange} 
+                      onChange={handleTechChange} 
                       className="w-full px-4 py-3 border border-white/50 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500  hover:glass/50 focus:glass/50 transition-all outline-none appearance-none font-medium text-[#042C53]"
                     >
                       <option value="">-- เลือกช่างติดตั้ง --</option>

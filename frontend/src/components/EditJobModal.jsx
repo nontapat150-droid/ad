@@ -170,7 +170,17 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess }) {
             <div>
               <label className="block text-sm font-semibold text-[#042C53] mb-1">ช่างเทคนิค</label>
               <select className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.field_engineer_id} onChange={e => setFormData({...formData, field_engineer_id: e.target.value})}>
+                value={formData.field_engineer_id} onChange={(e) => {
+                  const techId = e.target.value;
+                  const updates = { field_engineer_id: techId };
+                  if (techId) {
+                    const selectedTech = techs.find(t => String(t.id) === String(techId));
+                    if (selectedTech && selectedTech.team_id) {
+                      updates.team_id = selectedTech.team_id;
+                    }
+                  }
+                  setFormData(prev => ({ ...prev, ...updates }));
+                }}>
                 <option value="">-- ยังไม่ระบุช่าง --</option>
                 {techs
                   .filter(t => !formData.team_id || String(t.team_id) === String(formData.team_id))
