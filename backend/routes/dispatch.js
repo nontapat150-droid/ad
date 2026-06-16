@@ -294,6 +294,64 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
   }
 });
 
+// ── PUT /api/dispatch/jobs/reorder-by-location — Reorder job seq from current location ──
+// IMPORTANT: Must be defined BEFORE /jobs/:id routes
+router.put('/jobs/reorder-by-location', auth, async (req, res) => {
+  const { lat, lng, type, team_id } = req.body;
+  if (!lat || !lng) return res.status(400).json({ error: 'lat and lng are required' });
+
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
+
+  try {
+    // Fetch jobs that have coordinates and are not yet completed/failed
+    let where = `WHERE lat IS NOT NULL AND lng IS NOT NULL AND status NOT IN ('completed','failed')`;
+    let params = [];
+
+    if (!isAdmin) {
+      if (!req.user.team_id) return res.json({ message: 'No team assigned', updated: 0 });
+      where += ` AND team_id = ?`;
+      params.push(req.user.team_id);
+    } else if (team_id) {
+      where += ` AND team_id = ?`;
+      params.push(team_id);
+    }
+
+    const [jobs] = await pool.query(`SELECT id, lat, lng FROM ${table} ${where}`, params);
+
+    if (jobs.length === 0) return res.json({ message: 'No jobs with coordinates', updated: 0 });
+
+    // Sort by nearest-first using Haversine distance from current location
+    const sorted = jobs
+      .map(job => ({
+        id: job.id,
+        distance: getDistance(parseFloat(lat), parseFloat(lng), parseFloat(job.lat), parseFloat(job.lng))
+      }))
+      .sort((a, b) => a.distance - b.distance);
+
+    // Update seq for each job
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (let i = 0; i < sorted.length; i++) {
+        await conn.query(`UPDATE ${table} SET seq = ? WHERE id = ?`, [i + 1, sorted[i].id]);
+      }
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+    res.json({ message: 'Jobs reordered successfully', updated: sorted.length, order: sorted.map(j => j.id) });
+  } catch (err) {
+    console.error('Reorder by location error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── PUT /api/dispatch/jobs/:id/assign — Reassign team ──────
 router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { team_id } = req.body;

@@ -55,6 +55,7 @@ export default function DispatchDashboardPage() {
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [teams, setTeams] = useState([]);
   const [bulkAssignTeam, setBulkAssignTeam] = useState('');
+  const [isReordering, setIsReordering] = useState(false);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -103,6 +104,39 @@ export default function DispatchDashboardPage() {
   const handleActionComplete = () => {
     fetchJobs();
     setSelectedJobIds([]);
+  };
+
+  const handleReorderByLocation = () => {
+    if (!navigator.geolocation) {
+      showNotification('เบราว์เซอร์ไม่รองรับการระบุตำแหน่ง GPS', 'error');
+      return;
+    }
+    setIsReordering(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const type = activeTab === 'map' ? 'office' : activeTab;
+          const res = await axios.put('/dispatch/jobs/reorder-by-location', {
+            lat: latitude,
+            lng: longitude,
+            type,
+          });
+          showNotification(`เรียงคิวสำเร็จ ${res.data.updated} งาน จากตำแหน่งปัจจุบัน`, 'success');
+          fetchJobs();
+        } catch (err) {
+          showNotification('เกิดข้อผิดพลาดในการเรียงคิว', 'error');
+        } finally {
+          setIsReordering(false);
+        }
+      },
+      (err) => {
+        setIsReordering(false);
+        if (err.code === 1) showNotification('กรุณาอนุญาตการเข้าถึงตำแหน่ง GPS', 'error');
+        else showNotification('ไม่สามารถระบุตำแหน่งได้', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleToggleSelect = (jobId) => {
@@ -366,15 +400,41 @@ export default function DispatchDashboardPage() {
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
                ล้างคิว
              </button>
-             <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition border border-emerald-200">
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
-               เรียงคิว
+             <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition border border-emerald-200"
+               onClick={handleReorderByLocation}
+               disabled={isReordering}
+             >
+               {isReordering ? (
+                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+               ) : (
+                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+               )}
+               {isReordering ? 'กำลังระบุตำแหน่ง...' : 'เรียงคิว (GPS)'}
              </button>
              <button onClick={handleDeleteAll}
                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-red-600 text-sm font-bold hover:bg-red-100 transition border border-red-200 ml-auto">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                ลบข้อมูลทั้งหมด
              </button>
+          </div>
+        )}
+
+        {/* ── Reorder Button for Technician (non-admin) ──── */}
+        {!isAdmin && activeTab !== 'map' && activeTab !== 'postponed' && (
+          <div className="bg-white border-b border-[#E5E7EB] px-4 py-2.5 flex items-center gap-3">
+            <button
+              onClick={handleReorderByLocation}
+              disabled={isReordering}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-sm font-bold hover:bg-emerald-100 transition border border-emerald-200 disabled:opacity-60"
+            >
+              {isReordering ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              )}
+              {isReordering ? 'กำลังระบุตำแหน่ง...' : '📍 เรียงคิวจากตำแหน่งปัจจุบัน'}
+            </button>
+            <span className="text-xs text-slate-400">ระบบจะเรียงงานจากที่ใกล้ที่สุดโดยอัตโนมัติ</span>
           </div>
         )}
 
