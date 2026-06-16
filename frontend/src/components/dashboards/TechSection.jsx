@@ -8,6 +8,7 @@ export default function TechSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
+  const [overdueJobs, setOverdueJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
   useEffect(() => {
@@ -18,8 +19,14 @@ export default function TechSection() {
 
     api.get(`/dispatch/jobs?type=office`)
       .then(res => {
-        const activeJobs = res.data.filter(job => ['pending', 'assigned', 'in_progress', 'paused'].includes(job.status));
-        setJobs(activeJobs);
+        const ACTIVE = ['pending', 'assigned', 'in_progress', 'paused'];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const all = res.data.filter(job => ACTIVE.includes(job.status));
+        const overdue = all.filter(job => job.plan_arrival_date && new Date(job.plan_arrival_date) < today);
+        const active  = all.filter(job => !job.plan_arrival_date || new Date(job.plan_arrival_date) >= today);
+        setJobs(active);
+        setOverdueJobs(overdue);
       })
       .catch(err => console.error(err))
       .finally(() => setLoadingJobs(false));
@@ -133,6 +140,57 @@ export default function TechSection() {
           </div>
         )}
       </div>
+
+      {/* Overdue Jobs */}
+      {(overdueJobs.length > 0 || loadingJobs) && (
+        <div className="bg-white rounded-2xl p-5 border border-red-200" style={{ boxShadow: '0 1px 6px rgba(239,68,68,0.1)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-md shadow-red-500/20">
+                <span className="text-white text-xs">⚠️</span>
+              </div>
+              <div>
+                <h3 className="text-red-700 font-bold text-base">งานที่เลยกำหนด</h3>
+                {overdueJobs.length > 0 && (
+                  <p className="text-[11px] text-red-400 font-medium">ต้องดำเนินการด่วน {overdueJobs.length} รายการ</p>
+                )}
+              </div>
+            </div>
+            <button onClick={() => navigate('/jobs?tab=office')} className="text-sm text-red-600 hover:text-red-800 font-bold px-2 py-1 bg-red-50 rounded-lg">ดูทั้งหมด</button>
+          </div>
+
+          {loadingJobs ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2].map(i => <div key={i} className="h-16 bg-red-50 rounded-xl" />)}
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+              {overdueJobs.map(job => {
+                const daysAgo = Math.floor((new Date() - new Date(job.plan_arrival_date)) / 86400000);
+                return (
+                  <div key={job.id} onClick={() => navigate('/jobs?tab=office')} className="p-3.5 rounded-xl border border-red-200 bg-red-50/50 hover:bg-red-50 transition-colors flex justify-between items-center cursor-pointer">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-red-800">{job.access_no}</div>
+                      <div className="text-sm text-red-500 line-clamp-1">{job.customer || job.address}</div>
+                      <div className="flex items-center gap-1 mt-1 text-[11px] text-red-400 font-semibold">
+                        <span>📅</span>
+                        <span>
+                          {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {job.plan_arrival_time ? ` · ${job.plan_arrival_time.slice(0,5)} น.` : ''}
+                          {daysAgo > 0 && <span className="ml-1 text-red-500">(เกิน {daysAgo} วัน)</span>}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ml-3 shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-100 text-red-700">
+                      เลยกำหนด
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
