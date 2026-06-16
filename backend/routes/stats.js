@@ -238,9 +238,10 @@ router.get('/office-tech-dashboard', auth, async (req, res) => {
     
     let jobsToday = { cnt: 0 }, jobsCompleted = { cnt: 0 }, jobsFailed = { cnt: 0 };
     if (teamId) {
-      [[jobsToday]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ? AND DATE(create_time) = CURDATE()`, [teamId]);
-      [[jobsCompleted]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ? AND status='completed' AND DATE(create_time) = CURDATE()`, [teamId]);
-      [[jobsFailed]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ? AND status='failed' AND DATE(create_time) = CURDATE()`, [teamId]);
+      // นับงานทั้งหมดที่มอบหมายให้ทีม (ทุก status)
+      [[jobsToday]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ?`, [teamId]);
+      [[jobsCompleted]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ? AND status='completed' AND DATE(COALESCE(completed_at, create_time)) = CURDATE()`, [teamId]);
+      [[jobsFailed]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE team_id = ? AND status='failed' AND DATE(COALESCE(updated_at, create_time)) = CURDATE()`, [teamId]);
     }
     
     const [[oilToday]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE tech_id = ? AND DATE(date_recorded) = CURDATE()`, [userId]);

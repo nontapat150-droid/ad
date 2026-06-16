@@ -46,7 +46,7 @@ export default function TechSection() {
           <h3 className="text-[#1F2937] font-bold text-base">สรุปงานประจำวัน (ช่าง)</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard title="จำนวนงานในวันนี้"
+          <StatCard title="งานที่ได้รับมอบหมาย"
             value={data?.summary?.jobsToday || 0}
             suffix="งาน" gradient="from-[#374151] to-[#1F2937]" icon="📋" shadow="shadow-slate-500/20" />
           <StatCard title="งานที่สำเร็จ"
