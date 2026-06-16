@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import { StatCard } from './SharedComponents';
@@ -74,6 +74,35 @@ export default function SuperAdminSection() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const feedRef = useRef(null);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    let animationFrameId;
+    let lastTime = performance.now();
+    const speed = 20; // pixels per second
+
+    const scroll = (time) => {
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+
+      if (!isHovered && feedRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+        if (scrollHeight > clientHeight) {
+          if (scrollTop + clientHeight < scrollHeight - 1) {
+            feedRef.current.scrollTop += speed * delta;
+          } else {
+            feedRef.current.scrollTop = 0;
+          }
+        }
+      }
+      animationFrameId = requestAnimationFrame(scroll);
+    };
+
+    animationFrameId = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isHovered]);
 
   useEffect(() => {
     api.get('/stats/super-admin-dashboard')
@@ -168,7 +197,14 @@ export default function SuperAdminSection() {
 
           {/* Feed Items */}
           {/* Feed Items */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-[#F9FAFB]">
+          <div 
+            ref={feedRef}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onTouchStart={() => setIsHovered(true)}
+            onTouchEnd={() => setIsHovered(false)}
+            className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-[#F9FAFB]"
+          >
             {data?.feed?.length > 0 ? (
               data.feed.map((item, idx) => {
                 const cfg = FEED_CONFIG[item.type] || { icon: '📌', label: 'กิจกรรม', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-400' };
