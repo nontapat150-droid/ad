@@ -64,7 +64,6 @@ function aggregateTrend(dailyTrend, period, vehicles, dataKey, totalKey) {
 
 function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, CustomTooltip, efficiency }) {
   const [activeTab, setActiveTab] = useState('cost');
-  const [chartType, setChartType] = useState('line');  // 'line' | 'bar'
   const [period, setPeriod]       = useState('daily'); // 'daily' | 'monthly' | 'yearly'
 
   const tab      = tabs.find(t => t.key === activeTab);
@@ -94,46 +93,22 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
     return v;
   };
 
-  // Render line or bar series per vehicle (or single)
+  // Render bar series per vehicle (or single)
   const renderSeries = () => {
-    if (chartType === 'bar') {
-      if (vehicleCount <= 1) {
-        return (
-          <Bar name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
-            fill={COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={40} />
-        );
-      }
-      return vehicles.map((v, i) => (
-        <Bar key={v.license_plate} name={v.license_plate}
-          dataKey={`${v.license_plate}_${dataKey}`}
-          fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={28} />
-      ));
-    }
-    // Line mode
     if (vehicleCount <= 1) {
       return (
-        <>
-          <defs>
-            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={COLORS[0]} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={COLORS[0]} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area type="monotone" name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
-            stroke={COLORS[0]} strokeWidth={2.5} fill="url(#areaFill)"
-            dot={false} activeDot={{ r: 5, fill: COLORS[0], stroke: '#fff', strokeWidth: 2 }} />
-        </>
+        <Bar name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
+          fill={COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={40} />
       );
     }
     return vehicles.map((v, i) => (
-      <Line key={v.license_plate} type="monotone" name={v.license_plate}
+      <Bar key={v.license_plate} name={v.license_plate}
         dataKey={`${v.license_plate}_${dataKey}`}
-        stroke={COLORS[i % COLORS.length]} strokeWidth={2.5}
-        dot={false} activeDot={{ r: 5, fill: COLORS[i % COLORS.length], stroke: '#fff', strokeWidth: 2 }} />
+        fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={28} />
     ));
   };
 
-  const ChartWrapper = chartType === 'bar' ? BarChart : ComposedChart;
+  const ChartWrapper = BarChart;
 
   return (
     <div className="flex flex-col gap-6">
@@ -189,29 +164,7 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
               ))}
             </div>
 
-            {/* Chart type toggle */}
-            <div className="flex items-center gap-0.5 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
-              <button onClick={() => setChartType('line')}
-                title="กราฟเส้น"
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                  chartType === 'line' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
-                }`}>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <polyline points="3 17 9 11 13 15 21 7" />
-                </svg>
-                เส้น
-              </button>
-              <button onClick={() => setChartType('bar')}
-                title="กราฟแท่ง"
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                  chartType === 'bar' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
-                }`}>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <rect x="3" y="12" width="4" height="9" rx="1" /><rect x="10" y="7" width="4" height="14" rx="1" /><rect x="17" y="3" width="4" height="18" rx="1" />
-                </svg>
-                แท่ง
-              </button>
-            </div>
+
 
           </div>
         </div>
@@ -241,8 +194,7 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
                 <YAxis tickFormatter={yFmt}
                   tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 600 }}
                   axisLine={false} tickLine={false} dx={-4} width={44} />
-                <Tooltip
-                  cursor={chartType === 'bar' ? { fill: '#F9FAFB' } : { stroke: '#E5E7EB', strokeWidth: 1.5, strokeDasharray: '4 4' }}
+                <Tooltip cursor={{ fill: '#F9FAFB' }}
                   content={<ChartTooltip period={period} />} />
                 {renderSeries()}
               </ChartWrapper>
