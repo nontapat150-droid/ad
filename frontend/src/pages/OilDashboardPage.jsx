@@ -9,128 +9,246 @@ import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import { thaiDateTime, thaiDate, thaiDateShort } from '../utils/thaiDate';
 
-// ── Stock-Style Chart Section ───────────────────────────────────────────────
-function StockTooltip({ active, payload, label, suffix }) {
+// ── Chart Section ─────────────────────────────────────────────────────────
+// Tooltip shared between line and bar charts
+function ChartTooltip({ active, payload, label, period }) {
   if (!active || !payload || !payload.length) return null;
-  const sorted = [...payload].filter(p => p.value !== undefined && p.value !== null).sort((a, b) => b.value - a.value);
-  const dateStr = label ? (() => {
-    try { return new Date(label).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }); } catch { return label; }
-  })() : '';
+  const sorted = [...payload].filter(p => p.value != null && p.value !== 0).sort((a, b) => b.value - a.value);
+  let dateStr = label || '';
+  try {
+    if (period === 'daily') {
+      dateStr = new Date(label).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+    } else if (period === 'monthly') {
+      const [y, m] = label.split('-');
+      const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      dateStr = `${months[parseInt(m, 10) - 1]} ${parseInt(y) + 543}`;
+    } else {
+      dateStr = `ปี ${parseInt(label) + 543}`;
+    }
+  } catch {}
   return (
-    <div className="bg-[#1F2937] text-white rounded-2xl shadow-2xl border border-white/10 p-3 min-w-[170px]">
-      <p className="text-[11px] font-bold text-[#9CA3AF] mb-2 pb-1.5 border-b border-white/10">{dateStr}</p>
+    <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-xl p-3 min-w-[160px]" style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.10)' }}>
+      <p className="text-[11px] font-bold text-[#6B7280] mb-2 pb-1.5 border-b border-[#F3F4F6]">{dateStr}</p>
       {sorted.map((entry, i) => (
-        <div key={i} className="flex items-center justify-between gap-4 py-0.5">
+        <div key={i} className="flex items-center justify-between gap-3 py-0.5">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-            <span className="text-[11px] font-medium text-[#D1D5DB] truncate max-w-[80px]">{entry.name}</span>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+            <span className="text-[11px] font-semibold text-[#374151] truncate max-w-[90px]">{entry.name}</span>
           </div>
-          <span className="text-[12px] font-black text-white">{(entry.value || 0).toLocaleString()}</span>
+          <span className="text-[12px] font-black text-[#1F2937]">{(entry.value || 0).toLocaleString()}</span>
         </div>
       ))}
     </div>
   );
 }
 
+// Aggregate daily trend → monthly or yearly
+function aggregateTrend(dailyTrend, period, vehicles, dataKey, totalKey) {
+  if (period === 'daily') return dailyTrend;
+  const map = {};
+  dailyTrend.forEach(row => {
+    const d = row.date;
+    const key = period === 'monthly' ? d.slice(0, 7) : d.slice(0, 4); // YYYY-MM or YYYY
+    if (!map[key]) {
+      map[key] = { date: key, [totalKey]: 0 };
+      vehicles.forEach(v => { map[key][`${v.license_plate}_${dataKey}`] = 0; });
+    }
+    map[key][totalKey] = (map[key][totalKey] || 0) + (row[totalKey] || 0);
+    vehicles.forEach(v => {
+      const k = `${v.license_plate}_${dataKey}`;
+      map[key][k] = (map[key][k] || 0) + (row[k] || 0);
+    });
+  });
+  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, CustomTooltip, efficiency }) {
   const [activeTab, setActiveTab] = useState('cost');
+  const [chartType, setChartType] = useState('line');  // 'line' | 'bar'
+  const [period, setPeriod]       = useState('daily'); // 'daily' | 'monthly' | 'yearly'
 
-  const tab = tabs.find(t => t.key === activeTab);
-  const dataKey = activeTab;
+  const tab      = tabs.find(t => t.key === activeTab);
+  const dataKey  = activeTab;
   const totalKey = `total_${activeTab === 'cost' ? 'cost' : activeTab === 'liters' ? 'liters' : 'distance'}`;
   const vehicleCount = vehicles.length;
 
+  // Aggregate data based on period
+  const trendData = aggregateTrend(dailyTrend, period, vehicles, dataKey, totalKey);
+
+  // X-axis tick formatter
+  const xFmt = (s) => {
+    try {
+      if (period === 'daily') return new Date(s).getDate().toString();
+      if (period === 'monthly') {
+        const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        const m = parseInt(s.split('-')[1], 10);
+        return months[m - 1];
+      }
+      return `'${s.slice(-2)}`;
+    } catch { return s; }
+  };
+
   const yFmt = (v) => {
     if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
-    if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+    if (v >= 1000)    return `${(v / 1000).toFixed(0)}K`;
     return v;
   };
+
+  // Render line or bar series per vehicle (or single)
+  const renderSeries = () => {
+    if (chartType === 'bar') {
+      if (vehicleCount <= 1) {
+        return (
+          <Bar name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
+            fill={COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={40} />
+        );
+      }
+      return vehicles.map((v, i) => (
+        <Bar key={v.license_plate} name={v.license_plate}
+          dataKey={`${v.license_plate}_${dataKey}`}
+          fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={28} />
+      ));
+    }
+    // Line mode
+    if (vehicleCount <= 1) {
+      return (
+        <>
+          <defs>
+            <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={COLORS[0]} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={COLORS[0]} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
+            stroke={COLORS[0]} strokeWidth={2.5} fill="url(#areaFill)"
+            dot={false} activeDot={{ r: 5, fill: COLORS[0], stroke: '#fff', strokeWidth: 2 }} />
+        </>
+      );
+    }
+    return vehicles.map((v, i) => (
+      <Line key={v.license_plate} type="monotone" name={v.license_plate}
+        dataKey={`${v.license_plate}_${dataKey}`}
+        stroke={COLORS[i % COLORS.length]} strokeWidth={2.5}
+        dot={false} activeDot={{ r: 5, fill: COLORS[i % COLORS.length], stroke: '#fff', strokeWidth: 2 }} />
+    ));
+  };
+
+  const ChartWrapper = chartType === 'bar' ? BarChart : ComposedChart;
 
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── Stock Chart Card ── */}
-      <div className="bg-[#0F172A] rounded-3xl overflow-hidden shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 gap-4 flex-wrap border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${tab.iconBg}`}>{tab.icon}</div>
+      {/* ── Main Trend Chart ── */}
+      <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+
+        {/* ── Header row ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-4 border-b border-[#F3F4F6]">
+
+          {/* Title */}
+          <div className="flex items-center gap-2.5">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${tab.iconBg}`}>{tab.icon}</div>
             <div>
-              <h3 className="font-black text-white text-base leading-tight">{tab.label} รายวัน</h3>
-              <p className="text-[11px] text-[#64748B] font-medium mt-0.5">
+              <h3 className="font-black text-[#1F2937] text-base leading-tight">
+                {tab.label}
+                <span className="ml-2 text-xs font-semibold text-[#9CA3AF] normal-case">
+                  {{ daily: 'รายวัน', monthly: 'รายเดือน', yearly: 'รายปี' }[period]}
+                </span>
+              </h3>
+              <p className="text-[11px] text-[#9CA3AF] font-medium mt-0.5">
                 {vehicleCount === 0 ? 'ไม่มีข้อมูล' : vehicleCount === 1 ? vehicles[0]?.license_plate : `เปรียบเทียบ ${vehicleCount} คัน`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 p-1 bg-white/5 rounded-xl border border-white/10">
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                  activeTab === t.key ? 'bg-white/15 text-white shadow-sm' : 'text-[#64748B] hover:text-[#94A3B8]'
-                }`}
-              >
-                <span>{t.icon}</span> {t.label}
+
+          {/* Controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+
+            {/* Metric tabs */}
+            <div className="flex items-center gap-1 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
+              {tabs.map(t => (
+                <button key={t.key} onClick={() => setActiveTab(t.key)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                    activeTab === t.key ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+                  }`}>
+                  <span>{t.icon}</span>{t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Period toggle */}
+            <div className="flex items-center gap-0.5 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
+              {[
+                { key: 'daily',   label: 'วัน'   },
+                { key: 'monthly', label: 'เดือน' },
+                { key: 'yearly',  label: 'ปี'    },
+              ].map(p => (
+                <button key={p.key} onClick={() => setPeriod(p.key)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                    period === p.key ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+                  }`}>{p.label}</button>
+              ))}
+            </div>
+
+            {/* Chart type toggle */}
+            <div className="flex items-center gap-0.5 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
+              <button onClick={() => setChartType('line')}
+                title="กราฟเส้น"
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                  chartType === 'line' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+                }`}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <polyline points="3 17 9 11 13 15 21 7" />
+                </svg>
+                เส้น
               </button>
-            ))}
+              <button onClick={() => setChartType('bar')}
+                title="กราฟแท่ง"
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                  chartType === 'bar' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+                }`}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <rect x="3" y="12" width="4" height="9" rx="1" /><rect x="10" y="7" width="4" height="14" rx="1" /><rect x="17" y="3" width="4" height="18" rx="1" />
+                </svg>
+                แท่ง
+              </button>
+            </div>
+
           </div>
         </div>
 
-        {/* Vehicle chips */}
+        {/* Vehicle chips legend */}
         {vehicleCount > 0 && (
-          <div className="flex flex-wrap gap-2 px-6 pt-3">
+          <div className="flex flex-wrap gap-2 px-6 py-3 border-b border-[#F9FAFB]">
             {vehicleCompareData.map((v) => (
-              <div key={v.name} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: v.color }} />
-                <span className="text-[11px] font-bold text-[#CBD5E1]">{v.name}</span>
-                <span className="text-[11px] font-black text-white">{(v[dataKey] || 0).toLocaleString()}</span>
+              <div key={v.name} className="flex items-center gap-1.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-3 py-1.5">
+                <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: v.color }} />
+                <span className="text-[11px] font-bold text-[#374151]">{v.name}</span>
+                <span className="text-[11px] font-black text-[#1F2937] ml-1">{(v[dataKey] || 0).toLocaleString()}</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* Chart */}
-        <div className="h-80 px-2 pt-2 pb-3">
-          {dailyTrend.length > 0 ? (
+        {/* Chart canvas */}
+        <div className="h-80 px-3 pt-3 pb-2">
+          {trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dailyTrend} margin={{ top: 12, right: 16, left: -8, bottom: 0 }}>
-                <defs>
-                  {vehicleCount <= 1 ? (
-                    <linearGradient id="grad_single" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={COLORS[0]} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={COLORS[0]} stopOpacity={0} />
-                    </linearGradient>
-                  ) : (
-                    vehicles.map((v, i) => (
-                      <linearGradient key={v.license_plate} id={`grad_${i}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.12} />
-                        <stop offset="100%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0} />
-                      </linearGradient>
-                    ))
-                  )}
-                </defs>
-                <CartesianGrid strokeDasharray="1 4" vertical={false} stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="date" tickFormatter={s => s.split('-')[2]} tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
-                <YAxis tickFormatter={yFmt} tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-4} width={42} />
-                <Tooltip cursor={{ stroke: 'rgba(255,255,255,0.15)', strokeWidth: 1, strokeDasharray: '4 4' }} content={<StockTooltip suffix={tab.suffix} />} />
-                {vehicleCount <= 1 ? (
-                  <Area type="monotone" name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
-                    stroke={COLORS[0]} strokeWidth={2.5} fill="url(#grad_single)"
-                    dot={false} activeDot={{ r: 5, fill: COLORS[0], stroke: '#0F172A', strokeWidth: 2 }} />
-                ) : (
-                  vehicles.map((v, i) => (
-                    <Area key={v.license_plate} type="monotone" name={v.license_plate}
-                      dataKey={`${v.license_plate}_${dataKey}`}
-                      stroke={COLORS[i % COLORS.length]} strokeWidth={2}
-                      fill={`url(#grad_${i})`} dot={false}
-                      activeDot={{ r: 4, fill: COLORS[i % COLORS.length], stroke: '#0F172A', strokeWidth: 2 }} />
-                  ))
-                )}
-              </ComposedChart>
+              <ChartWrapper data={trendData} margin={{ top: 10, right: 16, left: -4, bottom: 0 }} barCategoryGap={vehicleCount > 3 ? '20%' : '30%'}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <XAxis dataKey="date" tickFormatter={xFmt}
+                  tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 700 }}
+                  axisLine={false} tickLine={false} dy={8} />
+                <YAxis tickFormatter={yFmt}
+                  tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 600 }}
+                  axisLine={false} tickLine={false} dx={-4} width={44} />
+                <Tooltip
+                  cursor={chartType === 'bar' ? { fill: '#F9FAFB' } : { stroke: '#E5E7EB', strokeWidth: 1.5, strokeDasharray: '4 4' }}
+                  content={<ChartTooltip period={period} />} />
+                {renderSeries()}
+              </ChartWrapper>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-[#475569]">
+            <div className="h-full flex flex-col items-center justify-center text-[#9CA3AF]">
               <span className="text-5xl mb-3 opacity-40">📈</span>
               <p className="font-bold text-sm">ไม่มีข้อมูลในช่วงนี้</p>
             </div>
@@ -140,7 +258,8 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
 
       {/* ── Bottom row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vehicle Comparison */}
+
+        {/* Vehicle Comparison horizontal bar */}
         <div className="bg-white p-6 rounded-3xl border border-[#E5E7EB] shadow-sm hover:shadow-md transition-all flex flex-col">
           <div className="flex items-center gap-2 mb-5">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${tab.iconBg}`}>{tab.icon}</div>
