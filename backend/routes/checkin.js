@@ -278,9 +278,9 @@ router.get('/ma-performance', auth, async (req, res) => {
               GROUP_CONCAT(ur2.role ORDER BY ur2.role SEPARATOR ',') AS roles_csv
        FROM users u
        LEFT JOIN teams t ON t.id = u.team_id
-       JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'ma'
        LEFT JOIN user_roles ur2 ON ur2.user_id = u.id
        WHERE u.status = 'approved'
+         AND (u.role = 'ma_technician' OR u.id IN (SELECT user_id FROM user_roles WHERE role = 'ma_technician'))
        GROUP BY u.id, u.full_name, u.role, u.team_id, t.team_name`
     );
 
