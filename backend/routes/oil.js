@@ -172,17 +172,17 @@ router.post('/recalculate', auth, async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Get all records ordered by license_plate and date_recorded
+    // Get all records ordered by normalized license_plate and date_recorded
     const [records] = await conn.query(
       `SELECT id, license_plate, mileage, total_price 
        FROM oil_records 
-       ORDER BY license_plate ASC, date_recorded ASC, id ASC`
+       ORDER BY REPLACE(LOWER(license_plate), ' ', '') ASC, date_recorded ASC, id ASC`
     );
 
     let lastMileageByPlate = {};
 
     for (const record of records) {
-      const plate = record.license_plate;
+      const plate = record.license_plate.replace(/\s+/g, '').toLowerCase();
       let distance = 0;
 
       if (lastMileageByPlate[plate] !== undefined) {
