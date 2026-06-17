@@ -92,16 +92,15 @@ router.post(
 
     const conn = await pool.getConnection();
     try {
-      // Check for duplicate record based on mileage, license plate, and team
+      // Check for duplicate record based on mileage and team
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
          JOIN users u_record ON r.tech_id = u_record.id
          JOIN users u_target ON u_target.id = ?
-         WHERE REPLACE(LOWER(r.license_plate), ' ', '') = REPLACE(LOWER(?), ' ', '')
-           AND r.mileage = ?
+         WHERE r.mileage = ?
            AND u_record.team_id <=> u_target.team_id`,
-        [targetTechId, license_plate, mileage]
+        [targetTechId, mileage]
       );
 
       if (existing.length > 0) {
@@ -400,6 +399,27 @@ router.put(
       // Notice: we don't recalculate distance here because /oil/recalculate will do it for all.
       // We just update the values. price_per_liter can be recalculated.
       const price_per_liter = parseFloat(liters) > 0 ? (parseFloat(total_price) / parseFloat(liters)).toFixed(2) : 0;
+      
+      const newMileage = mileage || old[0].mileage;
+      const newTechId = tech_id || old[0].tech_id;
+
+      // Check for duplicate record based on mileage and team (excluding current record)
+      const [existing] = await conn.query(
+        `SELECT r.id 
+         FROM oil_records r
+         JOIN users u_record ON r.tech_id = u_record.id
+         JOIN users u_target ON u_target.id = ?
+         WHERE r.mileage = ?
+           AND r.id != ?
+           AND u_record.team_id <=> u_target.team_id`,
+        [newTechId, newMileage, recordId]
+      );
+
+      if (existing.length > 0) {
+        await conn.rollback();
+        conn.release();
+        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำ: ทีมของคุณมีการบันทึกข้อมูลน้ำมันที่ "เลขไมล์" นี้ไปแล้ว!' });
+      }
 
       await conn.query(
         `UPDATE oil_records
