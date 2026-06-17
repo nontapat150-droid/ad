@@ -331,14 +331,30 @@ router.get('/analytics', auth, async (req, res) => {
       ORDER BY total_cost DESC
     `, params);
 
-    const [dailyTrend] = await pool.query(`
-      SELECT DATE_FORMAT(date_recorded, '%Y-%m-%d') as date, SUM(liters) as total_liters, SUM(total_price) as total_cost, SUM(distance) as total_distance
+    const [rawDaily] = await pool.query(`
+      SELECT DATE_FORMAT(date_recorded, '%Y-%m-%d') as date, r.license_plate, SUM(liters) as total_liters, SUM(total_price) as total_cost, SUM(distance) as total_distance
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
       ${whereClause}
-      GROUP BY date
+      GROUP BY date, r.license_plate
       ORDER BY date ASC
     `, params);
+
+    const dateMap = {};
+    for (const row of rawDaily) {
+      if (!dateMap[row.date]) {
+        dateMap[row.date] = { date: row.date, total_liters: 0, total_cost: 0, total_distance: 0 };
+      }
+      dateMap[row.date].total_liters += parseFloat(row.total_liters) || 0;
+      dateMap[row.date].total_cost += parseFloat(row.total_cost) || 0;
+      dateMap[row.date].total_distance += parseFloat(row.total_distance) || 0;
+      
+      const plate = row.license_plate || 'ไม่ระบุ';
+      dateMap[row.date][`${plate}_liters`] = parseFloat(row.total_liters) || 0;
+      dateMap[row.date][`${plate}_cost`] = parseFloat(row.total_cost) || 0;
+      dateMap[row.date][`${plate}_distance`] = parseFloat(row.total_distance) || 0;
+    }
+    const dailyTrend = Object.values(dateMap).sort((a,b) => a.date.localeCompare(b.date));
 
     const [summaryResult] = await pool.query(`
       SELECT 

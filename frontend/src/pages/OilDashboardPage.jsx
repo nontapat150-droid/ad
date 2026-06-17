@@ -362,7 +362,10 @@ export default function OilDashboardPage() {
                         <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" name="ยอดเงิน (บาท)" dataKey="total_cost" stroke="#F59E0B" strokeWidth={4} dot={{ fill: '#FFF', stroke: '#F59E0B', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#F59E0B' }} />
+                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        {analytics.byVehicle.map((v, i) => (
+                          <Line key={v.license_plate} type="monotone" name={v.license_plate} dataKey={`${v.license_plate}_cost`} stroke={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        ))}
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
@@ -387,7 +390,10 @@ export default function OilDashboardPage() {
                         <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
-                        <Bar name="จำนวน (ลิตร)" dataKey="total_liters" fill="#A3E635" radius={[4, 4, 4, 4]} />
+                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        {analytics.byVehicle.map((v, i) => (
+                          <Bar key={v.license_plate} name={v.license_plate} dataKey={`${v.license_plate}_liters`} fill={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} radius={[4, 4, 0, 0]} />
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -412,7 +418,10 @@ export default function OilDashboardPage() {
                         <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" name="ระยะทาง (กม.)" dataKey="total_distance" stroke="#374151" strokeWidth={4} dot={{ fill: '#FFF', stroke: '#374151', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#374151' }} />
+                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+                        {analytics.byVehicle.map((v, i) => (
+                          <Line key={v.license_plate} type="monotone" name={v.license_plate} dataKey={`${v.license_plate}_distance`} stroke={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        ))}
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
