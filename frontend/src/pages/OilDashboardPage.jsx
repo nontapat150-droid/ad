@@ -354,7 +354,7 @@ export default function OilDashboardPage() {
                     ค่าใช้จ่ายรายวัน (บาท)
                   </h3>
                 </div>
-                <div className="h-64 w-full">
+                <div className="min-h-[400px] w-full mt-4">
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -382,17 +382,17 @@ export default function OilDashboardPage() {
                     ปริมาณน้ำมันรายวัน (ลิตร)
                   </h3>
                 </div>
-                <div className="h-64 w-full">
+                <div className="min-h-[400px] w-full mt-4">
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={16}>
+                      <BarChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={analytics.byVehicle.length > 4 ? undefined : 16}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                         <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
                         <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
                         <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
                         <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
                         {analytics.byVehicle.map((v, i) => (
-                          <Bar key={v.license_plate} name={v.license_plate} dataKey={`${v.license_plate}_liters`} fill={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} radius={[4, 4, 0, 0]} />
+                          <Bar key={v.license_plate} name={v.license_plate} dataKey={`${v.license_plate}_liters`} fill={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} radius={analytics.byVehicle.length > 4 ? [0,0,0,0] : [4, 4, 0, 0]} stackId={analytics.byVehicle.length > 4 ? "a" : undefined} />
                         ))}
                       </BarChart>
                     </ResponsiveContainer>
@@ -410,7 +410,7 @@ export default function OilDashboardPage() {
                     ระยะทางวิ่งรายวัน (กม.) รวมทุกคัน
                   </h3>
                 </div>
-                <div className="h-64 w-full">
+                <div className="min-h-[400px] w-full mt-4">
                   {analytics.dailyTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
@@ -438,7 +438,7 @@ export default function OilDashboardPage() {
                     ประสิทธิภาพต้นทุนต่อรอบ (บาท/งาน)
                   </h3>
                 </div>
-                <div className="h-64 w-full">
+                <div className="min-h-[400px] w-full mt-4">
                   {efficiency.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={efficiency} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
