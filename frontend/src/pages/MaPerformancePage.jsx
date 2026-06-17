@@ -9,8 +9,8 @@ import TargetSettingsModal from '../components/TargetSettingsModal';
 const ROLE_CONFIG = {
   super_admin: { label: 'Super Admin', bg: 'bg-[#1F2937]',     text: 'text-white'        },
   admin:       { label: 'Admin',       bg: 'bg-[#A3E635]',     text: 'text-[#1F2937]'    },
-  ma:          { label: 'MA',          bg: 'bg-violet-100',    text: 'text-violet-700'    },
-  technician:  { label: 'ช่าง',        bg: 'bg-sky-100',       text: 'text-sky-700'       },
+  ma_technician: { label: 'ช่าง MA',    bg: 'bg-violet-100',    text: 'text-violet-700'   },
+  technician:  { label: 'ช่าง Office',   bg: 'bg-sky-100',       text: 'text-sky-700'       },
   user:        { label: 'พนักงาน',     bg: 'bg-slate-100',     text: 'text-slate-600'     },
 };
 
@@ -297,7 +297,7 @@ export default function MaPerformancePage() {
 
                         {/* Jobs Done */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell value={`${user.total_jobs} / ${targets.ma_target_jobs}`} passed={user.total_jobs >= targets.ma_target_jobs} />
+                          <StatCell value={`${user.total_completed} / ${targets.ma_target_jobs}`} passed={user.total_completed >= targets.ma_target_jobs} />
                         </td>
 
                         {/* Result */}
