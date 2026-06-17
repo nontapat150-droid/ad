@@ -92,15 +92,16 @@ router.post(
 
     const conn = await pool.getConnection();
     try {
-      // Check for duplicate record based on mileage and team
+      // Check for duplicate record based on mileage, license plate, and team
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
          JOIN users u_record ON r.tech_id = u_record.id
          JOIN users u_target ON u_target.id = ?
-         WHERE r.mileage = ?
-           AND u_record.team_id = u_target.team_id`,
-        [targetTechId, mileage]
+         WHERE REPLACE(LOWER(r.license_plate), ' ', '') = REPLACE(LOWER(?), ' ', '')
+           AND r.mileage = ?
+           AND u_record.team_id <=> u_target.team_id`,
+        [targetTechId, license_plate, mileage]
       );
 
       if (existing.length > 0) {
