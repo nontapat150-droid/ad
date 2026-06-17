@@ -213,8 +213,18 @@ export default function SuperAdminSection() {
                     key={`feed-${item.type}-${item.id}-${idx}`}
                     className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
                   >
-                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5`}>
-                      {cfg.icon}
+                    <div className="relative shrink-0">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black overflow-hidden shadow-sm border border-black/5 relative ${cfg.color}`}>
+                        <span className="absolute inset-0 flex items-center justify-center opacity-80">{item.user_name ? item.user_name.charAt(0) : cfg.icon}</span>
+                        {item.profile_image && (
+                          <img src={`/uploads/profiles/${item.profile_image.split('/').pop()}`}
+                            className="w-full h-full object-cover absolute inset-0 z-10 bg-white" alt={item.user_name}
+                            onError={(e) => { e.target.style.display = 'none'; }} />
+                        )}
+                      </div>
+                      <span className="absolute -bottom-1.5 -right-1.5 w-6 h-6 flex items-center justify-center bg-white rounded-full border border-[#E5E7EB] shadow-sm text-[10px] z-20">
+                        {cfg.icon}
+                      </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[#1F2937] text-sm font-medium truncate">
