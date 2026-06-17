@@ -13,6 +13,14 @@ router.get('/migrate-fix', async (req, res) => {
     } catch(e) {
       results.push('inventory_products: ' + e.message);
     }
+    
+    // Add last_active to users
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN last_active DATETIME NULL`);
+      results.push('✅ users.last_active added');
+    } catch(e) {
+      results.push('users.last_active: ' + e.message);
+    }
 
     // Fix inventory_models
     try {
