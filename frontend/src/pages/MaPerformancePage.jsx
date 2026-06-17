@@ -328,7 +328,7 @@ export default function MaPerformancePage() {
         <UserProfileModal
           user={selectedUser}
           onClose={() => setSelectedUser(null)}
-          getRoleBadge={getRoleBadge}
+          getRoleBadge={(role) => <RoleBadge role={role} />}
         />
       )}
 
