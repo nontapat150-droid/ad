@@ -53,11 +53,11 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   };
 
   useEffect(() => {
-    // We no longer auto-fill license_plate with team name.
-    // Let the user type their actual vehicle license plate.
-  }, [isAdmin, user]);
-
-
+    if (activeUser) {
+      const autoPlate = activeUser.team_name || (activeUser.team_id ? `ทีม ${activeUser.team_id}` : activeUser.full_name);
+      setForm(prev => ({ ...prev, license_plate: autoPlate }));
+    }
+  }, [activeUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
