@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const pool = require('../config/db');
 
 /**
  * Middleware: Verify JWT from Authorization: Bearer <token>
@@ -14,6 +15,10 @@ const auth = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // { id, username, role, roles[], team_id, full_name }
+    
+    // Update last_active asynchronously (fire and forget)
+    pool.query('UPDATE users SET last_active = NOW() WHERE id = ?', [decoded.id]).catch(err => console.error('Error updating last_active:', err.message));
+    
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });

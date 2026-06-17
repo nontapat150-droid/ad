@@ -81,6 +81,7 @@ pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(
 pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
 
 // ── Auto-fix inventory tables: ensure id is AUTO_INCREMENT ──────────────────
+pool.query(`ALTER TABLE users ADD COLUMN last_active DATETIME NULL`).catch(e => console.log('users last_active fix:', e.message));
 pool.query(`ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_products id fix:', e.message));
 pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_models id fix:', e.message));
 pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_items id fix:', e.message));
