@@ -213,17 +213,8 @@ export default function SuperAdminSection() {
                     key={`feed-${item.type}-${item.id}-${idx}`}
                     className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
                   >
-                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5 overflow-hidden`}>
-                      {item.profile_image ? (
-                        <img 
-                          src={item.profile_image.includes('/') ? `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}/${item.profile_image.replace('../', '')}` : `/uploads/profiles/${item.profile_image}`} 
-                          alt={item.user_name} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.target.onerror = null; e.target.parentElement.innerHTML = cfg.icon; }}
-                        />
-                      ) : (
-                        cfg.icon
-                      )}
+                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5`}>
+                      {cfg.icon}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[#1F2937] text-sm font-medium truncate">
@@ -290,12 +281,13 @@ export default function SuperAdminSection() {
                             
                             {/* Avatar */}
                             <div className="relative shrink-0">
-                              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black overflow-hidden shadow-sm transition-transform group-hover:scale-105 ${tc?.bg || 'bg-[#F3F4F6]'} ${tc?.text || 'text-[#374151]'}`}>
-                                {u.profile_image ? (
-                                  <img src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}/${u.profile_image.replace('../', '')}`}
-                                    className="w-full h-full object-cover" alt={u.full_name}
+                              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black overflow-hidden shadow-sm transition-transform group-hover:scale-105 relative ${tc?.bg || 'bg-[#F3F4F6]'} ${tc?.text || 'text-[#374151]'}`}>
+                                <span className="absolute inset-0 flex items-center justify-center">{u.full_name.charAt(0)}</span>
+                                {u.profile_image && (
+                                  <img src={`/uploads/profiles/${u.profile_image.split('/').pop()}`}
+                                    className="w-full h-full object-cover absolute inset-0 z-10 bg-white" alt={u.full_name}
                                     onError={(e) => { e.target.style.display = 'none'; }} />
-                                ) : u.full_name.charAt(0)}
+                                )}
                               </div>
                               <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-[2.5px] border-white shadow-sm ${u.is_online ? 'bg-[#A3E635]' : 'bg-[#D1D5DB]'}`} />
                             </div>

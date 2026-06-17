@@ -200,14 +200,15 @@ export default function UserManagementPage() {
                             <td className="p-5">
                               <div className="flex items-center gap-4">
                                 <div className="relative shrink-0">
-                                  <div className="w-12 h-12 rounded-2xl bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center font-black text-lg text-[#1F2937] overflow-hidden group-hover:bg-white group-hover:border-[#A3E635] transition-all shadow-sm">
-                                    {u.profile_image ? (
-                                      <img src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}/${u.profile_image.replace('../', '')}`}
-                                        className="w-full h-full object-cover" alt={u.full_name}
+                                  <div className="w-12 h-12 rounded-2xl bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center font-black text-lg text-[#1F2937] overflow-hidden group-hover:bg-white group-hover:border-[#A3E635] transition-all shadow-sm relative">
+                                    <span className="absolute inset-0 flex items-center justify-center">{u.full_name[0]}</span>
+                                    {u.profile_image && (
+                                      <img src={`/uploads/profiles/${u.profile_image.split('/').pop()}`}
+                                        className="w-full h-full object-cover absolute inset-0 z-10 bg-white" alt={u.full_name}
                                         onError={(e) => { e.target.style.display = 'none'; }} />
-                                    ) : u.full_name[0]}
+                                    )}
                                   </div>
-                                  <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-[2.5px] border-white shadow-sm ${u.is_online ? 'bg-[#A3E635]' : 'bg-[#D1D5DB]'}`} title={u.is_online ? 'กำลังใช้งาน' : 'ออฟไลน์'} />
+                                  <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-[2.5px] border-white shadow-sm z-20 ${u.is_online ? 'bg-[#A3E635]' : 'bg-[#D1D5DB]'}`} title={u.is_online ? 'กำลังใช้งาน' : 'ออฟไลน์'} />
                                 </div>
                                 <div>
                                   <p className="font-bold text-[#1F2937] text-base">{u.full_name}</p>
