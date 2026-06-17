@@ -28,6 +28,7 @@ export default function OilDashboardPage() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [showCompare, setShowCompare] = useState(false);
   const [viewingImages, setViewingImages] = useState(null);
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
   useEffect(() => {
     api.get('/users/teams').then(res => setTeams(res.data)).catch(console.error);
@@ -526,6 +527,13 @@ export default function OilDashboardPage() {
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">📋</div>
                   ประวัติการเติมน้ำมันล่าสุด
                 </h3>
+                <button
+                  onClick={() => setShowSummaryModal(true)}
+                  className="bg-[#185FA5] hover:bg-[#124b82] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 active:scale-95"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  สรุปข้อมูล
+                </button>
               </div>
               <div className="overflow-x-auto w-full pb-2">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
@@ -636,6 +644,90 @@ export default function OilDashboardPage() {
       </div>
 
       {showModal && <OilRecordModal onClose={() => setShowModal(false)} onSuccess={fetchData} />}
+
+      {/* Summary Modal */}
+      {showSummaryModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#1F2937]/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-scale-up">
+            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#185FA5] text-white flex items-center justify-center font-bold text-xl shadow-sm">📄</div>
+                <div>
+                  <h2 className="text-xl font-black text-[#1F2937]">สรุปข้อมูลการเติมน้ำมัน</h2>
+                  <p className="text-sm font-medium text-[#6B7280]">สรุปรายการประวัติการเติมน้ำมันที่แสดงอยู่ปัจจุบัน</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSummaryModal(false)} className="p-2 hover:bg-[#E5E7EB] text-[#6B7280] rounded-xl transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto bg-white flex-1">
+              <div className="mb-6">
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div>
+                    <div className="text-sm font-bold text-blue-700 mb-1">ความถี่ในการเติมน้ำมันโดยเฉลี่ย</div>
+                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งสำหรับข้อมูลชุดนี้</div>
+                  </div>
+                  <div className="text-2xl font-black text-blue-700">{avgFreq > 0 ? `${avgFreq.toFixed(1)} วัน/ครั้ง` : '-'}</div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-[#E5E7EB] rounded-2xl shadow-sm">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">วันที่เติม</th>
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ชื่อผู้เติม</th>
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ป้ายทะเบียน</th>
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">เลขไมล์</th>
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">ยอดรวม (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F3F4F6]">
+                    {records.map(r => (
+                      <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="p-3 text-sm text-[#4B5563] font-medium whitespace-nowrap">
+                          {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </td>
+                        <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.tech_name || '-'}</td>
+                        <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
+                        <td className="p-3 text-sm font-mono text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
+                        <td className="p-3 text-sm font-mono text-[#374151] font-bold text-right">{r.distance || 0}</td>
+                        <td className="p-3 text-sm font-bold text-emerald-600 text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {records.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="p-6 text-center text-[#9CA3AF] font-bold">ไม่มีข้อมูลประวัติ</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {records.length > 0 && (
+                    <tfoot className="bg-[#F9FAFB] border-t border-[#E5E7EB]">
+                      <tr>
+                        <td colSpan="4" className="p-4 text-right font-bold text-[#374151]">รวมทั้งหมด:</td>
+                        <td className="p-4 text-right font-mono font-black text-[#1F2937] text-lg">{records.reduce((sum, r) => sum + (parseFloat(r.distance) || 0), 0).toLocaleString()}</td>
+                        <td className="p-4 text-right font-black text-emerald-600 text-lg">฿{records.reduce((sum, r) => sum + parseFloat(r.total_price), 0).toLocaleString()}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-end shrink-0">
+              <button 
+                onClick={() => setShowSummaryModal(false)}
+                className="px-6 py-2.5 rounded-xl bg-[#1F2937] text-white font-bold hover:bg-[#374151] transition-all shadow-sm active:scale-95"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Evidence Images Modal */}
       {viewingImages && (
