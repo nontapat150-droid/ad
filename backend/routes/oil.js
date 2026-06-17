@@ -92,15 +92,20 @@ router.post(
 
     const conn = await pool.getConnection();
     try {
+      const cleanMileage = String(mileage).replace(/,/g, '').trim();
+
+      // Get target user's team_id
+      const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [targetTechId]);
+      const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
+
       // Check for duplicate record based on mileage and team
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
-         JOIN users u_record ON r.tech_id = u_record.id
-         JOIN users u_target ON u_target.id = ?
+         JOIN users u ON r.tech_id = u.id
          WHERE r.mileage = ?
-           AND u_record.team_id <=> u_target.team_id`,
-        [targetTechId, mileage]
+           AND u.team_id <=> ?`,
+        [cleanMileage, targetTeamId]
       );
 
       if (existing.length > 0) {
@@ -401,18 +406,22 @@ router.put(
       const price_per_liter = parseFloat(liters) > 0 ? (parseFloat(total_price) / parseFloat(liters)).toFixed(2) : 0;
       
       const newMileage = mileage || old[0].mileage;
+      const cleanNewMileage = String(newMileage).replace(/,/g, '').trim();
       const newTechId = tech_id || old[0].tech_id;
+
+      // Get target user's team_id
+      const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [newTechId]);
+      const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
 
       // Check for duplicate record based on mileage and team (excluding current record)
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
-         JOIN users u_record ON r.tech_id = u_record.id
-         JOIN users u_target ON u_target.id = ?
+         JOIN users u ON r.tech_id = u.id
          WHERE r.mileage = ?
            AND r.id != ?
-           AND u_record.team_id <=> u_target.team_id`,
-        [newTechId, newMileage, recordId]
+           AND u.team_id <=> ?`,
+        [cleanNewMileage, recordId, targetTeamId]
       );
 
       if (existing.length > 0) {
