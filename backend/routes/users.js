@@ -12,11 +12,13 @@ router.get('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const [rows] = await pool.query(
       `SELECT u.id, u.username, u.full_name, u.role, u.status,
               u.team_id, t.team_name, u.profile_image, u.created_at, u.allow_late_time,
+              u.last_active,
+              (CASE WHEN u.last_active >= NOW() - INTERVAL 15 MINUTE THEN 1 ELSE 0 END) AS is_online,
               GROUP_CONCAT(ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv
        FROM users u
        LEFT JOIN teams t      ON t.id = u.team_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id
-       GROUP BY u.id, u.username, u.full_name, u.role, u.status, u.team_id, t.team_name, u.profile_image, u.created_at
+       GROUP BY u.id, u.username, u.full_name, u.role, u.status, u.team_id, t.team_name, u.profile_image, u.created_at, u.allow_late_time, u.last_active
        ORDER BY u.created_at DESC`
     );
     res.json(rows.map((r) => ({ ...r, roles: r.roles_csv ? r.roles_csv.split(',') : [r.role] })));
