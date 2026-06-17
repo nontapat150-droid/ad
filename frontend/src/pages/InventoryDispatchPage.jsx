@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import ExportModal from '../components/ExportModal';
 
 // ── Team colour palette ──────────────────────────────────────────────────────
 const TEAM_COLORS = [
@@ -234,6 +235,7 @@ export default function InventoryDispatchPage() {
   const [snInput, setSnInput] = useState('');
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
   const snInputRef = useRef(null);
 
   useEffect(() => {
@@ -383,7 +385,18 @@ export default function InventoryDispatchPage() {
           <div className="p-6 sm:p-8 border-b border-[#E5E7EB] rounded-t-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 bg-[#F9FAFB]">
             <div>
               <h2 className="text-xl font-black text-[#1F2937]">รายการรอเบิก (Staging)</h2>
-              <p className="text-sm font-bold text-[#6B7280] mt-1">จำนวนทั้งหมด {stagedItems.length} รายการ</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-sm font-bold text-[#6B7280]">จำนวนทั้งหมด {stagedItems.length} รายการ</p>
+                <button 
+                  onClick={() => setShowExportModal(true)}
+                  className="px-3 py-1 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export
+                </button>
+              </div>
             </div>
             <button
               onClick={handleDispatch}
@@ -442,6 +455,15 @@ export default function InventoryDispatchPage() {
         </div>
 
       </div>
+      
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        data={stagedItems}
+        title="ส่งออกรายการนำออก (Dispatch)"
+        fileNamePrefix="Dispatch_Staging"
+      />
     </div>
   );
 }

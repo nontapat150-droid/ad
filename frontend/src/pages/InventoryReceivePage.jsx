@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import ExportModal from '../components/ExportModal';
 
 const Toast = Swal.mixin({
   toast: true,
@@ -512,6 +513,7 @@ export default function InventoryReceivePage() {
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState([]);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   
   // Selection state
   const [productSearchInput, setProductSearchInput] = useState('');
@@ -1139,7 +1141,18 @@ export default function InventoryReceivePage() {
                   <div className="flex justify-between items-end mb-6 border-b border-[#E5E7EB] pb-4">
                     <div>
                       <h2 className="text-xl font-black text-[#1F2937]">3. รายการพักรอเข้าคลัง (Staging)</h2>
-                      <p className="text-sm font-bold text-[#6B7280] mt-1">ตรวจสอบรายการก่อนกดยืนยันทั้งหมด</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-sm font-bold text-[#6B7280]">ตรวจสอบรายการก่อนกดยืนยันทั้งหมด</p>
+                        <button 
+                          onClick={() => setShowExportModal(true)}
+                          className="px-3 py-1 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Export
+                        </button>
+                      </div>
                     </div>
                     <div className="text-right">
                       <span className="text-3xl font-black text-[#A3E635]">{stagedItems.length}</span>
@@ -1204,6 +1217,14 @@ export default function InventoryReceivePage() {
 
         </div>
       </div>
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        data={stagedItems}
+        title="ส่งออกรายการนำเข้า (Receive)"
+        fileNamePrefix="Receive_Staging"
+      />
     </>
   );
 }
