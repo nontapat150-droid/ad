@@ -437,7 +437,7 @@ export default function EntryFeePage() {
                             </td>
                             <td className="py-4 px-5 text-right">
                               <a 
-                                href={`http://localhost:3001${item.image_path}`} 
+                                href={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`} 
                                 target="_blank" 
                                 rel="noreferrer"
                                 className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group"

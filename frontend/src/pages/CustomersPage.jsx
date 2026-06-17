@@ -334,10 +334,10 @@ export default function CustomersPage() {
                     <div className="flex flex-col sm:flex-row gap-6 items-start">
                       <div className="w-full sm:w-64 h-64 border border-[#E5E7EB] rounded-xl overflow-hidden bg-[#F9FAFB] flex-shrink-0">
                         <img 
-                          src={`http://localhost:3001${customerData.entry_fee_image}`} 
+                          src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${customerData.entry_fee_image}`}
                           alt="Entry Fee Proof" 
                           className="w-full h-full object-cover hover:object-contain transition-all cursor-pointer"
-                          onClick={() => window.open(`http://localhost:3001${customerData.entry_fee_image}`, '_blank')}
+                          onClick={() => window.open(`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${customerData.entry_fee_image}`, '_blank')}
                         />
                       </div>
                       <div>

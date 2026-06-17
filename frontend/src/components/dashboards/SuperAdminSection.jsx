@@ -283,7 +283,7 @@ export default function SuperAdminSection() {
                             <div className="relative shrink-0">
                               <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black overflow-hidden shadow-sm transition-transform group-hover:scale-105 ${tc?.bg || 'bg-[#F3F4F6]'} ${tc?.text || 'text-[#374151]'}`}>
                                 {u.profile_image ? (
-                                  <img src={`http://localhost:3001/${u.profile_image.replace('../', '')}`}
+                                  <img src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}/${u.profile_image.replace('../', '')}`}
                                     className="w-full h-full object-cover" alt={u.full_name}
                                     onError={(e) => { e.target.style.display = 'none'; }} />
                                 ) : u.full_name.charAt(0)}

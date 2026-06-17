@@ -281,28 +281,28 @@ export default function MaPerformancePage() {
                         <td className="px-6 py-4">
                           <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${tc?.bg || 'bg-gray-100'} ${tc?.text || 'text-gray-600'} border ${tc?.border || 'border-transparent'}`}>
                             <span className={`w-2 h-2 rounded-full ${tc?.dot || 'bg-gray-400'}`} />
-                            <span className="text-[11px] font-black uppercase tracking-wider">{u.team_name || 'ไม่มีทีม'}</span>
+                            <span className="text-[11px] font-black uppercase tracking-wider">{user.team_name || 'ไม่มีทีม'}</span>
                           </div>
                         </td>
 
                         {/* Work Days */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell value={`${u.total_days} / ${targets.ma_target_days}`} passed={u.total_days >= targets.ma_target_days} />
+                          <StatCell value={`${user.total_days} / ${targets.ma_target_days}`} passed={user.total_days >= targets.ma_target_days} />
                         </td>
 
                         {/* Late Days */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell value={`${u.total_late} / ${allowedLateDays}`} passed={u.total_late <= allowedLateDays} />
+                          <StatCell value={`${user.total_late} / ${allowedLateDays}`} passed={user.total_late <= allowedLateDays} />
                         </td>
 
                         {/* Jobs Done */}
                         <td className="px-6 py-4 text-center">
-                          <StatCell value={`${u.total_jobs} / ${targets.ma_target_jobs}`} passed={u.total_jobs >= targets.ma_target_jobs} />
+                          <StatCell value={`${user.total_jobs} / ${targets.ma_target_jobs}`} passed={user.total_jobs >= targets.ma_target_jobs} />
                         </td>
 
                         {/* Result */}
                         <td className="px-6 py-4 text-center font-bold">
-                          {u.is_passed ? (
+                          {user.is_passed ? (
                             <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 shadow-sm text-sm">
                               <span className="text-base leading-none">✅</span> ผ่าน
                             </span>
