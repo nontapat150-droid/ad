@@ -667,9 +667,30 @@ export default function OilDashboardPage() {
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-center justify-between shadow-sm">
                   <div>
                     <div className="text-sm font-bold text-blue-700 mb-1">ความถี่ในการเติมน้ำมันโดยเฉลี่ย</div>
-                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งสำหรับข้อมูลชุดนี้</div>
+                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งจากข้อมูลในตารางนี้</div>
                   </div>
-                  <div className="text-2xl font-black text-blue-700">{avgFreq > 0 ? `${avgFreq.toFixed(1)} วัน/ครั้ง` : '-'}</div>
+                  <div className="text-2xl font-black text-blue-700">
+                    {(() => {
+                      if (!records || records.length < 2) return '-';
+                      const recordsByPlate = {};
+                      records.forEach(r => {
+                        const plate = r.license_plate || r.team_name || 'unknown';
+                        if (!recordsByPlate[plate]) recordsByPlate[plate] = [];
+                        recordsByPlate[plate].push(new Date(r.date_recorded).getTime());
+                      });
+                      let totalDays = 0, totalIntervals = 0;
+                      Object.values(recordsByPlate).forEach(dates => {
+                        if (dates.length < 2) return;
+                        dates.sort((a, b) => a - b);
+                        for (let i = 1; i < dates.length; i++) {
+                          totalDays += (dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24);
+                          totalIntervals++;
+                        }
+                      });
+                      const freq = totalIntervals > 0 ? (totalDays / totalIntervals) : 0;
+                      return freq > 0 ? `${freq.toFixed(1)} วัน/ครั้ง` : '-';
+                    })()}
+                  </div>
                 </div>
               </div>
 
