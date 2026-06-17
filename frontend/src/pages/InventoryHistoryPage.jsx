@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from '../api/axios';
+import { thaiDateTime } from '../utils/thaiDate';
 
 export default function InventoryHistoryPage() {
   const [loading, setLoading] = useState(false);
@@ -111,7 +112,7 @@ export default function InventoryHistoryPage() {
               filteredLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-[#F9FAFB] transition-colors group">
                   <td className="p-5 font-medium text-[#6B7280]">
-                    {new Date(log.created_at).toLocaleString('th-TH')}
+                    {thaiDateTime(log.created_at)}
                   </td>
                   <td className="p-5">
                     {log.action === 'receive' && <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold text-xs">นำเข้า</span>}

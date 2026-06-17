@@ -7,6 +7,7 @@ import OilRecordEditModal from '../components/OilRecordEditModal';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import { thaiDateTime, thaiDate, thaiDateShort } from '../utils/thaiDate';
 
 // ── Smart Chart Section Component ──────────────────────────────────────────
 function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, isSingleVehicle, isFewVehicles, CustomTooltip, efficiency }) {
@@ -688,7 +689,7 @@ export default function OilDashboardPage() {
                       return (
                         <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors group">
                           <td className="p-4 text-sm text-[#4B5563] font-medium whitespace-nowrap">
-                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
+                            {thaiDateTime(r.date_recorded)}
                           </td>
                           <td className="p-4 text-sm text-[#1F2937] whitespace-nowrap">
                             <div className="flex flex-col gap-1.5">
@@ -835,7 +836,7 @@ export default function OilDashboardPage() {
                     {records.map(r => (
                       <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="p-3 text-sm text-[#4B5563] font-medium whitespace-nowrap">
-                          {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {thaiDate(r.date_recorded)}
                         </td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.tech_name || '-'}</td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>

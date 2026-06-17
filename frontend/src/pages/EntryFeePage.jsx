@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { thaiDateTime } from '../utils/thaiDate';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -212,13 +213,7 @@ export default function EntryFeePage() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleString('th-TH', { 
-      year: 'numeric', month: 'short', day: 'numeric', 
-      hour: '2-digit', minute: '2-digit' 
-    });
-  };
+  const formatDate = (dateString) => thaiDateTime(dateString);
 
   return (
     <div className="flex h-dvh font-sans overflow-hidden bg-[#F3F4F6]">
