@@ -583,12 +583,12 @@ export default function OilDashboardPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="p-4 text-sm font-mono font-bold text-[#6B7280] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
-                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">{r.distance || 0}</td>
-                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">{kmPerLiter}</td>
-                          <td className="p-4 text-sm font-mono text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
-                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">฿{costPerKm}</td>
-                          <td className="p-4 text-sm font-mono font-bold text-[#374151] whitespace-nowrap text-right">฿{costPerJob}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#6B7280] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">{r.distance || 0}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">{kmPerLiter}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">฿{costPerKm}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">฿{costPerJob}</td>
                           <td className="p-4 text-sm font-bold text-emerald-600 whitespace-nowrap text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
                           <td className="p-4 text-center">
                             <div className="flex justify-center items-center gap-2">
@@ -714,8 +714,8 @@ export default function OilDashboardPage() {
                         </td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.tech_name || '-'}</td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
-                        <td className="p-3 text-sm font-mono text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
-                        <td className="p-3 text-sm font-mono text-[#374151] font-bold text-right">{r.distance || 0}</td>
+                        <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
+                        <td className="p-3 text-sm font-black tracking-wide text-[#374151] font-bold text-right">{r.distance || 0}</td>
                         <td className="p-3 text-sm font-bold text-emerald-600 text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
                       </tr>
                     ))}
@@ -729,7 +729,7 @@ export default function OilDashboardPage() {
                     <tfoot className="bg-[#F9FAFB] border-t border-[#E5E7EB]">
                       <tr>
                         <td colSpan="4" className="p-4 text-right font-bold text-[#374151]">รวมทั้งหมด:</td>
-                        <td className="p-4 text-right font-mono font-black text-[#1F2937] text-lg">{records.reduce((sum, r) => sum + (parseFloat(r.distance) || 0), 0).toLocaleString()}</td>
+                        <td className="p-4 text-right font-black tracking-wide text-[#1F2937] text-lg">{records.reduce((sum, r) => sum + (parseFloat(r.distance) || 0), 0).toLocaleString()}</td>
                         <td className="p-4 text-right font-black text-emerald-600 text-lg">฿{records.reduce((sum, r) => sum + parseFloat(r.total_price), 0).toLocaleString()}</td>
                       </tr>
                     </tfoot>
