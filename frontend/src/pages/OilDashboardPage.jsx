@@ -555,7 +555,7 @@ export default function OilDashboardPage() {
                       return (
                         <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors group">
                           <td className="p-4 text-sm text-[#4B5563] font-medium whitespace-nowrap">
-                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(r.date_recorded).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })} {new Date(r.date_recorded).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
                           </td>
                           <td className="p-4 text-sm text-[#1F2937] whitespace-nowrap">
                             <div className="flex flex-col gap-1.5">
