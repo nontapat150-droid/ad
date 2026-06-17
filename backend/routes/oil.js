@@ -92,17 +92,20 @@ router.post(
 
     const conn = await pool.getConnection();
     try {
-      // Check for duplicate record based on mileage
+      // Check for duplicate record based on mileage and team
       const [existing] = await conn.query(
-        `SELECT id FROM oil_records 
-         WHERE REPLACE(LOWER(license_plate), ' ', '') = REPLACE(LOWER(?), ' ', '') 
-           AND mileage = ?`,
-        [license_plate, mileage]
+        `SELECT r.id 
+         FROM oil_records r
+         JOIN users u_record ON r.tech_id = u_record.id
+         JOIN users u_target ON u_target.id = ?
+         WHERE r.mileage = ?
+           AND u_record.team_id = u_target.team_id`,
+        [targetTechId, mileage]
       );
 
       if (existing.length > 0) {
         conn.release();
-        return res.status(409).json({ error: 'คุณมีการบันทึกข้อมูลน้ำมันของรถคันนี้ที่ "เลขไมล์" นี้ไปแล้ว (ข้อมูลซ้ำ)' });
+        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำ: ทีมของคุณมีการบันทึกข้อมูลน้ำมันที่ "เลขไมล์" นี้ไปแล้ว!' });
       }
 
       await conn.beginTransaction();
