@@ -742,12 +742,12 @@ export default function InventoryReceivePage() {
         Toast.fire({ icon: 'warning', title: 'รหัสซ้ำซ้อน', text: 'รหัส SN นี้อยู่ในรายการพักรอแล้ว' });
         setSn(''); if (snInputRef.current) snInputRef.current.value = ''; return;
       }
-      itemsToAdd.push({ id: Date.now() + Math.random(), product_name: selectedProduct.name, has_sn: true, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: 1, is_auto_generate: false, generate_count: 1 });
+      itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: true, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: 1, is_auto_generate: false, generate_count: 1 });
       Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
     } else {
       if (isAutoGenerate) {
         if (!generateCount || generateCount <= 0) return;
-        itemsToAdd.push({ id: Date.now() + Math.random(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: '(ระบบจะสร้างอัตโนมัติ)', quantity: parseFloat(quantity) || 1, is_auto_generate: true, generate_count: parseInt(generateCount) || 1 });
+        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: '(ระบบจะสร้างอัตโนมัติ)', quantity: parseFloat(quantity) || 1, is_auto_generate: true, generate_count: parseInt(generateCount) || 1 });
         Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
       } else {
         const currentInputValue = autoSn !== null ? autoSn : (snInputRef.current?.value || sn);
@@ -758,7 +758,7 @@ export default function InventoryReceivePage() {
           Toast.fire({ icon: 'warning', title: 'รหัสซ้ำซ้อน', text: 'รหัสสินค้านี้อยู่ในรายการพักรอแล้ว' });
           setSn(''); if (snInputRef.current) snInputRef.current.value = ''; return;
         }
-        itemsToAdd.push({ id: Date.now() + Math.random(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: parseFloat(quantity) || 1, is_auto_generate: false, generate_count: 1 });
+        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: parseFloat(quantity) || 1, is_auto_generate: false, generate_count: 1 });
         Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
       }
     }
@@ -922,7 +922,7 @@ export default function InventoryReceivePage() {
         // Keep full SN string — do NOT strip non-digit chars (SN may contain letters like ZTEGDD20ADB9)
         const cleanSn = row.sn.trim();
         newItems.push({
-          id: Date.now() + Math.random(),
+          id: crypto.randomUUID(),
           product_name: product.name,
           has_sn: hasSn,
           model_id: model.id,
