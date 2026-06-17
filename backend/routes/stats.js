@@ -114,7 +114,7 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     let feed = [];
     try {
       const [f] = await pool.query(`
-          SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name
+          SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name, u.profile_image
           FROM (
             (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 20)
             UNION ALL

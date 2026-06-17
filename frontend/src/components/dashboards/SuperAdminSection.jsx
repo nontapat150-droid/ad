@@ -213,8 +213,17 @@ export default function SuperAdminSection() {
                     key={`feed-${item.type}-${item.id}-${idx}`}
                     className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
                   >
-                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5`}>
-                      {cfg.icon}
+                    <div className={`w-12 h-12 shrink-0 rounded-2xl ${cfg.color} flex items-center justify-center text-xl shadow-sm border border-black/5 overflow-hidden`}>
+                      {item.profile_image ? (
+                        <img 
+                          src={item.profile_image.includes('/') ? `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}/${item.profile_image.replace('../', '')}` : `/uploads/profiles/${item.profile_image}`} 
+                          alt={item.user_name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.onerror = null; e.target.parentElement.innerHTML = cfg.icon; }}
+                        />
+                      ) : (
+                        cfg.icon
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[#1F2937] text-sm font-medium truncate">
