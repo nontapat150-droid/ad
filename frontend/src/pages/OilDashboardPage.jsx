@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, ReferenceLine } from 'recharts';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import OilRecordModal from '../components/OilRecordModal';
@@ -7,6 +7,201 @@ import OilRecordEditModal from '../components/OilRecordEditModal';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+
+// ── Smart Chart Section Component ──────────────────────────────────────────
+function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, isSingleVehicle, isFewVehicles, CustomTooltip, efficiency }) {
+  const [activeTab, setActiveTab] = useState('cost');
+
+  const tab = tabs.find(t => t.key === activeTab);
+  const dataKey = activeTab; // for compare bar: 'cost' | 'liters' | 'distance'
+  const totalKey = `total_${activeTab === 'cost' ? 'cost' : activeTab === 'liters' ? 'liters' : 'distance'}`;
+
+  // Auto-choose daily chart type based on number of vehicles
+  // 1 vehicle → smooth area line; 2-4 → multi-line; 5+ → stacked bar
+  const vehicleCount = vehicles.length;
+
+  // Legend for color dot of each plate
+  const plateDots = vehicleCompareData.slice(0, 10);
+
+  return (
+    <div className="flex flex-col gap-6">
+
+      {/* ── Top: Tabbed Daily Trend Chart (full width) ── */}
+      <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm hover:shadow-md transition-all overflow-hidden">
+        {/* Tab bar */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-0 gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${tab.iconBg}`}>{tab.icon}</div>
+            <div>
+              <h3 className="font-black text-[#1F2937] text-base leading-tight">{tab.label} รายวัน</h3>
+              <p className="text-xs text-[#9CA3AF] font-medium mt-0.5">
+                {vehicleCount === 0 ? 'ไม่มีข้อมูล' : vehicleCount === 1 ? vehicles[0]?.license_plate : `เปรียบเทียบ ${vehicleCount} คัน`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 p-1 bg-[#F3F4F6] rounded-xl">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                  activeTab === t.key
+                    ? 'bg-white text-[#1F2937] shadow-sm'
+                    : 'text-[#6B7280] hover:text-[#374151]'
+                }`}
+              >
+                <span>{t.icon}</span> {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color dots legend */}
+        {vehicleCount > 1 && (
+          <div className="flex flex-wrap gap-3 px-6 pt-3">
+            {plateDots.map((v, i) => (
+              <span key={v.name} className="flex items-center gap-1.5 text-xs font-bold text-[#374151]">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: v.color }} />
+                {v.name}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Chart */}
+        <div className="h-72 px-4 pt-2 pb-4">
+          {dailyTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              {vehicleCount <= 1 ? (
+                // Single vehicle: beautiful area chart
+                <ComposedChart data={dailyTrend} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS[0]} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={COLORS[0]} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="date" tickFormatter={s => s.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-6} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" name={tab.label} dataKey={totalKey} stroke={COLORS[0]} strokeWidth={3} fill="url(#areaGrad)" dot={{ fill: '#fff', stroke: COLORS[0], strokeWidth: 2, r: 4 }} activeDot={{ r: 6, strokeWidth: 0, fill: COLORS[0] }} />
+                </ComposedChart>
+              ) : vehicleCount <= 5 ? (
+                // 2-5 vehicles: multi-line
+                <LineChart data={dailyTrend} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="date" tickFormatter={s => s.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-6} />
+                  <Tooltip content={<CustomTooltip />} />
+                  {vehicles.map((v, i) => (
+                    <Line key={v.license_plate} type="monotone" name={v.license_plate} dataKey={`${v.license_plate}_${dataKey}`}
+                      stroke={COLORS[i % COLORS.length]} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                  ))}
+                </LineChart>
+              ) : (
+                // 6+ vehicles: stacked bar (easier to read at scale)
+                <BarChart data={dailyTrend} margin={{ top: 10, right: 20, left: -10, bottom: 5 }} barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="date" tickFormatter={s => s.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={8} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-6} />
+                  <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
+                  {vehicles.map((v, i) => (
+                    <Bar key={v.license_plate} name={v.license_plate} dataKey={`${v.license_plate}_${dataKey}`}
+                      stackId="a" fill={COLORS[i % COLORS.length]} radius={i === vehicles.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-[#9CA3AF]">
+              <span className="text-4xl mb-3">📊</span>
+              <p className="font-bold text-sm">ไม่มีข้อมูลในช่วงนี้</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Bottom row: Comparison Bar + Efficiency ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Vehicle Comparison Horizontal Bar */}
+        <div className="bg-white p-6 rounded-3xl border border-[#E5E7EB] shadow-sm hover:shadow-md transition-all flex flex-col">
+          <div className="flex items-center gap-2 mb-5">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${tab.iconBg}`}>{tab.icon}</div>
+            <div>
+              <h3 className="font-black text-[#1F2937] text-base leading-tight">เปรียบเทียบรถ — {tab.label}</h3>
+              <p className="text-xs text-[#9CA3AF] font-medium">รวมทั้งช่วงเวลาที่เลือก</p>
+            </div>
+          </div>
+          {vehicleCompareData.length > 0 ? (
+            <div className="flex-1 min-h-[240px]">
+              <ResponsiveContainer width="100%" height={Math.max(240, vehicleCompareData.length * 44)}>
+                <BarChart
+                  data={[...vehicleCompareData].sort((a, b) => b[dataKey] - a[dataKey])}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                  barSize={22}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
+                  <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#374151', fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip cursor={{ fill: '#F9FAFB' }} content={<CustomTooltip />} />
+                  <Bar name={tab.label} dataKey={dataKey} radius={[0, 8, 8, 0]}>
+                    {[...vehicleCompareData].sort((a, b) => b[dataKey] - a[dataKey]).map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูล</div>
+          )}
+        </div>
+
+        {/* Efficiency per Job */}
+        <div className="bg-white p-6 rounded-3xl border border-[#E5E7EB] shadow-sm hover:shadow-md transition-all flex flex-col">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">🎯</div>
+            <div>
+              <h3 className="font-black text-[#1F2937] text-base leading-tight">ต้นทุนต่อรอบ (บาท/งาน)</h3>
+              <p className="text-xs text-[#9CA3AF] font-medium">เรียงจากสูงสุด → ต่ำสุด</p>
+            </div>
+          </div>
+          {efficiency.length > 0 ? (
+            <div className="flex-1 min-h-[240px]">
+              <ResponsiveContainer width="100%" height={Math.max(240, efficiency.length * 44)}>
+                <BarChart
+                  data={[...efficiency].sort((a, b) => b.cost_per_job - a.cost_per_job)}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                  barSize={22}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
+                  <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="team_name" tick={{ fill: '#374151', fontSize: 12, fontWeight: 700 }} axisLine={false} tickLine={false} width={70} />
+                  <Tooltip cursor={{ fill: '#F9FAFB' }} content={<CustomTooltip />} />
+                  <Bar name="บาท/งาน" dataKey="cost_per_job" radius={[0, 8, 8, 0]}>
+                    {[...efficiency].sort((a, b) => b.cost_per_job - a.cost_per_job).map((_, i, arr) => {
+                      const ratio = i / (arr.length - 1 || 1);
+                      const r = Math.round(20 + ratio * 235);
+                      const g = Math.round(184 - ratio * 100);
+                      const b2 = Math.round(166 - ratio * 100);
+                      return <Cell key={i} fill={`rgb(${r},${g},${b2})`} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลประสิทธิภาพ</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function OilDashboardPage() {
   const [startDate, setStartDate] = useState(() => {
@@ -343,122 +538,43 @@ export default function OilDashboardPage() {
               />
             </div>
 
-            {/* Charts Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Smart Charts Area */}
+            {(() => {
+              const COLORS = ['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16','#F97316','#06B6D4'];
+              const vehicles = analytics.byVehicle || [];
+              const isSingleVehicle = vehicles.length <= 1;
+              const isFewVehicles = vehicles.length <= 4;
+              
+              // Prepare comparison data (totals per vehicle) for bar chart
+              const vehicleCompareData = vehicles.map((v, i) => ({
+                name: v.license_plate,
+                cost: Math.round(parseFloat(v.total_cost || 0)),
+                liters: parseFloat(parseFloat(v.total_liters || 0).toFixed(1)),
+                distance: Math.round(parseFloat(v.total_distance || 0)),
+                color: COLORS[i % COLORS.length],
+              }));
 
-              {/* 1. Daily Cost */}
-              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">📈</div>
-                    ค่าใช้จ่ายรายวัน (บาท)
-                  </h3>
-                </div>
-                <div className="min-h-[400px] w-full mt-4">
-                  {analytics.dailyTrend.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
-                        {analytics.byVehicle.map((v, i) => (
-                          <Line key={v.license_plate} type="monotone" name={v.license_plate} dataKey={`${v.license_plate}_cost`} stroke={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
-                  )}
-                </div>
-              </div>
+              // Tabs for daily trend
+              const tabs = [
+                { key: 'cost',     label: 'ค่าใช้จ่าย (บาท)', suffix: 'บาท', icon: '💰', iconBg: 'bg-orange-100 text-orange-600' },
+                { key: 'liters',   label: 'น้ำมัน (ลิตร)', suffix: 'ลิตร', icon: '⛽', iconBg: 'bg-lime-100 text-lime-600' },
+                { key: 'distance', label: 'ระยะทาง (กม.)', suffix: 'กม.', icon: '🛣️', iconBg: 'bg-sky-100 text-sky-600' },
+              ];
 
-              {/* 2. Daily Liters */}
-              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#A3E635]/20 text-[#65a30d] flex items-center justify-center">⛽</div>
-                    ปริมาณน้ำมันรายวัน (ลิตร)
-                  </h3>
-                </div>
-                <div className="min-h-[400px] w-full mt-4">
-                  {analytics.dailyTrend.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={analytics.byVehicle.length > 4 ? undefined : 16}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
-                        <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
-                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
-                        {analytics.byVehicle.map((v, i) => (
-                          <Bar key={v.license_plate} name={v.license_plate} dataKey={`${v.license_plate}_liters`} fill={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} radius={analytics.byVehicle.length > 4 ? [0,0,0,0] : [4, 4, 0, 0]} stackId={analytics.byVehicle.length > 4 ? "a" : undefined} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
-                  )}
-                </div>
-              </div>
-
-              {/* 3. Daily Distance */}
-              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#F3F4F6] text-[#374151] flex items-center justify-center">🛣️</div>
-                    ระยะทางวิ่งรายวัน (กม.) รวมทุกคัน
-                  </h3>
-                </div>
-                <div className="min-h-[400px] w-full mt-4">
-                  {analytics.dailyTrend.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={analytics.dailyTrend} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                        <XAxis dataKey="date" tickFormatter={(str) => str.split('-')[2]} tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dx={-10} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
-                        {analytics.byVehicle.map((v, i) => (
-                          <Line key={v.license_plate} type="monotone" name={v.license_plate} dataKey={`${v.license_plate}_distance`} stroke={['#F59E0B','#3B82F6','#10B981','#8B5CF6','#EC4899','#14B8A6','#F43F5E','#84CC16'][i % 8]} strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลในเดือนนี้</div>
-                  )}
-                </div>
-              </div>
-
-              {/* 4. Efficiency per Job */}
-              <div className="bg-white p-6 rounded-3xl flex flex-col shadow-sm border border-[#E5E7EB] hover:shadow-md transition-all">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-bold text-[#1F2937] text-lg flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">🎯</div>
-                    ประสิทธิภาพต้นทุนต่อรอบ (บาท/งาน)
-                  </h3>
-                </div>
-                <div className="min-h-[400px] w-full mt-4">
-                  {efficiency.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={efficiency} margin={{ top: 5, right: 20, left: -20, bottom: 5 }} barSize={24} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F3F4F6" />
-                        <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
-                        <YAxis type="category" dataKey="team_name" tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} width={80} />
-                        <Tooltip cursor={{ fill: '#F3F4F6' }} content={<CustomTooltip />} />
-                        <Bar name="ต้นทุนต่อรอบ (บาท)" dataKey="cost_per_job" fill="#14b8a6" radius={[0, 8, 8, 0]}>
-                          {efficiency.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#14b8a6' : '#2dd4bf'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-[#9CA3AF] font-bold text-sm">ไม่มีข้อมูลประสิทธิภาพในเดือนนี้</div>
-                  )}
-                </div>
-              </div>
-            </div>
+              return (
+                <ChartSection
+                  dailyTrend={analytics.dailyTrend}
+                  vehicles={vehicles}
+                  vehicleCompareData={vehicleCompareData}
+                  tabs={tabs}
+                  COLORS={COLORS}
+                  isSingleVehicle={isSingleVehicle}
+                  isFewVehicles={isFewVehicles}
+                  CustomTooltip={CustomTooltip}
+                  efficiency={efficiency}
+                />
+              );
+            })()}
 
             {/* Compare Vehicles Grid */}
             {showCompare && analytics.byVehicle.length > 0 && (
