@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import Swal from 'sweetalert2';
 
 export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [images, setImages] = useState([]);
@@ -139,8 +140,18 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       onClose();
     } catch (err) {
       console.error(err);
-      const errorMsg = err.response?.data?.details || err.response?.data?.error || 'เกิดข้อผิดพลาดในการจบงาน';
-      alert(errorMsg);
+      
+      // ดึงข้อความ Error มาแสดงผล
+      const status = err.response?.status || 'Unknown';
+      let errorMsg = err.response?.data?.details || err.response?.data?.error || err.message || 'เกิดข้อผิดพลาดในการจบงาน';
+      
+      // แสดง Popup ด้วย SweetAlert2
+      Swal.fire({
+        icon: 'error',
+        title: `บันทึกไม่สำเร็จ (รหัส: ${status})`,
+        text: errorMsg,
+        confirmButtonText: 'ตกลง'
+      });
     } finally {
       setLoading(false);
     }
