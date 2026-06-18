@@ -131,10 +131,23 @@ router.put(
       );
 
       // 3. Log to job_logs
-      await conn.query(
-        `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'completed', ?)`,
-        [jobId, techId, req.body.remark || null]
-      );
+      try {
+        await conn.query(
+          `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'completed', ?)`,
+          [jobId, techId, req.body.remark || null]
+        );
+      } catch (logErr) {
+        if (logErr.message.includes("Field 'id' doesn't have a default value")) {
+          const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+          const nextId = (maxId || 0) + 1;
+          await conn.query(
+            `INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, 'completed', ?)`,
+            [nextId, jobId, techId, req.body.remark || null]
+          );
+        } else {
+          throw logErr;
+        }
+      }
 
       // 4. Insert images
       const images = req.files?.images || [];
@@ -145,7 +158,18 @@ router.put(
               `INSERT INTO job_completion_images (job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
               [jobId, `/uploads/job_evidence/${file.filename}`, techId]
             );
-          } catch(e) { console.error('Image insert error:', e.message); }
+          } catch(e) { 
+            if (e.message.includes("Field 'id' doesn't have a default value")) {
+              const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_completion_images');
+              const nextId = (maxId || 0) + 1;
+              await conn.query(
+                `INSERT INTO job_completion_images (id, job_id, image_path, uploaded_by) VALUES (?, ?, ?, ?)`,
+                [nextId, jobId, `/uploads/job_evidence/${file.filename}`, techId]
+              );
+            } else {
+              console.error('Image insert error:', e.message); 
+            }
+          }
         }
       }
 
@@ -168,7 +192,18 @@ router.put(
               'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
               [accessNo || job.access_no, customerName || job.customer, slipPath, techId]
             );
-          } catch(e) { console.error('Entry fee insert error:', e.message); }
+          } catch(e) { 
+            if (e.message.includes("Field 'id' doesn't have a default value")) {
+              const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM entry_fees');
+              const nextId = (maxId || 0) + 1;
+              await conn.query(
+                'INSERT INTO entry_fees (id, access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?, ?)',
+                [nextId, accessNo || job.access_no, customerName || job.customer, slipPath, techId]
+              );
+            } else {
+              console.error('Entry fee insert error:', e.message); 
+            }
+          }
         }
       }
 
