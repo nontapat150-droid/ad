@@ -88,15 +88,6 @@ pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCRE
 pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_logs id fix:', e.message));
 
 // ── Auto-migrate missing columns for jobs completion ───────────────────────
-const jobCols = [
-  'soa_device', 'sn_onu', 'sn_playbox', 'sn_mesh', 'sn_sim', 
-  'sn_ip_camera', 'split_no', 'port_no', 'l3_name', 'cable_length', 
-  'ref_id_3bb', 'sc_blue'
-];
-jobCols.forEach(col => {
-  pool.query(`ALTER TABLE jobs ADD COLUMN ${col} VARCHAR(255) NULL`).catch(() => {});
-});
-
 pool.query(`
   CREATE TABLE IF NOT EXISTS team_oil_cases (
     team_id INT PRIMARY KEY,

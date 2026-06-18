@@ -117,10 +117,7 @@ router.put(
           access_no = COALESCE(?, access_no),
           customer = COALESCE(?, customer),
           package = COALESCE(?, package),
-          install_device = COALESCE(?, install_device),
-          soa_device = ?, sn_onu = ?, sn_playbox = ?, sn_mesh = ?, sn_sim = ?,
-          sn_ip_camera = ?, split_no = ?, port_no = ?, l3_name = ?, cable_length = ?,
-          ref_id_3bb = ?, sc_blue = ?
+          install_device = COALESCE(?, install_device)
          WHERE id = ?`,
         [
           req.body.remark || null,
@@ -129,18 +126,6 @@ router.put(
           req.body.customerName || null, 
           req.body.mainPackage || null, 
           req.body.installDevice || null, 
-          req.body.soaDevice || null,
-          req.body.snOnu || null,
-          req.body.snPlaybox || null,
-          req.body.snMesh || null,
-          req.body.snSim || null,
-          req.body.snIpCamera || null,
-          req.body.splitNo || null,
-          req.body.portNo || null,
-          req.body.l3Name || null,
-          req.body.cableLength || null,
-          req.body.refId3bb || null,
-          req.body.scBlue || null,
           jobId
         ]
       );
