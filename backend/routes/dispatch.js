@@ -109,9 +109,25 @@ router.put(
 
       // 2. Update job status
       await conn.query(
-        `UPDATE jobs SET status = 'completed', completed_at = NOW(), completed_by = ?
+        `UPDATE jobs SET 
+          status = 'completed', 
+          completed_at = NOW(), 
+          completed_by = ?,
+          plan_arrival_date = COALESCE(?, plan_arrival_date),
+          access_no = COALESCE(?, access_no),
+          customer = COALESCE(?, customer),
+          package = COALESCE(?, package),
+          install_device = COALESCE(?, install_device)
          WHERE id = ?`,
-        [techId, jobId]
+        [
+          techId, 
+          req.body.installDate || null, 
+          req.body.accessNo || null, 
+          req.body.customerName || null, 
+          req.body.mainPackage || null, 
+          req.body.installDevice || null, 
+          jobId
+        ]
       );
 
       // 3. Log to job_logs
@@ -577,7 +593,11 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
     await conn.beginTransaction();
     const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
-    await conn.query('UPDATE jobs SET status = \'pending\', plan_arrival_date = ?, team_id = NULL, seq = NULL WHERE id = ?', [new_date, jobId]);
+    const postponeReason = remark ? ` [เลื่อนนัด: ${remark}]` : ' [เลื่อนนัด]';
+    await conn.query(
+      'UPDATE jobs SET status = \'pending\', plan_arrival_date = ?, remark = CONCAT(IFNULL(remark, \'\'), ?), team_id = NULL, seq = NULL WHERE id = ?', 
+      [new_date, postponeReason, jobId]
+    );
     await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'postponed\', ?)', [jobId, techId, `Postponed to ${new_date}. Reason: ${remark || ''}`]);
     await conn.commit();
     res.json({ message: 'Job postponed' });

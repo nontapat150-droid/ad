@@ -1,12 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/axios';
 
 export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [images, setImages] = useState([]);
   const [remark, setRemark] = useState('');
+  
+  // New Fields
+  const [installDate, setInstallDate] = useState('');
+  const [accessNo, setAccessNo] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [mainPackage, setMainPackage] = useState('');
+  const [installDevice, setInstallDevice] = useState('');
+
   const [loading, setLoading] = useState(false);
 
-  if (!isOpen || !job) return null;
+  // Initialize fields when modal opens
+  useEffect(() => {
+    if (isOpen && job) {
+      setInstallDate(new Date().toLocaleDateString('en-CA')); // YYYY-MM-DD
+      setAccessNo(job.access_no || '');
+      setCustomerName(job.customer || '');
+      setMainPackage(job.package || '');
+      setInstallDevice(job.install_device || '');
+      setImages([]);
+      setRemark('');
+    }
+  }, [isOpen, job]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +42,12 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setLoading(true);
       const formData = new FormData();
       formData.append('remark', remark);
+      formData.append('installDate', installDate);
+      formData.append('accessNo', accessNo);
+      formData.append('customerName', customerName);
+      formData.append('mainPackage', mainPackage);
+      formData.append('installDevice', installDevice);
+
       for (let i = 0; i < images.length; i++) {
         formData.append('images', images[i]);
       }
@@ -39,34 +64,66 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     }
   };
 
+  if (!isOpen || !job) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl p-6 flex flex-col">
-        <h2 className="text-[#042C53] font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-2xl">✅</span> จบงาน: {job.access_no}
-        </h2>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐาน (บังคับ, สูงสุด 20 รูป)</label>
-            <input type="file" multiple accept="image/*" onChange={(e) => setImages(e.target.files)}
-              className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
-            <p className="text-xs text-[#185FA5] mt-1 text-right">{images.length}/20 รูป</p>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (ถ้ามี)</label>
-            <textarea value={remark} onChange={(e) => setRemark(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 resize-none h-20" />
-          </div>
-          <div className="flex gap-3 mt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-[#378ADD]/30 text-[#042C53] font-semibold hover:bg-white/50 transition-colors">
-              ยกเลิก
-            </button>
-            <button type="submit" disabled={loading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all flex justify-center items-center">
-              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'ยืนยันจบงาน'}
-            </button>
-          </div>
-        </form>
+      <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-6 overflow-y-auto">
+          <h2 className="text-[#042C53] font-bold text-lg mb-4 flex items-center gap-2 sticky top-0 bg-white/90 p-2 rounded-xl backdrop-blur-sm shadow-sm z-10">
+            <span className="text-2xl">✅</span> จบงาน: {job.access_no}
+          </h2>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">วันที่ติดตั้ง (ห้ามย้อนหลัง)</label>
+                <input type="date" required min={new Date().toLocaleDateString('en-CA')} value={installDate} onChange={(e) => setInstallDate(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">ปิดเคสงาน (NON)</label>
+                <input type="text" required value={accessNo} onChange={(e) => setAccessNo(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">ชื่อ-นามสกุล ลูกค้า</label>
+                <input type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">แพ็กเกจหลัก</label>
+                <input type="text" required value={mainPackage} onChange={(e) => setMainPackage(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">อุปกรณ์ปิด SO</label>
+                <input type="text" value={installDevice} onChange={(e) => setInstallDevice(e.target.value)} placeholder="ระบุอุปกรณ์ที่ใช้"
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐาน (บังคับ, สูงสุด 20 รูป)</label>
+              <input type="file" multiple accept="image/*" onChange={(e) => setImages(e.target.files)}
+                className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+              <p className="text-xs text-[#185FA5] mt-1 text-right">{images.length}/20 รูป</p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (ถ้ามี)</label>
+              <textarea value={remark} onChange={(e) => setRemark(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 resize-none h-16" />
+            </div>
+            <div className="flex gap-3 mt-2 sticky bottom-0 bg-white/90 p-2 rounded-xl backdrop-blur-sm z-10">
+              <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-[#378ADD]/30 text-[#042C53] font-semibold hover:bg-white/50 transition-colors">
+                ยกเลิก
+              </button>
+              <button type="submit" disabled={loading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all flex justify-center items-center">
+                {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'ยืนยันจบงาน'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -102,7 +159,7 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl p-6 flex flex-col">
         <h2 className="text-red-700 font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-2xl">❌</span> ไม่จบงาน: {job.access_no}
+          <span className="text-2xl">❌</span> ไม่สำเร็จ: {job.access_no}
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>

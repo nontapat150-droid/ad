@@ -83,47 +83,48 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
               {formatTime(job.plan_arrival_time || job.plan_arrival_date || job.assigned_time) || '-'}
             </span>
           </div>
+
+          {/* Action Buttons always visible */}
+          <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full mt-3 pt-3 border-t border-white/30">
+            <button
+              onClick={(e) => { e.stopPropagation(); window.open(`https://maps.google.com/?q=${job.lat},${job.lng}`, '_blank'); }}
+              disabled={!job.lat}
+              className="flex-1 h-10 rounded-xl glass border border-white/50 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#185FA5] hover:bg-white/50 transition-colors disabled:opacity-50">
+              <svg className="w-4 h-4 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+              นำทาง
+            </button>
+            
+            {!isCompleted && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onPostpone(job); }}
+                  className="flex-1 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center gap-1.5 text-xs font-bold text-purple-700 hover:bg-purple-200 transition-colors active:scale-[0.98]">
+                  เลื่อนติดตั้ง
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onIncomplete(job); }}
+                  className="flex-1 h-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center gap-1.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors active:scale-[0.98]">
+                  ไม่สำเร็จ
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onComplete(job); }}
+                  className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
+                  จบงาน
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ── Expanded Detail Area ─────────────────── */}
       <div className={`transition-all duration-300 ease-in-out ${expanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
         <div className="px-4 pb-4 border-t border-white/30 pt-4 ">
-          <p className="text-xs font-semibold text-[#378ADD] mb-1.5 uppercase tracking-wider">รายละเอียดงาน</p>
-          <p className="text-sm text-[#042C53] leading-relaxed mb-5">
+          <p className="text-xs font-semibold text-[#378ADD] mb-1.5 uppercase tracking-wider">รายละเอียดงาน (แตะเพื่อย่อ)</p>
+          <p className="text-sm text-[#042C53] leading-relaxed">
             {job.package || job.service_note || job.remark || job.description || 'ไม่มีรายละเอียดเพิ่มเติม'}
           </p>
-
-            <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full mt-2">
-              <button
-                onClick={(e) => { e.stopPropagation(); window.open(`https://maps.google.com/?q=${job.lat},${job.lng}`, '_blank'); }}
-                disabled={!job.lat}
-                className="flex-1 h-10 rounded-xl glass border border-white/50 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#185FA5] hover:bg-white/50 transition-colors disabled:opacity-50">
-                <svg className="w-4 h-4 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                นำทาง
-              </button>
-              
-              {!isCompleted && (
-                <>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onPostpone(job); }}
-                    className="flex-1 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center gap-1.5 text-xs font-bold text-purple-700 hover:bg-purple-200 transition-colors active:scale-[0.98]">
-                    เลื่อนนัด
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onIncomplete(job); }}
-                    className="flex-1 h-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center gap-1.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors active:scale-[0.98]">
-                    ไม่จบงาน
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onComplete(job); }}
-                    className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
-                    จบงาน
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                  </button>
-                </>
-              )}
-            </div>
         </div>
       </div>
     </div>
