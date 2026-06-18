@@ -224,6 +224,11 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   if (!access_no) return res.status(400).json({ error: 'access_no is required' });
 
   try {
+    let formatted_time = plan_arrival_time || null;
+    if (formatted_time && !formatted_time.includes('-') && plan_arrival_date) {
+      formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
+    }
+
     const [result] = await pool.query(
       `INSERT INTO jobs
          (plan_arrival_date, plan_arrival_time, access_no, customer, phone, package, address,
@@ -237,7 +242,7 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           status, remark, seq, map_link, team_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        plan_arrival_date || null, plan_arrival_time || null, access_no, customer || null, phone || null, pkg || null, address || null,
+        plan_arrival_date || null, formatted_time, access_no, customer || null, phone || null, pkg || null, address || null,
         field_engineer_id || null, reject_reason || null, task_status || null, product || null, lat || null, lng || null, order_no || null,
         called_assigner || 'None Call', called_engineer || 'None Call', task_order || null, product_owner || null, order_type || null,
         install_device || null, service_note || null, sub_access_mode || 'N/A', region || 'ROS', task_type || null,
@@ -699,9 +704,14 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { customer, phone, address, team_id, field_engineer_id, lat, lng, type, plan_arrival_date, plan_arrival_time } = req.body;
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   try {
+    let formatted_time = plan_arrival_time || null;
+    if (formatted_time && !formatted_time.includes('-') && plan_arrival_date) {
+      formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
+    }
+
     await pool.query(
       `UPDATE ${table} SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ?, plan_arrival_date = COALESCE(?, plan_arrival_date), plan_arrival_time = COALESCE(?, plan_arrival_time) WHERE id = ?`,
-      [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, plan_arrival_date || null, plan_arrival_time || null, req.params.id]
+      [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, plan_arrival_date || null, formatted_time, req.params.id]
     );
     res.json({ message: 'Job updated' });
   } catch (err) {

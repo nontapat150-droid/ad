@@ -29,7 +29,11 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         team_id: job.team_id || '',
         field_engineer_id: job.field_engineer_id || '',
         plan_arrival_date: job.plan_arrival_date ? job.plan_arrival_date.split('T')[0] : '',
-        plan_arrival_time: job.plan_arrival_time || ''
+        plan_arrival_time: job.plan_arrival_time 
+          ? (job.plan_arrival_time.includes('T') ? job.plan_arrival_time.split('T')[1].substring(0, 5) : 
+             job.plan_arrival_time.includes(' ') ? job.plan_arrival_time.split(' ')[1].substring(0, 5) : 
+             job.plan_arrival_time.substring(0, 5))
+          : ''
       });
       fetchData();
     }
