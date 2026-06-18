@@ -86,6 +86,9 @@ pool.query(`ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_IN
 pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_models id fix:', e.message));
 pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_items id fix:', e.message));
 pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_logs id fix:', e.message));
+pool.query(`ALTER TABLE job_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('job_logs id fix:', e.message));
+pool.query(`ALTER TABLE job_completion_images MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('job_completion_images id fix:', e.message));
+pool.query(`ALTER TABLE entry_fees MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('entry_fees id fix:', e.message));
 
 // ── Auto-migrate columns ───────────────────────
 pool.query(`ALTER TABLE jobs MODIFY COLUMN install_device TEXT`).catch(() => {});
