@@ -195,7 +195,20 @@ export default function CustomersPage() {
                       </h3>
                       <div className="space-y-3">
                         <InfoRow label="แพ็กเกจ" value={customerData.package} />
-                        <InfoRow label="อุปกรณ์ที่ติดตั้ง" value={customerData.install_device} />
+                        {customerData.install_device && customerData.install_device.includes('\n') ? (
+                          customerData.install_device.split('\n').map((line, idx) => {
+                            if (!line.trim()) return null;
+                            const colonIdx = line.indexOf(':');
+                            if (colonIdx !== -1) {
+                              const label = line.substring(0, colonIdx).trim();
+                              const value = line.substring(colonIdx + 1).trim();
+                              return <InfoRow key={`device-${idx}`} label={label} value={value} />;
+                            }
+                            return <InfoRow key={`device-${idx}`} label={`อุปกรณ์ ${idx+1}`} value={line.trim()} />;
+                          })
+                        ) : (
+                          <InfoRow label="อุปกรณ์ที่ติดตั้ง" value={customerData.install_device} />
+                        )}
                         <InfoRow label="ประเภทงาน" value={customerData.task_type} />
                         <InfoRow label="Product Owner" value={customerData.product_owner} />
                       </div>
@@ -291,7 +304,7 @@ export default function CustomersPage() {
                 </div>
 
                 {/* Additional Remarks */}
-                {(customerData.remark || customerData.reject_reason || customerData.fail_reason) && (
+                {((customerData.remark && customerData.remark.trim() !== '' && customerData.remark !== 'null') || customerData.reject_reason || customerData.fail_reason) && (
                   <div className="bg-white rounded-xl border border-[#E5E7EB] p-6"
                     style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
                     <h3 className="text-xs font-bold text-[#65a30d] uppercase tracking-wider mb-4 pb-2 border-b border-[#E5E7EB] flex items-center gap-1.5">
@@ -299,10 +312,10 @@ export default function CustomersPage() {
                       บันทึกเพิ่มเติมจากช่าง
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {customerData.remark && (
+                      {customerData.remark && customerData.remark.trim() !== '' && customerData.remark !== 'null' && (
                         <div>
                           <p className="text-xs text-[#9CA3AF] font-bold mb-1.5">หมายเหตุ (Remark)</p>
-                          <p className="text-sm text-[#374151] bg-[#F9FAFB] p-3 rounded-xl border border-[#E5E7EB]">{customerData.remark}</p>
+                          <p className="text-sm text-[#374151] bg-[#F9FAFB] p-3 rounded-xl border border-[#E5E7EB] whitespace-pre-wrap">{customerData.remark}</p>
                         </div>
                       )}
                       {customerData.reject_reason && (
