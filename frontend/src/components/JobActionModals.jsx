@@ -131,13 +131,13 @@ Ref ID 3BB: ${refId3bb || '-'}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#042C53] mb-1">ชื่อ-นามสกุล ลูกค้า</label>
-                <input type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
+                <input type="text" readOnly value={customerName}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#042C53] mb-1">แพ็กเกจหลัก</label>
-                <input type="text" required value={mainPackage} onChange={(e) => setMainPackage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
+                <input type="text" readOnly value={mainPackage}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
               </div>
             </div>
 
