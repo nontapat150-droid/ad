@@ -9,7 +9,9 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
     lat: '',
     lng: '',
     team_id: '',
-    field_engineer_id: ''
+    field_engineer_id: '',
+    plan_arrival_date: '',
+    plan_arrival_time: ''
   });
   const [teams, setTeams] = useState([]);
   const [techs, setTechs] = useState([]);
@@ -25,7 +27,9 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         lat: job.lat || '',
         lng: job.lng || '',
         team_id: job.team_id || '',
-        field_engineer_id: job.field_engineer_id || ''
+        field_engineer_id: job.field_engineer_id || '',
+        plan_arrival_date: job.plan_arrival_date ? job.plan_arrival_date.split('T')[0] : '',
+        plan_arrival_time: job.plan_arrival_time || ''
       });
       fetchData();
     }
@@ -101,6 +105,19 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
             <label className="block text-sm font-semibold text-[#042C53] mb-1">ชื่อลูกค้า</label>
             <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
               value={formData.customer} onChange={e => setFormData({...formData, customer: e.target.value})} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">วันที่นัดหมาย</label>
+              <input type="date" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                value={formData.plan_arrival_date} onChange={e => setFormData({...formData, plan_arrival_date: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">เวลานัดหมาย</label>
+              <input type="time" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                value={formData.plan_arrival_time} onChange={e => setFormData({...formData, plan_arrival_time: e.target.value})} />
+            </div>
           </div>
           
           <div>
