@@ -134,7 +134,9 @@ Ref ID 3BB: ${refId3bb || '-'}
       onSuccess();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการจบงาน');
+      console.error(err);
+      const errorMsg = err.response?.data?.details || err.response?.data?.error || 'เกิดข้อผิดพลาดในการจบงาน';
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
