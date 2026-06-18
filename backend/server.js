@@ -87,7 +87,9 @@ pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCR
 pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_items id fix:', e.message));
 pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_logs id fix:', e.message));
 
-// ── Auto-migrate missing columns for jobs completion ───────────────────────
+// ── Auto-migrate columns ───────────────────────
+pool.query(`ALTER TABLE jobs MODIFY COLUMN install_device TEXT`).catch(() => {});
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS team_oil_cases (
     team_id INT PRIMARY KEY,
