@@ -706,7 +706,7 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.json({ message: 'Job updated' });
   } catch (err) {
     console.error('Job update error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 

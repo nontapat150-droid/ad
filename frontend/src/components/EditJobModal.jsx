@@ -79,7 +79,9 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
       onSuccess();
       onClose();
     } catch (err) {
-      setError('ไม่สามารถบันทึกข้อมูลได้');
+      console.error(err);
+      const serverError = err.response?.data?.details || err.response?.data?.error || 'ไม่สามารถบันทึกข้อมูลได้';
+      setError(serverError);
     } finally {
       setLoading(false);
     }
