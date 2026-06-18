@@ -81,7 +81,7 @@ router.put(
   '/jobs/:id/complete',
   auth,
   setUpload('job_evidence'),
-  upload.array('images', 20),
+  upload.fields([{ name: 'images', maxCount: 20 }, { name: 'entryFeeSlip', maxCount: 1 }]),
   async (req, res) => {
     const jobId  = req.params.id;
     const techId = req.user.id;
@@ -137,11 +137,33 @@ router.put(
       );
 
       // 4. Insert images
-      if (req.files && req.files.length > 0) {
-        for (const file of req.files) {
+      const images = req.files?.images || [];
+      if (images.length > 0) {
+        for (const file of images) {
           await conn.query(
             `INSERT INTO job_completion_images (job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
             [jobId, `/uploads/job_evidence/${file.filename}`, techId]
+          );
+        }
+      }
+
+      // 4.5 Insert Entry Fee
+      const { entryFeeStatus, accessNo, customerName } = req.body;
+      if (entryFeeStatus && entryFeeStatus !== 'none') {
+        let slipPath = null;
+        if (entryFeeStatus === 'cash') {
+          slipPath = 'รับหน้างาน';
+        } else if (entryFeeStatus === 'transfer') {
+          const slipFile = req.files?.entryFeeSlip ? req.files.entryFeeSlip[0] : null;
+          if (slipFile) {
+            slipPath = `/uploads/job_evidence/${slipFile.filename}`;
+          }
+        }
+        
+        if (slipPath) {
+          await conn.query(
+            'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
+            [accessNo || job.access_no, customerName || job.customer, slipPath, techId]
           );
         }
       }

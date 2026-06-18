@@ -5,12 +5,28 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [images, setImages] = useState([]);
   const [remark, setRemark] = useState('');
   
-  // New Fields
+  // Base Fields
   const [installDate, setInstallDate] = useState('');
   const [accessNo, setAccessNo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [mainPackage, setMainPackage] = useState('');
-  const [installDevice, setInstallDevice] = useState('');
+  
+  // Detailed Device Fields
+  const [soaDevice, setSoaDevice] = useState('');
+  const [snPlaybox, setSnPlaybox] = useState('');
+  const [snMesh, setSnMesh] = useState('');
+  const [snSim, setSnSim] = useState('');
+  const [snIpCamera, setSnIpCamera] = useState('');
+  const [splitNo, setSplitNo] = useState('');
+  const [portNo, setPortNo] = useState('');
+  const [l3Name, setL3Name] = useState('');
+  const [cableLength, setCableLength] = useState('');
+  const [refId3bb, setRefId3bb] = useState('');
+  const [scBlue, setScBlue] = useState('');
+
+  // Entry Fee Fields
+  const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none', 'transfer', 'cash'
+  const [entryFeeSlip, setEntryFeeSlip] = useState(null);
 
   const [loading, setLoading] = useState(false);
 
@@ -21,9 +37,13 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setAccessNo(job.access_no || '');
       setCustomerName(job.customer || '');
       setMainPackage(job.package || '');
-      setInstallDevice(job.install_device || '');
       setImages([]);
       setRemark('');
+      
+      // Reset detailed fields
+      setSoaDevice(''); setSnPlaybox(''); setSnMesh(''); setSnSim(''); setSnIpCamera('');
+      setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
+      setEntryFeeStatus('none'); setEntryFeeSlip(null);
     }
   }, [isOpen, job]);
 
@@ -37,6 +57,10 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       alert('อัปโหลดรูปภาพได้สูงสุด 20 รูป');
       return;
     }
+    if (entryFeeStatus === 'transfer' && !entryFeeSlip) {
+      alert('กรุณาแนบรูปสลิปโอนเงินค่าแรกเข้า');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -46,7 +70,24 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('accessNo', accessNo);
       formData.append('customerName', customerName);
       formData.append('mainPackage', mainPackage);
-      formData.append('installDevice', installDevice);
+      
+      const deviceDetails = `อุปกรณ์ปิด SOA: ${soaDevice}
+SN Playbox: ${snPlaybox || '-'}
+SN Mesh: ${snMesh || '-'}
+SN Sim: ${snSim || '-'}
+SN IP Camera: ${snIpCamera || '-'}
+Splitt: ${splitNo}
+ใช้ Port: ${portNo}
+ใช้ #L3(ชื่อ): ${l3Name || '-'}
+ระยะสายจริง(M): ${cableLength}
+Ref ID 3BB: ${refId3bb || '-'}
+ตัวต่อscสีฟ้า: ${scBlue || '-'}`;
+      formData.append('installDevice', deviceDetails);
+
+      formData.append('entryFeeStatus', entryFeeStatus);
+      if (entryFeeStatus === 'transfer' && entryFeeSlip) {
+        formData.append('entryFeeSlip', entryFeeSlip);
+      }
 
       for (let i = 0; i < images.length; i++) {
         formData.append('images', images[i]);
@@ -69,52 +110,94 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 overflow-y-auto">
           <h2 className="text-[#042C53] font-bold text-lg mb-4 flex items-center gap-2 sticky top-0 bg-white/90 p-2 rounded-xl backdrop-blur-sm shadow-sm z-10">
             <span className="text-2xl">✅</span> จบงาน: {job.access_no}
           </h2>
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {/* Base Info Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
+              <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">ข้อมูลพื้นฐาน</h3>
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">วันที่ติดตั้ง (ห้ามย้อนหลัง)</label>
+                <label className="block text-xs font-semibold text-[#042C53] mb-1">วันที่ติดตั้ง (ห้ามย้อนหลัง)</label>
                 <input type="date" required min={new Date().toLocaleDateString('en-CA')} value={installDate} onChange={(e) => setInstallDate(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">ปิดเคสงาน (NON)</label>
-                <input type="text" required value={accessNo} onChange={(e) => setAccessNo(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+                <label className="block text-xs font-semibold text-[#042C53] mb-1">ปิดเคสงาน (NON)</label>
+                <input type="text" readOnly value={accessNo}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">ชื่อ-นามสกุล ลูกค้า</label>
+                <label className="block text-xs font-semibold text-[#042C53] mb-1">ชื่อ-นามสกุล ลูกค้า</label>
                 <input type="text" required value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">แพ็กเกจหลัก</label>
+                <label className="block text-xs font-semibold text-[#042C53] mb-1">แพ็กเกจหลัก</label>
                 <input type="text" required value={mainPackage} onChange={(e) => setMainPackage(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
+              </div>
+            </div>
+
+            {/* Detailed Device Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
+              <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">รายละเอียดอุปกรณ์ติดตั้ง</h3>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">อุปกรณ์ปิด SOA <span className="text-red-500">*</span></label><input type="text" required value={soaDevice} onChange={(e) => setSoaDevice(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Playbox</label><input type="text" value={snPlaybox} onChange={(e) => setSnPlaybox(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Mesh</label><input type="text" value={snMesh} onChange={(e) => setSnMesh(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Sim</label><input type="text" value={snSim} onChange={(e) => setSnSim(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN IP Camera</label><input type="text" value={snIpCamera} onChange={(e) => setSnIpCamera(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">Splitt <span className="text-red-500">*</span></label><input type="text" required value={splitNo} onChange={(e) => setSplitNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ Port <span className="text-red-500">*</span></label><input type="text" required value={portNo} onChange={(e) => setPortNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ #L3(ชื่อ)</label><input type="text" value={l3Name} onChange={(e) => setL3Name(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ระยะสายจริง(M) <span className="text-red-500">*</span></label><input type="number" step="0.1" required value={cableLength} onChange={(e) => setCableLength(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">Ref ID 3BB</label><input type="text" value={refId3bb} onChange={(e) => setRefId3bb(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ตัวต่อ sc สีฟ้า</label><input type="text" value={scBlue} onChange={(e) => setScBlue(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+            </div>
+
+            {/* Entry Fee Section */}
+            <div className="p-4 bg-[#A3E635]/10 rounded-2xl border border-[#A3E635]/30">
+              <h3 className="text-sm font-bold text-[#4D7C0F] mb-3">ค่าแรกเข้า</h3>
+              <div className="flex gap-4 mb-3">
+                <label className="flex items-center gap-2 text-sm text-[#042C53]">
+                  <input type="radio" name="entryFee" value="none" checked={entryFeeStatus === 'none'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
+                  ไม่มี
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#042C53]">
+                  <input type="radio" name="entryFee" value="transfer" checked={entryFeeStatus === 'transfer'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
+                  มี (แนบสลิปโอนเงิน)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[#042C53]">
+                  <input type="radio" name="entryFee" value="cash" checked={entryFeeStatus === 'cash'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
+                  มี (รับหน้างาน)
+                </label>
+              </div>
+              {entryFeeStatus === 'transfer' && (
+                <div className="animate-fade-in-up">
+                  <label className="block text-xs font-semibold text-[#042C53] mb-1">อัปโหลดสลิปโอนเงิน <span className="text-red-500">*</span></label>
+                  <input type="file" accept="image/*" onChange={(e) => setEntryFeeSlip(e.target.files[0])} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm bg-white/50" />
+                </div>
+              )}
+            </div>
+
+            {/* Images and Remark */}
+            <div className="grid grid-cols-1 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐานปิดงาน <span className="text-red-500">*</span> (สูงสุด 20 รูป)</label>
+                <input type="file" multiple accept="image/*" onChange={(e) => setImages(e.target.files)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
+                <p className="text-xs text-[#185FA5] mt-1 text-right">{images.length}/20 รูป</p>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">อุปกรณ์ปิด SO</label>
-                <input type="text" value={installDevice} onChange={(e) => setInstallDevice(e.target.value)} placeholder="ระบุอุปกรณ์ที่ใช้"
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (ถ้ามี)</label>
+                <textarea value={remark} onChange={(e) => setRemark(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 resize-none h-16 text-sm" />
               </div>
             </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐาน (บังคับ, สูงสุด 20 รูป)</label>
-              <input type="file" multiple accept="image/*" onChange={(e) => setImages(e.target.files)}
-                className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50" />
-              <p className="text-xs text-[#185FA5] mt-1 text-right">{images.length}/20 รูป</p>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (ถ้ามี)</label>
-              <textarea value={remark} onChange={(e) => setRemark(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 resize-none h-16" />
-            </div>
-            <div className="flex gap-3 mt-2 sticky bottom-0 bg-white/90 p-2 rounded-xl backdrop-blur-sm z-10">
+
+            <div className="flex gap-3 mt-2 sticky bottom-0 bg-white/90 p-3 -mx-2 -mb-2 rounded-xl backdrop-blur-sm z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] border-t border-white/50">
               <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-[#378ADD]/30 text-[#042C53] font-semibold hover:bg-white/50 transition-colors">
                 ยกเลิก
               </button>
