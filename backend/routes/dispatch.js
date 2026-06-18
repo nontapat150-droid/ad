@@ -140,10 +140,12 @@ router.put(
       const images = req.files?.images || [];
       if (images.length > 0) {
         for (const file of images) {
-          await conn.query(
-            `INSERT INTO job_completion_images (job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
-            [jobId, `/uploads/job_evidence/${file.filename}`, techId]
-          );
+          try {
+            await conn.query(
+              `INSERT INTO job_completion_images (job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
+              [jobId, `/uploads/job_evidence/${file.filename}`, techId]
+            );
+          } catch(e) { console.error('Image insert error:', e.message); }
         }
       }
 
@@ -161,22 +163,26 @@ router.put(
         }
         
         if (slipPath) {
-          await conn.query(
-            'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
-            [accessNo || job.access_no, customerName || job.customer, slipPath, techId]
-          );
+          try {
+            await conn.query(
+              'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
+              [accessNo || job.access_no, customerName || job.customer, slipPath, techId]
+            );
+          } catch(e) { console.error('Entry fee insert error:', e.message); }
         }
       }
 
       // 5. syncTeamOilMonth — increment case_count
       if (job.team_id) {
-        const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-        await conn.query(
-          `INSERT INTO team_oil_cases (team_id, year_month, case_count)
-           VALUES (?, ?, 1)
-           ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-          [job.team_id, yearMonth]
-        );
+        try {
+          const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+          await conn.query(
+            `INSERT INTO team_oil_cases (team_id, year_month, case_count)
+             VALUES (?, ?, 1)
+             ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+            [job.team_id, yearMonth]
+          );
+        } catch(e) { console.error('Oil cases insert error:', e.message); }
       }
 
       await conn.commit();

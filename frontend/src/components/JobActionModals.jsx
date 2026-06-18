@@ -94,17 +94,21 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('customerName', customerName);
       formData.append('mainPackage', mainPackage);
       
-      const deviceDetails = `อุปกรณ์ปิด SOA: ${soaDevice}
-SN Playbox: ${snPlaybox || '-'}
-SN Mesh: ${snMesh || '-'}
-SN Sim: ${snSim || '-'}
-SN IP Camera: ${snIpCamera || '-'}
-Splitt: ${splitNo}
-ใช้ Port: ${portNo}
-ใช้ #L3(ชื่อ): ${l3Name || '-'}
-ระยะสายจริง(M): ${cableLength}
-Ref ID 3BB: ${refId3bb || '-'}
-ตัวต่อscสีฟ้า: ${scBlue || '-'}`;
+      const deviceDetails = [
+        soaDevice ? `SOA:${soaDevice}` : null,
+        snOnu ? `ONU:${snOnu}` : null,
+        snPlaybox ? `PB:${snPlaybox}` : null,
+        snMesh ? `Mesh:${snMesh}` : null,
+        snSim ? `SIM:${snSim}` : null,
+        snIpCamera ? `Cam:${snIpCamera}` : null,
+        splitNo ? `Sp:${splitNo}` : null,
+        portNo ? `Pt:${portNo}` : null,
+        l3Name ? `L3:${l3Name}` : null,
+        cableLength ? `สาย:${cableLength}M` : null,
+        refId3bb ? `3BB:${refId3bb}` : null,
+        scBlue ? `SCฟ้า:${scBlue}` : null
+      ].filter(Boolean).join(' | ');
+      
       formData.append('installDevice', deviceDetails);
       formData.append('soaDevice', soaDevice);
       formData.append('snOnu', snOnu);
