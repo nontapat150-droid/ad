@@ -33,8 +33,6 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [imagePreviews, setImagePreviews] = useState([]);
   const [entryFeeSlipPreview, setEntryFeeSlipPreview] = useState(null);
 
-  const [techBagItems, setTechBagItems] = useState([]);
-
   const [loading, setLoading] = useState(false);
 
   // Initialize fields when modal opens
@@ -55,17 +53,6 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
       setImagePreviews([]);
       setEntryFeeSlipPreview(null);
-      
-      // Fetch Tech Bag items
-      const fetchTechBag = async () => {
-        try {
-          const res = await api.get('/inventory/my-bag');
-          setTechBagItems(res.data);
-        } catch (err) {
-          console.error('Failed to fetch tech bag', err);
-        }
-      };
-      fetchTechBag();
     }
   }, [isOpen, job]);
 
@@ -124,17 +111,6 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       ].filter(Boolean).join(' | ');
       
       formData.append('installDevice', deviceDetails);
-      
-      // Match the entered soaDevice with an item in the tech bag to deduct it
-      if (soaDevice) {
-        const matchedItem = techBagItems.find(item => {
-          const itemText = item.sn ? `[SN: ${item.sn}] ${item.product_name}` : `[No-SN] ${item.product_name}`;
-          return itemText === soaDevice;
-        });
-        if (matchedItem) {
-          formData.append('soa_inventory_item_id', matchedItem.id);
-        }
-      }
       
       formData.append('soaDevice', soaDevice);
       formData.append('snOnu', snOnu);
@@ -222,13 +198,8 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
               <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">รายละเอียดอุปกรณ์ติดตั้ง</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">อุปกรณ์ปิด SOA (จากกระเป๋าช่าง หรือพิมพ์เอง)</label>
-                <input type="text" list="tech-bag-list" value={soaDevice} onChange={e => setSoaDevice(e.target.value)} placeholder="เลือกอุปกรณ์ หรือพิมพ์ชื่อ" className="w-full px-3 py-2 border rounded-lg focus:ring focus:ring-blue-200" />
-                <datalist id="tech-bag-list">
-                  {techBagItems.map(item => (
-                    <option key={item.id} value={item.sn ? `[SN: ${item.sn}] ${item.product_name}` : `[No-SN] ${item.product_name}`} />
-                  ))}
-                </datalist>
+                <label className="block text-sm font-medium text-gray-700 mb-1">อุปกรณ์ปิด SOA</label>
+                <input type="text" value={soaDevice} onChange={e => setSoaDevice(e.target.value)} placeholder="พิมพ์ชื่ออุปกรณ์" className="w-full px-3 py-2 border rounded-lg focus:ring focus:ring-blue-200" />
               </div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN ONU (ถ้าไม่มีใส่ -)</label><input type="text" value={snOnu} onChange={(e) => setSnOnu(e.target.value)} placeholder="เช่น ALCLFxxxxxxx" className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Playbox</label><input type="text" value={snPlaybox} onChange={(e) => setSnPlaybox(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
