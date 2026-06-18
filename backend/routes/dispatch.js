@@ -200,7 +200,7 @@ router.put(
     } catch (err) {
       await conn.rollback();
       console.error('Complete job error:', err);
-      res.status(500).json({ error: 'Server error', details: err.message });
+      res.status(500).json({ error: 'DB Error: ' + err.message, details: err.message });
     } finally {
       conn.release();
     }

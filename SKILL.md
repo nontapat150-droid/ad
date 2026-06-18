@@ -1,94 +1,104 @@
 ---
-name: bount-management-system-guide
-description: คู่มือและเอกสารระบบ Bount Back Office (BO) อย่างละเอียด ครอบคลุมโครงสร้าง สถาปัตยกรรม ฐานข้อมูล บทบาทผู้ใช้งาน และขั้นตอนการ Deploy
+name: BO-Bount-System-Knowledge
+description: หลักการทำงานทั้งหมดของระบบ Bount ระบบจัดการงาน (Operations API)
 ---
 
-# Bount Management System (BO)
+# 📚 สรุปหลักการทำงานของระบบ Bount (BO Operations System)
 
-ไฟล์นี้คือ AI Skill Instruction สำหรับให้ AI Agent ใช้ทำความเข้าใจ โครงสร้าง, ลอจิก, และข้อควรระวังต่างๆ ของระบบ Bount (bonusais.com) เพื่อให้สามารถเขียนโค้ดและแก้ไขปัญหาได้อย่างแม่นยำ
+เอกสารนี้สรุปโครงสร้าง สถาปัตยกรรม และหลักการทำงานทั้งหมดของระบบ **Bount** ซึ่งเป็นระบบ Back Office สำหรับจัดการงานติดตั้ง (Installation), งานซ่อมบำรุง (MA), การเบิกจ่ายอุปกรณ์, การจัดการน้ำมัน, การเช็คอินเวลาทำงาน, และการจัดการทีมช่าง
 
-## 1. ข้อมูลทั่วไปของระบบ (System Overview)
-- **ชื่อโปรเจกต์:** Bount ระบบจัดการงาน
-- **เป้าหมาย:** ระบบ Back Office สำหรับจัดการทีมช่างภาคสนาม (Field Service Management), จัดการคลังสินค้า, ลงเวลาเข้าออกงาน และรายงานผลสถิติ
-- **Tech Stack:**
-  - **Frontend:** React.js (Vite), Tailwind CSS, React Router
-  - **Backend:** Node.js, Express.js
-  - **Database:** MySQL
-- **Root Directory:** `c:\xampp\htdocs\BO\ad\`
+---
 
-## 2. บทบาทและสิทธิ์ผู้ใช้งาน (User Roles & Permissions)
-ระบบจัดการสิทธิ์ผ่านคอลัมน์ `role` และ `user_roles` (Extra Roles) ในตาราง `users`:
-1. `super_admin` (ผู้ดูแลระบบ): เห็นทุกเมนู มี Super Admin Dashboard จัดการผู้ใช้และภาพรวมทั้งหมด
-2. `admin` (แอดมิน): ดูแลจัดการ Dispatch, คลังสินค้า, และสรุปผล MA
-3. `technician` (ช่าง Office): ช่างทั่วไป ลงเวลาเข้างานแบบปกติ (เวลาสายตั้งได้แบบ Global หรือรายบุคคล)
-4. `ma_technician` (ช่าง MA): ทีมซ่อมบำรุง ระบบลงเวลาจะเชื่อมโยงกับงาน MA วันนั้น (Threshold)
-5. `sales` (เซล): ทีมขาย ระบบลงเวลาจะมี **เฉพาะ "เข้างาน"** ไม่มีเลิกงาน
-6. `intern` (เด็กฝึกงาน): ผู้ใช้ฝึกหัด
+## 🏗️ 1. สถาปัตยกรรมของระบบ (System Architecture)
 
-## 3. ระบบหลักที่สำคัญ (Core Features)
+ระบบถูกออกแบบเป็นสถาปัตยกรรมแบบ **Client-Server** โดยแยกส่วน Frontend และ Backend ออกจากกันชัดเจน
 
-### 3.1 ระบบ Authentication & Real-time Status
-- ใช้ **JWT (JSON Web Token)** แนบไปกับ Header `Authorization: Bearer <token>`
-- **สถานะออนไลน์ (Online/Offline):**
-  - ไม่ได้อิงจากการแค่กดเช็คอิน แต่เช็คจาก **การใช้งานระบบจริงๆ (Real-time Usage)**
-  - ทุกครั้งที่ยิง API Backend จะอัปเดตเวลาล่าสุดใน `global.activeUsers` (อยู่ที่ `backend/middleware/auth.js`)
-  - หากไม่มีการใช้งานเกิน 15 นาที ระบบจะมองว่าออฟไลน์ (`is_online = 0`) ในหน้า Dashboard
+*   **Frontend (หน้าบ้าน):** 
+    *   พัฒนาด้วย **React.js** (ผ่าน Vite)
+    *   จัดการ UI และ Styling ด้วย **Tailwind CSS** และ CSS พื้นฐาน (App.css, index.css)
+    *   จัดการ State ภายในแอพด้วย React Hooks (`useState`, `useEffect`) และ Context API (`AuthContext`)
+    *   การ Routing จัดการโดย `react-router-dom`
+    *   มีการเชื่อมต่อ API ผ่าน Axios (`src/api/axios.js`) โดยมีการแนบ JWT Token ใน Header
 
-### 3.2 ระบบลงเวลาเข้า-ออกงาน (Check-in System)
-- อยู่ในหน้า `CheckinPage.jsx`
-- ดึงพิกัด GPS อัตโนมัติและเปิดกล้องถ่ายภาพ (ประทับลายน้ำพิกัด+เวลา)
-- ระบบจะซ่อนปุ่มบางปุ่มหรือบางแท็บตาม Role อัตโนมัติ (เช่น เซล จะเห็นแค่ปุ่มเข้างาน)
+*   **Backend (หลังบ้าน):**
+    *   พัฒนาด้วย **Node.js** และ **Express.js** (`backend/server.js`)
+    *   โครงสร้างแบบ RESTful API แยก Router ตามหมวดหมู่ (อยู่ใน `backend/routes/`)
+    *   ฐานข้อมูลใช้ **MySQL** (`mysql2/promise`) เชื่อมต่อแบบ Connection Pool
+    *   การยืนยันตัวตนใช้ **JWT (JSON Web Token)** ผ่าน Middleware `auth.js`
+    *   มีการใช้ `multer` สำหรับจัดการการอัปโหลดไฟล์ (รูปภาพหลักฐานการทำงาน, สลิปโอนเงิน)
 
-### 3.3 ระบบจ่ายงานและติดตามสถานะ (Dispatch & Timeline)
-- แอดมินนำเข้างานด้วยไฟล์ Excel (`jobs` table)
-- **Timeline** ของแต่ละงานดึงจาก Timestamp ต่อไปนี้:
-  1. `created_at` / `create_time`: สร้างงานในระบบ
-  2. `plan_arrival_time`: เวลานัดหมาย
-  3. `set_off_time`: ออกเดินทาง
-  4. `arrival_time`: ถึงหน้างาน
-  5. `finish_time`: ปิดงาน
-- เมื่อช่างมอบหมายงาน หรืออัปเดตสถานะในแอป เวลาจะถูกบันทึกลงฟิลด์เหล่านี้ทันที
+---
 
-### 3.4 ระบบคลังสินค้า (Inventory)
-- นำเข้าสินค้าด้วย Excel ตาราง `inventory` และ `equipments`
-- เบิกจ่ายของให้ทีมช่าง โดยมีหน้า Inventory Dashboard คอยสรุปของคงคลัง
+## 👥 2. บทบาทและสิทธิ์การใช้งาน (Role-Based Access Control - RBAC)
 
-## 4. โครงสร้างโฟลเดอร์ (Directory Structure)
-```
-BO/ad/
-├── backend/                  # Node.js Express API
-│   ├── config/               # db.js (เชื่อมต่อ MySQL)
-│   ├── middleware/           # auth.js (เช็ค JWT & อัปเดตสถานะ Online)
-│   ├── routes/               # API endpoints (auth.js, checkin.js, dispatch.js, stats.js ฯลฯ)
-│   ├── uploads/              # เก็บรูปภาพถ่ายเข้างาน และหลักฐานการทำงาน
-│   ├── server.js             # Entry point ของ Backend (Port 3001)
-│   └── package.json
-├── frontend/                 # React.js (Vite)
-│   ├── src/
-│   │   ├── api/              # axios.js (ตั้งค่า BaseURL ชี้ไปที่ Backend)
-│   │   ├── components/       # UI Components เช่น Layout.jsx, Timeline
-│   │   ├── context/          # AuthContext.jsx
-│   │   ├── pages/            # หน้าเว็บทั้งหมด เช่น AdminDashboard, CheckinPage
-│   │   └── index.css         # ไฟล์ CSS หลัก (Tailwind)
-│   └── package.json
-└── database/
-    └── bou_schema.sql        # โครงสร้างตารางฐานข้อมูลล่าสุด
-```
+ระบบมีการแบ่งสิทธิ์ผู้ใช้งาน (Roles) อย่างชัดเจนผ่าน `AuthContext` และ Backend Middleware:
+*   **`super_admin` / `admin`**: มีสิทธิ์เข้าถึงทุกหน้าเมนู (Dashboard, คลังสินค้า, จัดการผู้ใช้, น้ำมัน, ดูข้อมูลลูกค้า, อนุมัติการเบิกจ่าย, ลบหรือแก้ไขข้อมูลงาน)
+*   **`technician` (ช่างติดตั้ง)**: มองเห็นเฉพาะเมนูที่เกี่ยวข้องกับงานติดตั้ง (เข้างาน, กระเป๋าช่าง, ถ่ายรูปหลักฐาน, จบงาน, เติมน้ำมันของทีมตัวเอง)
+*   **`ma_technician` (ช่างซ่อมบำรุง)**: คล้ายช่างติดตั้ง แต่มองเห็นเฉพาะงานประเภทซ่อมบำรุง (MA)
+*   **`sales` (เซลส์)**: มีสิทธิ์เข้าถึงหน้าการลงเวลา/เช็คอิน หรือดูภาพรวมยอดขายตามที่กำหนด
 
-## 5. คู่มือการแก้ไขโค้ดและ Deploy
-1. **Frontend:**
-   - เมื่อทำการแก้ไขไฟล์ในโฟลเดอร์ `frontend/src/` **ต้องสั่ง Build ทุกครั้ง**
-   - คำสั่ง: `cd frontend && npm run build` 
-   - ระบบจะ Build ไฟล์ไปลง `dist/` หรือถูกเรียกใช้งานผ่าน Server
-2. **Backend:**
-   - หากแก้ไฟล์ในฝั่ง `backend/` ต้องรีสตาร์ทเซิร์ฟเวอร์
-   - สามารถสั่งรีสตาร์ทด้วยคำสั่ง `echo restart > backend/tmp/restart.txt` หรือ restart node process
-3. **Database:**
-   - ใช้ `mysql2/promise` เป็นหลัก
-   - ระวังเรื่องพอร์ตและการเชื่อมต่อ สามารถเช็คค่าจาก `backend/config/db.js`
+---
 
-## 6. ข้อพึงระวังสำหรับ AI (Critical Instructions)
-- หากแก้ UI ให้พิจารณาเรื่อง Responsive ด้วยคลาส Tailwind (เช่น `sm:flex-row`, `md:col-span-2`)
-- โทนสีหลักของระบบเน้น Glassmorphism (`glass` class), สีฟ้า/น้ำเงิน (Blue/Brand) และมีการเล่น Gradient เพื่อความสวยงาม
-- เมื่อผู้ใช้ร้องขอให้เพิ่มระบบใดๆ ต้องเช็ค `users` schema ก่อนเสมอว่ามีฟิลด์รองรับหรือไม่
-- **หากแก้ไขหน้าใดๆ บน Frontend ต้องรัน `npm run build` เสมอ เพื่อให้การเปลี่ยนแปลงแสดงผลบน Production (bonusais.com)**
+## ⚙️ 3. โครงสร้างฐานข้อมูลหลัก (Core Database Entities)
+
+*   `users`: เก็บข้อมูลพนักงาน รหัสผ่าน (Hashed) และ Role
+*   `teams`: จัดการทีมช่าง ซึ่งพนักงานแต่ละคนจะสังกัดทีม (team_id)
+*   `jobs` / `ma_jobs`: เก็บข้อมูลใบสั่งงาน (Dispatch) แยกตามงานติดตั้งและงานซ่อม
+*   `inventory_*` (products, items, logs, dispatches): ระบบคลังสินค้า จัดการสต๊อก ไอเทมแบบมี Serial Number/MAC และการเบิกจ่าย
+*   `oil_records`: เก็บประวัติการเติมน้ำมัน ยอดบิล และเลขไมล์
+*   `checkins`: เก็บข้อมูลการลงเวลาเข้า-ออกงาน พร้อมพิกัด GPS
+*   `entry_fees`: เก็บข้อมูลรูปภาพสลิปค่าแรกเข้าของงานนั้นๆ
+
+---
+
+## 🚀 4. ระบบงานหลัก (Key Features & Workflows)
+
+### 4.1 ระบบจัดการงาน (Job Dispatch System)
+*   **การนำเข้าข้อมูล:** Admin สามารถสร้างงานใหม่ หรือ Import ข้อมูลงานผ่านไฟล์ Excel (เส้นทาง `POST /jobs/bulk`)
+*   **การแจกจ่ายงาน:** Admin กดปุ่มมอบหมายงานให้ "ทีม (Team)" และ "ช่างเทคนิค (Field Engineer)"
+*   **การแก้ไขเวลา:** Admin สามารถเลื่อนนัดหมายลูกค้า โดยการเปลี่ยน `plan_arrival_date` และ `plan_arrival_time`
+*   **การดำเนินการของช่าง:** ช่างเปิดดูงานที่ได้รับมอบหมาย, แจ้งสถานะ, อัปเดตพิกัด
+*   **การปิดงาน (Job Completion):** ช่างกด "ปิดงาน" โดยต้องกรอกข้อมูลอุปกรณ์ที่ใช้ (SOA, SN ONU, SN Playbox, ระยะสาย), ถ่ายรูปหลักฐาน, และอัปโหลดสลิปค่าแรกเข้า (ถ้ามี) ซึ่งข้อมูลจะบันทึกลง Table ที่เกี่ยวข้องรวมถึงแยกเก็บรูปไว้ใน `job_completion_images`
+
+### 4.2 ระบบคลังสินค้าและกระเป๋าช่าง (Inventory & Tech Bag)
+*   ระบบสามารถจัดการสินค้าแบบมี Serial Number และแบบไม่มี Serial
+*   Admin นำเข้าสินค้าเข้าคลัง
+*   ช่างกด "เบิกของ" เข้ากระเป๋า (Tech Bag)
+*   ระบบตรวจสอบสต๊อกคงเหลือ และลดสต๊อกอัตโนมัติเมื่ออุปกรณ์ถูกระบุว่า "ใช้งานแล้ว" ตอนช่างกดจบงาน
+*   สามารถย้ายสินค้าข้ามทีม หรือคืนของเข้าคลังได้ (Return)
+
+### 4.3 ระบบบันทึกค่าน้ำมัน (Oil Management)
+*   ทีมช่างสามารถขออนุมัติค่าเติมน้ำมัน โดยบันทึกยอดเงิน จำนวนลิตร และเลขไมล์
+*   มีระบบโควตาน้ำมัน (Quota) คำนวณรายเดือนอัตโนมัติ
+*   Admin สามารถตรวจสอบและจัดการการตั้งค่าโควตาน้ำมันของแต่ละทีมได้
+
+### 4.4 ระบบลงเวลาและติดตามพิกัด (Check-in & Location)
+*   พนักงานทุกคนสามารถกด "เข้างาน" และ "ออกงาน" ในแต่ละวัน
+*   ระบบจะบังคับขอสิทธิ์ Location จากเบราว์เซอร์ (GPS) เพื่อบันทึกพิกัด `lat`/`lng` เก็บลงในระบบ
+*   Admin สามารถดูสรุปเวลาเข้า-ออกงาน (Attendance Summary) ของพนักงานทั้งหมดได้
+
+### 4.5 ระบบสื่อสารและแจ้งเตือน (Announcements & Reporting)
+*   **ประกาศ (Announcements):** Admin สามารถสร้างประกาศ (Text + Image) เพื่อให้ทุกคนในระบบเห็นเมื่อล็อกอิน
+*   **แจ้งปัญหา (Report Issue):** ผู้ใช้สามารถแจ้งปัญหาการใช้งานแอพ (Bug) ไปยังผู้พัฒนาระบบผ่านหน้า Report
+
+---
+
+## 📁 5. สรุปโครงสร้างโฟลเดอร์ (Folder Structure)
+
+*   `backend/`
+    *   `config/`: การเชื่อมต่อฐานข้อมูล (`db.js`)
+    *   `middleware/`: ระบบความปลอดภัย (`auth.js` ตรวจสอบ Token)
+    *   `routes/`: API Endpoints แยกตามโมดูล (auth, dispatch, inventory, oil, checkin)
+    *   `uploads/`: โฟลเดอร์เก็บไฟล์ภาพ/สลิป (Static files)
+    *   `server.js`: จุดเริ่มต้นของ API Server
+*   `frontend/`
+    *   `src/api/`: ตั้งค่า Axios (`axios.js`) เพื่อคุยกับ Backend
+    *   `src/components/`: คอมโพเนนต์ React ที่ใช้ซ้ำได้ (Modals, Sidebar, Navbar)
+    *   `src/context/`: จัดการ Global State เช่น `AuthContext`
+    *   `src/pages/`: หน้าจอหลักแต่ละหน้า (Dashboard, Jobs, Check-in, Inventory)
+    *   `src/App.jsx`: จัดการ Routing (React Router) และ Protected Routes
+
+---
+
+**บทสรุปการทำงานของระบบ:** 
+ระบบทำงานไหลลื่นโดยการดึงข้อมูลผ่าน REST API เข้าสู่ Frontend State การแก้ไขต่างๆ จะถูกตรวจสอบสิทธิ์ผู้ใช้จาก Backend เสมอ หากมีข้อผิดพลาดเกี่ยวกับโครงสร้างฐานข้อมูล ระบบจะส่ง Error กลับมาแจ้งเตือนที่ Frontend ทันที เพื่อป้องกันข้อมูลผิดพลาดหรือสูญหาย
