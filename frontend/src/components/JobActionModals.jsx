@@ -28,6 +28,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none', 'transfer', 'cash'
   const [entryFeeSlip, setEntryFeeSlip] = useState(null);
 
+  const [imagePreviews, setImagePreviews] = useState([]);
+  const [entryFeeSlipPreview, setEntryFeeSlipPreview] = useState(null);
+
   const [loading, setLoading] = useState(false);
 
   // Initialize fields when modal opens
@@ -44,8 +47,27 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setSoaDevice(''); setSnPlaybox(''); setSnMesh(''); setSnSim(''); setSnIpCamera('');
       setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
       setEntryFeeStatus('none'); setEntryFeeSlip(null);
+      imagePreviews.forEach(url => URL.revokeObjectURL(url));
+      if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
+      setImagePreviews([]);
+      setEntryFeeSlipPreview(null);
     }
   }, [isOpen, job]);
+
+  const handleImagesChange = (e) => {
+    const files = Array.from(e.target.files);
+    setImages(files);
+    imagePreviews.forEach(url => URL.revokeObjectURL(url));
+    setImagePreviews(files.map(f => URL.createObjectURL(f)));
+  };
+
+  const handleEntryFeeSlipChange = (e) => {
+    const file = e.target.files[0];
+    setEntryFeeSlip(file);
+    if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
+    if (file) setEntryFeeSlipPreview(URL.createObjectURL(file));
+    else setEntryFeeSlipPreview(null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -196,8 +218,20 @@ Ref ID 3BB: ${refId3bb || '-'}
                   <label className="block text-xs font-semibold text-[#042C53] mb-2 flex items-center gap-2">
                     <span className="text-blue-500">📎</span> อัปโหลดสลิปโอนเงิน <span className="text-red-500">*</span>
                   </label>
-                  <input type="file" accept="image/*" onChange={(e) => setEntryFeeSlip(e.target.files[0])} 
-                    className="w-full text-sm text-[#042C53] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#84CC16]/20 file:text-[#4D7C0F] hover:file:bg-[#84CC16]/30 transition-all cursor-pointer" />
+                  <div className="relative mt-2 group cursor-pointer">
+                    <input type="file" accept="image/*" onChange={handleEntryFeeSlipChange} 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                    <div className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl transition-all bg-white/50 ${entryFeeSlipPreview ? 'border-[#84CC16] bg-[#84CC16]/10' : 'border-[#378ADD]/50 hover:border-[#378ADD] hover:bg-[#378ADD]/5'}`}>
+                      {entryFeeSlipPreview ? (
+                        <img src={entryFeeSlipPreview} alt="Slip Preview" className="h-32 object-contain rounded-lg shadow-sm" />
+                      ) : (
+                        <>
+                          <span className="text-3xl mb-2">📸</span>
+                          <span className="text-sm font-semibold text-[#185FA5]">คลิกเพื่ออัปโหลดสลิปโอนเงิน</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -206,9 +240,26 @@ Ref ID 3BB: ${refId3bb || '-'}
             <div className="grid grid-cols-1 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
               <div>
                 <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐานปิดงาน <span className="text-red-500">*</span> (สูงสุด 20 รูป)</label>
-                <input type="file" multiple accept="image/*" onChange={(e) => setImages(e.target.files)}
-                  className="w-full px-4 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
-                <p className="text-xs text-[#185FA5] mt-1 text-right">{images.length}/20 รูป</p>
+                <div className="relative mt-2 group cursor-pointer">
+                  <input type="file" multiple accept="image/*" onChange={handleImagesChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                  <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[#378ADD]/50 rounded-xl bg-white/50 hover:bg-[#378ADD]/5 hover:border-[#378ADD] transition-all">
+                    <span className="text-4xl mb-2">🖼️</span>
+                    <span className="text-sm font-semibold text-[#185FA5]">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวาง</span>
+                    <span className="text-xs text-gray-500 mt-1">สามารถเลือกได้สูงสุด 20 รูป</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <p className="text-xs text-gray-500">รองรับไฟล์รูปภาพเท่านั้น</p>
+                  <p className="text-xs text-[#185FA5] font-bold">{images.length}/20 รูป</p>
+                </div>
+                {imagePreviews.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3 p-2 bg-white/30 rounded-xl border border-white/50 max-h-40 overflow-y-auto">
+                    {imagePreviews.map((url, i) => (
+                      <img key={i} src={url} alt={`Preview ${i}`} className="h-16 w-16 object-cover rounded-lg shadow-sm border border-white" />
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (ถ้ามี)</label>
