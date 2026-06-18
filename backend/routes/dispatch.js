@@ -525,7 +525,20 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
       return res.status(404).json({ error: 'ไม่พบข้อมูลจาก Access Number นี้' });
     }
 
-    res.json(rows[0]); // Since access_no is unique, return the single object
+    const jobData = rows[0];
+
+    // Get entry fee info
+    const [efRows] = await pool.query('SELECT image_path, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1', [jobData.access_no]);
+    if (efRows.length > 0) {
+      jobData.entry_fee_image = efRows[0].image_path;
+      jobData.entry_fee_updated_at = efRows[0].created_at;
+    }
+
+    // Get completion images
+    const [imgRows] = await pool.query('SELECT image_path FROM job_completion_images WHERE job_id = ?', [jobData.id]);
+    jobData.completion_images = imgRows.map(r => r.image_path);
+
+    res.json(jobData);
   } catch (err) {
     console.error('Search Access Error:', err);
     res.status(500).json({ error: 'Server error' });

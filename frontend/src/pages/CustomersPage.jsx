@@ -354,6 +354,29 @@ export default function CustomersPage() {
                   </div>
                 )}
 
+                {/* Evidence Images */}
+                {customerData.completion_images && customerData.completion_images.length > 0 && (
+                  <div className="bg-white rounded-xl border border-[#E5E7EB] p-6"
+                    style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                    <h3 className="text-xs font-bold text-[#65a30d] uppercase tracking-wider mb-4 pb-2 border-b border-[#E5E7EB] flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#A3E635]" />
+                      รูปภาพหลักฐานปิดงาน (Evidence Images)
+                    </h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                      {customerData.completion_images.map((img, idx) => (
+                        <div key={idx} className="aspect-square border border-[#E5E7EB] rounded-xl overflow-hidden bg-[#F9FAFB] shadow-sm">
+                          <img 
+                            src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${img}`}
+                            alt={`Evidence ${idx + 1}`} 
+                            className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                            onClick={() => window.open(`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${img}`, '_blank')}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
@@ -369,7 +392,7 @@ function InfoRow({ label, value }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4">
       <span className="text-sm font-medium text-[#9CA3AF] w-32 shrink-0">{label}:</span>
-      <span className="text-sm text-[#1F2937] font-semibold">{value || '-'}</span>
+      <span className="text-sm text-[#1F2937] font-semibold whitespace-pre-wrap">{value || '-'}</span>
     </div>
   );
 }
