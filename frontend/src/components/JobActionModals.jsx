@@ -158,26 +158,46 @@ Ref ID 3BB: ${refId3bb || '-'}
             </div>
 
             {/* Entry Fee Section */}
-            <div className="p-4 bg-[#A3E635]/10 rounded-2xl border border-[#A3E635]/30">
-              <h3 className="text-sm font-bold text-[#4D7C0F] mb-3">ค่าแรกเข้า</h3>
-              <div className="flex gap-4 mb-3">
-                <label className="flex items-center gap-2 text-sm text-[#042C53]">
-                  <input type="radio" name="entryFee" value="none" checked={entryFeeStatus === 'none'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
-                  ไม่มี
-                </label>
-                <label className="flex items-center gap-2 text-sm text-[#042C53]">
-                  <input type="radio" name="entryFee" value="transfer" checked={entryFeeStatus === 'transfer'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
-                  มี (แนบสลิปโอนเงิน)
-                </label>
-                <label className="flex items-center gap-2 text-sm text-[#042C53]">
-                  <input type="radio" name="entryFee" value="cash" checked={entryFeeStatus === 'cash'} onChange={(e) => setEntryFeeStatus(e.target.value)} className="text-[#84CC16] focus:ring-[#84CC16]" />
-                  มี (รับหน้างาน)
-                </label>
+            <div className="p-4 bg-gradient-to-br from-[#A3E635]/20 to-[#A3E635]/5 rounded-2xl border border-[#A3E635]/40 shadow-sm">
+              <h3 className="text-sm font-bold text-[#4D7C0F] mb-3 flex items-center gap-2">
+                <span>💰</span> ค่าแรกเข้า
+              </h3>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <button 
+                  type="button" 
+                  onClick={() => setEntryFeeStatus('none')} 
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'none' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                >
+                  <span className="text-2xl drop-shadow-sm">🚫</span>
+                  <span className="text-xs font-bold">ไม่มี</span>
+                </button>
+                
+                <button 
+                  type="button" 
+                  onClick={() => setEntryFeeStatus('transfer')} 
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'transfer' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                >
+                  <span className="text-2xl drop-shadow-sm">💳</span>
+                  <span className="text-xs font-bold text-center">โอนเงิน<br/><span className="text-[10px] font-normal text-gray-500">(แนบสลิป)</span></span>
+                </button>
+                
+                <button 
+                  type="button" 
+                  onClick={() => setEntryFeeStatus('cash')} 
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'cash' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                >
+                  <span className="text-2xl drop-shadow-sm">💵</span>
+                  <span className="text-xs font-bold text-center">รับหน้างาน<br/><span className="text-[10px] font-normal text-gray-500">(เงินสด)</span></span>
+                </button>
               </div>
+              
               {entryFeeStatus === 'transfer' && (
-                <div className="animate-fade-in-up">
-                  <label className="block text-xs font-semibold text-[#042C53] mb-1">อัปโหลดสลิปโอนเงิน <span className="text-red-500">*</span></label>
-                  <input type="file" accept="image/*" onChange={(e) => setEntryFeeSlip(e.target.files[0])} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm bg-white/50" />
+                <div className="animate-fade-in-up mt-4 p-3 bg-white/60 rounded-xl border border-white/80">
+                  <label className="block text-xs font-semibold text-[#042C53] mb-2 flex items-center gap-2">
+                    <span className="text-blue-500">📎</span> อัปโหลดสลิปโอนเงิน <span className="text-red-500">*</span>
+                  </label>
+                  <input type="file" accept="image/*" onChange={(e) => setEntryFeeSlip(e.target.files[0])} 
+                    className="w-full text-sm text-[#042C53] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-[#84CC16]/20 file:text-[#4D7C0F] hover:file:bg-[#84CC16]/30 transition-all cursor-pointer" />
                 </div>
               )}
             </div>
