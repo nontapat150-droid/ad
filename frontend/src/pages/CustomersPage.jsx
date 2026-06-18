@@ -194,6 +194,8 @@ export default function CustomersPage() {
                         ข้อมูลบริการ (Service)
                       </h3>
                       <div className="space-y-3">
+                        <InfoRow label="วันที่ติดตั้ง (Plan Date)" value={customerData.plan_arrival_date ? new Date(customerData.plan_arrival_date).toLocaleDateString('th-TH') : '-'} />
+                        <InfoRow label="เลข (NON)" value={customerData.access_no} />
                         <InfoRow label="แพ็กเกจ" value={customerData.package} />
                         {customerData.soa_device ? (
                           <>
@@ -210,8 +212,8 @@ export default function CustomersPage() {
                             {customerData.ref_id_3bb && customerData.ref_id_3bb !== '-' && <InfoRow label="Ref ID 3BB" value={customerData.ref_id_3bb} />}
                             {customerData.sc_blue && customerData.sc_blue !== '-' && <InfoRow label="ตัวต่อscสีฟ้า" value={customerData.sc_blue} />}
                           </>
-                        ) : customerData.install_device && customerData.install_device.includes('\n') ? (
-                          customerData.install_device.split('\n').map((line, idx) => {
+                        ) : customerData.install_device && (customerData.install_device.includes('\n') || customerData.install_device.includes('|')) ? (
+                          customerData.install_device.split(/[\n|]/).map((line, idx) => {
                             if (!line.trim()) return null;
                             const colonIdx = line.indexOf(':');
                             if (colonIdx !== -1) {

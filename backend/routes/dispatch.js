@@ -130,6 +130,21 @@ router.put(
         ]
       );
 
+      // Deduct inventory if selected
+      if (req.body.soa_inventory_item_id) {
+        try {
+          const itemId = req.body.soa_inventory_item_id;
+          const [[item]] = await conn.query('SELECT quantity FROM inventory_items WHERE id = ? AND owner_id = ? AND status = "dispatched"', [itemId, techId]);
+          if (item) {
+            await conn.query('UPDATE inventory_items SET status = "used" WHERE id = ?', [itemId]);
+            await conn.query(
+              'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
+              [itemId, techId, item.quantity, `ติดตั้งให้ลูกค้า: ${job.access_no || jobId}`]
+            );
+          }
+        } catch(e) { console.error('Inventory deduction error:', e.message); }
+      }
+
       // 3. Log to job_logs
       try {
         await conn.query(
