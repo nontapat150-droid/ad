@@ -195,7 +195,22 @@ export default function CustomersPage() {
                       </h3>
                       <div className="space-y-3">
                         <InfoRow label="แพ็กเกจ" value={customerData.package} />
-                        {customerData.install_device && customerData.install_device.includes('\n') ? (
+                        {customerData.soa_device ? (
+                          <>
+                            <InfoRow label="อุปกรณ์ปิด SOA" value={customerData.soa_device} />
+                            {customerData.sn_onu && customerData.sn_onu !== '-' && <InfoRow label="SN ONU" value={customerData.sn_onu} />}
+                            {customerData.sn_playbox && customerData.sn_playbox !== '-' && <InfoRow label="SN Playbox" value={customerData.sn_playbox} />}
+                            {customerData.sn_mesh && customerData.sn_mesh !== '-' && <InfoRow label="SN Mesh" value={customerData.sn_mesh} />}
+                            {customerData.sn_sim && customerData.sn_sim !== '-' && <InfoRow label="SN Sim" value={customerData.sn_sim} />}
+                            {customerData.sn_ip_camera && customerData.sn_ip_camera !== '-' && <InfoRow label="SN IP Camera" value={customerData.sn_ip_camera} />}
+                            {customerData.split_no && <InfoRow label="Splitt" value={customerData.split_no} />}
+                            {customerData.port_no && <InfoRow label="ใช้ Port" value={customerData.port_no} />}
+                            {customerData.l3_name && customerData.l3_name !== '-' && <InfoRow label="ใช้ #L3(ชื่อ)" value={customerData.l3_name} />}
+                            {customerData.cable_length && <InfoRow label="ระยะสายจริง(M)" value={customerData.cable_length} />}
+                            {customerData.ref_id_3bb && customerData.ref_id_3bb !== '-' && <InfoRow label="Ref ID 3BB" value={customerData.ref_id_3bb} />}
+                            {customerData.sc_blue && customerData.sc_blue !== '-' && <InfoRow label="ตัวต่อscสีฟ้า" value={customerData.sc_blue} />}
+                          </>
+                        ) : customerData.install_device && customerData.install_device.includes('\n') ? (
                           customerData.install_device.split('\n').map((line, idx) => {
                             if (!line.trim()) return null;
                             const colonIdx = line.indexOf(':');

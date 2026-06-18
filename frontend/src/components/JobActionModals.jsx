@@ -13,6 +13,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   
   // Detailed Device Fields
   const [soaDevice, setSoaDevice] = useState('');
+  const [snOnu, setSnOnu] = useState('');
   const [snPlaybox, setSnPlaybox] = useState('');
   const [snMesh, setSnMesh] = useState('');
   const [snSim, setSnSim] = useState('');
@@ -105,6 +106,18 @@ Splitt: ${splitNo}
 Ref ID 3BB: ${refId3bb || '-'}
 ตัวต่อscสีฟ้า: ${scBlue || '-'}`;
       formData.append('installDevice', deviceDetails);
+      formData.append('soaDevice', soaDevice);
+      formData.append('snOnu', snOnu);
+      formData.append('snPlaybox', snPlaybox);
+      formData.append('snMesh', snMesh);
+      formData.append('snSim', snSim);
+      formData.append('snIpCamera', snIpCamera);
+      formData.append('splitNo', splitNo);
+      formData.append('portNo', portNo);
+      formData.append('l3Name', l3Name);
+      formData.append('cableLength', cableLength);
+      formData.append('refId3bb', refId3bb);
+      formData.append('scBlue', scBlue);
 
       formData.append('entryFeeStatus', entryFeeStatus);
       if (entryFeeStatus === 'transfer' && entryFeeSlip) {
