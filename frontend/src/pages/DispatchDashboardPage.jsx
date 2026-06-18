@@ -5,6 +5,7 @@ import JobDispatchModal from '../components/JobDispatchModal';
 import AutoDispatchModal from '../components/AutoDispatchModal';
 import EditJobModal from '../components/EditJobModal';
 import ImportExcelModal from '../components/ImportExcelModal';
+import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -40,6 +41,11 @@ export default function DispatchDashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // States for technician action modals
+  const [actionJob, setActionJob] = useState(null);
+  const [actionType, setActionType] = useState(null);
+
   const [activeTab, setActiveTab] = useState(initialTab); // 'office' | 'ma' | 'map' | 'postponed'
   const [selectedJobIds, setSelectedJobIds] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -543,10 +549,18 @@ export default function DispatchDashboardPage() {
                         <p className="text-xs text-[#6B7280] mb-1 line-clamp-1"><span className="font-semibold text-[#374151]">ลูกค้า:</span> {job.customer || '-'}</p>
                         <p className="text-xs text-[#6B7280] mb-3 line-clamp-2" title={job.address}><span className="font-semibold text-[#374151]">พิกัด:</span> {job.address || '-'}</p>
                         <div className="flex gap-2">
-                           <button onClick={() => setSelectedJob(job)}
-                             className="flex-1 py-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg text-xs font-bold transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30">
-                             รายละเอียด / อัปเดต
-                           </button>
+                           {(!isAdmin && job.status !== 'completed') ? (
+                             <div className="flex w-full gap-1">
+                               <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="flex-1 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg text-[10px] font-bold transition-colors border border-purple-200">เลื่อนติดตั้ง</button>
+                               <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="flex-1 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-[10px] font-bold transition-colors border border-red-200">ไม่สำเร็จ</button>
+                               <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="flex-[1.2] py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-[10px] font-bold transition-colors shadow-sm">จบงาน</button>
+                             </div>
+                           ) : (
+                             <button onClick={() => setSelectedJob(job)}
+                               className="flex-1 py-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg text-xs font-bold transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30">
+                               รายละเอียด / อัปเดต
+                             </button>
+                           )}
                            <a href={`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}`} target="_blank" rel="noopener noreferrer"
                              className="flex items-center justify-center w-9 h-9 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-colors border border-emerald-100" title="นำทางด้วย Google Maps">
                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -661,10 +675,18 @@ export default function DispatchDashboardPage() {
                                 </td>
                                 <td className="p-3.5 text-center whitespace-nowrap">
                                   <div className="flex gap-1.5 justify-center">
-                                    <button onClick={() => setSelectedJob(job)}
-                                      className="p-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30" title="รายละเอียด/ระบุสถานะ">
-                                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                    </button>
+                                    {(!isAdmin && job.status !== 'completed') ? (
+                                      <>
+                                        <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors border border-purple-200" title="เลื่อนติดตั้ง"><span className="text-xs font-bold">เลื่อน</span></button>
+                                        <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors border border-red-200" title="ไม่สำเร็จ"><span className="text-xs font-bold">ไม่จบ</span></button>
+                                        <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="p-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-colors shadow-sm" title="จบงาน"><span className="text-xs font-bold">จบงาน</span></button>
+                                      </>
+                                    ) : (
+                                      <button onClick={() => setSelectedJob(job)}
+                                        className="p-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30" title="รายละเอียด/ระบุสถานะ">
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                      </button>
+                                    )}
                                     {isAdmin && <button onClick={() => handleDelete(job.id)}
                                       className="p-2 bg-red-50 text-red-500 hover:bg-red-100 rounded-lg transition-colors border border-red-100" title="ลบ">
                                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -742,6 +764,26 @@ export default function DispatchDashboardPage() {
           type={activeTab === 'map' || activeTab === 'postponed' ? 'office' : activeTab}
         />
       )}
+
+      {/* Technician Action Modals */}
+      <CompleteJobModal
+        job={actionJob}
+        isOpen={actionType === 'complete'}
+        onClose={() => { setActionJob(null); setActionType(null); }}
+        onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+      />
+      <IncompleteJobModal
+        job={actionJob}
+        isOpen={actionType === 'incomplete'}
+        onClose={() => { setActionJob(null); setActionType(null); }}
+        onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+      />
+      <PostponeJobModal
+        job={actionJob}
+        isOpen={actionType === 'postpone'}
+        onClose={() => { setActionJob(null); setActionType(null); }}
+        onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+      />
 
       {/* ── Confirmation Modal ────────────────────────────── */}
       {confirmDialog.isOpen && (
