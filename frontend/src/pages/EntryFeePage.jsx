@@ -741,7 +741,7 @@ export default function EntryFeePage() {
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border border-[#E5E7EB]">
                                     {item.profile_image ? (
-                                      <img src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.profile_image}`} alt={item.creator_name} className="w-full h-full object-cover" />
+                                      <img src={`${import.meta.env.VITE_API_URL || '/api'}${item.profile_image.startsWith('/') ? '' : '/'}${item.profile_image}`} alt={item.creator_name} className="w-full h-full object-cover" />
                                     ) : (
                                       item.creator_name ? item.creator_name.charAt(0) : '?'
                                     )}
@@ -753,7 +753,7 @@ export default function EntryFeePage() {
                                 {item.image_path && item.image_path !== 'รับหน้างาน' ? (
                                   <button 
                                     onClick={() => {
-                                      const fullUrl = `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`;
+                                      const fullUrl = `${import.meta.env.VITE_API_URL || '/api'}${item.image_path.startsWith('/') ? '' : '/'}${item.image_path}`;
                                       Swal.fire({
                                         imageUrl: fullUrl,
                                         imageAlt: 'หลักฐานค่าแรกเข้า',
