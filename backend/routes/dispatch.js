@@ -904,9 +904,17 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
 // ── POST /api/dispatch/entry-fee — Upload Entry Fee (3 modes: slip/cash/backdate) ──
 router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
   try {
-    const { access_no, customer_name, fee_type, backdate } = req.body;
+    const { access_no, customer_name, fee_type, backdate, target_user_id, admin_date } = req.body;
     if (!access_no) return res.status(400).json({ error: 'Missing access_no' });
     if (!customer_name) return res.status(400).json({ error: 'Missing customer_name' });
+
+    let finalCreatedBy = req.user.id;
+    let finalCreatedAt = null;
+
+    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+      if (target_user_id) finalCreatedBy = target_user_id;
+      if (admin_date) finalCreatedAt = admin_date + ' 12:00:00'; // Make it a DATETIME
+    }
 
     const type = fee_type || 'slip';
     let imagePath = null;
@@ -924,10 +932,15 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'ประเภทค่าแรกเข้าไม่ถูกต้อง' });
     }
 
-    await pool.query(
-      'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by, fee_type, backdate) VALUES (?, ?, ?, ?, ?, ?)',
-      [access_no, customer_name, imagePath, req.user.id, type, type === 'backdate' ? backdate : null]
-    );
+    let query = 'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by, fee_type, backdate) VALUES (?, ?, ?, ?, ?, ?)';
+    let params = [access_no, customer_name, imagePath, finalCreatedBy, type, type === 'backdate' ? backdate : null];
+
+    if (finalCreatedAt) {
+      query = 'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by, fee_type, backdate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
+      params.push(finalCreatedAt);
+    }
+
+    await pool.query(query, params);
 
     // Sync entry_fee_status to customers table
     try {

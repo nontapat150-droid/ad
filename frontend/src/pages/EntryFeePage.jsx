@@ -139,6 +139,35 @@ export default function EntryFeePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
+  // --- ADMIN MODE STATE ---
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [adminSelectedTech, setAdminSelectedTech] = useState(null); // stores the whole user object
+  const [adminSelectedDate, setAdminSelectedDate] = useState('');
+  const [techList, setTechList] = useState([]);
+  const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
+  const techDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (techDropdownRef.current && !techDropdownRef.current.contains(event.target)) {
+        setIsTechDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isAdminMode && techList.length === 0) {
+      axios.get('/users').then(res => {
+        const allowed = ['office_technician', 'MA'];
+        const filtered = res.data.filter(u => allowed.includes(u.role));
+        setTechList(filtered);
+      }).catch(() => {});
+    }
+  }, [isAdminMode]);
+
   // --- HISTORY STATE ---
   const [historyData, setHistoryData] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -215,6 +244,16 @@ export default function EntryFeePage() {
       Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกวันที่ย้อนหลัง' });
       return;
     }
+    if (isAdminMode) {
+      if (!adminSelectedTech) {
+        Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกช่าง (โหมดแอดมิน)' });
+        return;
+      }
+      if (!adminSelectedDate) {
+        Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกวันที่ (โหมดแอดมิน)' });
+        return;
+      }
+    }
 
     const formData = new FormData();
     formData.append('access_no', accessNo.trim());
@@ -222,6 +261,11 @@ export default function EntryFeePage() {
     formData.append('fee_type', feeType);
     if (selectedFile) formData.append('image', selectedFile);
     if (feeType === 'backdate') formData.append('backdate', backdateValue);
+
+    if (isAdminMode) {
+      formData.append('target_user_id', adminSelectedTech.id);
+      formData.append('admin_date', adminSelectedDate);
+    }
 
     setIsSubmitting(true);
     try {
@@ -241,6 +285,10 @@ export default function EntryFeePage() {
       setSelectedFile(null);
       setPreviewUrl(null);
       setBackdateValue('');
+      if (isAdminMode) {
+        setAdminSelectedTech(null);
+        setAdminSelectedDate('');
+      }
       if (fileInputRef.current) fileInputRef.current.value = '';
       
     } catch (err) {
@@ -320,6 +368,84 @@ export default function EntryFeePage() {
                 className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm border border-[#E5E7EB]"
                 style={{ animation: 'fadeInUp 0.3s ease-out forwards' }}
               >
+                {/* ── Admin Mode Toggle ── */}
+                {isAdmin && (
+                  <div className={`mb-8 flex items-center justify-between p-4 md:p-5 rounded-2xl border transition-all ${isAdminMode ? 'bg-[#1F2937] border-[#374151] shadow-lg shadow-gray-900/10' : 'bg-[#F9FAFB] border-[#E5E7EB] hover:border-[#D1D5DB]'}`}>
+                    <div className="flex items-center gap-3 md:gap-4">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-colors ${isAdminMode ? 'bg-gradient-to-br from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm' : 'bg-white border border-[#E5E7EB] text-gray-400'}`}>
+                        👑
+                      </div>
+                      <div>
+                        <h3 className={`font-bold text-sm md:text-base ${isAdminMode ? 'text-white' : 'text-[#374151]'}`}>โหมดแอดมิน (บันทึกแทนช่าง)</h3>
+                        <p className={`text-xs mt-0.5 ${isAdminMode ? 'text-[#9CA3AF]' : 'text-[#6B7280]'}`}>เลือกช่างและวันที่เพื่อบันทึกข้อมูลแทนช่าง</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer scale-110">
+                      <input type="checkbox" className="sr-only peer" checked={isAdminMode} onChange={() => setIsAdminMode(!isAdminMode)} />
+                      <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#A3E635]"></div>
+                    </label>
+                  </div>
+                )}
+
+                {/* ── Admin Mode Fields ── */}
+                {isAdminMode && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-[#E5E7EB] shadow-sm animate-fade-in-up">
+                    <div className="relative" ref={techDropdownRef}>
+                      <label className="block text-sm font-bold text-[#374151] mb-2 uppercase tracking-wide">เลือกช่าง <span className="text-red-500">*</span></label>
+                      <button
+                        type="button"
+                        onClick={() => setIsTechDropdownOpen(!isTechDropdownOpen)}
+                        className={`w-full flex items-center justify-between px-4 py-3 bg-white border rounded-xl outline-none transition-all ${isTechDropdownOpen ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'border-[#E5E7EB] hover:border-[#A3E635]/50'}`}
+                      >
+                        {adminSelectedTech ? (
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${adminSelectedTech.role === 'office_technician' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {adminSelectedTech.role === 'office_technician' ? 'Office' : 'MA'}
+                            </span>
+                            <span className="font-bold text-sm text-[#1F2937]">{adminSelectedTech.full_name || adminSelectedTech.username}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm font-medium text-[#9CA3AF]">-- เลือกช่าง --</span>
+                        )}
+                        <svg className={`w-5 h-5 transition-transform ${isTechDropdownOpen ? 'rotate-180 text-[#A3E635]' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      
+                      {isTechDropdownOpen && (
+                        <div className="absolute z-50 mt-2 w-full max-h-64 overflow-y-auto bg-white border border-[#E5E7EB] rounded-xl shadow-lg animate-fade-in-up">
+                          {techList.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-gray-500">ไม่พบข้อมูลช่าง</div>
+                          ) : (
+                            techList.map(t => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => { setAdminSelectedTech(t); setIsTechDropdownOpen(false); }}
+                                className="w-full text-left px-4 py-3 hover:bg-[#F9FAFB] border-b border-[#F3F4F6] last:border-0 flex items-center gap-3 transition-colors"
+                              >
+                                <span className={`shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold ${t.role === 'office_technician' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                                  {t.role === 'office_technician' ? 'Office' : 'MA'}
+                                </span>
+                                <span className="font-bold text-sm text-[#374151]">{t.full_name || t.username}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-bold text-[#374151] mb-2 uppercase tracking-wide">เลือกวันที่ <span className="text-red-500">*</span></label>
+                      <input 
+                        type="date"
+                        value={adminSelectedDate}
+                        onChange={(e) => setAdminSelectedDate(e.target.value)}
+                        max={new Date().toLocaleDateString('en-CA')}
+                        className="w-full px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl focus:ring-4 focus:ring-[#A3E635]/20 focus:border-[#A3E635] outline-none text-[#1F2937] font-bold transition-all text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleSubmit}>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 border-b border-[#F3F4F6] pb-8">
