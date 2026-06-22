@@ -735,21 +735,21 @@ export default function EntryFeePage() {
                           const isBackdate = item.fee_type === 'backdate';
                           return (
                             <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
-                              <td className="py-4 px-5">
+                              <td className="py-4 px-5 whitespace-nowrap">
                                 <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-2.5 py-1 rounded-md text-sm">{item.access_no}</span>
                               </td>
-                              <td className="py-4 px-5 font-bold text-[#1F2937] text-sm">{item.customer_name}</td>
-                              <td className="py-4 px-5">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeInfo.color}`}>
+                              <td className="py-4 px-5 font-bold text-[#1F2937] text-sm whitespace-nowrap">{item.customer_name}</td>
+                              <td className="py-4 px-5 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border whitespace-nowrap ${typeInfo.color}`}>
                                   {typeInfo.icon} {typeInfo.label}
                                 </span>
                                 {isBackdate && item.backdate && (
-                                  <div className="text-[10px] text-purple-500 mt-1 font-medium">
+                                  <div className="text-[10px] text-purple-500 mt-1 font-medium whitespace-nowrap">
                                     ⏮️ วันที่: {new Date(item.backdate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                                   </div>
                                 )}
                               </td>
-                              <td className="py-4 px-5 text-sm text-[#4B5563] font-medium">{formatDate(item.created_at)}</td>
+                              <td className="py-4 px-5 text-sm text-[#4B5563] font-medium whitespace-nowrap">{formatDate(item.created_at)}</td>
                               <td className="py-4 px-5 text-sm text-[#374151] font-bold">
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border border-[#E5E7EB]">
