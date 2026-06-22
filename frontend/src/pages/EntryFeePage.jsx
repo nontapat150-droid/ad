@@ -224,6 +224,19 @@ export default function EntryFeePage() {
     }
   };
 
+  const resolveImageUrl = (pathOrName) => {
+    if (!pathOrName || pathOrName === 'รับหน้างาน') return '';
+    if (pathOrName.startsWith('http')) return pathOrName;
+    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const filename = pathOrName.split('/').pop();
+    let folder = '';
+    if (filename.startsWith('profiles_')) folder = 'profiles/';
+    else if (filename.startsWith('misc_')) folder = 'misc/';
+    else if (filename.startsWith('checkins_')) folder = 'checkins/';
+    else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
+    return `${baseUrl}/uploads/${folder}${filename}`;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -741,7 +754,7 @@ export default function EntryFeePage() {
                                 <div className="flex items-center gap-2.5">
                                   <div className="w-8 h-8 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border border-[#E5E7EB]">
                                     {item.profile_image ? (
-                                      <img src={`${import.meta.env.VITE_API_URL || '/api'}${item.profile_image.startsWith('/') ? '' : '/'}${item.profile_image}`} alt={item.creator_name} className="w-full h-full object-cover" />
+                                      <img src={resolveImageUrl(item.profile_image)} alt={item.creator_name} className="w-full h-full object-cover" />
                                     ) : (
                                       item.creator_name ? item.creator_name.charAt(0) : '?'
                                     )}
@@ -753,7 +766,7 @@ export default function EntryFeePage() {
                                 {item.image_path && item.image_path !== 'รับหน้างาน' ? (
                                   <button 
                                     onClick={() => {
-                                      const fullUrl = `${import.meta.env.VITE_API_URL || '/api'}${item.image_path.startsWith('/') ? '' : '/'}${item.image_path}`;
+                                      const fullUrl = resolveImageUrl(item.image_path);
                                       Swal.fire({
                                         imageUrl: fullUrl,
                                         imageAlt: 'หลักฐานค่าแรกเข้า',
