@@ -981,7 +981,7 @@ router.get('/entry-fee/history', auth, async (req, res) => {
     const { month, created_by } = req.query; // month: 'YYYY-MM', created_by: user_id
     
     let query = `
-      SELECT ef.*, u.full_name as creator_name
+      SELECT ef.*, u.full_name as creator_name, u.profile_image
       FROM entry_fees ef
       LEFT JOIN users u ON ef.created_by = u.id
     `;

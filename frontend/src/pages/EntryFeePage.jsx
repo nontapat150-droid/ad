@@ -708,12 +708,12 @@ export default function EntryFeePage() {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">รหัส NON</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ชื่อลูกค้า</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ประเภท</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่บันทึก</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ผู้บันทึก</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">หลักฐาน</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap min-w-[120px]">รหัส NON</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[180px]">ชื่อลูกค้า</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap">ประเภท</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[160px]">วันที่บันทึก</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[150px]">ผู้บันทึก</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right whitespace-nowrap">หลักฐาน</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -739,25 +739,39 @@ export default function EntryFeePage() {
                               <td className="py-4 px-5 text-sm text-[#4B5563] font-medium">{formatDate(item.created_at)}</td>
                               <td className="py-4 px-5 text-sm text-[#374151] font-bold">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-7 h-7 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm">
-                                    {item.creator_name ? item.creator_name.charAt(0) : '?'}
+                                  <div className="w-8 h-8 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border border-[#E5E7EB]">
+                                    {item.profile_image ? (
+                                      <img src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.profile_image}`} alt={item.creator_name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      item.creator_name ? item.creator_name.charAt(0) : '?'
+                                    )}
                                   </div>
-                                  {item.creator_name || '-'}
+                                  <span className="whitespace-nowrap">{item.creator_name || '-'}</span>
                                 </div>
                               </td>
                               <td className="py-4 px-5 text-right">
                                 {item.image_path && item.image_path !== 'รับหน้างาน' ? (
-                                  <a 
-                                    href={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`} 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group"
+                                  <button 
+                                    onClick={() => {
+                                      const fullUrl = `${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`;
+                                      Swal.fire({
+                                        imageUrl: fullUrl,
+                                        imageAlt: 'หลักฐานค่าแรกเข้า',
+                                        width: 'auto',
+                                        showConfirmButton: false,
+                                        showCloseButton: true,
+                                        customClass: {
+                                          image: 'max-h-[80vh] object-contain rounded-xl'
+                                        }
+                                      });
+                                    }}
+                                    className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group cursor-pointer"
                                     title="ดูรูปภาพ"
                                   >
                                     <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
-                                  </a>
+                                  </button>
                                 ) : (
                                   <span className="text-xs text-[#9CA3AF] italic">—</span>
                                 )}
