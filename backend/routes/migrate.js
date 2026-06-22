@@ -164,6 +164,18 @@ router.get('/migrate-entry-fee', async (req, res) => {
   const results = [];
   try {
     try {
+      await pool.query(`ALTER TABLE entry_fees MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY`);
+      results.push('✅ entry_fees.id -> AUTO_INCREMENT PRIMARY KEY added');
+    } catch(e) {
+      try {
+        await pool.query(`ALTER TABLE entry_fees MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`);
+        results.push('✅ entry_fees.id -> AUTO_INCREMENT added');
+      } catch(e2) {
+        results.push('entry_fees.id: ' + e2.message);
+      }
+    }
+
+    try {
       await pool.query(`ALTER TABLE entry_fees ADD COLUMN fee_type ENUM('slip','cash','backdate') NOT NULL DEFAULT 'slip'`);
       results.push('✅ entry_fees.fee_type added');
     } catch(e) { results.push('entry_fees.fee_type: ' + e.message); }
