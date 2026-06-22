@@ -2,10 +2,115 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
+const { syncCustomerFromJob } = require('../utils/customerSync');
 
 const router = express.Router();
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
+
+async function safeSyncCustomer(conn, jobId) {
+  try {
+    await syncCustomerFromJob(conn, jobId);
+  } catch (e) {
+    if (e.message && e.message.includes("doesn't exist")) {
+      console.warn('customers sync skipped (run migrate-fix):', e.message);
+    } else {
+      throw e;
+    }
+  }
+}
+
+const DEVICE_ROLE_INSTALL_PREFIX = {
+  SOA: 'SOA', ONU: 'ONU', PB: 'PB', Mesh: 'Mesh', SIM: 'SIM', Cam: 'Cam',
+};
+
+function parseInstallDevice(str) {
+  if (!str) return {};
+  const map = {
+    SOA: 'soa_device', ONU: 'sn_onu', PB: 'sn_playbox', Mesh: 'sn_mesh',
+    SIM: 'sn_sim', Cam: 'sn_ip_camera', Sp: 'split_no', Pt: 'port_no',
+    L3: 'l3_name', 'สาย': 'cable_length', '3BB': 'ref_id_3bb', 'SCฟ้า': 'sc_blue',
+  };
+  const out = {};
+  for (const part of str.split(/[\n|]/)) {
+    const line = part.trim();
+    if (!line) continue;
+    const ci = line.indexOf(':');
+    if (ci === -1) continue;
+    const key = line.slice(0, ci).trim();
+    let val = line.slice(ci + 1).trim();
+    const field = map[key];
+    if (!field) continue;
+    if (field === 'cable_length') val = val.replace(/M$/i, '');
+    out[field] = val;
+  }
+  return out;
+}
+
+function parseUsedInventoryBody(body) {
+  if (!body.usedInventory) return [];
+  try {
+    const parsed = typeof body.usedInventory === 'string' ? JSON.parse(body.usedInventory) : body.usedInventory;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function processUsedInventory(conn, { jobId, techId, accessNo, usedItems }) {
+  const seenIds = new Set();
+  const installParts = [];
+
+  for (const entry of usedItems) {
+    const itemId = parseInt(entry.inventory_item_id, 10);
+    const role = entry.device_role;
+    if (!itemId || !role || !DEVICE_ROLE_INSTALL_PREFIX[role]) continue;
+    if (seenIds.has(itemId)) {
+      throw new Error('เลือกอุปกรณ์ซ้ำกันในรายการ');
+    }
+    seenIds.add(itemId);
+
+    const [[item]] = await conn.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = 'dispatched'
+       FOR UPDATE`,
+      [itemId, techId]
+    );
+    if (!item) {
+      throw new Error(`ไม่พบอุปกรณ์ในกระเป๋า (ID: ${itemId})`);
+    }
+
+    await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
+    await conn.query(
+      `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', 1, ?)`,
+      [itemId, techId, `ติดตั้งให้ลูกค้า: ${accessNo || jobId}`]
+    );
+    await conn.query(
+      `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [jobId, itemId, role, item.sn, item.product_name, item.model_name, item.quantity, techId]
+    );
+
+    const prefix = DEVICE_ROLE_INSTALL_PREFIX[role];
+    const displayVal = role === 'SOA'
+      ? `${item.product_name} ${item.model_name}`.trim()
+      : item.sn;
+    installParts.push({ prefix, value: displayVal });
+  }
+
+  return installParts;
+}
+
+function buildInstallDeviceString(installParts, manualParts) {
+  const tokens = [
+    ...installParts.map(({ prefix, value }) => `${prefix}:${value}`),
+    ...manualParts.filter(Boolean),
+  ];
+  return tokens.join(' | ') || null;
+}
 
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
@@ -107,11 +212,33 @@ router.put(
         return res.status(409).json({ error: 'Job already completed' });
       }
 
-      // 2. Update job status
+      // 2. Process tech-bag inventory usage
+      const usedItems = parseUsedInventoryBody(req.body);
+      let installPartsFromBag = [];
+      if (usedItems.length > 0) {
+        installPartsFromBag = await processUsedInventory(conn, {
+          jobId, techId, accessNo: job.access_no, usedItems,
+        });
+      }
+
+      const manualParts = [
+        req.body.splitNo ? `Sp:${req.body.splitNo}` : null,
+        req.body.portNo ? `Pt:${req.body.portNo}` : null,
+        req.body.l3Name ? `L3:${req.body.l3Name}` : null,
+        req.body.cableLength ? `สาย:${req.body.cableLength}M` : null,
+        req.body.refId3bb ? `3BB:${req.body.refId3bb}` : null,
+        req.body.scBlue ? `SCฟ้า:${req.body.scBlue}` : null,
+      ];
+      const installDeviceStr = req.body.installDevice
+        || buildInstallDeviceString(installPartsFromBag, manualParts);
+
+      // 3. Update job status
       await conn.query(
         `UPDATE jobs SET 
           status = 'completed', 
           finish_time = NOW(),
+          completed_at = NOW(),
+          completed_by = ?,
           remark = ?,
           plan_arrival_date = COALESCE(?, plan_arrival_date),
           access_no = COALESCE(?, access_no),
@@ -120,17 +247,18 @@ router.put(
           install_device = COALESCE(?, install_device)
          WHERE id = ?`,
         [
+          techId,
           req.body.remark || null,
-          req.body.installDate || null, 
-          req.body.accessNo || null, 
-          req.body.customerName || null, 
-          req.body.mainPackage || null, 
-          req.body.installDevice || null, 
+          req.body.installDate || null,
+          req.body.accessNo || null,
+          req.body.customerName || null,
+          req.body.mainPackage || null,
+          installDeviceStr,
           jobId
         ]
       );
 
-      // 3. Log to job_logs
+      // 4. Log to job_logs
       try {
         await conn.query(
           `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'completed', ?)`,
@@ -220,6 +348,8 @@ router.put(
         } catch(e) { console.error('Oil cases insert error:', e.message); }
       }
 
+      await safeSyncCustomer(conn, jobId);
+
       await conn.commit();
 
       res.json({ message: 'Job completed successfully', job_id: jobId });
@@ -279,6 +409,12 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         status || 'pending', remark || null, seq || null, map_link || null, team_id || null
       ]
     );
+    const conn = await pool.getConnection();
+    try {
+      await safeSyncCustomer(conn, result.insertId);
+    } finally {
+      conn.release();
+    }
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -306,29 +442,47 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     for (const job of jobs) {
       const {
         access_no, customer, phone, package: pkg, address, lat, lng,
-        plan_arrival_date, product, remark
+        plan_arrival_date, plan_arrival_time, product, remark,
+        order_no, customer_order_no, province, area_code, area_name,
+        task_type, task_order, product_owner, order_type, service_note,
+        sla_status, region, map_link
       } = job;
 
       if (!access_no) {
         skippedCount++;
-        continue; // Skip if no access_no
+        continue;
+      }
+
+      let formatted_time = plan_arrival_time || null;
+      if (formatted_time && !String(formatted_time).includes('-') && plan_arrival_date) {
+        formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
       }
 
       try {
         const [result] = await conn.query(
           `INSERT IGNORE INTO jobs
              (access_no, customer, phone, package, address, lat, lng,
-              plan_arrival_date, product, remark,
+              plan_arrival_date, plan_arrival_time, product, remark,
+              order_no, customer_order_no, province, area_code, area_name,
+              task_type, task_order, product_owner, order_type, service_note,
+              sla_status, region, map_link,
               status, create_user_role)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
           [
             access_no, customer || null, phone || null, pkg || null, address || null,
-            lat || null, lng || null, plan_arrival_date || null, product || null,
-            remark || null, req.user.role || null
+            lat || null, lng || null, plan_arrival_date || null, formatted_time,
+            product || null, remark || null,
+            order_no || null, customer_order_no || null, province || null,
+            area_code || null, area_name || null,
+            task_type || null, task_order || null, product_owner || null,
+            order_type || null, service_note || null,
+            sla_status || 'Normal', region || 'ROS', map_link || null,
+            req.user.role || null
           ]
         );
         if (result.affectedRows > 0) {
           successCount++;
+          await safeSyncCustomer(conn, result.insertId);
         } else {
           skippedCount++;
         }
@@ -558,31 +712,100 @@ router.post('/auto-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => 
 // ── GET /api/dispatch/search-access/:accessNo — Search Customer/Job by Access No ──
 router.get('/search-access/:accessNo', auth, async (req, res) => {
   try {
+    const accessNo = req.params.accessNo;
+
+    let customerRow = null;
+    try {
+      const [[row]] = await pool.query(
+        'SELECT * FROM customers WHERE access_no = ? LIMIT 1',
+        [accessNo]
+      );
+      customerRow = row || null;
+    } catch (e) {
+      if (!e.message.includes("doesn't exist")) throw e;
+    }
+
     const [rows] = await pool.query(
-      `SELECT jobs.*, teams.team_name, users.full_name as engineer_name 
+      `SELECT jobs.*, teams.team_name, users.full_name as engineer_name,
+              cu.full_name as completed_by_name
        FROM jobs 
        LEFT JOIN teams ON jobs.team_id = teams.id 
        LEFT JOIN users ON jobs.field_engineer_id = users.id 
-       WHERE jobs.access_no = ?`,
-      [req.params.accessNo]
+       LEFT JOIN users cu ON jobs.completed_by = cu.id
+       WHERE jobs.access_no = ?
+       ORDER BY jobs.id DESC
+       LIMIT 1`,
+      [accessNo]
     );
 
-    if (rows.length === 0) {
+    if (rows.length === 0 && !customerRow) {
       return res.status(404).json({ error: 'ไม่พบข้อมูลจาก Access Number นี้' });
     }
 
-    const jobData = rows[0];
+    const jobData = rows[0] || {};
+    if (customerRow) {
+      Object.assign(jobData, {
+        access_no: jobData.access_no || customerRow.access_no,
+        customer: jobData.customer || customerRow.customer_name,
+        phone: jobData.phone || customerRow.phone,
+        address: jobData.address || customerRow.address,
+        province: jobData.province || customerRow.province,
+        area_code: jobData.area_code || customerRow.area_code,
+        area_name: jobData.area_name || customerRow.area_name,
+        lat: jobData.lat ?? customerRow.lat,
+        lng: jobData.lng ?? customerRow.lng,
+        map_link: jobData.map_link || customerRow.map_link,
+        package: jobData.package || customerRow.package,
+        product: jobData.product || customerRow.product,
+        order_no: jobData.order_no || customerRow.order_no,
+        customer_order_no: jobData.customer_order_no || customerRow.customer_order_no,
+        task_type: jobData.task_type || customerRow.task_type,
+        task_order: jobData.task_order || customerRow.task_order,
+        product_owner: jobData.product_owner || customerRow.product_owner,
+        order_type: jobData.order_type || customerRow.order_type,
+        service_note: jobData.service_note || customerRow.service_note,
+        sla_status: jobData.sla_status || customerRow.sla_status,
+        region: jobData.region || customerRow.region,
+        install_device: jobData.install_device || customerRow.install_device,
+        customer_master_updated_at: customerRow.updated_at,
+      });
+    }
+
+    if (jobData.install_device) {
+      Object.assign(jobData, parseInstallDevice(jobData.install_device));
+    }
+
+    if (jobData.id) {
+      try {
+        const [usedRows] = await pool.query(
+          `SELECT device_role, sn, product_name, model_name, quantity, used_at
+           FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
+          [jobData.id]
+        );
+        jobData.used_devices = usedRows;
+      } catch (e) {
+        if (!e.message.includes("doesn't exist")) throw e;
+        jobData.used_devices = [];
+      }
+    } else {
+      jobData.used_devices = [];
+    }
 
     // Get entry fee info
-    const [efRows] = await pool.query('SELECT image_path, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1', [jobData.access_no]);
+    const lookupAccess = jobData.access_no || accessNo;
+    const [efRows] = await pool.query('SELECT image_path, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1', [lookupAccess]);
     if (efRows.length > 0) {
       jobData.entry_fee_image = efRows[0].image_path;
       jobData.entry_fee_updated_at = efRows[0].created_at;
     }
 
     // Get completion images
-    const [imgRows] = await pool.query('SELECT image_path FROM job_completion_images WHERE job_id = ?', [jobData.id]);
-    jobData.completion_images = imgRows.map(r => r.image_path);
+    if (jobData.id) {
+      const [imgRows] = await pool.query('SELECT image_path FROM job_completion_images WHERE job_id = ?', [jobData.id]);
+      jobData.completion_images = imgRows.map(r => r.image_path);
+    } else {
+      jobData.completion_images = [];
+    }
 
     res.json(jobData);
   } catch (err) {
@@ -727,22 +950,58 @@ router.put('/jobs/clear-queue', auth, requireRole(ADMIN_ROLES), async (req, res)
 
 // ── PUT /api/dispatch/jobs/:id — Update job details ─
 router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { customer, phone, address, team_id, field_engineer_id, lat, lng, type, plan_arrival_date, plan_arrival_time } = req.body;
+  const {
+    customer, phone, address, team_id, field_engineer_id, lat, lng, type,
+    plan_arrival_date, plan_arrival_time,
+    package: pkg, product, order_no, customer_order_no, province,
+    area_code, area_name, task_type, task_order, product_owner, order_type,
+    service_note, sla_status, region, map_link, remark
+  } = req.body;
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
+  const conn = await pool.getConnection();
   try {
     let formatted_time = plan_arrival_time || null;
     if (formatted_time && !formatted_time.includes('-') && plan_arrival_date) {
       formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
     }
 
-    await pool.query(
-      `UPDATE ${table} SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ?, plan_arrival_date = COALESCE(?, plan_arrival_date), plan_arrival_time = COALESCE(?, plan_arrival_time) WHERE id = ?`,
-      [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, plan_arrival_date || null, formatted_time, req.params.id]
-    );
+    if (table === 'ma_jobs') {
+      await conn.query(
+        `UPDATE ma_jobs SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ?, plan_arrival_date = COALESCE(?, plan_arrival_date), plan_arrival_time = COALESCE(?, plan_arrival_time) WHERE id = ?`,
+        [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, plan_arrival_date || null, formatted_time, req.params.id]
+      );
+    } else {
+      await conn.query(
+        `UPDATE jobs SET
+          customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address),
+          lat = ?, lng = ?, team_id = ?, field_engineer_id = ?,
+          plan_arrival_date = COALESCE(?, plan_arrival_date), plan_arrival_time = COALESCE(?, plan_arrival_time),
+          package = COALESCE(?, package), product = COALESCE(?, product),
+          order_no = COALESCE(?, order_no), customer_order_no = COALESCE(?, customer_order_no),
+          province = COALESCE(?, province), area_code = COALESCE(?, area_code), area_name = COALESCE(?, area_name),
+          task_type = COALESCE(?, task_type), task_order = COALESCE(?, task_order),
+          product_owner = COALESCE(?, product_owner), order_type = COALESCE(?, order_type),
+          service_note = COALESCE(?, service_note), sla_status = COALESCE(?, sla_status),
+          region = COALESCE(?, region), map_link = COALESCE(?, map_link), remark = COALESCE(?, remark)
+         WHERE id = ?`,
+        [
+          customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null,
+          plan_arrival_date || null, formatted_time,
+          pkg || null, product || null, order_no || null, customer_order_no || null,
+          province || null, area_code || null, area_name || null,
+          task_type || null, task_order || null, product_owner || null, order_type || null,
+          service_note || null, sla_status || null, region || null, map_link || null, remark || null,
+          req.params.id
+        ]
+      );
+      await safeSyncCustomer(conn, req.params.id);
+    }
     res.json({ message: 'Job updated' });
   } catch (err) {
     console.error('Job update error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
+  } finally {
+    conn.release();
   }
 });
 

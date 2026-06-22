@@ -2,6 +2,48 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 
+const BAG_DEVICE_SLOTS = [
+  { role: 'SOA', label: 'อุปกรณ์ปิด SOA', dashOption: false },
+  { role: 'ONU', label: 'SN ONU', dashOption: true },
+  { role: 'PB', label: 'SN Playbox', dashOption: false },
+  { role: 'Mesh', label: 'SN Mesh', dashOption: false },
+  { role: 'SIM', label: 'SN Sim', dashOption: false },
+  { role: 'Cam', label: 'SN IP Camera', dashOption: false },
+];
+
+const ROLE_INSTALL_PREFIX = {
+  SOA: 'SOA', ONU: 'ONU', PB: 'PB', Mesh: 'Mesh', SIM: 'SIM', Cam: 'Cam',
+};
+
+function bagItemLabel(item) {
+  return `${item.product_name} — ${item.model_name} [SN: ${item.sn}]`;
+}
+
+function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere, dashOption }) {
+  const available = bagItems.filter(
+    (item) => String(item.id) === String(value) || !usedElsewhere.has(item.id)
+  );
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-[#042C53] mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(role, e.target.value)}
+        className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm bg-white/50"
+      >
+        <option value="">— เลือกจากกระเป๋าช่าง —</option>
+        {dashOption && <option value="dash">ไม่มี (-)</option>}
+        {available.map((item) => (
+          <option key={item.id} value={String(item.id)}>
+            {bagItemLabel(item)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [images, setImages] = useState([]);
   const [remark, setRemark] = useState('');
@@ -12,13 +54,12 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [customerName, setCustomerName] = useState('');
   const [mainPackage, setMainPackage] = useState('');
   
-  // Detailed Device Fields
-  const [soaDevice, setSoaDevice] = useState('');
-  const [snOnu, setSnOnu] = useState('');
-  const [snPlaybox, setSnPlaybox] = useState('');
-  const [snMesh, setSnMesh] = useState('');
-  const [snSim, setSnSim] = useState('');
-  const [snIpCamera, setSnIpCamera] = useState('');
+  // Detailed Device Fields — SN from tech bag only
+  const [bagItems, setBagItems] = useState([]);
+  const [bagLoading, setBagLoading] = useState(false);
+  const [bagSelections, setBagSelections] = useState({
+    SOA: '', ONU: '', PB: '', Mesh: '', SIM: '', Cam: '',
+  });
   const [splitNo, setSplitNo] = useState('');
   const [portNo, setPortNo] = useState('');
   const [l3Name, setL3Name] = useState('');
@@ -35,26 +76,64 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
   const [loading, setLoading] = useState(false);
 
-  // Initialize fields when modal opens
   useEffect(() => {
     if (isOpen && job) {
-      setInstallDate(new Date().toLocaleDateString('en-CA')); // YYYY-MM-DD
+      setInstallDate(new Date().toLocaleDateString('en-CA'));
       setAccessNo(job.access_no || '');
       setCustomerName(job.customer || '');
       setMainPackage(job.package || '');
       setImages([]);
       setRemark('');
-      
-      // Reset detailed fields
-      setSoaDevice(''); setSnPlaybox(''); setSnMesh(''); setSnSim(''); setSnIpCamera('');
+      setBagSelections({ SOA: '', ONU: '', PB: '', Mesh: '', SIM: '', Cam: '' });
       setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
       setEntryFeeStatus('none'); setEntryFeeSlip(null);
       imagePreviews.forEach(url => URL.revokeObjectURL(url));
       if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
       setImagePreviews([]);
       setEntryFeeSlipPreview(null);
+
+      setBagLoading(true);
+      api.get('/inventory/my-bag')
+        .then((res) => {
+          const snItems = (res.data || []).filter((item) => item.has_sn !== 0 && item.has_sn !== false);
+          setBagItems(snItems);
+        })
+        .catch(() => setBagItems([]))
+        .finally(() => setBagLoading(false));
     }
   }, [isOpen, job]);
+
+  const handleBagSelection = (role, value) => {
+    setBagSelections((prev) => ({ ...prev, [role]: value }));
+  };
+
+  const getUsedItemIds = (excludeRole) => {
+    const ids = new Set();
+    Object.entries(bagSelections).forEach(([r, val]) => {
+      if (r !== excludeRole && val && val !== 'dash') ids.add(parseInt(val, 10));
+    });
+    return ids;
+  };
+
+  const buildDeviceDetailsFromBag = () => {
+    const parts = [];
+    BAG_DEVICE_SLOTS.forEach(({ role }) => {
+      const sel = bagSelections[role];
+      if (!sel) return;
+      const prefix = ROLE_INSTALL_PREFIX[role];
+      if (sel === 'dash') {
+        parts.push(`${prefix}:-`);
+        return;
+      }
+      const item = bagItems.find((b) => String(b.id) === String(sel));
+      if (!item) return;
+      const val = role === 'SOA'
+        ? `${item.product_name} ${item.model_name}`.trim()
+        : item.sn;
+      parts.push(`${prefix}:${val}`);
+    });
+    return parts;
+  };
 
   const handleImagesChange = (e) => {
     const files = Array.from(e.target.files);
@@ -86,6 +165,12 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       return;
     }
 
+    const usedIds = Object.values(bagSelections).filter((v) => v && v !== 'dash');
+    if (new Set(usedIds).size !== usedIds.length) {
+      alert('เลือกอุปกรณ์ซ้ำกัน กรุณาเลือกคนละชิ้น');
+      return;
+    }
+
     try {
       setLoading(true);
       const formData = new FormData();
@@ -94,30 +179,27 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('accessNo', accessNo);
       formData.append('customerName', customerName);
       formData.append('mainPackage', mainPackage);
-      
-      const deviceDetails = [
-        soaDevice ? `SOA:${soaDevice}` : null,
-        snOnu ? `ONU:${snOnu}` : null,
-        snPlaybox ? `PB:${snPlaybox}` : null,
-        snMesh ? `Mesh:${snMesh}` : null,
-        snSim ? `SIM:${snSim}` : null,
-        snIpCamera ? `Cam:${snIpCamera}` : null,
+
+      const usedInventory = BAG_DEVICE_SLOTS
+        .filter(({ role }) => bagSelections[role] && bagSelections[role] !== 'dash')
+        .map(({ role }) => ({
+          inventory_item_id: parseInt(bagSelections[role], 10),
+          device_role: role,
+        }));
+
+      const manualParts = [
         splitNo ? `Sp:${splitNo}` : null,
         portNo ? `Pt:${portNo}` : null,
         l3Name ? `L3:${l3Name}` : null,
         cableLength ? `สาย:${cableLength}M` : null,
         refId3bb ? `3BB:${refId3bb}` : null,
-        scBlue ? `SCฟ้า:${scBlue}` : null
-      ].filter(Boolean).join(' | ');
-      
+        scBlue ? `SCฟ้า:${scBlue}` : null,
+      ].filter(Boolean);
+
+      const deviceDetails = [...buildDeviceDetailsFromBag(), ...manualParts].join(' | ');
+
       formData.append('installDevice', deviceDetails);
-      
-      formData.append('soaDevice', soaDevice);
-      formData.append('snOnu', snOnu);
-      formData.append('snPlaybox', snPlaybox);
-      formData.append('snMesh', snMesh);
-      formData.append('snSim', snSim);
-      formData.append('snIpCamera', snIpCamera);
+      formData.append('usedInventory', JSON.stringify(usedInventory));
       formData.append('splitNo', splitNo);
       formData.append('portNo', portNo);
       formData.append('l3Name', l3Name);
@@ -196,16 +278,26 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
             {/* Detailed Device Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
-              <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">รายละเอียดอุปกรณ์ติดตั้ง</h3>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">อุปกรณ์ปิด SOA</label>
-                <input type="text" value={soaDevice} onChange={e => setSoaDevice(e.target.value)} placeholder="พิมพ์ชื่ออุปกรณ์" className="w-full px-3 py-2 border rounded-lg focus:ring focus:ring-blue-200" />
-              </div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN ONU (ถ้าไม่มีใส่ -)</label><input type="text" value={snOnu} onChange={(e) => setSnOnu(e.target.value)} placeholder="เช่น ALCLFxxxxxxx" className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Playbox</label><input type="text" value={snPlaybox} onChange={(e) => setSnPlaybox(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Mesh</label><input type="text" value={snMesh} onChange={(e) => setSnMesh(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN Sim</label><input type="text" value={snSim} onChange={(e) => setSnSim(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">SN IP Camera</label><input type="text" value={snIpCamera} onChange={(e) => setSnIpCamera(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าช่าง)</h3>
+              {bagLoading ? (
+                <p className="md:col-span-2 text-sm text-gray-500">กำลังโหลดกระเป๋าช่าง...</p>
+              ) : bagItems.length === 0 ? (
+                <p className="md:col-span-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  ไม่มีอุปกรณ์ SN ในกระเป๋า — กรุณาเบิกอุปกรณ์ก่อนจบงาน
+                </p>
+              ) : null}
+              {BAG_DEVICE_SLOTS.map(({ role, label, dashOption }) => (
+                <BagDeviceSelect
+                  key={role}
+                  role={role}
+                  label={label}
+                  value={bagSelections[role]}
+                  onChange={handleBagSelection}
+                  bagItems={bagItems}
+                  usedElsewhere={getUsedItemIds(role)}
+                  dashOption={dashOption}
+                />
+              ))}
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">Splitt <span className="text-red-500">*</span></label><input type="text" required value={splitNo} onChange={(e) => setSplitNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ Port <span className="text-red-500">*</span></label><input type="text" required value={portNo} onChange={(e) => setPortNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ #L3(ชื่อ)</label><input type="text" value={l3Name} onChange={(e) => setL3Name(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>

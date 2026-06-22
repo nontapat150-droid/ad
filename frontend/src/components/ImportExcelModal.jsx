@@ -13,8 +13,10 @@ export default function ImportExcelModal({ isOpen, onClose, onSuccess }) {
 
   // Define expected columns for the template
   const TEMPLATE_HEADERS = [
-    'Access No', 'Customer Name', 'Phone', 'Plan Date (YYYY-MM-DD)', 
-    'Address', 'Latitude', 'Longitude', 'Package', 'Product', 'Remark'
+    'Access No', 'Customer Name', 'Phone', 'Plan Date (YYYY-MM-DD)', 'Plan Time (HH:MM)',
+    'Address', 'Latitude', 'Longitude', 'Package', 'Product', 'Remark',
+    'Order No', 'Customer Order No', 'Province', 'Area Code', 'Area Name',
+    'Task Type', 'Task Order', 'Product Owner', 'Service Note'
   ];
 
   const handleDownloadTemplate = () => {
@@ -61,6 +63,16 @@ export default function ImportExcelModal({ isOpen, onClose, onSuccess }) {
         let idxPackage = getIdx('package', 'แพ็ก');
         let idxProduct = getIdx('product', 'สินค้า');
         let idxRemark = getIdx('remark', 'หมายเหตุ', 'note');
+        let idxPlanTime = getIdx('plan time', 'เวลา', 'time');
+        let idxOrderNo = getIdx('order no', 'order_no');
+        let idxCustOrderNo = getIdx('customer order', 'cust order');
+        let idxProvince = getIdx('province', 'จังหวัด');
+        let idxAreaCode = getIdx('area code', 'รหัสพื้นที่');
+        let idxAreaName = getIdx('area name', 'ชื่อพื้นที่', 'พื้นที่');
+        let idxTaskType = getIdx('task type', 'ประเภทงาน');
+        let idxTaskOrder = getIdx('task order');
+        let idxProductOwner = getIdx('product owner', 'owner');
+        let idxServiceNote = getIdx('service note', 'service');
 
         // Fallbacks if not found
         if (idxAccessNo === -1) idxAccessNo = 0;
@@ -91,12 +103,22 @@ export default function ImportExcelModal({ isOpen, onClose, onSuccess }) {
             customer: String(row[idxCustomer] || '').trim(),
             phone: String(row[idxPhone] || '').trim(),
             plan_arrival_date: formatExcelDate(row[idxDate]),
+            plan_arrival_time: idxPlanTime >= 0 ? String(row[idxPlanTime] || '').trim() : '',
             address: String(row[idxAddress] || '').trim(),
             lat: parseCoord(row[idxLat]),
             lng: parseCoord(row[idxLng]),
             package: String(row[idxPackage] || '').trim(),
             product: String(row[idxProduct] || '').trim(),
             remark: String(row[idxRemark] || '').trim(),
+            order_no: idxOrderNo >= 0 ? String(row[idxOrderNo] || '').trim() : '',
+            customer_order_no: idxCustOrderNo >= 0 ? String(row[idxCustOrderNo] || '').trim() : '',
+            province: idxProvince >= 0 ? String(row[idxProvince] || '').trim() : '',
+            area_code: idxAreaCode >= 0 ? String(row[idxAreaCode] || '').trim() : '',
+            area_name: idxAreaName >= 0 ? String(row[idxAreaName] || '').trim() : '',
+            task_type: idxTaskType >= 0 ? String(row[idxTaskType] || '').trim() : '',
+            task_order: idxTaskOrder >= 0 ? String(row[idxTaskOrder] || '').trim() : '',
+            product_owner: idxProductOwner >= 0 ? String(row[idxProductOwner] || '').trim() : '',
+            service_note: idxServiceNote >= 0 ? String(row[idxServiceNote] || '').trim() : '',
           });
         }
         setPreviewData(parsedJobs);

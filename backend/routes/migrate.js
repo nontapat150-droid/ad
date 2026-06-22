@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const { syncCustomerFromJob } = require('../utils/customerSync');
 
 // ─── One-time migration: fix inventory tables AUTO_INCREMENT ─────────────────
 router.get('/migrate-fix', async (req, res) => {
@@ -46,6 +47,106 @@ router.get('/migrate-fix', async (req, res) => {
       results.push('inventory_logs: ' + e.message);
     }
 
+    // Widen install_device to TEXT (pipe-separated device string exceeds VARCHAR(150))
+    try {
+      await pool.query(`ALTER TABLE jobs MODIFY COLUMN install_device TEXT DEFAULT NULL`);
+      results.push('✅ jobs.install_device -> TEXT');
+    } catch(e) {
+      results.push('jobs.install_device: ' + e.message);
+    }
+
+    // customers master table (office install)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS customers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          access_no VARCHAR(50) NOT NULL,
+          customer_name VARCHAR(150) DEFAULT NULL,
+          phone VARCHAR(100) DEFAULT NULL,
+          address TEXT DEFAULT NULL,
+          province VARCHAR(100) DEFAULT NULL,
+          area_code VARCHAR(50) DEFAULT NULL,
+          area_name VARCHAR(150) DEFAULT NULL,
+          lat DECIMAL(10,8) DEFAULT NULL,
+          lng DECIMAL(11,8) DEFAULT NULL,
+          map_link TEXT DEFAULT NULL,
+          package VARCHAR(150) DEFAULT NULL,
+          product VARCHAR(150) DEFAULT NULL,
+          order_no VARCHAR(50) DEFAULT NULL,
+          customer_order_no VARCHAR(50) DEFAULT NULL,
+          task_type VARCHAR(50) DEFAULT NULL,
+          task_order VARCHAR(50) DEFAULT NULL,
+          product_owner VARCHAR(150) DEFAULT NULL,
+          order_type VARCHAR(100) DEFAULT NULL,
+          service_note TEXT DEFAULT NULL,
+          sla_status VARCHAR(50) DEFAULT NULL,
+          region VARCHAR(50) DEFAULT NULL,
+          latest_job_id INT DEFAULT NULL,
+          latest_job_status VARCHAR(50) DEFAULT NULL,
+          install_device TEXT DEFAULT NULL,
+          last_completed_at DATETIME DEFAULT NULL,
+          completed_by INT DEFAULT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_customers_access_no (access_no),
+          KEY idx_customers_job (latest_job_id),
+          CONSTRAINT customers_fk_job FOREIGN KEY (latest_job_id) REFERENCES jobs(id) ON DELETE SET NULL,
+          CONSTRAINT customers_fk_completed_by FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      results.push('✅ customers table created');
+    } catch(e) {
+      results.push('customers: ' + e.message);
+    }
+
+    // job_used_inventory — devices installed from tech bag
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS job_used_inventory (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          job_id INT NOT NULL,
+          inventory_item_id INT NOT NULL,
+          device_role ENUM('SOA','ONU','PB','Mesh','SIM','Cam') NOT NULL,
+          sn VARCHAR(255) DEFAULT NULL,
+          product_name VARCHAR(255) DEFAULT NULL,
+          model_name VARCHAR(255) DEFAULT NULL,
+          quantity DECIMAL(10,2) DEFAULT 1.00,
+          used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          used_by INT DEFAULT NULL,
+          KEY idx_jui_job (job_id),
+          KEY idx_jui_item (inventory_item_id),
+          CONSTRAINT jui_fk_job FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+          CONSTRAINT jui_fk_item FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE RESTRICT,
+          CONSTRAINT jui_fk_user FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      results.push('✅ job_used_inventory table created');
+    } catch(e) {
+      results.push('job_used_inventory: ' + e.message);
+    }
+
+    // inventory_items.status — add 'used'
+    try {
+      await pool.query(`ALTER TABLE inventory_items MODIFY COLUMN status ENUM('in_stock','staging','dispatched','expired','used') DEFAULT 'in_stock'`);
+      results.push('✅ inventory_items.status -> added used');
+    } catch(e) {
+      results.push('inventory_items.status: ' + e.message);
+    }
+
+    // inventory_logs — add 'used' action + note column
+    try {
+      await pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN action ENUM('receive','dispatch','transfer','expire','used') NOT NULL`);
+      results.push('✅ inventory_logs.action -> added used');
+    } catch(e) {
+      results.push('inventory_logs.action: ' + e.message);
+    }
+    try {
+      await pool.query(`ALTER TABLE inventory_logs ADD COLUMN note TEXT DEFAULT NULL`);
+      results.push('✅ inventory_logs.note added');
+    } catch(e) {
+      results.push('inventory_logs.note: ' + e.message);
+    }
+
     // Show current structure of inventory_products
     const [cols] = await pool.query('SHOW CREATE TABLE inventory_products');
     results.push('');
@@ -55,6 +156,24 @@ router.get('/migrate-fix', async (req, res) => {
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });
+  }
+});
+
+// ─── Backfill customers from existing jobs ─────────────────
+router.get('/backfill-customers', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const [jobs] = await conn.query('SELECT id FROM jobs WHERE access_no IS NOT NULL ORDER BY id ASC');
+    let synced = 0;
+    for (const { id } of jobs) {
+      await syncCustomerFromJob(conn, id);
+      synced++;
+    }
+    res.json({ success: true, synced });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
   }
 });
 

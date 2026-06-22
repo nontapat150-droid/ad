@@ -13,13 +13,21 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
     customer: '',
     phone: '',
     plan_arrival_date: '',
+    plan_arrival_time: '',
     address: '',
     lat: '',
     lng: '',
     package: '',
     product: '',
     order_no: '',
+    customer_order_no: '',
     task_order: '',
+    task_type: '',
+    product_owner: '',
+    province: '',
+    area_code: '',
+    area_name: '',
+    service_note: '',
     team_id: '',
     field_engineer_id: '',
     remark: ''
@@ -153,6 +161,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
               <Field label="ชื่อลูกค้า" name="customer" value={form.customer} onChange={handleChange} placeholder="ระบุชื่อลูกค้า" />
               <Field label="เบอร์โทรศัพท์" name="phone" value={form.phone} onChange={handleChange} placeholder="ระบุเบอร์ติดต่อ" />
               <Field label="วันที่เข้าทำ (Plan Date)" name="plan_arrival_date" value={form.plan_arrival_date} onChange={handleChange} type="date" />
+              <Field label="เวลานัด (Plan Time)" name="plan_arrival_time" value={form.plan_arrival_time} onChange={handleChange} type="time" />
               
               <div className="col-span-1 md:col-span-2">
                 <label className="block text-sm font-bold text-[#042C53] mb-2">สถานที่ติดตั้ง/ที่อยู่</label>
@@ -171,7 +180,25 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
               <Field label="แพ็กเกจ (Package)" name="package" value={form.package} onChange={handleChange} />
               <Field label="สินค้า (Product)" name="product" value={form.product} onChange={handleChange} />
               <Field label="Order No" name="order_no" value={form.order_no} onChange={handleChange} />
+              <Field label="Customer Order No" name="customer_order_no" value={form.customer_order_no} onChange={handleChange} />
               <Field label="Task Order" name="task_order" value={form.task_order} onChange={handleChange} />
+              <Field label="ประเภทงาน (Task Type)" name="task_type" value={form.task_type} onChange={handleChange} />
+              <Field label="Product Owner" name="product_owner" value={form.product_owner} onChange={handleChange} />
+              <Field label="จังหวัด (Province)" name="province" value={form.province} onChange={handleChange} />
+              <Field label="Area Code" name="area_code" value={form.area_code} onChange={handleChange} />
+              <Field label="Area Name" name="area_name" value={form.area_name} onChange={handleChange} />
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-bold text-[#042C53] mb-2">Service Note</label>
+                <textarea
+                  name="service_note"
+                  value={form.service_note}
+                  onChange={handleChange}
+                  rows="2"
+                  placeholder="หมายเหตุบริการ / ISP"
+                  className="w-full px-4 py-3 border border-white/50 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 hover:glass/50 focus:glass/50 transition-all outline-none"
+                />
+              </div>
 
               <div className="col-span-1 md:col-span-2 border-t border-white/30 pt-6 mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>

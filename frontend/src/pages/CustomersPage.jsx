@@ -197,6 +197,22 @@ export default function CustomersPage() {
                         <InfoRow label="วันที่ติดตั้ง (Plan Date)" value={customerData.plan_arrival_date ? new Date(customerData.plan_arrival_date).toLocaleDateString('th-TH') : '-'} />
                         <InfoRow label="เลข (NON)" value={customerData.access_no} />
                         <InfoRow label="แพ็กเกจ" value={customerData.package} />
+                        <InfoRow label="สินค้า (Product)" value={customerData.product} />
+                        <InfoRow label="Order No" value={customerData.order_no} />
+                        <InfoRow label="Customer Order No" value={customerData.customer_order_no} />
+                        <InfoRow label="Service Note" value={customerData.service_note} />
+                        {customerData.used_devices && customerData.used_devices.length > 0 && (
+                          <div className="pt-2 border-t border-[#E5E7EB]">
+                            <p className="text-xs font-bold text-[#185FA5] mb-2">อุปกรณ์ที่ติดตั้ง (จากกระเป๋าช่าง)</p>
+                            {customerData.used_devices.map((d, idx) => (
+                              <InfoRow
+                                key={`used-${idx}`}
+                                label={d.device_role}
+                                value={`${d.product_name || ''} ${d.model_name || ''} — SN: ${d.sn || '-'}`.trim()}
+                              />
+                            ))}
+                          </div>
+                        )}
                         {customerData.soa_device ? (
                           <>
                             <InfoRow label="อุปกรณ์ปิด SOA" value={customerData.soa_device} />
@@ -228,6 +244,22 @@ export default function CustomersPage() {
                         )}
                         <InfoRow label="ประเภทงาน" value={customerData.task_type} />
                         <InfoRow label="Product Owner" value={customerData.product_owner} />
+                        <InfoRow label="Order Type" value={customerData.order_type} />
+                        <InfoRow label="Task Order" value={customerData.task_order} />
+                        <InfoRow label="Region" value={customerData.region} />
+                        {customerData.map_link && (
+                          <InfoRow label="Map Link" value={
+                            <a href={customerData.map_link} target="_blank" rel="noreferrer" className="text-[#185FA5] underline break-all">
+                              {customerData.map_link}
+                            </a>
+                          } />
+                        )}
+                        {customerData.deadline && (
+                          <InfoRow label="Deadline" value={formatDate(customerData.deadline)} />
+                        )}
+                        {customerData.completed_by_name && (
+                          <InfoRow label="ผู้ปิดงาน" value={customerData.completed_by_name} />
+                        )}
                       </div>
                     </div>
                   </div>

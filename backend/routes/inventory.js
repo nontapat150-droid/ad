@@ -288,7 +288,7 @@ router.get('/my-bag', auth, async (req, res) => {
 
   try {
     const [items] = await pool.query(
-      `SELECT ii.*, pm.model_name, p.name AS product_name 
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn
        FROM inventory_items ii
        JOIN inventory_models pm ON pm.id = ii.model_id
        JOIN inventory_products p ON p.id = pm.product_id
