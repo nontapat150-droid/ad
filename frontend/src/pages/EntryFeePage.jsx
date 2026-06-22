@@ -69,7 +69,7 @@ const CustomMonthPicker = ({ value, onChange }) => {
       </button>
 
       <div 
-        className={`absolute right-0 mt-2 p-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E5E7EB] w-[280px] z-50 transition-all duration-300 origin-top-right ${
+        className={`absolute left-0 sm:left-auto sm:right-0 mt-2 p-4 bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-[#E5E7EB] w-[280px] sm:w-[320px] z-50 transition-all duration-300 origin-top-left sm:origin-top-right ${
           isOpen ? 'opacity-100 transform scale-100 translate-y-0' : 'opacity-0 transform scale-95 -translate-y-2 pointer-events-none'
         }`}
       >
@@ -676,14 +676,14 @@ export default function EntryFeePage() {
               >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-[#F3F4F6]">
                   <h2 className="text-lg font-bold text-[#1F2937]">ประวัติค่าแรกเข้า</h2>
-                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
                     {/* Filter by creator */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                       <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ผู้บันทึก</label>
                       <select
                         value={filterCreatedBy}
                         onChange={(e) => setFilterCreatedBy(e.target.value)}
-                        className="px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
+                        className="w-full sm:w-auto px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
                       >
                         <option value="">ทั้งหมด</option>
                         {usersList.map(u => (
@@ -692,12 +692,14 @@ export default function EntryFeePage() {
                       </select>
                     </div>
                     {/* Month picker */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto z-50">
                       <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">เดือน</label>
-                      <CustomMonthPicker 
-                        value={selectedMonth}
-                        onChange={setSelectedMonth}
-                      />
+                      <div className="w-full sm:w-auto">
+                        <CustomMonthPicker 
+                          value={selectedMonth}
+                          onChange={setSelectedMonth}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -717,84 +719,159 @@ export default function EntryFeePage() {
                     <p className="text-[#6B7280] text-sm">ไม่มีข้อมูลการเก็บค่าแรกเข้าในเดือนที่เลือก</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap min-w-[120px]">รหัส NON</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[180px]">ชื่อลูกค้า</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap">ประเภท</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[160px]">วันที่บันทึก</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider min-w-[150px]">ผู้บันทึก</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right whitespace-nowrap">หลักฐาน</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {historyData.map((item, idx) => {
-                          const typeInfo = FEE_TYPE_LABELS[item.fee_type] || FEE_TYPE_LABELS.slip;
-                          const isBackdate = item.fee_type === 'backdate';
-                          return (
-                            <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
-                              <td className="py-4 px-5 whitespace-nowrap">
-                                <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-2.5 py-1 rounded-md text-sm">{item.access_no}</span>
-                              </td>
-                              <td className="py-4 px-5 font-bold text-[#1F2937] text-sm whitespace-nowrap">{item.customer_name}</td>
-                              <td className="py-4 px-5 whitespace-nowrap">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border whitespace-nowrap ${typeInfo.color}`}>
-                                  {typeInfo.icon} {typeInfo.label}
-                                </span>
+                  <>
+                    {/* Mobile Card Layout */}
+                    <div className="block lg:hidden space-y-4">
+                      {historyData.map((item, idx) => {
+                        const typeInfo = FEE_TYPE_LABELS[item.fee_type] || FEE_TYPE_LABELS.slip;
+                        const isBackdate = item.fee_type === 'backdate';
+                        return (
+                          <div key={item.id} className="bg-white border border-[#E5E7EB] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                            <div className="flex justify-between items-start">
+                              <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-3 py-1.5 rounded-lg text-sm">{item.access_no}</span>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeInfo.color}`}>
+                                {typeInfo.icon} {typeInfo.label}
+                              </span>
+                            </div>
+                            
+                            <div>
+                              <div className="text-[11px] text-[#9CA3AF] font-bold uppercase tracking-wider mb-0.5">ชื่อลูกค้า</div>
+                              <div className="font-bold text-[#1F2937]">{item.customer_name}</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 bg-[#F9FAFB] p-3 rounded-xl border border-[#F3F4F6]">
+                              <div>
+                                <div className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider mb-1">วันที่บันทึก</div>
+                                <div className="text-xs text-[#4B5563] font-medium">{formatDate(item.created_at)}</div>
                                 {isBackdate && item.backdate && (
-                                  <div className="text-[10px] text-purple-500 mt-1 font-medium whitespace-nowrap">
-                                    ⏮️ วันที่: {new Date(item.backdate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  <div className="text-[10px] text-purple-500 mt-1 font-medium bg-purple-50 p-1 rounded">
+                                    ⏮️ {new Date(item.backdate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                                   </div>
                                 )}
-                              </td>
-                              <td className="py-4 px-5 text-sm text-[#4B5563] font-medium whitespace-nowrap">{formatDate(item.created_at)}</td>
-                              <td className="py-4 px-5 text-sm text-[#374151] font-bold">
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border border-[#E5E7EB]">
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-wider mb-1">ผู้บันทึก</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-[#1F2937] flex items-center justify-center text-[10px] font-bold text-[#A3E635] shrink-0 overflow-hidden">
                                     {item.profile_image ? (
                                       <img src={resolveImageUrl(item.profile_image)} alt={item.creator_name} className="w-full h-full object-cover" />
                                     ) : (
                                       item.creator_name ? item.creator_name.charAt(0) : '?'
                                     )}
                                   </div>
-                                  <span className="whitespace-nowrap">{item.creator_name || '-'}</span>
+                                  <span className="text-xs font-bold text-[#374151] truncate">{item.creator_name || '-'}</span>
                                 </div>
-                              </td>
-                              <td className="py-4 px-5 text-right">
-                                {item.image_path && item.image_path !== 'รับหน้างาน' ? (
-                                  <button 
-                                    onClick={() => {
-                                      const fullUrl = resolveImageUrl(item.image_path);
-                                      Swal.fire({
-                                        imageUrl: fullUrl,
-                                        imageAlt: 'หลักฐานค่าแรกเข้า',
-                                        width: 'auto',
-                                        showConfirmButton: false,
-                                        showCloseButton: true,
-                                        customClass: {
-                                          image: 'max-h-[80vh] object-contain rounded-xl'
-                                        }
-                                      });
-                                    }}
-                                    className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group cursor-pointer"
-                                    title="ดูรูปภาพ"
-                                  >
-                                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                  </button>
-                                ) : (
-                                  <span className="text-xs text-[#9CA3AF] italic">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                              </div>
+                            </div>
+
+                            {item.image_path && item.image_path !== 'รับหน้างาน' && (
+                              <button 
+                                onClick={() => {
+                                  const fullUrl = resolveImageUrl(item.image_path);
+                                  Swal.fire({
+                                    imageUrl: fullUrl,
+                                    imageAlt: 'หลักฐานค่าแรกเข้า',
+                                    width: 'auto',
+                                    showConfirmButton: false,
+                                    showCloseButton: true,
+                                    customClass: {
+                                      image: 'max-h-[80vh] object-contain rounded-xl'
+                                    }
+                                  });
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                ดูหลักฐาน
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop Table Layout */}
+                    <div className="hidden lg:block overflow-x-auto rounded-xl border border-[#E5E7EB]">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">รหัส NON</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider w-[25%]">ชื่อลูกค้า</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">ประเภท</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[20%]">วันที่บันทึก</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">ผู้บันทึก</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right whitespace-nowrap w-[10%]">หลักฐาน</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {historyData.map((item, idx) => {
+                            const typeInfo = FEE_TYPE_LABELS[item.fee_type] || FEE_TYPE_LABELS.slip;
+                            const isBackdate = item.fee_type === 'backdate';
+                            return (
+                              <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
+                                <td className="py-4 px-5 whitespace-nowrap">
+                                  <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-3 py-1.5 rounded-lg text-sm">{item.access_no}</span>
+                                </td>
+                                <td className="py-4 px-5 font-bold text-[#1F2937] text-sm break-words">{item.customer_name}</td>
+                                <td className="py-4 px-5 whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${typeInfo.color}`}>
+                                    {typeInfo.icon} {typeInfo.label}
+                                  </span>
+                                  {isBackdate && item.backdate && (
+                                    <div className="text-[10px] text-purple-600 bg-purple-50 px-2 py-1 inline-block rounded border border-purple-100 mt-2 font-medium whitespace-nowrap">
+                                      ⏮️ วันที่: {new Date(item.backdate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4 px-5 text-sm text-[#4B5563] font-medium whitespace-nowrap">{formatDate(item.created_at)}</td>
+                                <td className="py-4 px-5 text-sm text-[#374151] font-bold">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border-2 border-white ring-1 ring-[#E5E7EB]">
+                                      {item.profile_image ? (
+                                        <img src={resolveImageUrl(item.profile_image)} alt={item.creator_name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        item.creator_name ? item.creator_name.charAt(0) : '?'
+                                      )}
+                                    </div>
+                                    <span className="whitespace-nowrap">{item.creator_name || '-'}</span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-5 text-right">
+                                  {item.image_path && item.image_path !== 'รับหน้างาน' ? (
+                                    <button 
+                                      onClick={() => {
+                                        const fullUrl = resolveImageUrl(item.image_path);
+                                        Swal.fire({
+                                          imageUrl: fullUrl,
+                                          imageAlt: 'หลักฐานค่าแรกเข้า',
+                                          width: 'auto',
+                                          showConfirmButton: false,
+                                          showCloseButton: true,
+                                          customClass: {
+                                            image: 'max-h-[80vh] object-contain rounded-xl'
+                                          }
+                                        });
+                                      }}
+                                      className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group cursor-pointer"
+                                      title="ดูรูปภาพ"
+                                    >
+                                      <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                      </svg>
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs text-[#9CA3AF] italic bg-gray-50 px-2 py-1 rounded">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             )}
