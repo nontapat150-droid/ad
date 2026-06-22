@@ -391,7 +391,7 @@ export default function EntryFeePage() {
 
                 {/* ── Admin Mode Fields ── */}
                 {isAdminMode && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-[#E5E7EB] shadow-sm animate-fade-in-up">
+                  <div className="relative z-50 grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-6 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-[#E5E7EB] shadow-sm animate-fade-in-up">
                     <div className="relative" ref={techDropdownRef}>
                       <label className="block text-sm font-bold text-[#374151] mb-2 uppercase tracking-wide">เลือกช่าง <span className="text-red-500">*</span></label>
                       <button
