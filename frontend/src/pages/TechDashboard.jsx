@@ -86,6 +86,24 @@ export default function TechDashboard() {
     // This is now handled by CompleteJobModal
   };
 
+  const handleSetOff = async (jobId) => {
+    try {
+      await api.put(`/dispatch/jobs/${jobId}/set-off`);
+      fetchJobs();
+    } catch (err) {
+      console.error('Failed to set off:', err);
+    }
+  };
+
+  const handleArrive = async (jobId) => {
+    try {
+      await api.put(`/dispatch/jobs/${jobId}/arrive`);
+      fetchJobs();
+    } catch (err) {
+      console.error('Failed to arrive:', err);
+    }
+  };
+
   const checkinStatus = getCheckinStatus(checkinData);
   const cfg           = STATUS_CONFIG[checkinStatus];
   const canCheckin    = checkinStatus === 'none';
@@ -206,6 +224,8 @@ export default function TechDashboard() {
                       onComplete={setCompleting} 
                       onIncomplete={setIncompleting} 
                       onPostpone={setPostponing} 
+                      onSetOff={() => handleSetOff(job.id)}
+                      onArrive={() => handleArrive(job.id)}
                     />
                   ))
                 )}

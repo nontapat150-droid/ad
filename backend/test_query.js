@@ -10,14 +10,15 @@ async function test() {
   });
   
   try {
-    const [rows] = await pool.query(`
-      SELECT * FROM (
-        (SELECT 1 as id ORDER BY id LIMIT 1)
-        UNION ALL
-        (SELECT 2 as id ORDER BY id LIMIT 1)
-      ) AS c
-    `);
-    console.log('SUCCESS:', rows);
+    const [jobsStatus] = await pool.query("SHOW COLUMNS FROM jobs LIKE 'status'");
+    console.log('jobs.status:', jobsStatus[0].Type);
+
+    const [jobLogsStatus] = await pool.query("SHOW COLUMNS FROM job_logs LIKE 'status'");
+    console.log('job_logs.status:', jobLogsStatus[0].Type);
+
+    const [invItemsStatus] = await pool.query("SHOW COLUMNS FROM inventory_items LIKE 'status'");
+    console.log('inventory_items.status:', invItemsStatus[0].Type);
+
   } catch(e) {
     console.error('ERROR:', e.message);
   }

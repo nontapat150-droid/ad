@@ -181,6 +181,72 @@ router.get('/jobs/:id', auth, async (req, res) => {
   }
 });
 
+// ── PUT /api/dispatch/jobs/:id/set-off — Tech sets off ─────────
+router.put('/jobs/:id/set-off', auth, async (req, res) => {
+  const jobId = req.params.id;
+  const techId = req.user.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
+    
+    await conn.query(`UPDATE jobs SET status = 'in_progress', set_off_time = NOW() WHERE id = ?`, [jobId]);
+    
+    try {
+      await conn.query(`INSERT INTO job_logs (job_id, tech_id, status) VALUES (?, ?, 'set_off')`, [jobId, techId]);
+    } catch(e) {
+      if (e.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(`INSERT INTO job_logs (id, job_id, tech_id, status) VALUES (?, ?, ?, 'set_off')`, [(maxId || 0) + 1, jobId, techId]);
+      } else throw e;
+    }
+
+    await safeSyncCustomer(conn, jobId);
+    await conn.commit();
+    res.json({ message: 'Set off successful' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Set off error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/jobs/:id/arrive — Tech arrives at site ──
+router.put('/jobs/:id/arrive', auth, async (req, res) => {
+  const jobId = req.params.id;
+  const techId = req.user.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
+    
+    await conn.query(`UPDATE jobs SET status = 'in_progress', arrival_time = NOW() WHERE id = ?`, [jobId]);
+    
+    try {
+      await conn.query(`INSERT INTO job_logs (job_id, tech_id, status) VALUES (?, ?, 'arrival')`, [jobId, techId]);
+    } catch(e) {
+      if (e.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(`INSERT INTO job_logs (id, job_id, tech_id, status) VALUES (?, ?, ?, 'arrival')`, [(maxId || 0) + 1, jobId, techId]);
+      } else throw e;
+    }
+
+    await safeSyncCustomer(conn, jobId);
+    await conn.commit();
+    res.json({ message: 'Arrival successful' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Arrival error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── PUT /api/dispatch/jobs/:id/complete — Tech completes a job ─
 router.put(
   '/jobs/:id/complete',
