@@ -351,32 +351,30 @@ export default function EntryFeePage() {
         </header>
 
         {/* ── Tabs ───────────────────────────────────────── */}
-        {!isOfficeTech && (
-          <div className="px-4 py-3 bg-white border-b border-[#E5E7EB] z-0 shadow-sm flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-            <button 
-              type="button"
-              onClick={() => setActiveTab('record')}
-              className={`px-5 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'record' 
-                  ? 'bg-gradient-to-r from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm border border-[#65a30d]/20' 
-                  : 'bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937]'
-              }`}
-            >
-              บันทึกค่าแรกเข้า
-            </button>
-            <button 
-              type="button"
-              onClick={() => setActiveTab('history')}
-              className={`px-5 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'history' 
-                  ? 'bg-gradient-to-r from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm border border-[#65a30d]/20' 
-                  : 'bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937]'
-              }`}
-            >
-              ประวัติการบันทึก
-            </button>
-          </div>
-        )}
+        <div className="px-4 py-3 bg-white border-b border-[#E5E7EB] z-0 shadow-sm flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('record')}
+            className={`px-5 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${
+              activeTab === 'record' 
+                ? 'bg-gradient-to-r from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm border border-[#65a30d]/20' 
+                : 'bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937]'
+            }`}
+          >
+            บันทึกค่าแรกเข้า
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('history')}
+            className={`px-5 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${
+              activeTab === 'history' 
+                ? 'bg-gradient-to-r from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm border border-[#65a30d]/20' 
+                : 'bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937]'
+            }`}
+          >
+            ประวัติการบันทึก
+          </button>
+        </div>
 
         {/* ── Main Content ───────────────────────────────── */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
@@ -678,19 +676,21 @@ export default function EntryFeePage() {
                   <h2 className="text-lg font-bold text-[#1F2937]">ประวัติค่าแรกเข้า</h2>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
                     {/* Filter by creator */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                      <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ผู้บันทึก</label>
-                      <select
-                        value={filterCreatedBy}
-                        onChange={(e) => setFilterCreatedBy(e.target.value)}
-                        className="w-full sm:w-auto px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
-                      >
-                        <option value="">ทั้งหมด</option>
-                        {usersList.map(u => (
-                          <option key={u.id} value={u.id}>{u.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                        <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ผู้บันทึก</label>
+                        <select
+                          value={filterCreatedBy}
+                          onChange={(e) => setFilterCreatedBy(e.target.value)}
+                          className="w-full sm:w-auto px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
+                        >
+                          <option value="">ทั้งหมด</option>
+                          {usersList.map(u => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {/* Month picker */}
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto z-50">
                       <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">เดือน</label>

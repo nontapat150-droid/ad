@@ -980,6 +980,10 @@ router.get('/entry-fee/history', auth, async (req, res) => {
   try {
     const { month, created_by } = req.query; // month: 'YYYY-MM', created_by: user_id
     
+    const userRoles = req.user.roles || [req.user.role];
+    const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin');
+    const targetUserId = isAdmin ? created_by : req.user.id;
+
     let query = `
       SELECT ef.*, u.full_name as creator_name, u.profile_image
       FROM entry_fees ef
@@ -992,9 +996,9 @@ router.get('/entry-fee/history', auth, async (req, res) => {
       conditions.push(`DATE_FORMAT(ef.created_at, '%Y-%m') = ?`);
       params.push(month);
     }
-    if (created_by) {
+    if (targetUserId) {
       conditions.push(`ef.created_by = ?`);
-      params.push(created_by);
+      params.push(targetUserId);
     }
 
     if (conditions.length > 0) {
