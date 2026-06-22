@@ -467,7 +467,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               task_type, task_order, product_owner, order_type, service_note,
               sla_status, region, map_link,
               status, create_user_role)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
           [
             access_no, customer || null, phone || null, pkg || null, address || null,
             lat || null, lng || null, plan_arrival_date || null, formatted_time,
