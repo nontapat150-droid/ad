@@ -443,9 +443,8 @@ export default function EntryFeePage() {
                           value={adminSelectedDate}
                           onChange={(e) => setAdminSelectedDate(e.target.value)}
                           max={new Date().toLocaleDateString('en-CA')}
-                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative
+                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative hide-calendar-icon
                             ${adminSelectedDate ? 'text-[#1F2937] border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'text-[#9CA3AF] border-[#E5E7EB] hover:border-[#A3E635]/50'}
-                            [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer
                           `}
                         />
                         <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
@@ -548,9 +547,8 @@ export default function EntryFeePage() {
                           value={backdateValue}
                           onChange={(e) => setBackdateValue(e.target.value)}
                           max={new Date().toLocaleDateString('en-CA')}
-                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative
+                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative hide-calendar-icon
                             ${backdateValue ? 'text-[#1F2937] border-purple-400 ring-4 ring-purple-200' : 'text-[#9CA3AF] border-purple-300 hover:border-purple-400'}
-                            [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer
                           `}
                           required
                         />
