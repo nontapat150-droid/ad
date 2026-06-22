@@ -161,10 +161,12 @@ export default function EntryFeePage() {
   useEffect(() => {
     if (isAdminMode && techList.length === 0) {
       axios.get('/users').then(res => {
-        const allowed = ['office_technician', 'MA'];
-        const filtered = res.data.filter(u => allowed.includes(u.role));
+        // Since there are only Office and MA techs, we can just exclude admins
+        const filtered = res.data.filter(u => u.role !== 'admin' && u.role !== 'super_admin');
         setTechList(filtered);
-      }).catch(() => {});
+      }).catch(err => {
+        console.error('Failed to fetch users:', err);
+      });
     }
   }, [isAdminMode]);
 
@@ -399,8 +401,8 @@ export default function EntryFeePage() {
                       >
                         {adminSelectedTech ? (
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${adminSelectedTech.role === 'office_technician' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                              {adminSelectedTech.role === 'office_technician' ? 'Office' : 'MA'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${adminSelectedTech.role?.toUpperCase() !== 'MA' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {adminSelectedTech.role?.toUpperCase() !== 'MA' ? 'Office' : 'MA'}
                             </span>
                             <span className="font-bold text-sm text-[#1F2937]">{adminSelectedTech.full_name || adminSelectedTech.username}</span>
                           </div>
@@ -422,8 +424,8 @@ export default function EntryFeePage() {
                                 onClick={() => { setAdminSelectedTech(t); setIsTechDropdownOpen(false); }}
                                 className="w-full text-left px-4 py-3 hover:bg-[#F9FAFB] border-b border-[#F3F4F6] last:border-0 flex items-center gap-3 transition-colors"
                               >
-                                <span className={`shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold ${t.role === 'office_technician' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
-                                  {t.role === 'office_technician' ? 'Office' : 'MA'}
+                                <span className={`shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold ${t.role?.toUpperCase() !== 'MA' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                                  {t.role?.toUpperCase() !== 'MA' ? 'Office' : 'MA'}
                                 </span>
                                 <span className="font-bold text-sm text-[#374151]">{t.full_name || t.username}</span>
                               </button>
