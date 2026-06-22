@@ -911,7 +911,10 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
     let finalCreatedBy = req.user.id;
     let finalCreatedAt = null;
 
-    if (req.user.role === 'admin' || req.user.role === 'super_admin') {
+    const userRoles = req.user.roles || [req.user.role];
+    const isAdmin = userRoles.includes('admin') || userRoles.includes('super_admin');
+
+    if (isAdmin) {
       if (target_user_id) finalCreatedBy = target_user_id;
       if (admin_date) finalCreatedAt = admin_date + ' 12:00:00'; // Make it a DATETIME
     }
@@ -942,13 +945,28 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
 
     await pool.query(query, params);
 
-    // Sync entry_fee_status to customers table
+    // Sync entry_fee_status to customers table or Create if not exists
     try {
-      await pool.query(
-        `UPDATE customers SET entry_fee_status = ?, entry_fee_date = NOW() WHERE access_no = ?`,
-        [type, access_no]
-      );
-    } catch (e) { /* customers table might not have the column yet */ }
+      const [existing] = await pool.query('SELECT id FROM customers WHERE access_no = ?', [access_no]);
+      if (existing.length > 0) {
+        await pool.query(
+          `UPDATE customers SET entry_fee_status = ?, entry_fee_date = NOW(), customer_name = COALESCE(NULLIF(customer_name, '-'), ?) WHERE access_no = ?`,
+          [type, customer_name, access_no]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO customers (
+            access_no, customer_name, entry_fee_status, entry_fee_date,
+            phone, address, province, area_code, area_name,
+            lat, lng, map_link, package, product, order_no, customer_order_no,
+            task_type, task_order, product_owner, order_type, service_note, sla_status, region
+          ) VALUES (?, ?, ?, NOW(), '-', '-', '-', '-', '-', 0, 0, '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-', '-')`,
+          [access_no, customer_name, type]
+        );
+      }
+    } catch (e) {
+      console.error('Customers Sync Error:', e.message);
+    }
 
     return res.json({ message: 'Entry fee saved successfully', imagePath, fee_type: type });
   } catch (err) {
