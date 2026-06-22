@@ -101,6 +101,11 @@ pool.query(`
   )
 `).catch(() => {});
 
+// ── Entry Fee upgrade: 3 modes (slip/cash/backdate) ─────────
+pool.query(`ALTER TABLE entry_fees ADD COLUMN fee_type ENUM('slip','cash','backdate') NOT NULL DEFAULT 'slip'`).catch(() => {});
+pool.query(`ALTER TABLE entry_fees ADD COLUMN backdate DATE NULL`).catch(() => {});
+pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL`).catch(() => {});
+pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_date DATETIME NULL`).catch(() => {});
 
 // ── Background Jobs (Cron) ───────────────────────────────────
 require('./cron/reminders');

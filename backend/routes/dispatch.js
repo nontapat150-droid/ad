@@ -367,37 +367,58 @@ router.put(
         }
       }
 
-      // 4.5 Insert Entry Fee
-      const { entryFeeStatus, accessNo, customerName } = req.body;
+      // 4.5 Insert Entry Fee (3 modes: slip/cash/backdate)
+      const { entryFeeStatus, accessNo, customerName, entryFeeBackdate } = req.body;
       if (entryFeeStatus && entryFeeStatus !== 'none') {
         let slipPath = null;
+        let feeType = entryFeeStatus; // 'slip', 'cash', 'backdate'
+        let backdateVal = null;
+
         if (entryFeeStatus === 'cash') {
           slipPath = 'รับหน้างาน';
-        } else if (entryFeeStatus === 'transfer') {
+          feeType = 'cash';
+        } else if (entryFeeStatus === 'slip' || entryFeeStatus === 'transfer') {
           const slipFile = req.files?.entryFeeSlip ? req.files.entryFeeSlip[0] : null;
           if (slipFile) {
             slipPath = `/uploads/job_evidence/${slipFile.filename}`;
           }
+          feeType = 'slip';
+        } else if (entryFeeStatus === 'backdate') {
+          const slipFile = req.files?.entryFeeSlip ? req.files.entryFeeSlip[0] : null;
+          if (slipFile) {
+            slipPath = `/uploads/job_evidence/${slipFile.filename}`;
+          }
+          feeType = 'backdate';
+          backdateVal = entryFeeBackdate || null;
         }
         
         if (slipPath) {
+          const efAccessNo = accessNo || job.access_no;
+          const efCustomer = customerName || job.customer;
           try {
             await conn.query(
-              'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
-              [accessNo || job.access_no, customerName || job.customer, slipPath, techId]
+              'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by, fee_type, backdate) VALUES (?, ?, ?, ?, ?, ?)',
+              [efAccessNo, efCustomer, slipPath, techId, feeType, backdateVal]
             );
           } catch(e) { 
             if (e.message.includes("Field 'id' doesn't have a default value")) {
               const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM entry_fees');
               const nextId = (maxId || 0) + 1;
               await conn.query(
-                'INSERT INTO entry_fees (id, access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?, ?)',
-                [nextId, accessNo || job.access_no, customerName || job.customer, slipPath, techId]
+                'INSERT INTO entry_fees (id, access_no, customer_name, image_path, created_by, fee_type, backdate) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [nextId, efAccessNo, efCustomer, slipPath, techId, feeType, backdateVal]
               );
             } else {
               console.error('Entry fee insert error:', e.message); 
             }
           }
+          // Sync entry_fee_status to customers
+          try {
+            await conn.query(
+              `UPDATE customers SET entry_fee_status = ?, entry_fee_date = NOW() WHERE access_no = ?`,
+              [feeType, efAccessNo]
+            );
+          } catch(e) { /* ignore if column doesn't exist yet */ }
         }
       }
 
@@ -880,43 +901,73 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
   }
 });
 
-// ── POST /api/dispatch/entry-fee — Upload Entry Fee Image ──
+// ── POST /api/dispatch/entry-fee — Upload Entry Fee (3 modes: slip/cash/backdate) ──
 router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
   try {
-    const { access_no, customer_name } = req.body;
+    const { access_no, customer_name, fee_type, backdate } = req.body;
     if (!access_no) return res.status(400).json({ error: 'Missing access_no' });
     if (!customer_name) return res.status(400).json({ error: 'Missing customer_name' });
-    if (!req.file) return res.status(400).json({ error: 'Missing image file' });
 
-    const imagePath = '/uploads/' + req.file.filename;
-    
+    const type = fee_type || 'slip';
+    let imagePath = null;
+
+    if (type === 'slip') {
+      if (!req.file) return res.status(400).json({ error: 'กรุณาแนบสลิปค่าแรกเข้า' });
+      imagePath = '/uploads/' + req.file.filename;
+    } else if (type === 'cash') {
+      imagePath = 'รับหน้างาน';
+    } else if (type === 'backdate') {
+      if (!backdate) return res.status(400).json({ error: 'กรุณาเลือกวันที่ย้อนหลัง' });
+      if (!req.file) return res.status(400).json({ error: 'กรุณาแนบสลิปค่าแรกเข้า (ย้อนหลัง)' });
+      imagePath = '/uploads/' + req.file.filename;
+    } else {
+      return res.status(400).json({ error: 'ประเภทค่าแรกเข้าไม่ถูกต้อง' });
+    }
+
     await pool.query(
-      'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by) VALUES (?, ?, ?, ?)',
-      [access_no, customer_name, imagePath, req.user.id]
+      'INSERT INTO entry_fees (access_no, customer_name, image_path, created_by, fee_type, backdate) VALUES (?, ?, ?, ?, ?, ?)',
+      [access_no, customer_name, imagePath, req.user.id, type, type === 'backdate' ? backdate : null]
     );
 
-    return res.json({ message: 'Entry fee saved successfully', imagePath });
+    // Sync entry_fee_status to customers table
+    try {
+      await pool.query(
+        `UPDATE customers SET entry_fee_status = ?, entry_fee_date = NOW() WHERE access_no = ?`,
+        [type, access_no]
+      );
+    } catch (e) { /* customers table might not have the column yet */ }
+
+    return res.json({ message: 'Entry fee saved successfully', imagePath, fee_type: type });
   } catch (err) {
     console.error('Entry Fee Error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ── GET /api/dispatch/entry-fee/history — Get Entry Fee History by Month ──
+// ── GET /api/dispatch/entry-fee/history — Get Entry Fee History (filterable) ──
 router.get('/entry-fee/history', auth, async (req, res) => {
   try {
-    const { month } = req.query; // format: 'YYYY-MM'
+    const { month, created_by } = req.query; // month: 'YYYY-MM', created_by: user_id
     
     let query = `
       SELECT ef.*, u.full_name as creator_name
       FROM entry_fees ef
       LEFT JOIN users u ON ef.created_by = u.id
     `;
+    const conditions = [];
     const params = [];
     
     if (month) {
-      query += ` WHERE DATE_FORMAT(ef.created_at, '%Y-%m') = ?`;
+      conditions.push(`DATE_FORMAT(ef.created_at, '%Y-%m') = ?`);
       params.push(month);
+    }
+    if (created_by) {
+      conditions.push(`ef.created_by = ?`);
+      params.push(created_by);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
     
     query += ` ORDER BY ef.created_at DESC`;

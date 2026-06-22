@@ -68,8 +68,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [scBlue, setScBlue] = useState('');
 
   // Entry Fee Fields
-  const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none', 'transfer', 'cash'
+  const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none', 'slip', 'cash', 'backdate'
   const [entryFeeSlip, setEntryFeeSlip] = useState(null);
+  const [entryFeeBackdate, setEntryFeeBackdate] = useState(''); // YYYY-MM-DD for backdate mode
 
   const [imagePreviews, setImagePreviews] = useState([]);
   const [entryFeeSlipPreview, setEntryFeeSlipPreview] = useState(null);
@@ -86,7 +87,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setRemark('');
       setBagSelections({ SOA: '', ONU: '', PB: '', Mesh: '', SIM: '', Cam: '' });
       setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
-      setEntryFeeStatus('none'); setEntryFeeSlip(null);
+      setEntryFeeStatus('none'); setEntryFeeSlip(null); setEntryFeeBackdate('');
       imagePreviews.forEach(url => URL.revokeObjectURL(url));
       if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
       setImagePreviews([]);
@@ -160,8 +161,12 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       alert('อัปโหลดรูปภาพได้สูงสุด 20 รูป');
       return;
     }
-    if (entryFeeStatus === 'transfer' && !entryFeeSlip) {
-      alert('กรุณาแนบรูปสลิปโอนเงินค่าแรกเข้า');
+    if ((entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && !entryFeeSlip) {
+      alert('กรุณาแนบรูปสลิปค่าแรกเข้า');
+      return;
+    }
+    if (entryFeeStatus === 'backdate' && !entryFeeBackdate) {
+      alert('กรุณาเลือกวันที่ย้อนหลัง');
       return;
     }
 
@@ -208,8 +213,11 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('scBlue', scBlue);
 
       formData.append('entryFeeStatus', entryFeeStatus);
-      if (entryFeeStatus === 'transfer' && entryFeeSlip) {
+      if ((entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && entryFeeSlip) {
         formData.append('entryFeeSlip', entryFeeSlip);
+      }
+      if (entryFeeStatus === 'backdate' && entryFeeBackdate) {
+        formData.append('entryFeeBackdate', entryFeeBackdate);
       }
 
       for (let i = 0; i < images.length; i++) {
@@ -311,39 +319,49 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               <h3 className="text-sm font-bold text-[#4D7C0F] mb-3 flex items-center gap-2">
                 <span>💰</span> ค่าแรกเข้า
               </h3>
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
                 <button 
                   type="button" 
                   onClick={() => setEntryFeeStatus('none')} 
-                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'none' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${entryFeeStatus === 'none' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
                 >
-                  <span className="text-2xl drop-shadow-sm">🚫</span>
-                  <span className="text-xs font-bold">ไม่มี</span>
+                  <span className="text-xl drop-shadow-sm">🚫</span>
+                  <span className="text-[11px] font-bold">ไม่มี</span>
                 </button>
                 
                 <button 
                   type="button" 
-                  onClick={() => setEntryFeeStatus('transfer')} 
-                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'transfer' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                  onClick={() => setEntryFeeStatus('slip')} 
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${entryFeeStatus === 'slip' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
                 >
-                  <span className="text-2xl drop-shadow-sm">💳</span>
-                  <span className="text-xs font-bold text-center">โอนเงิน<br/><span className="text-[10px] font-normal text-gray-500">(แนบสลิป)</span></span>
+                  <span className="text-xl drop-shadow-sm">💳</span>
+                  <span className="text-[11px] font-bold text-center">แนบสลิป</span>
                 </button>
                 
                 <button 
                   type="button" 
                   onClick={() => setEntryFeeStatus('cash')} 
-                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${entryFeeStatus === 'cash' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${entryFeeStatus === 'cash' ? 'border-[#84CC16] bg-white shadow-md text-[#4D7C0F] scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-[#84CC16]/50 hover:bg-white/60'}`}
                 >
-                  <span className="text-2xl drop-shadow-sm">💵</span>
-                  <span className="text-xs font-bold text-center">รับหน้างาน<br/><span className="text-[10px] font-normal text-gray-500">(เงินสด)</span></span>
+                  <span className="text-xl drop-shadow-sm">💵</span>
+                  <span className="text-[11px] font-bold text-center">รับหน้างาน</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => setEntryFeeStatus('backdate')} 
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all ${entryFeeStatus === 'backdate' ? 'border-purple-400 bg-white shadow-md text-purple-700 scale-105' : 'border-white/60 bg-white/40 text-[#042C53] hover:border-purple-300 hover:bg-white/60'}`}
+                >
+                  <span className="text-xl drop-shadow-sm">📅</span>
+                  <span className="text-[11px] font-bold text-center">ย้อนหลัง</span>
                 </button>
               </div>
               
-              {entryFeeStatus === 'transfer' && (
+              {/* Slip upload — shown for 'slip' and 'backdate' */}
+              {(entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && (
                 <div className="animate-fade-in-up mt-4 p-3 bg-white/60 rounded-xl border border-white/80">
                   <label className="block text-xs font-semibold text-[#042C53] mb-2 flex items-center gap-2">
-                    <span className="text-blue-500">📎</span> อัปโหลดสลิปโอนเงิน <span className="text-red-500">*</span>
+                    <span className="text-blue-500">📎</span> อัปโหลดสลิปค่าแรกเข้า <span className="text-red-500">*</span>
                   </label>
                   <div className="relative mt-2 group cursor-pointer">
                     <input type="file" accept="image/*" onChange={handleEntryFeeSlipChange} 
@@ -354,11 +372,29 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                       ) : (
                         <>
                           <span className="text-3xl mb-2">📸</span>
-                          <span className="text-sm font-semibold text-[#185FA5]">คลิกเพื่ออัปโหลดสลิปโอนเงิน</span>
+                          <span className="text-sm font-semibold text-[#185FA5]">คลิกเพื่ออัปโหลดสลิป</span>
                         </>
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Backdate date picker — shown only for 'backdate' */}
+              {entryFeeStatus === 'backdate' && (
+                <div className="animate-fade-in-up mt-3 p-3 bg-purple-50/80 rounded-xl border border-purple-200">
+                  <label className="block text-xs font-semibold text-purple-800 mb-2 flex items-center gap-2">
+                    <span>📅</span> เลือกวันที่ย้อนหลัง <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="date" 
+                    value={entryFeeBackdate} 
+                    onChange={(e) => setEntryFeeBackdate(e.target.value)}
+                    max={new Date().toLocaleDateString('en-CA')}
+                    className="w-full px-3 py-2 rounded-xl border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-white text-sm"
+                    required
+                  />
+                  <p className="text-[10px] text-purple-500 mt-1.5 font-medium">⚠️ รายการนี้จะแสดงเป็น "ย้อนหลัง" ในประวัติ</p>
                 </div>
               )}
             </div>

@@ -1,0 +1,18 @@
+{
+    "frontend": [
+        "React.js (Vite)",
+        "Tailwind CSS",
+        "Axios",
+        "Chart.js (สำหรับแสดงผลแดชบอร์ด)"
+    ],
+    "backend": [
+        "Node.js",
+        "Express.js",
+        "JWT (auth.js)",
+        "Multer",
+        "Redis (สำหรับทำ Caching)"
+    ],
+    "database": [
+        "MySQL (Connection Pool)"
+    ]
+}

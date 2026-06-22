@@ -5,13 +5,28 @@ async function syncCustomerFromJob(conn, jobId) {
   const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
   if (!job || !job.access_no) return;
 
+  // Check for latest entry fee for this access_no
+  let entryFeeStatus = null;
+  let entryFeeDate = null;
+  try {
+    const [[latestFee]] = await conn.query(
+      'SELECT fee_type, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1',
+      [job.access_no]
+    );
+    if (latestFee) {
+      entryFeeStatus = latestFee.fee_type;
+      entryFeeDate = latestFee.created_at;
+    }
+  } catch (e) { /* entry_fees table might not have fee_type column yet */ }
+
   await conn.query(
     `INSERT INTO customers (
       access_no, customer_name, phone, address, province, area_code, area_name,
       lat, lng, map_link, package, product, order_no, customer_order_no,
       task_type, task_order, product_owner, order_type, service_note, sla_status, region,
-      latest_job_id, latest_job_status, install_device, last_completed_at, completed_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      latest_job_id, latest_job_status, install_device, last_completed_at, completed_by,
+      entry_fee_status, entry_fee_date
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       customer_name = VALUES(customer_name),
       phone = VALUES(phone),
@@ -38,6 +53,8 @@ async function syncCustomerFromJob(conn, jobId) {
       install_device = COALESCE(VALUES(install_device), install_device),
       last_completed_at = COALESCE(VALUES(last_completed_at), last_completed_at),
       completed_by = COALESCE(VALUES(completed_by), completed_by),
+      entry_fee_status = COALESCE(VALUES(entry_fee_status), entry_fee_status),
+      entry_fee_date = COALESCE(VALUES(entry_fee_date), entry_fee_date),
       updated_at = CURRENT_TIMESTAMP`,
     [
       job.access_no,
@@ -66,6 +83,8 @@ async function syncCustomerFromJob(conn, jobId) {
       job.install_device || null,
       job.status === 'completed' ? (job.completed_at || job.finish_time || new Date()) : null,
       job.completed_by || null,
+      entryFeeStatus,
+      entryFeeDate,
     ]
   );
 }

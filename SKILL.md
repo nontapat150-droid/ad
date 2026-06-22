@@ -1,104 +1,284 @@
+# 🛠️ System Tech Stack & Comprehensive Overview
+
+เอกสารนี้ถูกสร้างและอัปเดตอัตโนมัติจากโค้ดจริง (Code Analysis)
+🕒 **อัปเดตล่าสุด:** 22/6/2569 14:35:15
+
+## 🖥️ Frontend Architecture (React.js / Vite)
+
+### 🗺️ Frontend Routes (`App.jsx`)
+* `/login` ➡️ **Login** 🔒
+* `/dashboard` ➡️ **UnifiedDashboard** 🔒
+* `/jobs` ➡️ **DispatchDashboardPage** 🔒
+* `/checkin` ➡️ **CheckinPage** 🔒
+* `/oil` ➡️ **OilDashboardPage** 🔒
+* `/users` ➡️ **UserManagementPage** 🔒
+* `/customers` ➡️ **CustomersPage** 🔒
+* `/inventory` ➡️ **InventoryDashboardPage** 🔒
+* `/bag` ➡️ **TechBagPage** 🔒
+* `/entry-fee` ➡️ **EntryFeePage** 🔒
+* `/attendance-summary` ➡️ **AttendanceSummaryPage** 🔒
+* `/ma-performance` ➡️ **MaPerformancePage** 🔒
+* `/announcements` ➡️ **AnnouncementsPage** 🔒
+* `/ais-expansion` ➡️ **AisExpansionPage** 🔒
+* `/report` ➡️ **ReportIssuePage** 🔒
+* `/` ➡️ **RootRedirect** 
+* `*` ➡️ **RootRedirect** 
+
+### 🧩 Components (`frontend/src/components`)
+* 📄 AutoDispatchModal.jsx
+* 📁 dashboards
+* 📄 DateRangeFilter.jsx
+* 📄 DateTimePicker.jsx
+* 📄 EditJobModal.jsx
+* 📄 ExportModal.jsx
+* 📄 ImportExcelModal.jsx
+* 📄 InboxModal.jsx
+* 📄 JobActionModals.jsx
+* 📄 JobCard.jsx
+* 📄 JobDispatchModal.jsx
+* 📄 Layout.jsx
+* 📄 ManualCheckinModal.jsx
+* 📄 OilRecordEditModal.jsx
+* 📄 OilRecordModal.jsx
+* 📄 ProfileModal.jsx
+* 📄 Sidebar.jsx
+* 📄 TargetSettingsModal.jsx
+* 📄 TeamManagementModal.jsx
+* 📄 TechBagDrawer.jsx
+* 📁 ui
+* 📄 UserProfileModal.jsx
+
+### 📦 Frontend Dependencies
+<details>
+  <summary>คลิกเพื่อดู Dependencies ฝั่ง Frontend</summary>
+
+* **@radix-ui/react-popover** (v1.1.16)
+* **@radix-ui/react-slot** (v1.2.5)
+* **aos** (v2.3.4)
+* **axios** (v1.17.0)
+* **clsx** (v2.1.1)
+* **date-fns** (v3.6.0)
+* **iconv-lite** (v0.7.2)
+* **leaflet** (v1.9.4)
+* **lucide-react** (v1.17.0)
+* **ol** (v10.9.0)
+* **react** (v19.2.6)
+* **react-day-picker** (v8.10.1)
+* **react-dom** (v19.2.6)
+* **react-is** (v19.2.7)
+* **react-leaflet** (v5.0.0)
+* **react-router-dom** (v7.17.0)
+* **recharts** (v3.8.1)
+* **sweetalert2** (v11.26.25)
+* **tailwind-merge** (v3.6.0)
+* **xlsx** (v0.18.5)
+* **@eslint/js** (v10.0.1)
+* **@types/react** (v19.2.14)
+* **@types/react-dom** (v19.2.3)
+* **@vitejs/plugin-react** (v6.0.1)
+* **autoprefixer** (v10.5.0)
+* **eslint** (v10.3.0)
+* **eslint-plugin-react-hooks** (v7.1.1)
+* **eslint-plugin-react-refresh** (v0.5.2)
+* **globals** (v17.6.0)
+* **postcss** (v8.5.15)
+* **tailwindcss** (v3.4.19)
+* **vite** (v8.0.12)
+
+</details>
+
+## ⚙️ Backend Architecture (Node.js / Express)
+
+### 🔌 API Endpoints (`backend/routes`)
+#### 📄 announcements.js
+  * `GET` `/api/announcements/active`
+  * `GET` `/api/announcements`
+  * `POST` `/api/announcements`
+  * `PUT` `/api/announcements/:id`
+  * `DELETE` `/api/announcements/:id`
+
+#### 📄 auth.js
+  * `POST` `/api/auth/login`
+  * `GET` `/api/auth/me`
+  * `PUT` `/api/auth/change-password`
+  * `PUT` `/api/auth/profile-image`
+
+#### 📄 checkin.js
+  * `GET` `/api/checkin/migrate-db`
+  * `GET` `/api/checkin/ma-threshold`
+  * `GET` `/api/checkin/today`
+  * `GET` `/api/checkin/ma-performance`
+  * `GET` `/api/checkin/history`
+  * `GET` `/api/checkin/stats`
+  * `GET` `/api/checkin/summary`
+  * `GET` `/api/checkin/user/:id/history`
+  * `DELETE` `/api/checkin/:id`
+  * `PUT` `/api/checkin/admin/edit/:id`
+
+#### 📄 dispatch.js
+  * `GET` `/api/dispatch/jobs`
+  * `GET` `/api/dispatch/jobs/:id`
+  * `PUT` `/api/dispatch/jobs/:id/set-off`
+  * `PUT` `/api/dispatch/jobs/:id/arrive`
+  * `POST` `/api/dispatch/jobs`
+  * `POST` `/api/dispatch/jobs/bulk`
+  * `PUT` `/api/dispatch/jobs/bulk-assign`
+  * `PUT` `/api/dispatch/jobs/reorder-by-location`
+  * `PUT` `/api/dispatch/jobs/:id/assign`
+  * `GET` `/api/dispatch/summary`
+  * `POST` `/api/dispatch/auto-assign`
+  * `GET` `/api/dispatch/search-access/:accessNo`
+  * `POST` `/api/dispatch/entry-fee`
+  * `GET` `/api/dispatch/entry-fee/history`
+  * `PUT` `/api/dispatch/jobs/:id/incomplete`
+  * `PUT` `/api/dispatch/jobs/:id/postpone`
+  * `PUT` `/api/dispatch/jobs/clear-dispatch`
+  * `PUT` `/api/dispatch/jobs/clear-queue`
+  * `PUT` `/api/dispatch/jobs/:id`
+  * `DELETE` `/api/dispatch/jobs/bulk`
+  * `DELETE` `/api/dispatch/jobs/all`
+  * `DELETE` `/api/dispatch/jobs/:id`
+
+#### 📄 inventory.js
+  * `GET` `/api/inventory/products`
+  * `POST` `/api/inventory/products`
+  * `POST` `/api/inventory/models`
+  * `DELETE` `/api/inventory/products/:id`
+  * `POST` `/api/inventory/receive`
+  * `GET` `/api/inventory/search-sn/:sn`
+  * `POST` `/api/inventory/dispatch`
+  * `GET` `/api/inventory/my-bag`
+  * `GET` `/api/inventory/my-history`
+  * `POST` `/api/inventory/transfer`
+  * `GET` `/api/inventory/history`
+  * `PUT` `/api/inventory/items/tech/:id`
+  * `DELETE` `/api/inventory/items/tech/:id`
+  * `DELETE` `/api/inventory/logs/:id`
+  * `GET` `/api/inventory/stock`
+  * `GET` `/api/inventory/stock/:model_id`
+  * `DELETE` `/api/inventory/items/:id`
+  * `POST` `/api/inventory/check-sn-duplicates`
+
+#### 📄 messages.js
+  * `GET` `/api/messages/users`
+  * `GET` `/api/messages/unread-count`
+  * `GET` `/api/messages/inbox`
+  * `GET` `/api/messages/sent`
+  * `POST` `/api/messages/send`
+  * `PUT` `/api/messages/:id/read`
+
+#### 📄 migrate.js
+  * `GET` `/api/migrate/migrate-fix`
+  * `GET` `/api/migrate/backfill-customers`
+
+#### 📄 oil.js
+  * `GET` `/api/oil/records`
+  * `DELETE` `/api/oil/records/:id`
+  * `POST` `/api/oil/recalculate`
+  * `GET` `/api/oil/efficiency`
+  * `GET` `/api/oil/analytics`
+  * `DELETE` `/api/oil/records/:id`
+
+#### 📄 reports.js
+  * `GET` `/api/reports`
+  * `POST` `/api/reports`
+  * `PUT` `/api/reports/:id/status`
+
+#### 📄 settings.js
+  * `GET` `/api/settings/targets`
+  * `PUT` `/api/settings/targets`
+
+#### 📄 stats.js
+  * `GET` `/api/stats/dashboard`
+  * `GET` `/api/stats/admin-dashboard`
+  * `GET` `/api/stats/super-admin-dashboard`
+  * `GET` `/api/stats/efficiency`
+  * `GET` `/api/stats/office-tech-dashboard`
+  * `GET` `/api/stats/ma-tech-dashboard`
+
+#### 📄 users.js
+  * `GET` `/api/users`
+  * `GET` `/api/users/teams`
+  * `POST` `/api/users/teams`
+  * `DELETE` `/api/users/teams/:id`
+  * `POST` `/api/users`
+  * `PUT` `/api/users/:id/roles`
+  * `PUT` `/api/users/:id`
+  * `DELETE` `/api/users/:id`
+  * `GET` `/api/users/settings/late_time`
+  * `PUT` `/api/users/settings/late_time`
+
+### ⏱️ Cron Jobs (`backend/cron`)
+* 📄 reminders.js
+
+### 🛠️ Utils & Services (`backend/utils`)
+* 📄 customerSync.js
+
+### 📜 Scripts (`backend/scripts`)
+* 📄 backfill-customers.js
+* 📄 create_announcements_table.sql
+* 📄 create_job_completion_images.sql
+* 📄 create_messages_table.sql
+* 📄 migrate_entry_fee_upgrade.sql
+* 📄 run_announcements_sql.js
+* 📄 run_entry_fee_migration.js
+
+### 📦 Backend Dependencies
+<details>
+  <summary>คลิกเพื่อดู Dependencies ฝั่ง Backend</summary>
+
+* **bcryptjs** (v2.4.3)
+* **cors** (v2.8.5)
+* **dotenv** (v16.4.5)
+* **express** (v4.19.2)
+* **jsonwebtoken** (v9.0.2)
+* **multer** (v1.4.5-lts.1)
+* **mysql2** (v3.9.7)
+* **node-cron** (v4.2.1)
+* **nodemon** (v3.1.3)
+
+</details>
+
+## 🗄️ Database Architecture
+* **MySQL** (เชื่อมต่อผ่าน mysql2 แบบ Connection Pool)
+* ใช้ Environment Variables (`.env`) เพื่อจัดการค่า Connection
+
 ---
-name: BO-Bount-System-Knowledge
-description: หลักการทำงานทั้งหมดของระบบ Bount ระบบจัดการงาน (Operations API)
----
 
-# 📚 สรุปหลักการทำงานของระบบ Bount (BO Operations System)
+## 📖 หลักการทำงานและการไหลของข้อมูล (System Data Flow & Principles)
 
-เอกสารนี้สรุปโครงสร้าง สถาปัตยกรรม และหลักการทำงานทั้งหมดของระบบ **Bount** ซึ่งเป็นระบบ Back Office สำหรับจัดการงานติดตั้ง (Installation), งานซ่อมบำรุง (MA), การเบิกจ่ายอุปกรณ์, การจัดการน้ำมัน, การเช็คอินเวลาทำงาน, และการจัดการทีมช่าง
+### 1. 🔐 ระบบ Authentication & Authorization
+* **ตัวแปรหลัก (Variables):** `JWT Token`, `user` object (มีฟิลด์ `roles`, `team_id`, `id`)
+* **การไหลของข้อมูล (Data Flow):** 
+  - ผู้ใช้ล็อกอินผ่าน `/api/auth/login` ได้รับ JWT
+  - **Frontend:** ใช้ `AuthContext` (`App.jsx`) เก็บ `bou_token` และ `bou_user` ลงใน `localStorage` ทุกหน้าจอจะถูกหุ้มด้วย `<ProtectedRoute allowedRoles={[...]}>` เพื่อเช็คสิทธิ์ก่อนเรนเดอร์
+  - **Backend:** ทุก API ที่เป็นความลับจะถูกป้องกันด้วย Middleware `auth` และ `requireRole` เพื่อถอดรหัส JWT และตรวจสอบว่าสิทธิ์ถึงหรือไม่
 
----
+### 2. 🚛 กระบวนการจ่ายงานและปฏิบัติงาน (Dispatch & Job Execution)
+* **ตารางหลัก (Tables):** `jobs`, `ma_jobs`, `job_logs`, `job_completion_images`
+* **การไหลของข้อมูล (Data Flow):** 
+  1. **นำเข้างาน:** Admin สร้างงาน (Post) หรือนำเข้าไฟล์ Excel (`/jobs/bulk`) งานจะเริ่มต้นที่สถานะ `pending`
+  2. **จ่ายงาน (Assign):** 
+     - **Manual:** เลือกงานและผูกกับ `team_id`
+     - **Auto-Assign:** ใช้ Algorithm หาพิกัด (`lat`, `lng`) ที่ใกล้เคียงกันที่สุด (Nearest Neighbor/Haversine distance) ในการจัดเรียงคิว (`seq`)
+  3. **การทำงานของช่าง (Tech Flow):**
+     - กด "ออกเดินทาง" (Set Off) ➡️ สถานะเปลี่ยนเป็น `in_progress`
+     - กด "ถึงหน้างาน" (Arrive) ➡️ บันทึก `arrival_time`
+     - กด "ปิดงาน" (Complete) ➡️ บันทึกข้อมูลเข้าตาราง `jobs` เปลี่ยนสถานะเป็น `completed`
+  4. **กระบวนการเสริมตอนปิดงาน:**
+     - อัปโหลดรูปภาพหลักฐานการทำงาน
+     - เก็บค่าผ่านทาง (Entry Fees)
+     - **ตัดสต๊อกกระเป๋าช่างอัตโนมัติ:** หากมีการเลือก Serial Number ระบบจะทำงานผ่านฟังก์ชัน `processUsedInventory()` เพื่อตัดของออกจากกระเป๋าช่าง
 
-## 🏗️ 1. สถาปัตยกรรมของระบบ (System Architecture)
+### 3. 📦 ระบบจัดการคลังและกระเป๋าช่าง (Inventory Management)
+* **ความสัมพันธ์ (ER Diagram):** `Products` (ประเภท) ➡️ `Models` (รุ่น) ➡️ `Items` (ชิ้น/S/N) ➡️ `Logs` (ประวัติ)
+* **การไหลของข้อมูล (Data Flow):**
+  - **Inbound:** Admin เพิ่มสินค้าเข้าคลัง (`/api/inventory/receive`) ของจะได้สถานะ `in_stock`
+  - **Outbound:** Admin จ่ายของให้ช่าง (`/api/inventory/dispatch`) ของจะเปลี่ยน `owner_id` เป็นช่าง และสถานะเป็น `dispatched`
+  - **Usage:** เมื่อช่างปิดงาน ของชิ้นนั้นจะเปลี่ยนสถานะเป็น `used` และบันทึกลง `job_used_inventory`
 
-ระบบถูกออกแบบเป็นสถาปัตยกรรมแบบ **Client-Server** โดยแยกส่วน Frontend และ Backend ออกจากกันชัดเจน
-
-*   **Frontend (หน้าบ้าน):** 
-    *   พัฒนาด้วย **React.js** (ผ่าน Vite)
-    *   จัดการ UI และ Styling ด้วย **Tailwind CSS** และ CSS พื้นฐาน (App.css, index.css)
-    *   จัดการ State ภายในแอพด้วย React Hooks (`useState`, `useEffect`) และ Context API (`AuthContext`)
-    *   การ Routing จัดการโดย `react-router-dom`
-    *   มีการเชื่อมต่อ API ผ่าน Axios (`src/api/axios.js`) โดยมีการแนบ JWT Token ใน Header
-
-*   **Backend (หลังบ้าน):**
-    *   พัฒนาด้วย **Node.js** และ **Express.js** (`backend/server.js`)
-    *   โครงสร้างแบบ RESTful API แยก Router ตามหมวดหมู่ (อยู่ใน `backend/routes/`)
-    *   ฐานข้อมูลใช้ **MySQL** (`mysql2/promise`) เชื่อมต่อแบบ Connection Pool
-    *   การยืนยันตัวตนใช้ **JWT (JSON Web Token)** ผ่าน Middleware `auth.js`
-    *   มีการใช้ `multer` สำหรับจัดการการอัปโหลดไฟล์ (รูปภาพหลักฐานการทำงาน, สลิปโอนเงิน)
-
----
-
-## 👥 2. บทบาทและสิทธิ์การใช้งาน (Role-Based Access Control - RBAC)
-
-ระบบมีการแบ่งสิทธิ์ผู้ใช้งาน (Roles) อย่างชัดเจนผ่าน `AuthContext` และ Backend Middleware:
-*   **`super_admin` / `admin`**: มีสิทธิ์เข้าถึงทุกหน้าเมนู (Dashboard, คลังสินค้า, จัดการผู้ใช้, น้ำมัน, ดูข้อมูลลูกค้า, อนุมัติการเบิกจ่าย, ลบหรือแก้ไขข้อมูลงาน)
-*   **`technician` (ช่างติดตั้ง)**: มองเห็นเฉพาะเมนูที่เกี่ยวข้องกับงานติดตั้ง (เข้างาน, กระเป๋าช่าง, ถ่ายรูปหลักฐาน, จบงาน, เติมน้ำมันของทีมตัวเอง)
-*   **`ma_technician` (ช่างซ่อมบำรุง)**: คล้ายช่างติดตั้ง แต่มองเห็นเฉพาะงานประเภทซ่อมบำรุง (MA)
-*   **`sales` (เซลส์)**: มีสิทธิ์เข้าถึงหน้าการลงเวลา/เช็คอิน หรือดูภาพรวมยอดขายตามที่กำหนด
-
----
-
-## ⚙️ 3. โครงสร้างฐานข้อมูลหลัก (Core Database Entities)
-
-*   `users`: เก็บข้อมูลพนักงาน รหัสผ่าน (Hashed) และ Role
-*   `teams`: จัดการทีมช่าง ซึ่งพนักงานแต่ละคนจะสังกัดทีม (team_id)
-*   `jobs` / `ma_jobs`: เก็บข้อมูลใบสั่งงาน (Dispatch) แยกตามงานติดตั้งและงานซ่อม
-*   `inventory_*` (products, items, logs, dispatches): ระบบคลังสินค้า จัดการสต๊อก ไอเทมแบบมี Serial Number/MAC และการเบิกจ่าย
-*   `oil_records`: เก็บประวัติการเติมน้ำมัน ยอดบิล และเลขไมล์
-*   `checkins`: เก็บข้อมูลการลงเวลาเข้า-ออกงาน พร้อมพิกัด GPS
-*   `entry_fees`: เก็บข้อมูลรูปภาพสลิปค่าแรกเข้าของงานนั้นๆ
-
----
-
-## 🚀 4. ระบบงานหลัก (Key Features & Workflows)
-
-### 4.1 ระบบจัดการงาน (Job Dispatch System)
-*   **การนำเข้าข้อมูล:** Admin สามารถสร้างงานใหม่ หรือ Import ข้อมูลงานผ่านไฟล์ Excel (เส้นทาง `POST /jobs/bulk`)
-*   **การแจกจ่ายงาน:** Admin กดปุ่มมอบหมายงานให้ "ทีม (Team)" และ "ช่างเทคนิค (Field Engineer)"
-*   **การแก้ไขเวลา:** Admin สามารถเลื่อนนัดหมายลูกค้า โดยการเปลี่ยน `plan_arrival_date` และ `plan_arrival_time`
-*   **การดำเนินการของช่าง:** ช่างเปิดดูงานที่ได้รับมอบหมาย, แจ้งสถานะ, อัปเดตพิกัด
-*   **การปิดงาน (Job Completion):** ช่างกด "ปิดงาน" โดยต้องกรอกข้อมูลอุปกรณ์ที่ใช้ (SOA, SN ONU, SN Playbox, ระยะสาย), ถ่ายรูปหลักฐาน, และอัปโหลดสลิปค่าแรกเข้า (ถ้ามี) ซึ่งข้อมูลจะบันทึกลง Table ที่เกี่ยวข้องรวมถึงแยกเก็บรูปไว้ใน `job_completion_images`
-
-### 4.2 ระบบคลังสินค้าและกระเป๋าช่าง (Inventory & Tech Bag)
-*   ระบบสามารถจัดการสินค้าแบบมี Serial Number และแบบไม่มี Serial
-*   Admin นำเข้าสินค้าเข้าคลัง
-*   ช่างกด "เบิกของ" เข้ากระเป๋า (Tech Bag)
-*   ระบบตรวจสอบสต๊อกคงเหลือ และลดสต๊อกอัตโนมัติเมื่ออุปกรณ์ถูกระบุว่า "ใช้งานแล้ว" ตอนช่างกดจบงาน
-*   สามารถย้ายสินค้าข้ามทีม หรือคืนของเข้าคลังได้ (Return)
-
-### 4.3 ระบบบันทึกค่าน้ำมัน (Oil Management)
-*   ทีมช่างสามารถขออนุมัติค่าเติมน้ำมัน โดยบันทึกยอดเงิน จำนวนลิตร และเลขไมล์
-*   มีระบบโควตาน้ำมัน (Quota) คำนวณรายเดือนอัตโนมัติ
-*   Admin สามารถตรวจสอบและจัดการการตั้งค่าโควตาน้ำมันของแต่ละทีมได้
-
-### 4.4 ระบบลงเวลาและติดตามพิกัด (Check-in & Location)
-*   พนักงานทุกคนสามารถกด "เข้างาน" และ "ออกงาน" ในแต่ละวัน
-*   ระบบจะบังคับขอสิทธิ์ Location จากเบราว์เซอร์ (GPS) เพื่อบันทึกพิกัด `lat`/`lng` เก็บลงในระบบ
-*   Admin สามารถดูสรุปเวลาเข้า-ออกงาน (Attendance Summary) ของพนักงานทั้งหมดได้
-
-### 4.5 ระบบสื่อสารและแจ้งเตือน (Announcements & Reporting)
-*   **ประกาศ (Announcements):** Admin สามารถสร้างประกาศ (Text + Image) เพื่อให้ทุกคนในระบบเห็นเมื่อล็อกอิน
-*   **แจ้งปัญหา (Report Issue):** ผู้ใช้สามารถแจ้งปัญหาการใช้งานแอพ (Bug) ไปยังผู้พัฒนาระบบผ่านหน้า Report
-
----
-
-## 📁 5. สรุปโครงสร้างโฟลเดอร์ (Folder Structure)
-
-*   `backend/`
-    *   `config/`: การเชื่อมต่อฐานข้อมูล (`db.js`)
-    *   `middleware/`: ระบบความปลอดภัย (`auth.js` ตรวจสอบ Token)
-    *   `routes/`: API Endpoints แยกตามโมดูล (auth, dispatch, inventory, oil, checkin)
-    *   `uploads/`: โฟลเดอร์เก็บไฟล์ภาพ/สลิป (Static files)
-    *   `server.js`: จุดเริ่มต้นของ API Server
-*   `frontend/`
-    *   `src/api/`: ตั้งค่า Axios (`axios.js`) เพื่อคุยกับ Backend
-    *   `src/components/`: คอมโพเนนต์ React ที่ใช้ซ้ำได้ (Modals, Sidebar, Navbar)
-    *   `src/context/`: จัดการ Global State เช่น `AuthContext`
-    *   `src/pages/`: หน้าจอหลักแต่ละหน้า (Dashboard, Jobs, Check-in, Inventory)
-    *   `src/App.jsx`: จัดการ Routing (React Router) และ Protected Routes
-
----
-
-**บทสรุปการทำงานของระบบ:** 
-ระบบทำงานไหลลื่นโดยการดึงข้อมูลผ่าน REST API เข้าสู่ Frontend State การแก้ไขต่างๆ จะถูกตรวจสอบสิทธิ์ผู้ใช้จาก Backend เสมอ หากมีข้อผิดพลาดเกี่ยวกับโครงสร้างฐานข้อมูล ระบบจะส่ง Error กลับมาแจ้งเตือนที่ Frontend ทันที เพื่อป้องกันข้อมูลผิดพลาดหรือสูญหาย
+### 4. 📊 ระบบประสิทธิภาพและการเช็คอิน (Check-in, Oil & Performance)
+* **การไหลของข้อมูล (Data Flow):**
+  - **Check-in:** พนักงานสแกนหรือกดเช็คอิน บันทึกพิกัดและเวลาเข้าตาราง `attendance`
+  - **Oil Management:** เก็บข้อมูลการเติมน้ำมัน เชื่อมกับระยะทางจาก `jobs` เพื่อคำนวณความคุ้มค่า (Efficiency Km/L) ผ่าน `/api/oil/efficiency`
+  - **Dashboard/Stats:** ดึงข้อมูลจากหลายตาราง (งานที่สำเร็จ, งานที่เลื่อน, ค่าเข้าพื้นที่) มาแสดงผลที่ `/api/stats/dashboard`

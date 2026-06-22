@@ -115,6 +115,13 @@ const CustomMonthPicker = ({ value, onChange }) => {
     </div>
   );
 };
+
+const FEE_TYPE_LABELS = {
+  slip: { icon: '💳', label: 'แนบสลิป', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  cash: { icon: '💵', label: 'รับหน้างาน', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  backdate: { icon: '📅', label: 'ย้อนหลัง', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+};
+
 export default function EntryFeePage() {
   const { user } = useAuth();
   const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician';
@@ -125,8 +132,10 @@ export default function EntryFeePage() {
   // --- RECORD STATE ---
   const [accessNo, setAccessNo] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [feeType, setFeeType] = useState('slip'); // 'slip' | 'cash' | 'backdate'
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [backdateValue, setBackdateValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -137,18 +146,40 @@ export default function EntryFeePage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [filterCreatedBy, setFilterCreatedBy] = useState('');
+  const [usersList, setUsersList] = useState([]);
 
-  // Fetch History when tab changes to 'history' or month changes
+  // Fetch user list for filter
+  useEffect(() => {
+    axios.get('/users/teams').then(res => {
+      // Flatten teams' users for a simple select
+      const allUsers = [];
+      const seen = new Set();
+      (res.data || []).forEach(team => {
+        (team.users || []).forEach(u => {
+          if (!seen.has(u.id)) {
+            seen.add(u.id);
+            allUsers.push({ id: u.id, name: u.full_name || u.username });
+          }
+        });
+      });
+      setUsersList(allUsers);
+    }).catch(() => {});
+  }, []);
+
+  // Fetch History when tab changes to 'history' or filters change
   useEffect(() => {
     if (activeTab === 'history') {
       fetchHistory();
     }
-  }, [activeTab, selectedMonth]);
+  }, [activeTab, selectedMonth, filterCreatedBy]);
 
   const fetchHistory = async () => {
     setIsLoadingHistory(true);
     try {
-      const res = await axios.get(`/dispatch/entry-fee/history?month=${selectedMonth}`);
+      let url = `/dispatch/entry-fee/history?month=${selectedMonth}`;
+      if (filterCreatedBy) url += `&created_by=${filterCreatedBy}`;
+      const res = await axios.get(url);
       setHistoryData(res.data);
     } catch (err) {
       console.error('Failed to load entry fee history', err);
@@ -176,15 +207,21 @@ export default function EntryFeePage() {
       Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณากรอกรหัส NON และชื่อลูกค้าให้ครบถ้วน' });
       return;
     }
-    if (!selectedFile) {
-      Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาอัปโหลดรูปภาพค่าแรกเข้า' });
+    if ((feeType === 'slip' || feeType === 'backdate') && !selectedFile) {
+      Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาอัปโหลดรูปสลิปค่าแรกเข้า' });
+      return;
+    }
+    if (feeType === 'backdate' && !backdateValue) {
+      Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกวันที่ย้อนหลัง' });
       return;
     }
 
     const formData = new FormData();
     formData.append('access_no', accessNo.trim());
     formData.append('customer_name', customerName.trim());
-    formData.append('image', selectedFile);
+    formData.append('fee_type', feeType);
+    if (selectedFile) formData.append('image', selectedFile);
+    if (feeType === 'backdate') formData.append('backdate', backdateValue);
 
     setIsSubmitting(true);
     try {
@@ -195,7 +232,7 @@ export default function EntryFeePage() {
       Swal.fire({
         icon: 'success',
         title: 'สำเร็จ',
-        text: 'บันทึกค่าแรกเข้าเรียบร้อยแล้ว'
+        text: `บันทึกค่าแรกเข้าเรียบร้อยแล้ว (${FEE_TYPE_LABELS[feeType]?.label || feeType})`
       });
       
       // Reset form
@@ -203,6 +240,7 @@ export default function EntryFeePage() {
       setCustomerName('');
       setSelectedFile(null);
       setPreviewUrl(null);
+      setBackdateValue('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       
     } catch (err) {
@@ -309,52 +347,133 @@ export default function EntryFeePage() {
                     </div>
                   </div>
 
+                  {/* ── Fee Type Selection ─────────────────── */}
                   <div className="mb-8">
-                    <label className="block text-sm font-bold text-[#374151] mb-3 uppercase tracking-wide">อัปโหลดรูปภาพหลักฐาน <span className="text-red-500">*</span></label>
-                    <div className="relative group">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                        id="entry-fee-upload"
-                      />
-                      <label 
-                        htmlFor="entry-fee-upload"
-                        className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
-                          previewUrl 
-                            ? 'border-[#A3E635] bg-[#A3E635]/5 shadow-inner' 
-                            : 'border-[#D1D5DB] bg-[#F9FAFB] hover:border-[#A3E635]/60 hover:bg-[#F3F4F6]'
+                    <label className="block text-sm font-bold text-[#374151] mb-3 uppercase tracking-wide">ประเภทค่าแรกเข้า</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Slip */}
+                      <button 
+                        type="button"
+                        onClick={() => setFeeType('slip')}
+                        className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${
+                          feeType === 'slip'
+                            ? 'border-[#A3E635] bg-[#A3E635]/10 shadow-md scale-[1.02] text-[#4D7C0F]'
+                            : 'border-[#E5E7EB] bg-white hover:border-[#A3E635]/50 text-[#6B7280] hover:text-[#374151]'
                         }`}
                       >
-                        {previewUrl ? (
-                          <div className="relative w-full h-full p-3 group">
-                            <img src={previewUrl} alt="Preview" className="w-full h-full object-contain rounded-xl shadow-sm" />
-                            <div className="absolute inset-0 bg-[#1F2937]/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-sm m-3">
-                              <span className="text-[#1F2937] font-bold bg-[#A3E635] px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transform scale-95 group-hover:scale-100 transition-transform duration-200">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                เปลี่ยนรูปภาพ
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6 text-[#6B7280]">
-                            <div className="w-16 h-16 rounded-full bg-white shadow-sm border border-[#E5E7EB] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
-                              <svg className="w-8 h-8 text-[#A3E635]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                            </div>
-                            <p className="mb-2 text-sm font-bold text-[#374151]">คลิกเพื่ออัปโหลดรูปภาพ</p>
-                            <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wider">รองรับไฟล์ JPG, PNG</p>
-                          </div>
-                        )}
-                      </label>
+                        <span className="text-3xl">💳</span>
+                        <span className="text-sm font-bold">แนบสลิป</span>
+                        <span className="text-[10px] text-[#9CA3AF]">ต้องแนบสลิปทุกครั้ง</span>
+                      </button>
+
+                      {/* Cash */}
+                      <button 
+                        type="button"
+                        onClick={() => setFeeType('cash')}
+                        className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${
+                          feeType === 'cash'
+                            ? 'border-emerald-400 bg-emerald-50 shadow-md scale-[1.02] text-emerald-700'
+                            : 'border-[#E5E7EB] bg-white hover:border-emerald-300 text-[#6B7280] hover:text-[#374151]'
+                        }`}
+                      >
+                        <span className="text-3xl">💵</span>
+                        <span className="text-sm font-bold">รับหน้างาน</span>
+                        <span className="text-[10px] text-[#9CA3AF]">รับเงินสดหน้างาน</span>
+                      </button>
+
+                      {/* Backdate */}
+                      <button 
+                        type="button"
+                        onClick={() => setFeeType('backdate')}
+                        className={`p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${
+                          feeType === 'backdate'
+                            ? 'border-purple-400 bg-purple-50 shadow-md scale-[1.02] text-purple-700'
+                            : 'border-[#E5E7EB] bg-white hover:border-purple-300 text-[#6B7280] hover:text-[#374151]'
+                        }`}
+                      >
+                        <span className="text-3xl">📅</span>
+                        <span className="text-sm font-bold">ย้อนหลัง</span>
+                        <span className="text-[10px] text-[#9CA3AF]">กรอกข้อมูลย้อนหลัง</span>
+                      </button>
                     </div>
                   </div>
+
+                  {/* ── Backdate Date Picker ────────────────── */}
+                  {feeType === 'backdate' && (
+                    <div className="mb-8 p-4 bg-purple-50 rounded-2xl border border-purple-200" style={{ animation: 'fadeInUp 0.2s ease-out forwards' }}>
+                      <label className="block text-sm font-bold text-purple-800 mb-2 flex items-center gap-2">
+                        📅 เลือกวันที่ย้อนหลัง <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        type="date" 
+                        value={backdateValue}
+                        onChange={(e) => setBackdateValue(e.target.value)}
+                        max={new Date().toLocaleDateString('en-CA')}
+                        className="w-full px-4 py-3 bg-white border border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-400 outline-none text-[#1F2937] font-bold transition-all"
+                        required
+                      />
+                      <p className="text-xs text-purple-500 mt-2 font-medium">⚠️ รายการนี้จะแสดงเป็น "ย้อนหลัง" ในประวัติ</p>
+                    </div>
+                  )}
+
+                  {/* ── Image Upload (for slip and backdate) ── */}
+                  {(feeType === 'slip' || feeType === 'backdate') && (
+                    <div className="mb-8" style={{ animation: 'fadeInUp 0.2s ease-out forwards' }}>
+                      <label className="block text-sm font-bold text-[#374151] mb-3 uppercase tracking-wide">อัปโหลดรูปสลิป <span className="text-red-500">*</span></label>
+                      <div className="relative group">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          className="hidden"
+                          id="entry-fee-upload"
+                        />
+                        <label 
+                          htmlFor="entry-fee-upload"
+                          className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
+                            previewUrl 
+                              ? 'border-[#A3E635] bg-[#A3E635]/5 shadow-inner' 
+                              : 'border-[#D1D5DB] bg-[#F9FAFB] hover:border-[#A3E635]/60 hover:bg-[#F3F4F6]'
+                          }`}
+                        >
+                          {previewUrl ? (
+                            <div className="relative w-full h-full p-3 group">
+                              <img src={previewUrl} alt="Preview" className="w-full h-full object-contain rounded-xl shadow-sm" />
+                              <div className="absolute inset-0 bg-[#1F2937]/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-sm m-3">
+                                <span className="text-[#1F2937] font-bold bg-[#A3E635] px-5 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transform scale-95 group-hover:scale-100 transition-transform duration-200">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                  เปลี่ยนรูปภาพ
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6 text-[#6B7280]">
+                              <div className="w-16 h-16 rounded-full bg-white shadow-sm border border-[#E5E7EB] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                                <svg className="w-8 h-8 text-[#A3E635]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                              </div>
+                              <p className="mb-2 text-sm font-bold text-[#374151]">คลิกเพื่ออัปโหลดรูปสลิป</p>
+                              <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wider">รองรับไฟล์ JPG, PNG</p>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cash mode info */}
+                  {feeType === 'cash' && (
+                    <div className="mb-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-200 text-center" style={{ animation: 'fadeInUp 0.2s ease-out forwards' }}>
+                      <span className="text-4xl block mb-3">💵</span>
+                      <p className="text-emerald-800 font-bold text-sm">รับเงินสดหน้างาน</p>
+                      <p className="text-emerald-600 text-xs mt-1">ระบบจะบันทึกว่ารับค่าแรกเข้าเป็นเงินสดหน้างาน</p>
+                    </div>
+                  )}
 
                   <div className="flex justify-end pt-4">
                     <button 
                       type="submit" 
-                      disabled={isSubmitting || !selectedFile || !accessNo || !customerName}
+                      disabled={isSubmitting || !accessNo || !customerName || ((feeType === 'slip' || feeType === 'backdate') && !selectedFile) || (feeType === 'backdate' && !backdateValue)}
                       className="bg-[#1F2937] hover:bg-[#374151] text-white font-bold px-8 py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg w-full sm:w-auto flex justify-center items-center gap-2 active:scale-95"
                     >
                       {isSubmitting ? (
@@ -379,12 +498,29 @@ export default function EntryFeePage() {
               >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-[#F3F4F6]">
                   <h2 className="text-lg font-bold text-[#1F2937]">ประวัติค่าแรกเข้า</h2>
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">เดือนที่บันทึก</label>
-                    <CustomMonthPicker 
-                      value={selectedMonth}
-                      onChange={setSelectedMonth}
-                    />
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    {/* Filter by creator */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ผู้บันทึก</label>
+                      <select
+                        value={filterCreatedBy}
+                        onChange={(e) => setFilterCreatedBy(e.target.value)}
+                        className="px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
+                      >
+                        <option value="">ทั้งหมด</option>
+                        {usersList.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Month picker */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">เดือน</label>
+                      <CustomMonthPicker 
+                        value={selectedMonth}
+                        onChange={setSelectedMonth}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -409,42 +545,61 @@ export default function EntryFeePage() {
                         <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
                           <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">รหัส NON</th>
                           <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ชื่อลูกค้า</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ประเภท</th>
                           <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่บันทึก</th>
                           <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ผู้บันทึก</th>
-                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">รูปหลักฐาน</th>
+                          <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">หลักฐาน</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {historyData.map((item, idx) => (
-                          <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
-                            <td className="py-4 px-5">
-                              <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-2.5 py-1 rounded-md text-sm">{item.access_no}</span>
-                            </td>
-                            <td className="py-4 px-5 font-bold text-[#1F2937] text-sm">{item.customer_name}</td>
-                            <td className="py-4 px-5 text-sm text-[#4B5563] font-medium">{formatDate(item.created_at)}</td>
-                            <td className="py-4 px-5 text-sm text-[#374151] font-bold">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm">
-                                  {item.creator_name ? item.creator_name.charAt(0) : '?'}
+                        {historyData.map((item, idx) => {
+                          const typeInfo = FEE_TYPE_LABELS[item.fee_type] || FEE_TYPE_LABELS.slip;
+                          const isBackdate = item.fee_type === 'backdate';
+                          return (
+                            <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
+                              <td className="py-4 px-5">
+                                <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-2.5 py-1 rounded-md text-sm">{item.access_no}</span>
+                              </td>
+                              <td className="py-4 px-5 font-bold text-[#1F2937] text-sm">{item.customer_name}</td>
+                              <td className="py-4 px-5">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeInfo.color}`}>
+                                  {typeInfo.icon} {typeInfo.label}
+                                </span>
+                                {isBackdate && item.backdate && (
+                                  <div className="text-[10px] text-purple-500 mt-1 font-medium">
+                                    ⏮️ วันที่: {new Date(item.backdate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-4 px-5 text-sm text-[#4B5563] font-medium">{formatDate(item.created_at)}</td>
+                              <td className="py-4 px-5 text-sm text-[#374151] font-bold">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-7 h-7 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm">
+                                    {item.creator_name ? item.creator_name.charAt(0) : '?'}
+                                  </div>
+                                  {item.creator_name || '-'}
                                 </div>
-                                {item.creator_name || '-'}
-                              </div>
-                            </td>
-                            <td className="py-4 px-5 text-right">
-                              <a 
-                                href={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group"
-                                title="ดูรูปภาพ"
-                              >
-                                <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </a>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="py-4 px-5 text-right">
+                                {item.image_path && item.image_path !== 'รับหน้างาน' ? (
+                                  <a 
+                                    href={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${item.image_path}`} 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-[#A3E635] hover:text-[#65a30d] text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 group"
+                                    title="ดูรูปภาพ"
+                                  >
+                                    <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-[#9CA3AF] italic">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
