@@ -971,7 +971,7 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
     return res.json({ message: 'Entry fee saved successfully', imagePath, fee_type: type });
   } catch (err) {
     console.error('Entry Fee Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server Error: ' + err.message });
   }
 });
 

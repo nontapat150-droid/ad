@@ -159,6 +159,41 @@ router.get('/migrate-fix', async (req, res) => {
   }
 });
 
+// ─── One-time migration: entry_fees upgrade ─────────────────
+router.get('/migrate-entry-fee', async (req, res) => {
+  const results = [];
+  try {
+    try {
+      await pool.query(`ALTER TABLE entry_fees ADD COLUMN fee_type ENUM('slip','cash','backdate') NOT NULL DEFAULT 'slip'`);
+      results.push('✅ entry_fees.fee_type added');
+    } catch(e) { results.push('entry_fees.fee_type: ' + e.message); }
+
+    try {
+      await pool.query(`ALTER TABLE entry_fees ADD COLUMN backdate DATE NULL`);
+      results.push('✅ entry_fees.backdate added');
+    } catch(e) { results.push('entry_fees.backdate: ' + e.message); }
+
+    try {
+      await pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL`);
+      results.push('✅ customers.entry_fee_status added');
+    } catch(e) { results.push('customers.entry_fee_status: ' + e.message); }
+
+    try {
+      await pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_date DATETIME NULL`);
+      results.push('✅ customers.entry_fee_date added');
+    } catch(e) { results.push('customers.entry_fee_date: ' + e.message); }
+
+    try {
+      await pool.query(`UPDATE entry_fees SET fee_type = 'cash' WHERE image_path = 'รับหน้างาน'`);
+      results.push('✅ entry_fees update legacy cash values');
+    } catch(e) { results.push('entry_fees update legacy: ' + e.message); }
+
+    res.json({ success: true, results });
+  } catch(err) {
+    res.status(500).json({ error: err.message, results });
+  }
+});
+
 // ─── Backfill customers from existing jobs ─────────────────
 router.get('/backfill-customers', async (req, res) => {
   const conn = await pool.getConnection();
