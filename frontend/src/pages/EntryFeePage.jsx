@@ -437,13 +437,23 @@ export default function EntryFeePage() {
                     
                     <div>
                       <label className="block text-sm font-bold text-[#374151] mb-2 uppercase tracking-wide">เลือกวันที่ <span className="text-red-500">*</span></label>
-                      <input 
-                        type="date"
-                        value={adminSelectedDate}
-                        onChange={(e) => setAdminSelectedDate(e.target.value)}
-                        max={new Date().toLocaleDateString('en-CA')}
-                        className="w-full px-4 py-3 bg-white border border-[#E5E7EB] rounded-xl focus:ring-4 focus:ring-[#A3E635]/20 focus:border-[#A3E635] outline-none text-[#1F2937] font-bold transition-all text-sm"
-                      />
+                      <div className="relative">
+                        <input 
+                          type="date"
+                          value={adminSelectedDate}
+                          onChange={(e) => setAdminSelectedDate(e.target.value)}
+                          max={new Date().toLocaleDateString('en-CA')}
+                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative
+                            ${adminSelectedDate ? 'text-[#1F2937] border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'text-[#9CA3AF] border-[#E5E7EB] hover:border-[#A3E635]/50'}
+                            [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer
+                          `}
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                          <svg className={`w-5 h-5 transition-colors ${adminSelectedDate ? 'text-[#A3E635]' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -532,14 +542,24 @@ export default function EntryFeePage() {
                       <label className="block text-sm font-bold text-purple-800 mb-2 flex items-center gap-2">
                         📅 เลือกวันที่ย้อนหลัง <span className="text-red-500">*</span>
                       </label>
-                      <input 
-                        type="date" 
-                        value={backdateValue}
-                        onChange={(e) => setBackdateValue(e.target.value)}
-                        max={new Date().toLocaleDateString('en-CA')}
-                        className="w-full px-4 py-3 bg-white border border-purple-300 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-400 outline-none text-[#1F2937] font-bold transition-all"
-                        required
-                      />
+                      <div className="relative">
+                        <input 
+                          type="date" 
+                          value={backdateValue}
+                          onChange={(e) => setBackdateValue(e.target.value)}
+                          max={new Date().toLocaleDateString('en-CA')}
+                          className={`w-full pl-4 pr-11 py-3 bg-white border rounded-xl outline-none transition-all text-sm font-bold relative
+                            ${backdateValue ? 'text-[#1F2937] border-purple-400 ring-4 ring-purple-200' : 'text-[#9CA3AF] border-purple-300 hover:border-purple-400'}
+                            [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer
+                          `}
+                          required
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                          <svg className={`w-5 h-5 transition-colors ${backdateValue ? 'text-purple-600' : 'text-purple-300'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      </div>
                       <p className="text-xs text-purple-500 mt-2 font-medium">⚠️ รายการนี้จะแสดงเป็น "ย้อนหลัง" ในประวัติ</p>
                     </div>
                   )}
