@@ -98,19 +98,26 @@ router.post(
       const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [targetTechId]);
       const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
 
-      // Check for duplicate record based on mileage and team
+      // Check for duplicate record based on mileage and team, or anomaly (too close in time and mileage)
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
          JOIN users u ON r.tech_id = u.id
-         WHERE r.mileage = ?
-           AND u.team_id <=> ?`,
-        [cleanMileage, targetTeamId]
+         WHERE u.team_id <=> ?
+           AND (
+             r.mileage = ?
+             OR 
+             (
+               ABS(r.mileage - ?) <= 50
+               AND ABS(TIMESTAMPDIFF(MINUTE, r.date_recorded, ?)) <= 120
+             )
+           )`,
+        [targetTeamId, cleanMileage, cleanMileage, targetDate]
       );
 
       if (existing.length > 0) {
         conn.release();
-        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำ: ทีมของคุณมีการบันทึกข้อมูลน้ำมันที่ "เลขไมล์" นี้ไปแล้ว!' });
+        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
       }
 
       await conn.beginTransaction();
@@ -429,21 +436,30 @@ router.put(
       const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [newTechId]);
       const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
 
-      // Check for duplicate record based on mileage and team (excluding current record)
+      const targetDate = date_recorded ? new Date(date_recorded) : new Date(old[0].date_recorded);
+
+      // Check for duplicate record based on mileage and team (excluding current record), or anomaly
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
          JOIN users u ON r.tech_id = u.id
-         WHERE r.mileage = ?
-           AND r.id != ?
-           AND u.team_id <=> ?`,
-        [cleanNewMileage, recordId, targetTeamId]
+         WHERE r.id != ?
+           AND u.team_id <=> ?
+           AND (
+             r.mileage = ?
+             OR 
+             (
+               ABS(r.mileage - ?) <= 50
+               AND ABS(TIMESTAMPDIFF(MINUTE, r.date_recorded, ?)) <= 120
+             )
+           )`,
+        [recordId, targetTeamId, cleanNewMileage, cleanNewMileage, targetDate]
       );
 
       if (existing.length > 0) {
         await conn.rollback();
         conn.release();
-        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำ: ทีมของคุณมีการบันทึกข้อมูลน้ำมันที่ "เลขไมล์" นี้ไปแล้ว!' });
+        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
       }
 
       await conn.query(
