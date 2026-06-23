@@ -14,7 +14,13 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   useEffect(() => {
     if (isAdmin) {
       api.get('/users').then(res => {
-        setTechs((res.data || []).filter(u => u.roles?.includes('technician') || u.role === 'technician' || u.role === 'ma_technician'));
+        setTechs((res.data || []).filter(u => 
+          u.roles?.includes('technician') || 
+          u.role === 'technician' || 
+          u.role === 'ma_technician' || 
+          u.roles?.includes('sales') || 
+          u.role === 'sales'
+        ));
       }).catch(console.error);
     }
   }, [isAdmin]);
