@@ -16,8 +16,11 @@ export default function TechOilHistoryPage() {
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(null);
 
+  const [errorMsg, setErrorMsg] = useState(null);
+
   const fetchRecords = useCallback(async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const params = new URLSearchParams();
       if (selectedMonth) params.append('month', selectedMonth);
@@ -26,6 +29,8 @@ export default function TechOilHistoryPage() {
       setRecords(res.data);
     } catch (err) {
       console.error('Failed to fetch team oil records:', err);
+      const errMsg = err.response?.data?.error || err.message || JSON.stringify(err);
+      setErrorMsg(`เกิดข้อผิดพลาดในการโหลดข้อมูล: ${errMsg}`);
     } finally {
       setLoading(false);
     }
@@ -199,8 +204,16 @@ export default function TechOilHistoryPage() {
           )}
         </div>
 
+        {/* ── Error State ───────────────────────────────────── */}
+        {errorMsg && (
+          <div className="bg-red-50 border border-red-200 rounded-3xl p-6 text-center text-red-600 font-bold mb-4">
+            <div className="text-3xl mb-2">⚠️</div>
+            {errorMsg}
+          </div>
+        )}
+
         {/* ── Loading Skeleton ──────────────────────────────── */}
-        {loading ? (
+        {loading && !errorMsg ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-white rounded-2xl border border-[#E5E7EB] p-5 animate-pulse">
@@ -218,7 +231,7 @@ export default function TechOilHistoryPage() {
               </div>
             ))}
           </div>
-        ) : records.length === 0 ? (
+        ) : records.length === 0 && !errorMsg ? (
           /* ── Empty State ── */
           <div className="bg-white rounded-3xl border border-[#E5E7EB] p-12 text-center"
             style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
@@ -230,7 +243,7 @@ export default function TechOilHistoryPage() {
               ทีมของคุณยังไม่มีข้อมูลการเติมน้ำมัน เมื่อมีการบันทึกข้อมูลจะแสดงที่นี่
             </p>
           </div>
-        ) : (
+        ) : !errorMsg ? (
           /* ── Timeline View ─────────────────────────────── */
           <div className="space-y-6">
             {dateKeys.map((dateKey) => (
