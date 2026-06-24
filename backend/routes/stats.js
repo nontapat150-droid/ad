@@ -44,9 +44,9 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
     // Run all queries in parallel
     const [inventoryRes, officeRes, maRes, officeUnRes, maUnRes, announcementsRes, onlineRes] = await Promise.allSettled([
       pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
-      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NOT NULL`),
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE create_time >= CURDATE() AND create_time < CURDATE() + INTERVAL 1 DAY AND team_id IS NOT NULL`),
       pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`),
-      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NULL`),
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE create_time >= CURDATE() AND create_time < CURDATE() + INTERVAL 1 DAY AND team_id IS NULL`),
       pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`),
       pool.query(`SELECT * FROM announcements WHERE (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 5`),
       pool.query(`
@@ -104,21 +104,21 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
       pool.query(`SELECT COUNT(*) as cnt FROM users`),
       pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
       pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`),
-      pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`),
-      pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`),
+      pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE date_recorded >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND date_recorded < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')`),
+      pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND created_at < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')`),
       // Feed: simplified with smaller limits per source
       pool.query(`
         SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name, u.profile_image
         FROM (
-          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 10)
+          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE date_recorded >= CURDATE() AND date_recorded < CURDATE() + INTERVAL 1 DAY ORDER BY date_recorded DESC LIMIT 10)
           UNION ALL
-          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 10)
+          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY ORDER BY created_at DESC LIMIT 10)
           UNION ALL
-          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 10)
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE checkin_time >= CURDATE() AND checkin_time < CURDATE() + INTERVAL 1 DAY ORDER BY checkin_time DESC LIMIT 10)
           UNION ALL
-          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 10)
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE checkin_time >= CURDATE() AND checkin_time < CURDATE() + INTERVAL 1 DAY ORDER BY checkin_time DESC LIMIT 10)
           UNION ALL
-          (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 10)
+          (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND timestamp >= CURDATE() AND timestamp < CURDATE() + INTERVAL 1 DAY ORDER BY timestamp DESC LIMIT 10)
         ) AS c
         LEFT JOIN users u ON u.id = c.user_id
         ORDER BY c.created_at DESC
