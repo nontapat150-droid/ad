@@ -41,103 +41,15 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ── GET /api/stats/admin-dashboard — Admin Homepage ──────
 router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
-    const [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`);
-    const [[officeAssigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NOT NULL`);
-    const [[maAssigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`);
-    const [[officeUnassigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NULL`);
-    const [[maUnassigned]] = await pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`);
-    const unassignedTotal = (officeUnassigned.cnt || 0) + (maUnassigned.cnt || 0);
-
-    const [announcements] = await pool.query(
-      `SELECT * FROM announcements 
-       WHERE (expires_at IS NULL OR expires_at > NOW())
-       ORDER BY created_at DESC LIMIT 5`
-    );
-
-    // Also fetch onlineStatus for admin
-    const [onlineRows] = await pool.query(`
-      SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
-             (CASE WHEN u.last_active >= NOW() - INTERVAL 15 MINUTE THEN 1 ELSE 0 END) AS is_online,
-             u.profile_image,
-             GROUP_CONCAT(DISTINCT ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv,
-             u.last_active
-      FROM users u
-      LEFT JOIN teams t ON u.team_id = t.id
-      LEFT JOIN user_roles ur ON ur.user_id = u.id
-      WHERE u.status = 'approved'
-      GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image, u.last_active
-      ORDER BY t.team_name, u.full_name
-    `);
-    
-    const onlineStatus = onlineRows.map(r => {
-      return {
-        id: r.id,
-        full_name: r.full_name,
-        role: r.role,
-        team_name: r.team_name,
-        is_online: r.is_online,
-        profile_image: r.profile_image,
-        roles_csv: r.roles_csv,
-        last_active: r.last_active ? new Date(r.last_active).toISOString() : null
-      };
-    });
-
-    res.json({
-      summary: {
-        totalInventory: inventoryResult.cnt || 0,
-        officeAssignedToday: officeAssigned.cnt || 0,
-        maAssignedToday: maAssigned.cnt || 0,
-        unassignedToday: unassignedTotal
-      },
-      announcements,
-      onlineStatus
-    });
-  } catch (err) {
-    console.error('Admin Dashboard Stats Error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
-router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
-  try {
-    let usersResult = {cnt: 0}, onlineResult1 = {cnt: 0}, onlineResult2 = {cnt: 0};
-    let inventoryResult = {cnt: 0}, nonResult = {cnt: 0}, oilResult = {cnt: 0}, entryResult = {cnt: 0};
-    try { [[usersResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM users`); } catch(e) {}
-    try { [[onlineResult1]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`); } catch(e) {}
-    try { [[onlineResult2]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as cnt FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() AND checkout_time IS NULL`); } catch(e) {}
-    try { [[inventoryResult]] = await pool.query(`SELECT SUM(quantity) as cnt FROM inventory_items`); } catch(e) {}
-    try { [[nonResult]] = await pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`); } catch(e) {}
-    try { [[oilResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`); } catch(e) {}
-    try { [[entryResult]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`); } catch(e) {}
-
-    let feed = [];
-    try {
-      const [f] = await pool.query(`
-          SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name, u.profile_image
-          FROM (
-            (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 20)
-            UNION ALL
-            (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 20)
-            UNION ALL
-            (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
-            UNION ALL
-            (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 20)
-            UNION ALL
-            (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 20)
-          ) AS c
-          LEFT JOIN users u ON u.id = c.user_id
-          ORDER BY c.created_at DESC
-          LIMIT 50
-      `);
-      feed = f;
-    } catch (e) {
-      feed = [{ id: 8888, type: 'job', created_at: new Date(), action: 'Feed SQL Error', user_name: e.message }];
-    }
-
-    let onlineStatus = [];
-    try {
-      const [rows] = await pool.query(`
+    // Run all queries in parallel
+    const [inventoryRes, officeRes, maRes, officeUnRes, maUnRes, announcementsRes, onlineRes] = await Promise.allSettled([
+      pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NOT NULL`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`),
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE DATE(create_time) = CURDATE() AND team_id IS NULL`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`),
+      pool.query(`SELECT * FROM announcements WHERE (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 5`),
+      pool.query(`
         SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
                (CASE WHEN u.last_active >= NOW() - INTERVAL 15 MINUTE THEN 1 ELSE 0 END) AS is_online,
                u.profile_image,
@@ -149,10 +61,97 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         WHERE u.status = 'approved'
         GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image, u.last_active
         ORDER BY t.team_name, u.full_name
-      `);
-      
-      onlineStatus = rows.map(r => {
-        return {
+      `)
+    ]);
+
+    const getVal = (result) => result.status === 'fulfilled' ? (result.value[0]?.[0]?.cnt ?? 0) : 0;
+    const getRows = (result) => result.status === 'fulfilled' ? result.value[0] : [];
+
+    const officeUnassigned = getVal(officeUnRes);
+    const maUnassigned = getVal(maUnRes);
+
+    const onlineStatus = onlineRes.status === 'fulfilled'
+      ? onlineRes.value[0].map(r => ({
+          id: r.id, full_name: r.full_name, role: r.role, team_name: r.team_name,
+          is_online: r.is_online, profile_image: r.profile_image, roles_csv: r.roles_csv,
+          last_active: r.last_active ? new Date(r.last_active).toISOString() : null
+        }))
+      : [];
+
+    res.json({
+      summary: {
+        totalInventory: getVal(inventoryRes),
+        officeAssignedToday: getVal(officeRes),
+        maAssignedToday: getVal(maRes),
+        unassignedToday: officeUnassigned + maUnassigned
+      },
+      announcements: getRows(announcementsRes),
+      onlineStatus
+    });
+  } catch (err) {
+    console.error('Admin Dashboard Stats Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
+router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
+  try {
+    // Run ALL queries in parallel instead of sequentially
+    const [
+      usersRes, inventoryRes, nonRes, oilRes, entryRes, feedRes, onlineRes
+    ] = await Promise.allSettled([
+      pool.query(`SELECT COUNT(*) as cnt FROM users`),
+      pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
+      pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`),
+      pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE MONTH(date_recorded) = MONTH(CURDATE()) AND YEAR(date_recorded) = YEAR(CURDATE())`),
+      pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`),
+      // Feed: simplified with smaller limits per source
+      pool.query(`
+        SELECT c.id, c.type, c.created_at, c.action, u.full_name as user_name, u.profile_image
+        FROM (
+          (SELECT id, tech_id AS user_id, 'oil' AS type, date_recorded AS created_at, 'บันทึกบิลลงน้ำมัน' AS action FROM oil_records WHERE DATE(date_recorded) = CURDATE() ORDER BY date_recorded DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, created_by AS user_id, 'entry_fee' AS type, created_at, 'บันทึกค่าแรกเข้า' AS action FROM entry_fees WHERE DATE(created_at) = CURDATE() ORDER BY created_at DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน' AS action FROM checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, user_id, 'checkin' AS type, checkin_time AS created_at, 'เช็คอินเข้างาน (MA)' AS action FROM ma_checkins WHERE DATE(checkin_time) = CURDATE() ORDER BY checkin_time DESC LIMIT 10)
+          UNION ALL
+          (SELECT id, tech_id AS user_id, 'job' AS type, timestamp AS created_at, 'ปิดงานเสร็จสิ้น' AS action FROM job_logs WHERE status='completed' AND DATE(timestamp) = CURDATE() ORDER BY timestamp DESC LIMIT 10)
+        ) AS c
+        LEFT JOIN users u ON u.id = c.user_id
+        ORDER BY c.created_at DESC
+        LIMIT 30
+      `),
+      // Online status
+      pool.query(`
+        SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
+               (CASE WHEN u.last_active >= NOW() - INTERVAL 15 MINUTE THEN 1 ELSE 0 END) AS is_online,
+               u.profile_image,
+               GROUP_CONCAT(DISTINCT ur.role ORDER BY ur.role SEPARATOR ',') AS roles_csv,
+               u.last_active
+        FROM users u
+        LEFT JOIN teams t ON u.team_id = t.id
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        WHERE u.status = 'approved'
+        GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image, u.last_active
+        ORDER BY t.team_name, u.full_name
+      `)
+    ]);
+
+    // Extract results safely
+    const getVal = (result, defaultVal = 0) => {
+      if (result.status === 'fulfilled') {
+        return result.value[0]?.[0]?.cnt ?? defaultVal;
+      }
+      return defaultVal;
+    };
+
+    const feed = feedRes.status === 'fulfilled' ? feedRes.value[0] : [];
+
+    const onlineStatus = onlineRes.status === 'fulfilled'
+      ? onlineRes.value[0].map(r => ({
           id: r.id,
           full_name: r.full_name,
           role: r.role,
@@ -161,20 +160,17 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
           profile_image: r.profile_image,
           roles_csv: r.roles_csv,
           last_active: r.last_active ? new Date(r.last_active).toISOString() : null
-        };
-      });
-    } catch (err) {
-      onlineStatus = [{ id: 9999, full_name: 'SQL Error: ' + err.message, role: 'technician', team_name: 'Error Team', is_online: 0, profile_image: null }];
-    }
+        }))
+      : [];
 
     res.json({
       summary: {
-        totalUsers: usersResult.cnt || 0,
-        onlineUsers: (onlineResult1.cnt || 0) + (onlineResult2.cnt || 0),
-        totalInventory: inventoryResult.cnt || 0,
-        totalNonCustomers: nonResult.cnt || 0,
-        monthlyOilBills: oilResult.cnt || 0,
-        monthlyEntryFees: entryResult.cnt || 0
+        totalUsers: getVal(usersRes),
+        onlineUsers: 0,
+        totalInventory: getVal(inventoryRes),
+        totalNonCustomers: getVal(nonRes),
+        monthlyOilBills: getVal(oilRes),
+        monthlyEntryFees: getVal(entryRes)
       },
       feed,
       onlineStatus
