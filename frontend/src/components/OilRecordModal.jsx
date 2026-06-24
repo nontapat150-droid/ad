@@ -47,6 +47,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isFillOnBehalf, setIsFillOnBehalf] = useState(false);
+  const [fillerId, setFillerId] = useState('');
 
   const handleTechChange = (e) => {
     const tId = e.target.value;
@@ -78,8 +79,11 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
       });
       images.forEach(img => formData.append('images', img));
 
-      if (isAdmin && isFillOnBehalf) {
-        formData.append('filler_name', user.full_name);
+      if (isAdmin && isFillOnBehalf && fillerId) {
+        const fillerTech = techs.find(t => String(t.id) === String(fillerId));
+        if (fillerTech) {
+          formData.append('filler_name', fillerTech.full_name);
+        }
       }
 
       await api.post('/oil/records', formData, {
@@ -209,22 +213,55 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
             {/* Checkbox for Filling on Behalf */}
             {selectedTech && String(selectedTech.id) !== String(user?.id) && (
               <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
-                <label className="flex items-center gap-3 cursor-pointer group">
+                <label className="flex items-center gap-3 cursor-pointer group mb-3">
                   <div className="relative flex items-center justify-center">
                     <input 
                       type="checkbox" 
                       className="peer appearance-none w-5 h-5 border-2 border-[#D1D5DB] rounded bg-white checked:bg-[#A3E635] checked:border-[#A3E635] transition-all"
                       checked={isFillOnBehalf}
-                      onChange={(e) => setIsFillOnBehalf(e.target.checked)}
+                      onChange={(e) => {
+                        setIsFillOnBehalf(e.target.checked);
+                        if (!e.target.checked) setFillerId('');
+                        else setFillerId(user?.id); // Default to current admin
+                      }}
                     />
                     <svg className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
                   <span className="text-sm font-medium text-[#4B5563] group-hover:text-[#1F2937] transition-colors">
-                    ฉันเป็นผู้ขับรถไปเติมน้ำมันแทนช่างคนนี้ (บันทึกในนาม: <span className="font-bold text-[#1F2937]">{user?.full_name}</span>)
+                    มีผู้ขับรถไปเติมน้ำมันแทนช่างคนนี้
                   </span>
                 </label>
+
+                {isFillOnBehalf && (
+                  <div className="ml-8 mt-2">
+                    <label className="block text-xs font-bold text-[#1F2937] mb-1.5">เลือกผู้ไปเติมน้ำมันแทน</label>
+                    <div className="relative">
+                      <select
+                        value={fillerId}
+                        onChange={(e) => setFillerId(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] focus:border-[#A3E635] focus:ring-1 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] text-sm font-medium bg-white appearance-none"
+                        required={isFillOnBehalf}
+                      >
+                        <option value="">-- กรุณาเลือกผู้ไปเติมแทน --</option>
+                        {techs.map(t => {
+                          const roleText = {
+                            sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด'
+                          }[t.role] || t.role || 'พนักงาน';
+                          return (
+                            <option key={t.id} value={t.id}>
+                              {t.full_name} {t.team_name ? `(ทีม: ${t.team_name})` : ''} [{roleText}]
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                        <svg className="w-3.5 h-3.5 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
