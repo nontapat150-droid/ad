@@ -587,8 +587,8 @@ router.get('/team-records', auth, async (req, res) => {
     let params = [targetTeamId];
 
     if (month) {
-      where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
-      params.push(month);
+      where.push("r.date_recorded >= STR_TO_DATE(?, '%Y-%m-%d') AND r.date_recorded < DATE_ADD(STR_TO_DATE(?, '%Y-%m-%d'), INTERVAL 1 MONTH)");
+      params.push(`${month}-01`, `${month}-01`);
     }
 
     const whereClause = 'WHERE ' + where.join(' AND ');
@@ -603,10 +603,11 @@ router.get('/team-records', auth, async (req, res) => {
               (SELECT GROUP_CONCAT(i.image_path SEPARATOR ',')
                FROM oil_images i WHERE i.record_id = r.id) AS images
        FROM oil_records r
-       LEFT JOIN users u ON u.id = r.tech_id
+       INNER JOIN users u ON u.id = r.tech_id
        LEFT JOIN teams t ON t.id = u.team_id
        ${whereClause}
-       ORDER BY r.date_recorded DESC`,
+       ORDER BY r.date_recorded DESC
+       LIMIT 500`,
       params
     );
 
