@@ -65,12 +65,12 @@ export default function Login() {
       setIsFailed(true);
       let errorMsg = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่';
       if (err.response) {
-        if (err.response.status === 503) {
+        if (err.response.data?.error) {
+          errorMsg = err.response.data.error;
+        } else if (err.response.status === 503) {
           errorMsg = 'ระบบหลังบ้านกำลังอัปเดต หรือขัดข้อง (503 Service Unavailable) กรุณารอสักครู่แล้วลองใหม่';
         } else if (err.response.status === 500) {
           errorMsg = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ (500 Internal Server Error)';
-        } else if (err.response.data?.error) {
-          errorMsg = err.response.data.error;
         }
       } else if (err.message === 'Network Error') {
         errorMsg = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (Network Error)';

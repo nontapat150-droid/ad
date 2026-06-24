@@ -74,8 +74,14 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Database Error: ' + err.message });
+    const isDbConnectionError = pool.isConnectionError?.(err);
+    const detail = pool.formatError ? pool.formatError(err) : err.message;
+    if (isDbConnectionError) {
+      console.error('Login DB error:', detail);
+    } else {
+      console.error('Login error:', err);
+    }
+    res.status(isDbConnectionError ? 503 : 500).json({ error: 'Database Error: ' + detail });
   }
 });
 

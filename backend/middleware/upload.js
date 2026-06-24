@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path   = require('path');
 const fs     = require('fs');
-require('dotenv').config();
+require('../config/env');
 
 const UPLOAD_DIR     = process.env.UPLOAD_DIR || 'uploads';
 const MAX_SIZE_BYTES = (parseInt(process.env.MAX_FILE_SIZE_MB) || 10) * 1024 * 1024;
