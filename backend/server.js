@@ -1,8 +1,19 @@
 require('./config/env');
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+
+// ── GLOBAL CRASH LOGGER FOR z.com ──
+const logFile = path.join(__dirname, 'startup_debug.log');
+fs.appendFileSync(logFile, `\n[${new Date().toISOString()}] === SERVER STARTING ===\n`);
+process.on('uncaughtException', (err) => {
+  fs.appendFileSync(logFile, `[UNCAUGHT EXCEPTION] ${err.stack || err}\n`);
+});
+process.on('unhandledRejection', (reason) => {
+  fs.appendFileSync(logFile, `[UNHANDLED REJECTION] ${reason.stack || reason}\n`);
+});
+
 const pool = require('./config/db');
 
 // ── Route Modules ───────────────────────────────────────────
