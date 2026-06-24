@@ -13,11 +13,8 @@ export default function TechOilHistoryPage() {
   const [viewingImages, setViewingImages] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  // Month filter: null = all, 'YYYY-MM' = specific month
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  // Month filter: null = all (default), 'YYYY-MM' = specific month
+  const [selectedMonth, setSelectedMonth] = useState(null);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -325,7 +322,10 @@ function RecordCard({ record, onViewImages }) {
   const r = record;
   const dateObj = new Date(r.date_recorded);
   const timeStr = `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-  const initials = r.tech_name ? r.tech_name.substring(0, 2) : '??';
+
+  // Display name: use filler_name if available, otherwise tech_name
+  const displayName = r.filler_name || r.tech_name || 'ไม่ระบุ';
+  const initials = displayName.substring(0, 2);
   const roleLabel = r.tech_role === 'ma_technician' ? 'ช่าง MA'
     : r.tech_role === 'technician' ? 'ช่าง Office'
     : r.tech_role === 'sales' ? 'เซล'
@@ -345,7 +345,7 @@ function RecordCard({ record, onViewImages }) {
           {r.tech_profile_image ? (
             <img
               src={`/uploads/profiles/${r.tech_profile_image}`}
-              alt={r.tech_name}
+              alt={displayName}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -356,7 +356,7 @@ function RecordCard({ record, onViewImages }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold text-[#1F2937] truncate">{r.tech_name || 'ไม่ระบุ'}</p>
+            <p className="text-sm font-bold text-[#1F2937] truncate">{displayName}</p>
             <span className="text-[9px] font-bold text-[#1F2937] bg-[#A3E635]/20 rounded px-1.5 py-0.5 leading-none border border-[#A3E635]/30 shrink-0">
               {roleLabel}
             </span>
@@ -367,16 +367,16 @@ function RecordCard({ record, onViewImages }) {
             </svg>
             บันทึกเมื่อ {thaiTimeAgo(r.date_recorded)} · {timeStr} น.
           </p>
+          {/* Show account owner if filler_name is different */}
+          {r.filler_name && r.tech_name && r.filler_name !== r.tech_name && (
+            <p className="text-[10px] text-[#9CA3AF] font-medium mt-0.5 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              บัญชี: {r.tech_name}
+            </p>
+          )}
         </div>
-        {/* Filler name badge (if different from tech) */}
-        {r.filler_name && (
-          <div className="hidden sm:flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5 shrink-0">
-            <svg className="w-3.5 h-3.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-            </svg>
-            <span className="text-[11px] font-bold text-blue-700">ผู้เติม: {r.filler_name}</span>
-          </div>
-        )}
       </div>
 
       {/* ── Data Grid ── */}
