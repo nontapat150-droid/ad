@@ -12,8 +12,8 @@ const ADMIN_ROLES = ['super_admin', 'admin'];
 // ── GET /api/inventory/products ──
 router.get('/products', auth, async (req, res) => {
   try {
-    const [products] = await pool.query('SELECT * FROM inventory_products ORDER BY name ASC');
-    const [models] = await pool.query('SELECT * FROM inventory_models ORDER BY model_name ASC');
+    const [products] = await pool.query('SELECT id, name, has_sn FROM inventory_products ORDER BY name ASC');
+    const [models] = await pool.query('SELECT id, product_id, model_name FROM inventory_models ORDER BY model_name ASC');
     
     // Attach models to products
     const productsWithModels = products.map(p => ({
@@ -233,31 +233,27 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const adminId = req.user.id;
     let dispatchedCount = 0;
 
-    for (const item of items) {
-      // item = { id: ..., quantity_to_dispatch: ... }
-      // For SN items, quantity is 1. For No-SN, it could be <= item.quantity in DB.
-      // But for simplicity in Phase 2, we assume we dispatch the whole item row.
-      // Wait, if it's wire, the admin might want to dispatch only a part of it? 
-      // The requirement: "เมื่อกดยืนยันระบบจะขึ้นหน้าต่างลอยคล้ายบิลใบเสร็จ และมี ดรอปดาวให้เลือกว่าจะเบิกให้คนไหน"
-      // If we just transfer the whole row:
+    const validItemIds = items.filter(i => i.id).map(i => i.id);
+    if (validItemIds.length > 0) {
+      const [dbItems] = await conn.query('SELECT id, quantity FROM inventory_items WHERE id IN (?) AND status = "in_stock" FOR UPDATE', [validItemIds]);
       
-      const [[dbItem]] = await conn.query('SELECT quantity FROM inventory_items WHERE id = ? AND status = "in_stock" FOR UPDATE', [item.id]);
-      if (!dbItem) continue; // Skip if not found or not in_stock
+      if (dbItems.length > 0) {
+        const availableIds = dbItems.map(row => row.id);
+        
+        await conn.query(
+          `UPDATE inventory_items 
+           SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
+           WHERE id IN (?)`,
+          [target_user_id, team_id, availableIds]
+        );
 
-      // We dispatch the whole row to the technician.
-      // In tech-bag they can split it. Or if admin wants to split, they can do it, but for now we just transfer the whole item.
-      await conn.query(
-        `UPDATE inventory_items 
-         SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
-         WHERE id = ?`,
-        [target_user_id, team_id, item.id]
-      );
-
-      await conn.query(
-        'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
-        [item.id, adminId, target_user_id, dbItem.quantity]
-      );
-      dispatchedCount++;
+        const logValues = dbItems.map(row => [row.id, adminId, target_user_id, "dispatch", row.quantity]);
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES ?',
+          [logValues]
+        );
+        dispatchedCount += availableIds.length;
+      }
     }
 
     await conn.commit();
@@ -355,7 +351,7 @@ router.post('/transfer', auth, async (req, res) => {
 
     // 1. Validate item belongs to current user and has enough quantity
     const [[item]] = await conn.query(
-      `SELECT * FROM inventory_items 
+      `SELECT id, model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at FROM inventory_items 
        WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
       [item_id, currentUserId]
     );
@@ -469,7 +465,7 @@ router.delete('/items/tech/:id', auth, requireRole(ADMIN_ROLES), async (req, res
   try {
     await conn.beginTransaction();
 
-    const [[item]] = await conn.query('SELECT * FROM inventory_items WHERE id = ? AND status = "dispatched"', [itemId]);
+    const [[item]] = await conn.query('SELECT id, model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at FROM inventory_items WHERE id = ? AND status = "dispatched"', [itemId]);
     if (!item) {
       await conn.rollback();
       return res.status(404).json({ error: 'ไม่พบสินค้านี้ในกระเป๋าช่าง' });
@@ -559,7 +555,7 @@ router.delete('/items/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
     await conn.beginTransaction();
 
     // Ensure it's in stock
-    const [[item]] = await conn.query('SELECT * FROM inventory_items WHERE id = ?', [itemId]);
+    const [[item]] = await conn.query('SELECT id, model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at FROM inventory_items WHERE id = ?', [itemId]);
     if (!item) {
       await conn.rollback();
       return res.status(404).json({ error: 'ไม่พบสินค้านี้ในระบบ' });

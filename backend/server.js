@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const compression = require('compression');
 
 // ── GLOBAL CRASH LOGGER FOR z.com ──
 const logFile = path.join(__dirname, 'startup_debug.log');
@@ -35,13 +36,33 @@ const PORT = process.env.PORT || 3001;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 
+// ── Route Modules ───────────────────────────────────────────
+const authRouter = require('./routes/auth');
+const checkinRouter = require('./routes/checkin');
+const dispatchRouter = require('./routes/dispatch');
+const inventoryRouter = require('./routes/inventory');
+const oilRouter = require('./routes/oil');
+const usersRouter = require('./routes/users');
+const statsRouter = require('./routes/stats');
+const messagesRouter = require('./routes/messages');
+const announcementsRouter = require('./routes/announcements');
+const migrateRouter = require('./routes/migrate');
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// ── Ensure uploads folder exists ────────────────────────────
+const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || 'uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
+
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || 'https://bonusais.com',
   credentials: true,
 }));
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadDir));

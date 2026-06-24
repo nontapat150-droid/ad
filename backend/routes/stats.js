@@ -1,12 +1,19 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const NodeCache = require('node-cache');
 
+// สร้าง Cache Instance ให้อยู่ได้ 60 วินาที
+const cache = new NodeCache({ stdTTL: 60 });
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
 // ── GET /api/stats/dashboard — Admin overview numbers ──────
 router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const cacheKey = 'stats_dashboard';
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   const today = new Date().toISOString().slice(0, 10);
   try {
     const [[jobStats]] = await pool.query(
@@ -32,7 +39,9 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        FROM oil_records WHERE DATE_FORMAT(date_recorded, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')`
     );
 
-    res.json({ jobs: jobStats, checkins: checkinStats, oil: oilStats });
+    const result = { jobs: jobStats, checkins: checkinStats, oil: oilStats };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -40,6 +49,10 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── GET /api/stats/admin-dashboard — Admin Homepage ──────
 router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const cacheKey = 'stats_admin_dashboard';
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   try {
     // Run all queries in parallel
     const [inventoryRes, officeRes, maRes, officeUnRes, maUnRes, announcementsRes, onlineRes] = await Promise.allSettled([
@@ -48,7 +61,7 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
       pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`),
       pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE create_time >= CURDATE() AND create_time < CURDATE() + INTERVAL 1 DAY AND team_id IS NULL`),
       pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`),
-      pool.query(`SELECT * FROM announcements WHERE (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 5`),
+      pool.query(`SELECT id, title, content, created_at, expires_at FROM announcements WHERE (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 5`),
       pool.query(`
         SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
                (CASE WHEN u.last_active >= NOW() - INTERVAL 15 MINUTE THEN 1 ELSE 0 END) AS is_online,
@@ -78,7 +91,7 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
         }))
       : [];
 
-    res.json({
+    const result = {
       summary: {
         totalInventory: getVal(inventoryRes),
         officeAssignedToday: getVal(officeRes),
@@ -87,7 +100,9 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
       },
       announcements: getRows(announcementsRes),
       onlineStatus
-    });
+    };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error('Admin Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -96,6 +111,10 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
 // ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
+  const cacheKey = 'stats_super_admin_dashboard';
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   try {
     // Run ALL queries in parallel instead of sequentially
     const [
@@ -163,7 +182,7 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         }))
       : [];
 
-    res.json({
+    const result = {
       summary: {
         totalUsers: getVal(usersRes),
         onlineUsers: 0,
@@ -174,7 +193,9 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
       },
       feed,
       onlineStatus
-    });
+    };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error('Super Admin Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -184,6 +205,10 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
 // ── GET /api/stats/efficiency?month=2026-05 ─────────────────
 router.get('/efficiency', auth, async (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
+  const cacheKey = \`stats_efficiency_\${month}\`;
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   try {
     const [rows] = await pool.query(
       `SELECT t.id AS team_id, t.team_name,
@@ -203,17 +228,22 @@ router.get('/efficiency', auth, async (req, res) => {
        ORDER BY liters_per_job ASC`,
       [month, month]
     );
-    res.json({ month, teams: rows });
+    const result = { month, teams: rows };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 // ── GET /api/stats/office-tech-dashboard — For Office Technician Homepage ──────
 router.get('/office-tech-dashboard', auth, async (req, res) => {
+  const userId = req.user.id;
+  const teamId = req.user.team_id || null;
+  const cacheKey = \`stats_office_\${userId}_\${teamId}\`;
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   try {
-    const userId = req.user.id;
-    const teamId = req.user.team_id || null;
-    
     let jobsToday = { cnt: 0 }, jobsCompleted = { cnt: 0 }, jobsFailed = { cnt: 0 };
     if (teamId) {
       // นับงานทั้งหมดที่มอบหมายให้ทีม (ทุก status)
@@ -225,7 +255,7 @@ router.get('/office-tech-dashboard', auth, async (req, res) => {
     const [[oilToday]] = await pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE tech_id = ? AND DATE(date_recorded) = CURDATE()`, [userId]);
     const [[entryToday]] = await pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE created_by = ? AND DATE(created_at) = CURDATE()`, [userId]);
     
-    res.json({
+    const result = {
       summary: {
         jobsToday: jobsToday.cnt || 0,
         jobsCompleted: jobsCompleted.cnt || 0,
@@ -233,7 +263,9 @@ router.get('/office-tech-dashboard', auth, async (req, res) => {
         oilToday: oilToday.cnt || 0,
         entryToday: entryToday.cnt || 0
       }
-    });
+    };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error('Office Tech Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -242,10 +274,13 @@ router.get('/office-tech-dashboard', auth, async (req, res) => {
 
 // ── GET /api/stats/ma-tech-dashboard — For MA Technician Homepage ──────
 router.get('/ma-tech-dashboard', auth, async (req, res) => {
+  const userId = req.user.id;
+  const teamId = req.user.team_id || null;
+  const cacheKey = \`stats_ma_\${userId}_\${teamId}\`;
+  const cachedData = cache.get(cacheKey);
+  if (cachedData) return res.json(cachedData);
+
   try {
-    const userId = req.user.id;
-    const teamId = req.user.team_id || null;
-    
     let jobsToday = { cnt: 0 }, jobsCompleted = { cnt: 0 }, jobsFailed = { cnt: 0 };
     let completedMonth = { cnt: 0 };
     if (teamId) {
@@ -269,7 +304,7 @@ router.get('/ma-tech-dashboard', auth, async (req, res) => {
     const completedCount = completedMonth.cnt || 0;
     const isConditionMet = (checkinsCount >= ma_target_days) && (completedCount >= ma_target_jobs);
     
-    res.json({
+    const result = {
       summary: {
         jobsToday: jobsToday.cnt || 0,
         jobsCompleted: jobsCompleted.cnt || 0,
@@ -280,7 +315,9 @@ router.get('/ma-tech-dashboard', auth, async (req, res) => {
         completedMonth: completedCount,
         isConditionMet
       }
-    });
+    };
+    cache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error('MA Tech Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });

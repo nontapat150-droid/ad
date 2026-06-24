@@ -10,7 +10,8 @@ const ADMIN_ROLES = ['super_admin', 'admin'];
 router.get('/active', auth, async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT * FROM announcements 
+      SELECT id, title, message, type, status, expires_at, created_at, created_by 
+      FROM announcements 
       WHERE status = 'active' 
       AND (expires_at IS NULL OR expires_at > NOW())
       ORDER BY created_at DESC
@@ -27,7 +28,7 @@ router.get('/active', auth, async (req, res) => {
 router.get('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT a.*, u.full_name as creator_name 
+      SELECT a.id, a.title, a.message, a.type, a.status, a.expires_at, a.created_at, a.created_by, u.full_name as creator_name 
       FROM announcements a
       LEFT JOIN users u ON a.created_by = u.id
       ORDER BY a.created_at DESC

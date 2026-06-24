@@ -44,17 +44,18 @@ router.put('/targets', auth, async (req, res) => {
     const updates = req.body;
     const allowedKeys = ['ma_target_days', 'ma_target_jobs', 'target_tech_jobs', 'allowed_late_days'];
 
+    const values = [];
     for (const key of allowedKeys) {
       if (updates[key] !== undefined) {
-        const val = updates[key].toString();
-        // insert or update
-        const [existing] = await pool.query(`SELECT setting_key FROM system_settings WHERE setting_key = ?`, [key]);
-        if (existing.length > 0) {
-          await pool.query(`UPDATE system_settings SET setting_value = ? WHERE setting_key = ?`, [val, key]);
-        } else {
-          await pool.query(`INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)`, [key, val]);
-        }
+        values.push([key, updates[key].toString()]);
       }
+    }
+    if (values.length > 0) {
+      await pool.query(
+        `INSERT INTO system_settings (setting_key, setting_value) VALUES ? 
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`, 
+        [values]
+      );
     }
 
     res.json({ message: 'Settings updated successfully' });
