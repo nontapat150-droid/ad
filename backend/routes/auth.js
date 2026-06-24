@@ -29,7 +29,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (users.length === 0) {
-      return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+      return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (DEBUG: User not found)' });
     }
 
     const user = users[0];
@@ -38,7 +38,7 @@ router.post('/login', async (req, res) => {
     const normalizedHash = user.password_hash.replace(/^\$2y\$/, '$2b$');
     const valid = await bcrypt.compare(password, normalizedHash);
     if (!valid) {
-      return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+      return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (DEBUG: Password mismatch)' });
     }
 
     // Build roles array
