@@ -26,4 +26,17 @@ const pool = mysql.createPool({
   }
 })();
 
+// Attach custom helper methods expected by server.js
+pool.checkConnection = async () => {
+  const conn = await pool.getConnection();
+  conn.release();
+  return { ok: true };
+};
+
+pool.formatError = (err) => err ? err.message : 'Unknown error';
+
+pool.getConnectionInfo = () => ({
+  host: process.env.DB_HOST || '127.0.0.1',
+  database: process.env.DB_NAME || 'zvucfpsz_RT'
+});
 module.exports = pool;
