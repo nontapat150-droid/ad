@@ -541,4 +541,45 @@ router.delete('/records/:id', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/oil/team-records — Oil records for the user's own team ──
+router.get('/team-records', auth, async (req, res) => {
+  const { limit = 100 } = req.query;
+
+  try {
+    // Get the user's team_id
+    const [userRows] = await pool.query('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+    if (userRows.length === 0 || !userRows[0].team_id) {
+      return res.json([]);
+    }
+    const teamId = userRows[0].team_id;
+
+    const [rows] = await pool.query(
+      `SELECT r.*,
+              u.full_name AS tech_name,
+              u.role AS tech_role,
+              u.profile_image AS tech_profile_image,
+              u.team_id,
+              t.team_name,
+              GROUP_CONCAT(i.image_path SEPARATOR ',') AS images
+       FROM oil_records r
+       LEFT JOIN users u ON u.id = r.tech_id
+       LEFT JOIN teams t ON t.id = u.team_id
+       LEFT JOIN oil_images i ON i.record_id = r.id
+       WHERE u.team_id = ?
+       GROUP BY r.id, u.full_name, u.role, u.profile_image, u.team_id, t.team_name
+       ORDER BY r.date_recorded DESC
+       LIMIT ?`,
+      [teamId, parseInt(limit)]
+    );
+
+    res.json(rows.map((r) => ({
+      ...r,
+      images: r.images ? r.images.split(',') : [],
+    })));
+  } catch (err) {
+    console.error('Team oil records error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 module.exports = router;

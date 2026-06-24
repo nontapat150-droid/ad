@@ -17,10 +17,11 @@ const MENU_GROUPS = [
   {
     label: 'บันทึกข้อมูล',
     items: [
-      { key: 'entry_fee',     label: 'ค่าแรกเข้า',    icon: EntryFeeIcon  },
-      { key: 'oil',           label: 'เติมน้ำมัน',     icon: OilIcon       },
-      { key: 'checkin',       label: 'ลงเวลาเข้างาน',  icon: CheckinIcon   },
-      { key: 'ais_expansion', label: 'งานขยาย',        icon: MapIcon       },
+      { key: 'entry_fee',     label: 'ค่าแรกเข้า',            icon: EntryFeeIcon  },
+      { key: 'oil',           label: 'เติมน้ำมัน',             icon: OilIcon       },
+      { key: 'oil_history',   label: 'ประวัติเติมน้ำมันทีม',    icon: OilHistoryIcon },
+      { key: 'checkin',       label: 'ลงเวลาเข้างาน',          icon: CheckinIcon   },
+      { key: 'ais_expansion', label: 'งานขยาย',                icon: MapIcon       },
     ],
   },
   {
@@ -95,6 +96,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       else if (key === 'report')        navigate('/report');
       else if (key === 'customers')     navigate('/customers');
       else if (key === 'ais_expansion') navigate('/ais-expansion');
+      else if (key === 'oil_history')   navigate('/oil-history');
     }
     if (window.innerWidth < 768) onClose();
   };
@@ -114,7 +116,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
   const baseGroups = MENU_GROUPS.map(group => ({
     ...group,
     items: group.items.filter(item => {
-      if (isAdminOnly && ['oil', 'entry_fee', 'bag'].includes(item.key)) return false;
+      if (isAdminOnly && ['oil', 'oil_history', 'entry_fee', 'bag'].includes(item.key)) return false;
       return true;
     })
   })).filter(group => group.items.length > 0);
@@ -142,18 +144,18 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       ...group,
       items: items.filter(item => {
         if (isSales && !isAdmin) {
-          const allowedForSales = ['home', 'oil', 'checkin', 'ais_expansion', 'report'];
+          const allowedForSales = ['home', 'oil', 'oil_history', 'checkin', 'ais_expansion', 'report'];
           return allowedForSales.includes(item.key);
         }
         if (isMATech && !isOfficeTech && !isAdmin) {
-          const allowedForMATech = ['home_ma', 'bag', 'oil', 'report', 'jobs', 'checkin'];
+          const allowedForMATech = ['home_ma', 'bag', 'oil', 'oil_history', 'report', 'jobs', 'checkin'];
           return allowedForMATech.includes(item.key);
         }
         if (isOfficeTech && !isAdmin) {
-          const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'report', 'jobs', 'checkin'];
+          const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'oil_history', 'report', 'jobs', 'checkin'];
           return allowedForOfficeTech.includes(item.key);
         }
-        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
+        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'oil_history', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
       })
     };
   }).filter(group => group.items.length > 0);
@@ -484,5 +486,10 @@ function AnnouncementsIcon({ active }) {
 function EntryFeeIcon() {
   return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>;
+}
+function OilHistoryIcon({ active }) {
+  return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.2 : 1.75}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
   </svg>;
 }

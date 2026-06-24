@@ -1,7 +1,7 @@
 # 🛠️ System Tech Stack & Comprehensive Overview
 
 เอกสารนี้ถูกสร้างและอัปเดตอัตโนมัติจากโค้ดจริง (Code Analysis)
-🕒 **อัปเดตล่าสุด:** 22/6/2569 14:35:15
+🕒 **อัปเดตล่าสุด:** 23/6/2569 08:43:36
 
 ## 🖥️ Frontend Architecture (React.js / Vite)
 
@@ -169,6 +169,7 @@
 
 #### 📄 migrate.js
   * `GET` `/api/migrate/migrate-fix`
+  * `GET` `/api/migrate/migrate-entry-fee`
   * `GET` `/api/migrate/backfill-customers`
 
 #### 📄 oil.js
