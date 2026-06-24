@@ -273,7 +273,7 @@ export default function TechOilHistoryPage() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* ── Evidence Images Modal ─────────────────────────── */}
