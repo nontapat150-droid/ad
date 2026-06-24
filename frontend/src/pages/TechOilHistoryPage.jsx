@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
-import { thaiDate, thaiDateTime, thaiTimeAgo } from '../utils/thaiDate';
+import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear } from '../utils/thaiDate';
+
+const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
 export default function TechOilHistoryPage() {
   const { user } = useAuth();
@@ -11,21 +13,53 @@ export default function TechOilHistoryPage() {
   const [viewingImages, setViewingImages] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
 
+  // Month filter: null = all, 'YYYY-MM' = specific month
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get('/oil/team-records?limit=100');
+      const params = new URLSearchParams();
+      if (selectedMonth) params.append('month', selectedMonth);
+      const res = await api.get(`/oil/team-records?${params.toString()}`);
       setRecords(res.data);
     } catch (err) {
       console.error('Failed to fetch team oil records:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedMonth]);
 
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  // Month navigation helpers
+  const goMonth = (delta) => {
+    if (!selectedMonth) {
+      const now = new Date();
+      setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+      return;
+    }
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    setSelectedMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const getMonthLabel = () => {
+    if (!selectedMonth) return 'ทั้งหมด';
+    const [y, m] = selectedMonth.split('-').map(Number);
+    return `${THAI_MONTHS[m - 1]} ${y + 543}`;
+  };
+
+  const isCurrentMonth = () => {
+    if (!selectedMonth) return false;
+    const now = new Date();
+    return selectedMonth === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
 
   // Group records by date for timeline view
   const groupedByDate = records.reduce((acc, record) => {
@@ -88,9 +122,67 @@ export default function TechOilHistoryPage() {
             </button>
           </div>
 
+          {/* ── Month Filter ── */}
+          <div className="relative mt-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-1 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
+              {/* Prev month */}
+              <button
+                onClick={() => goMonth(-1)}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-[#6B7280] hover:text-[#1F2937] hover:bg-white transition-all active:scale-95"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                </svg>
+              </button>
+
+              {/* Month label */}
+              <div className="px-4 py-1.5 min-w-[120px] text-center">
+                <p className="text-sm font-black text-[#1F2937]">{getMonthLabel()}</p>
+              </div>
+
+              {/* Next month */}
+              <button
+                onClick={() => goMonth(1)}
+                disabled={isCurrentMonth()}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-[#6B7280] hover:text-[#1F2937] hover:bg-white transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Quick buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                  isCurrentMonth()
+                    ? 'bg-[#1F2937] text-white shadow-sm'
+                    : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#A3E635]/40 hover:text-[#374151]'
+                }`}
+              >
+                เดือนนี้
+              </button>
+              <button
+                onClick={() => setSelectedMonth(null)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                  !selectedMonth
+                    ? 'bg-[#1F2937] text-white shadow-sm'
+                    : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#A3E635]/40 hover:text-[#374151]'
+                }`}
+              >
+                ทั้งหมด
+              </button>
+            </div>
+          </div>
+
           {/* ── Quick Stats ── */}
           {!loading && records.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 mt-6 relative">
+            <div className="grid grid-cols-3 gap-3 mt-5 relative">
               <div className="bg-[#F9FAFB] rounded-2xl p-4 border border-[#E5E7EB] text-center hover:shadow-sm transition-shadow">
                 <p className="text-2xl md:text-3xl font-black text-[#1F2937] tracking-tight">{totalRecords}</p>
                 <p className="text-[11px] md:text-xs text-[#9CA3AF] font-bold mt-1">รายการทั้งหมด</p>

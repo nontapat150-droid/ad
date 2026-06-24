@@ -543,7 +543,7 @@ router.delete('/records/:id', auth, async (req, res) => {
 
 // ── GET /api/oil/team-records — Oil records for the user's own team ──
 router.get('/team-records', auth, async (req, res) => {
-  const { limit = 100 } = req.query;
+  const { month } = req.query; // e.g. '2026-06'
 
   try {
     // Get the user's team_id
@@ -552,6 +552,16 @@ router.get('/team-records', auth, async (req, res) => {
       return res.json([]);
     }
     const teamId = userRows[0].team_id;
+
+    let where = ['u.team_id = ?'];
+    let params = [teamId];
+
+    if (month) {
+      where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");
+      params.push(month);
+    }
+
+    const whereClause = 'WHERE ' + where.join(' AND ');
 
     const [rows] = await pool.query(
       `SELECT r.*,
@@ -565,11 +575,10 @@ router.get('/team-records', auth, async (req, res) => {
        LEFT JOIN users u ON u.id = r.tech_id
        LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN oil_images i ON i.record_id = r.id
-       WHERE u.team_id = ?
+       ${whereClause}
        GROUP BY r.id, u.full_name, u.role, u.profile_image, u.team_id, t.team_name
-       ORDER BY r.date_recorded DESC
-       LIMIT ?`,
-      [teamId, parseInt(limit)]
+       ORDER BY r.date_recorded DESC`,
+      params
     );
 
     res.json(rows.map((r) => ({
