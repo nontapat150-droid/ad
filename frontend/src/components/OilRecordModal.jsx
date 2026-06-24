@@ -46,6 +46,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   });
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isFillOnBehalf, setIsFillOnBehalf] = useState(false);
 
   const handleTechChange = (e) => {
     const tId = e.target.value;
@@ -76,6 +77,10 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
         formData.append(key, form[key]);
       });
       images.forEach(img => formData.append('images', img));
+
+      if (isAdmin && isFillOnBehalf) {
+        formData.append('filler_name', user.full_name);
+      }
 
       await api.post('/oil/records', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -198,6 +203,28 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                   กำลังบันทึกในนาม: <span className="font-bold text-[#1F2937]">{selectedTech.full_name}</span> ({teamName}) - 
                   {' '}{{ sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
                 </p>
+              </div>
+            )}
+
+            {/* Checkbox for Filling on Behalf */}
+            {selectedTech && String(selectedTech.id) !== String(user?.id) && (
+              <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input 
+                      type="checkbox" 
+                      className="peer appearance-none w-5 h-5 border-2 border-[#D1D5DB] rounded bg-white checked:bg-[#A3E635] checked:border-[#A3E635] transition-all"
+                      checked={isFillOnBehalf}
+                      onChange={(e) => setIsFillOnBehalf(e.target.checked)}
+                    />
+                    <svg className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-medium text-[#4B5563] group-hover:text-[#1F2937] transition-colors">
+                    ฉันเป็นผู้ขับรถไปเติมน้ำมันแทนช่างคนนี้ (บันทึกในนาม: <span className="font-bold text-[#1F2937]">{user?.full_name}</span>)
+                  </span>
+                </label>
               </div>
             )}
           </div>
