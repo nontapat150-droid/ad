@@ -315,16 +315,21 @@ export default function OilDashboardPage() {
       if (endDate) queryParams.append('end_date', endDate);
       if (selectedTeams.length > 0) queryParams.append('team_ids', selectedTeams.join(','));
 
-      const [anRes, recRes, effRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get(`/oil/analytics?${queryParams.toString()}`),
-        api.get(`/oil/records?${queryParams.toString()}&limit=50`),
+        api.get(`/oil/records?${queryParams.toString()}&limit=30`),
         api.get(`/oil/efficiency?${queryParams.toString()}`)
       ]);
-      setAnalytics(anRes.data);
-      setRecords(recRes.data);
-      setEfficiency(effRes.data);
+
+      if (results[0].status === 'fulfilled') setAnalytics(results[0].value.data);
+      if (results[1].status === 'fulfilled') setRecords(results[1].value.data);
+      if (results[2].status === 'fulfilled') setEfficiency(results[2].value.data);
+
+      const failedAPIs = results.filter(r => r.status === 'rejected');
+      if (failedAPIs.length > 0) {
+        console.warn('Some oil APIs failed:', failedAPIs.map(f => f.reason?.message));
+      }
     } catch (err) {
-      window.debugOilError = err.response?.data?.error || err.message || JSON.stringify(err);
       console.error('Oil fetch error:', err);
     } finally {
       setLoading(false);
@@ -351,7 +356,6 @@ export default function OilDashboardPage() {
         Swal.fire('สำเร็จ', 'คำนวณข้อมูลใหม่เรียบร้อยแล้ว', 'success');
       }
     } catch (err) {
-      window.debugOilError = err.response?.data?.error || err.message || JSON.stringify(err);
       console.error('Recalculate error:', err);
       Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || 'ไม่สามารถคำนวณใหม่ได้', 'error');
     }
@@ -560,11 +564,6 @@ export default function OilDashboardPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-6 stagger-children">
-            {window.debugOilError && (
-              <div className="bg-red-100 text-red-600 p-4 rounded-xl">
-                Debug Error: {window.debugOilError}
-              </div>
-            )}
 
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -829,7 +828,7 @@ export default function OilDashboardPage() {
                     {records.length === 0 ? (
                       <tr>
                         <td colSpan="11" className="text-center p-8 text-[#9CA3AF] font-bold">
-                          ไม่มีข้อมูลในเดือนนี้ (Debug: records={records.length}, isAdmin={isAdmin.toString()})
+                          ไม่มีข้อมูลในช่วงเวลาที่เลือก
                         </td>
                       </tr>
                     ) : null}

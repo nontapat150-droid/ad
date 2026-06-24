@@ -6,6 +6,20 @@ const { upload, setUpload } = require('../middleware/upload');
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
+// ── Ensure indexes exist for performance ──────────────────────
+(async () => {
+  try {
+    const conn = await pool.getConnection();
+    await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_date ON oil_records(date_recorded)').catch(() => {});
+    await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_tech ON oil_records(tech_id)').catch(() => {});
+    await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_plate ON oil_records(license_plate)').catch(() => {});
+    await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_img_record ON oil_images(record_id)').catch(() => {});
+    conn.release();
+  } catch (e) {
+    // Indexes may already exist or lack permission — ignore
+  }
+})();
+
 // ── GET /api/oil/records — My oil records (tech) or all (admin) ─
 router.get('/records', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
@@ -43,13 +57,12 @@ router.get('/records', auth, async (req, res) => {
               u.role AS tech_role,
               u.team_id,
               t.team_name,
-              GROUP_CONCAT(i.image_path SEPARATOR ',') AS images
+              (SELECT GROUP_CONCAT(i.image_path SEPARATOR ',')
+               FROM oil_images i WHERE i.record_id = r.id) AS images
        FROM oil_records r
        LEFT JOIN users u ON u.id = r.tech_id
        LEFT JOIN teams t ON t.id = u.team_id
-       LEFT JOIN oil_images i ON i.record_id = r.id
        ${whereClause}
-       GROUP BY r.id, u.full_name, u.role, u.team_id, t.team_name
        ORDER BY r.date_recorded DESC
        LIMIT ?`,
       [...params, parseInt(limit)]
@@ -194,6 +207,7 @@ router.post('/recalculate', auth, async (req, res) => {
     );
 
     let lastMileageByPlate = {};
+    const batchValues = [];
 
     for (const record of records) {
       const plate = record.license_plate.replace(/\s+/g, '').toLowerCase();
@@ -201,26 +215,33 @@ router.post('/recalculate', auth, async (req, res) => {
 
       if (lastMileageByPlate[plate] !== undefined) {
         distance = record.mileage - lastMileageByPlate[plate];
-        if (distance < 0) distance = 0; // Prevent negative distance
+        if (distance < 0) distance = 0;
       }
 
       const bahtPerKm = distance > 0 ? (parseFloat(record.total_price) / distance).toFixed(2) : 0;
-
-      await conn.query(
-        `UPDATE oil_records 
-         SET distance = ?, baht_per_km = ? 
-         WHERE id = ?`,
-        [distance, bahtPerKm, record.id]
-      );
-
+      batchValues.push([distance, parseFloat(bahtPerKm), record.id]);
       lastMileageByPlate[plate] = record.mileage;
+    }
+
+    // Batch update in chunks of 500 instead of one-by-one
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < batchValues.length; i += CHUNK_SIZE) {
+      const chunk = batchValues.slice(i, i + CHUNK_SIZE);
+      const cases_dist = chunk.map(v => `WHEN ${v[2]} THEN ${v[0]}`).join(' ');
+      const cases_bpk = chunk.map(v => `WHEN ${v[2]} THEN ${v[1]}`).join(' ');
+      const ids = chunk.map(v => v[2]).join(',');
+      await conn.query(
+        `UPDATE oil_records SET 
+           distance = CASE id ${cases_dist} END,
+           baht_per_km = CASE id ${cases_bpk} END
+         WHERE id IN (${ids})`
+      );
     }
 
     await conn.commit();
     res.json({ message: 'คำนวณใหม่สำเร็จ' });
   } catch (err) {
     await conn.rollback();
-    require('fs').appendFileSync('error.log', new Date().toISOString() + ' Recalculate Error: ' + err.stack + '\n');
     console.error('Recalculate error:', err);
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการคำนวณใหม่' });
   } finally {
@@ -290,7 +311,6 @@ router.get('/efficiency', auth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    require('fs').appendFileSync('error.log', new Date().toISOString() + ' Efficiency Error: ' + err.stack + '\n');
     console.error('Efficiency error:', err);
     res.status(500).json({ error: 'Server error: ' + err.message });
   }
@@ -580,13 +600,12 @@ router.get('/team-records', auth, async (req, res) => {
               u.profile_image AS tech_profile_image,
               u.team_id,
               t.team_name,
-              GROUP_CONCAT(i.image_path SEPARATOR ',') AS images
+              (SELECT GROUP_CONCAT(i.image_path SEPARATOR ',')
+               FROM oil_images i WHERE i.record_id = r.id) AS images
        FROM oil_records r
        LEFT JOIN users u ON u.id = r.tech_id
        LEFT JOIN teams t ON t.id = u.team_id
-       LEFT JOIN oil_images i ON i.record_id = r.id
        ${whereClause}
-       GROUP BY r.id, u.full_name, u.role, u.profile_image, u.team_id, t.team_name
        ORDER BY r.date_recorded DESC`,
       params
     );
