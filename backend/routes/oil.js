@@ -541,20 +541,30 @@ router.delete('/records/:id', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/oil/team-records — Oil records for the user's own team ──
+// ── GET /api/oil/team-records — Oil records for the user's own team (or specific team for admin) ──
 router.get('/team-records', auth, async (req, res) => {
-  const { month } = req.query; // e.g. '2026-06'
+  const { month, team_id } = req.query; // e.g. '2026-06', '2'
 
   try {
-    // Get the user's team_id
-    const [userRows] = await pool.query('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
-    if (userRows.length === 0 || !userRows[0].team_id) {
-      return res.json([]);
+    let targetTeamId = null;
+
+    // Check if user is admin/super_admin and requested a specific team
+    const roles = req.user.roles || [req.user.role];
+    const isAdmin = roles.includes('admin') || roles.includes('super_admin');
+
+    if (isAdmin && team_id) {
+      targetTeamId = team_id;
+    } else {
+      // Get the user's own team_id
+      const [userRows] = await pool.query('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
+      if (userRows.length === 0 || !userRows[0].team_id) {
+        return res.json([]);
+      }
+      targetTeamId = userRows[0].team_id;
     }
-    const teamId = userRows[0].team_id;
 
     let where = ['u.team_id = ?'];
-    let params = [teamId];
+    let params = [targetTeamId];
 
     if (month) {
       where.push("DATE_FORMAT(r.date_recorded, '%Y-%m') = ?");

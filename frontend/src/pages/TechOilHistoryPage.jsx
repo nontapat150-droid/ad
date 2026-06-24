@@ -7,20 +7,35 @@ import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear } from '../utils/tha
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
 export default function TechOilHistoryPage() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewingImages, setViewingImages] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
 
-  // Month filter: null = all (default), 'YYYY-MM' = specific month
+  // Filters
   const [selectedMonth, setSelectedMonth] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [teams, setTeams] = useState([]);
+
+  const isAdmin = hasRole(['admin', 'super_admin']);
+
+  const fetchTeams = useCallback(async () => {
+    try {
+      const res = await api.get('/users/teams');
+      setTeams(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch teams:', err);
+    }
+  }, []);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (selectedMonth) params.append('month', selectedMonth);
+      if (isAdmin && selectedTeam) params.append('team_id', selectedTeam);
+      
       const res = await api.get(`/oil/team-records?${params.toString()}`);
       setRecords(res.data);
     } catch (err) {
@@ -28,11 +43,17 @@ export default function TechOilHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth]);
+  }, [selectedMonth, selectedTeam, isAdmin]);
 
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchTeams();
+    }
+  }, [isAdmin, fetchTeams]);
 
   // Month navigation helpers
   const goMonth = (delta) => {
@@ -119,9 +140,27 @@ export default function TechOilHistoryPage() {
             </button>
           </div>
 
-          {/* ── Month Filter ── */}
+          {/* ── Filters ── */}
           <div className="relative mt-5 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-1 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl">
+            
+            {/* Team Selector (Admin Only) */}
+            {isAdmin && (
+              <div className="flex-shrink-0">
+                <select
+                  value={selectedTeam}
+                  onChange={(e) => setSelectedTeam(e.target.value)}
+                  className="px-4 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm font-bold text-[#374151] focus:ring-2 focus:ring-[#A3E635] focus:border-[#A3E635] outline-none transition-all cursor-pointer"
+                >
+                  <option value="">ทีมของฉัน (ตามข้อมูลส่วนตัว)</option>
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.team_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Month Filter */}
+            <div className="flex items-center gap-1 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl flex-shrink-0">
               {/* Prev month */}
               <button
                 onClick={() => goMonth(-1)}
