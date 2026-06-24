@@ -766,12 +766,7 @@ export default function OilDashboardPage() {
                           <td className="p-4 text-sm text-[#1F2937] whitespace-nowrap">
                             <div className="flex flex-col gap-1.5">
                               <span className="font-bold text-[#1F2937]">
-                                {r.tech_name || 'N/A'}
-                                {r.filler_name && r.filler_name !== r.tech_name && (
-                                  <span className="block text-xs font-normal text-[#D97706] mt-0.5">
-                                    (เติมแทนโดย: {r.filler_name})
-                                  </span>
-                                )}
+                                {r.filler_name ? r.filler_name : (r.tech_name || 'N/A')}
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-black bg-[#A3E635]/20 text-[#65a30d] border border-[#A3E635]/30 px-2.5 py-0.5 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
@@ -918,12 +913,7 @@ export default function OilDashboardPage() {
                           {thaiDate(r.date_recorded)}
                         </td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">
-                          {r.tech_name || '-'}
-                          {r.filler_name && r.filler_name !== r.tech_name && (
-                            <span className="ml-1 text-xs font-normal text-[#D97706]">
-                              (เติมแทนโดย: {r.filler_name})
-                            </span>
-                          )}
+                          {r.filler_name ? r.filler_name : (r.tech_name || '-')}
                         </td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
                         <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
