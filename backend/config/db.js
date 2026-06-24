@@ -2,7 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || '127.0.0.1',
   port: parseInt(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || 'zvucfpsz_BO',
   password: process.env.DB_PASSWORD || '@2*]BC9AuGO^%P&-',
@@ -21,7 +21,7 @@ const pool = mysql.createPool({
     console.log(`✅ MySQL connected — database: ${process.env.DB_NAME || 'zvucfpsz_RT'}`);
     conn.release();
   } catch (err) {
-    console.error('❌ MySQL connection failed on startup:', err.message);
+    console.error('❌ MySQL connection failed on startup:', err);
     // ไม่สั่ง process.exit(1) เพื่อไม่ให้เซิร์ฟเวอร์พัง 503
   }
 })();
