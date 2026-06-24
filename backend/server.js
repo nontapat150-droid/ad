@@ -36,24 +36,7 @@ const PORT = process.env.PORT || 3001;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 
-// ── Route Modules ───────────────────────────────────────────
-const authRouter = require('./routes/auth');
-const checkinRouter = require('./routes/checkin');
-const dispatchRouter = require('./routes/dispatch');
-const inventoryRouter = require('./routes/inventory');
-const oilRouter = require('./routes/oil');
-const usersRouter = require('./routes/users');
-const statsRouter = require('./routes/stats');
-const messagesRouter = require('./routes/messages');
-const announcementsRouter = require('./routes/announcements');
-const migrateRouter = require('./routes/migrate');
 
-const app = express();
-const PORT = process.env.PORT || 3001;
-
-// ── Ensure uploads folder exists ────────────────────────────
-const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || 'uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
 
 // ── Middleware ──────────────────────────────────────────────
 app.use(cors({
