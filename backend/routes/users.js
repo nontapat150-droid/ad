@@ -98,9 +98,10 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
     // Seed user_roles with primary + extra roles
     const allRoles = [...new Set([role, ...extra_roles])];
-    if (allRoles.length > 0) {
-      const roleValues = allRoles.map(r => [userId, r]);
-      await conn.query(`INSERT IGNORE INTO user_roles (user_id, role) VALUES ?`, [roleValues]);
+    for (const r of allRoles) {
+      await conn.query(
+        `INSERT IGNORE INTO user_roles (user_id, role) VALUES (?, ?)`, [userId, r]
+      );
     }
 
     await conn.commit();
@@ -125,9 +126,10 @@ router.put('/:id/roles', auth, requireRole(['super_admin']), async (req, res) =>
   try {
     await conn.beginTransaction();
     await conn.query(`DELETE FROM user_roles WHERE user_id = ?`, [userId]);
-    if (roles.length > 0) {
-      const roleValues = roles.map(r => [userId, r]);
-      await conn.query(`INSERT IGNORE INTO user_roles (user_id, role) VALUES ?`, [roleValues]);
+    for (const r of roles) {
+      await conn.query(
+        `INSERT IGNORE INTO user_roles (user_id, role) VALUES (?, ?)`, [userId, r]
+      );
     }
     // Keep primary role in sync
     if (roles.length > 0) {
@@ -170,9 +172,10 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     // Update user_roles
     await conn.query(`DELETE FROM user_roles WHERE user_id = ?`, [userId]);
     const allRoles = [...new Set([role, ...extra_roles])];
-    if (allRoles.length > 0) {
-      const roleValues = allRoles.map(r => [userId, r]);
-      await conn.query(`INSERT IGNORE INTO user_roles (user_id, role) VALUES ?`, [roleValues]);
+    for (const r of allRoles) {
+      await conn.query(
+        `INSERT IGNORE INTO user_roles (user_id, role) VALUES (?, ?)`, [userId, r]
+      );
     }
 
     await conn.commit();

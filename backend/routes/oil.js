@@ -8,17 +8,15 @@ const ADMIN_ROLES = ['super_admin', 'admin'];
 
 // ── Ensure indexes exist for performance ──────────────────────
 (async () => {
-  let conn;
   try {
-    conn = await pool.getConnection();
+    const conn = await pool.getConnection();
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_date ON oil_records(date_recorded)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_tech ON oil_records(tech_id)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_plate ON oil_records(license_plate)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_img_record ON oil_images(record_id)').catch(() => {});
+    conn.release();
   } catch (e) {
     // Indexes may already exist or lack permission — ignore
-  } finally {
-    if (conn) conn.release();
   }
 })();
 
@@ -131,6 +129,7 @@ router.post(
       );
 
       if (existing.length > 0) {
+        conn.release();
         return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
       }
 
@@ -438,7 +437,7 @@ router.put(
       await conn.beginTransaction();
 
       // Get old record
-      const [old] = await conn.query('SELECT id, tech_id, mileage FROM oil_records WHERE id = ?', [recordId]);
+      const [old] = await conn.query('SELECT * FROM oil_records WHERE id = ?', [recordId]);
       if (old.length === 0) {
         await conn.rollback();
         return res.status(404).json({ error: 'Record not found' });

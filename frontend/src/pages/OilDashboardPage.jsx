@@ -766,14 +766,6 @@ export default function OilDashboardPage() {
                           <td className="p-4 text-sm text-[#1F2937] whitespace-nowrap">
                             <div className="flex flex-col gap-1.5">
                               <span className="font-bold text-[#1F2937]">{r.tech_name || 'N/A'}</span>
-                              {r.filler_name && r.tech_name && r.filler_name !== r.tech_name && (
-                                <span className="text-[10px] text-[#9CA3AF] font-medium flex items-center gap-1">
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                                  </svg>
-                                  เติมแทนโดย: {r.filler_name}
-                                </span>
-                              )}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-black bg-[#A3E635]/20 text-[#65a30d] border border-[#A3E635]/30 px-2.5 py-0.5 rounded-md">{r.team_name || 'ไม่มีทีม'}</span>
                                 <span className="text-xs font-medium text-[#6B7280] bg-[#F3F4F6] px-2.5 py-0.5 rounded-md border border-[#E5E7EB]">
@@ -918,17 +910,7 @@ export default function OilDashboardPage() {
                         <td className="p-3 text-sm text-[#4B5563] font-medium whitespace-nowrap">
                           {thaiDate(r.date_recorded)}
                         </td>
-                        <td className="p-3 text-sm text-[#1F2937] whitespace-nowrap">
-                          <div className="font-bold">{r.tech_name || '-'}</div>
-                          {r.filler_name && r.tech_name && r.filler_name !== r.tech_name && (
-                            <div className="text-[10px] text-[#9CA3AF] font-medium mt-0.5 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                              </svg>
-                              เติมแทนโดย: {r.filler_name}
-                            </div>
-                          )}
-                        </td>
+                        <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.tech_name || '-'}</td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
                         <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
                         <td className="p-3 text-sm font-black tracking-wide text-[#374151] font-bold text-right">{r.distance || 0}</td>

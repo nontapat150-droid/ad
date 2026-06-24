@@ -188,7 +188,7 @@ router.put('/jobs/:id/set-off', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [[job]] = await conn.query('SELECT id, team_id, status, access_no FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
     
     await conn.query(`UPDATE jobs SET status = 'in_progress', set_off_time = NOW() WHERE id = ?`, [jobId]);
@@ -221,7 +221,7 @@ router.put('/jobs/:id/arrive', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [[job]] = await conn.query('SELECT id, team_id, status, access_no FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
     
     await conn.query(`UPDATE jobs SET status = 'in_progress', arrival_time = NOW() WHERE id = ?`, [jobId]);
@@ -263,7 +263,7 @@ router.put(
 
       // 1. Fetch job & verify access
       const [[job]] = await conn.query(
-        `SELECT id, team_id, status, access_no FROM jobs WHERE id = ? LIMIT 1`, [jobId]
+        `SELECT * FROM jobs WHERE id = ? LIMIT 1`, [jobId]
       );
       if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
 
@@ -1024,7 +1024,7 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [[job]] = await conn.query('SELECT id, team_id, status, access_no FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
     await conn.query('UPDATE jobs SET status = \'failed\', fail_reason = ? WHERE id = ?', [remark, jobId]);
     await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'failed\', ?)', [jobId, techId, remark]);
@@ -1047,7 +1047,7 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [[job]] = await conn.query('SELECT id, team_id, status, access_no FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
     const postponeReason = remark ? ` [เลื่อนนัด: ${remark}]` : ' [เลื่อนนัด]';
     await conn.query(
