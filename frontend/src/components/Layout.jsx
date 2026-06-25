@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import InboxModal from './InboxModal';
+import NotificationProvider from './NotificationProvider';
 import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -9,7 +11,12 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [testingSend, setTestingSend] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const userRoles = user?.roles || [user?.role || ''];
+  const isAdmin = userRoles.includes('super_admin') || userRoles.includes('admin');
 
   const close  = useCallback(() => setSidebarOpen(false), []);
   const toggle = useCallback(() => setSidebarOpen((v) => !v), []);
@@ -31,6 +38,7 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
   }, [fetchUnreadCount]);
 
   return (
+    <NotificationProvider>
     <div className="flex min-h-dvh ">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
@@ -80,17 +88,58 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
             </button>
+
+            {/* Test FCM Button (Admin only) */}
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  if (testingSend) return;
+                  setTestingSend(true);
+                  try {
+                    const res = await api.post('/fcm/test-send');
+                    if (res.data.success) {
+                      console.log('Test notification sent!');
+                    } else {
+                      alert(res.data.message || 'ส่งไม่สำเร็จ');
+                    }
+                  } catch (err) {
+                    const msg = err.response?.data?.error || 'เกิดข้อผิดพลาด';
+                    alert(msg);
+                  } finally {
+                    setTestingSend(false);
+                  }
+                }}
+                disabled={testingSend}
+                className="h-10 px-3 rounded-xl glass border border-white/50 flex items-center justify-center gap-1.5 hover:bg-[#E6F1FB] transition-all text-xs font-semibold text-[#378ADD] disabled:opacity-50 active:scale-95"
+                title="ทดสอบส่ง Push Notification"
+              >
+                {testingSend ? (
+                  <div className="w-4 h-4 border-2 border-[#378ADD]/30 border-t-[#378ADD] rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                )}
+                <span className="hidden sm:inline">ทดสอบ FCM</span>
+              </button>
+            )}
+
             {/* Notification bell */}
             <button 
               onClick={() => setInboxOpen(true)}
               className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
+              title="กล่องข้อความ"
             >
               <svg className="w-5 h-5 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
-              {/* Unread dot */}
+              {/* Unread badge with count */}
               {unreadCount > 0 && (
-                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
+                <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center px-1">
+                  <span className="text-[10px] font-bold text-white leading-none">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                </div>
               )}
             </button>
           </div>
@@ -110,5 +159,6 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
         onReadMessage={fetchUnreadCount}
       />
     </div>
+    </NotificationProvider>
   );
 }

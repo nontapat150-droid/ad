@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { auth } = require('../middleware/auth');
+const { sendToUser } = require('../config/firebase-admin');
 
 const router = express.Router();
 
@@ -83,6 +84,20 @@ router.post('/send', auth, async (req, res) => {
       `INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)`,
       [req.user.id, receiver_id, message]
     );
+
+    // Send push notification to receiver (fire & forget)
+    const senderName = req.user.full_name || req.user.username || 'ผู้ใช้';
+    sendToUser(
+      receiver_id,
+      `💬 ข้อความจาก ${senderName}`,
+      message.length > 100 ? message.substring(0, 100) + '...' : message,
+      {
+        type: 'new_message',
+        message_id: String(result.insertId),
+        sender_id: String(req.user.id),
+        sender_name: senderName,
+      }
+    ).catch(err => console.error('Push notification failed:', err));
 
     res.status(201).json({ success: true, messageId: result.insertId });
   } catch (error) {

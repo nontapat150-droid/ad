@@ -27,6 +27,7 @@ const statsRouter = require('./routes/stats');
 const messagesRouter = require('./routes/messages');
 const announcementsRouter = require('./routes/announcements');
 const migrateRouter = require('./routes/migrate');
+const fcmRouter = require('./routes/fcm');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +80,7 @@ apiRouter.use('/announcements', announcementsRouter);
 apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
 apiRouter.use('/migrate', migrateRouter);
+apiRouter.use('/fcm', fcmRouter);
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
 app.use('/api', apiRouter);
@@ -189,6 +191,21 @@ async function runStartupDbTasks() {
     { label: 'entry_fees backdate', sql: 'ALTER TABLE entry_fees ADD COLUMN backdate DATE NULL', ignoreError: true },
     { label: 'customers entry_fee_status', sql: 'ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL', ignoreError: true },
     { label: 'customers entry_fee_date', sql: 'ALTER TABLE customers ADD COLUMN entry_fee_date DATETIME NULL', ignoreError: true },
+    {
+      label: 'create user_fcm_tokens',
+      sql: `
+        CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          user_id INT NOT NULL,
+          fcm_token TEXT NOT NULL,
+          device_info VARCHAR(255) NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_user_id (user_id)
+        )
+      `,
+      ignoreError: true,
+    },
   ];
 
   for (const item of startupQueries) {

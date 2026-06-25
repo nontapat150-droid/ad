@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Logs
+*.log
+error.log
+startup_debug.log
+
+# Uploads
+uploads/
+
+# Firebase Service Account (SENSITIVE - DO NOT COMMIT)
+config/firebase-service-account.json
+config/notification-35907-*.json
+
+# Temp
+tmp/
