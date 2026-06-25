@@ -25,6 +25,15 @@ jobs:
           npm install --legacy-peer-deps
           npm run build
         
+      - name: 📦 Install Backend Dependencies
+        run: |
+          cd backend
+          npm install --production
+
+      - name: 🔑 Create Firebase Service Account Key
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > backend/config/firebase-service-account.json
+
       - name: 📂 Deploy Frontend to public_html
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -53,9 +62,8 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          # บล็อกเฉพาะ node_modules และไฟล์ .env เพื่อป้องกันการอัปโหลดทับไฟล์การตั้งค่าบนเซิร์ฟเวอร์
+          # บล็อกเฉพาะ .env เพื่อป้องกันการอัปโหลดทับไฟล์การตั้งค่าบนเซิร์ฟเวอร์
           exclude: |
-            **/node_modules/**
             **/.env
             **/.ftp-deploy-sync-state.json
 
