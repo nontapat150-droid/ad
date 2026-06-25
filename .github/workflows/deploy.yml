@@ -45,13 +45,12 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          # บล็อกไฟล์/โฟลเดอร์ฝั่ง Frontend ที่ไม่เกี่ยวกับเว็บ และป้องกันการลบโฟลเดอร์ API ของ cPanel
           exclude: |
             **/.ftp-deploy-sync-state.json
             api/**
             cgi-bin/**
 
-      - name: 📂 Deploy Backend to backend folder
+      - name: 📂 Deploy Backend (source code only)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -62,10 +61,24 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          # บล็อกเฉพาะ .env เพื่อป้องกันการอัปโหลดทับไฟล์การตั้งค่าบนเซิร์ฟเวอร์
           exclude: |
             **/.env
             **/.ftp-deploy-sync-state.json
+            **/node_modules/**
+
+      - name: 📦 Deploy Backend node_modules via lftp
+        run: |
+          sudo apt-get install -y lftp
+          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "${{ secrets.FTP_SERVER }}" <<EOF
+          set ftp:ssl-allow no
+          set net:timeout 30
+          set net:max-retries 3
+          set mirror:parallel-directories 1
+          mirror --reverse --delete --verbose --parallel=5 \
+            --exclude-glob .git* \
+            ./backend/node_modules/ ./backend/node_modules/
+          bye
+          EOF
 
       - name: 🔄 Trigger Node.js Restart
         run: |
