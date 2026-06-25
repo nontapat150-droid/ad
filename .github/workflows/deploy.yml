@@ -69,14 +69,15 @@ jobs:
       - name: 📦 Deploy Backend node_modules via lftp
         run: |
           sudo apt-get install -y lftp
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "${{ secrets.FTP_SERVER }}" <<EOF
+          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "ftp://${{ secrets.FTP_SERVER }}" <<EOF
           set ftp:ssl-allow no
-          set net:timeout 30
+          set net:timeout 60
           set net:max-retries 3
-          set mirror:parallel-directories 1
-          mirror --reverse --delete --verbose --parallel=5 \
+          set net:reconnect-interval-base 5
+          mkdir -p backend/node_modules
+          mirror --reverse --verbose --parallel=5 --no-perms \
             --exclude-glob .git* \
-            ./backend/node_modules/ ./backend/node_modules/
+            ./backend/node_modules/ backend/node_modules/
           bye
           EOF
 
