@@ -69,17 +69,18 @@ jobs:
       - name: 📦 Deploy Backend node_modules via lftp
         run: |
           sudo apt-get install -y lftp
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "ftp://${{ secrets.FTP_SERVER }}" <<EOF
-          set ftp:ssl-allow no
-          set net:timeout 60
-          set net:max-retries 3
-          set net:reconnect-interval-base 5
-          mkdir -p backend/node_modules
-          mirror --reverse --verbose --parallel=5 --no-perms \
-            --exclude-glob .git* \
-            ./backend/node_modules/ backend/node_modules/
-          bye
-          EOF
+          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "ftp://${{ secrets.FTP_SERVER }}" -e "
+            set ftp:ssl-allow no;
+            set net:timeout 60;
+            set net:max-retries 3;
+            set net:reconnect-interval-base 5;
+            set cmd:fail-exit no;
+            cd backend;
+            mirror --reverse --verbose=1 --parallel=5 --no-perms \
+              --exclude-glob .git* \
+              ./backend/node_modules/ node_modules/;
+            bye
+          "
 
       - name: 🔄 Trigger Node.js Restart
         run: |
