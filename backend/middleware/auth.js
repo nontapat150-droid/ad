@@ -13,7 +13,8 @@ const auth = (req, res, next) => {
 
   const token = header.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const secretKey = process.env.JWT_SECRET || 'BOU_SECRET_KEY_12345!@#';
+    const decoded = jwt.verify(token, secretKey);
     req.user = decoded; // { id, username, role, roles[], team_id, full_name }
     
     // Update last_active asynchronously (fire and forget)
