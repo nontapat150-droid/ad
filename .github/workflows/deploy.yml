@@ -50,7 +50,7 @@ jobs:
             api/**
             cgi-bin/**
 
-      - name: 📂 Deploy Backend (source code only)
+      - name: 📂 Deploy Backend (with node_modules)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -61,26 +61,10 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
+          dangerous-clean-slate: true
           exclude: |
             **/.env
             **/.ftp-deploy-sync-state.json
-            **/node_modules/**
-
-      - name: 📦 Deploy Backend node_modules via lftp
-        run: |
-          sudo apt-get install -y lftp
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" "ftp://${{ secrets.FTP_SERVER }}" -e "
-            set ftp:ssl-allow no;
-            set net:timeout 60;
-            set net:max-retries 3;
-            set net:reconnect-interval-base 5;
-            set cmd:fail-exit no;
-            cd backend;
-            mirror --reverse --verbose=1 --parallel=5 --no-perms \
-              --exclude-glob .git* \
-              ./backend/node_modules/ node_modules/;
-            bye
-          "
 
       - name: 🔄 Trigger Node.js Restart
         run: |
