@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const pool = require('../config/db');
+const { sendToUser } = require('../config/firebase-admin');
 
 // Run every minute
 cron.schedule('* * * * *', async () => {
@@ -13,7 +14,7 @@ cron.schedule('* * * * *', async () => {
     const today = bkkDate.toISOString().slice(0, 10);
 
     // 1. Get all active users
-    const [users] = await pool.query(`SELECT id, role, team_id, allow_late_time FROM users WHERE status = 'approved' AND id != 1`);
+    const [users] = await pool.query(`SELECT id, role, team_id, allow_late_time, full_name FROM users WHERE status = 'approved' AND id != 1`);
     
     // 2. Get global settings
     const [settings] = await pool.query(`SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE 'late_time%'`);
@@ -70,12 +71,20 @@ cron.schedule('* * * * *', async () => {
         const reminderTimeStr = `${reminderHour}:${reminderMin}`;
 
         if (currentTimeStr === reminderTimeStr) {
-          // Send message
+          // Send message to DB
           const msg = `🔔 อย่าลืมเช็คอินเข้างานนะครับ! กำหนดการเช็คอินของคุณคือเวลา ${lateThreshold.slice(0, 5)} น. (เหลือเวลาอีก 1 ชม.)`;
           await pool.query(
             `INSERT INTO messages (sender_id, receiver_id, message) VALUES (1, ?, ?)`,
             [user.id, msg]
           );
+
+          // 🔔 Also send push notification
+          sendToUser(
+            user.id,
+            '⏰ เตือนเช็คอิน',
+            `อย่าลืมเช็คอินเข้างานก่อน ${lateThreshold.slice(0, 5)} น. นะครับ (เหลืออีก 1 ชม.)`,
+            { type: 'checkin_reminder' }
+          ).catch(e => console.error('Push reminder failed:', e.message));
         }
       }
     }

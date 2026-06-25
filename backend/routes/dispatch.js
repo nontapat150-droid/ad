@@ -3,8 +3,40 @@ const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob } = require('../utils/customerSync');
+const { sendToUser } = require('../config/firebase-admin');
 
 const router = express.Router();
+
+// ── Push notification helper: send to all members of a team ──
+async function notifyTeamMembers(teamId, title, body, data = {}) {
+  try {
+    const [members] = await pool.query(
+      'SELECT id FROM users WHERE team_id = ? AND status = ?',
+      [teamId, 'approved']
+    );
+    for (const member of members) {
+      sendToUser(member.id, title, body, data).catch(e => console.error('Push to team member failed:', e.message));
+    }
+  } catch (e) {
+    console.error('notifyTeamMembers error:', e.message);
+  }
+}
+
+// ── Push notification helper: send to all admins ──
+async function notifyAdmins(title, body, data = {}) {
+  try {
+    const [admins] = await pool.query(
+      `SELECT DISTINCT u.id FROM users u
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       WHERE u.status = 'approved' AND (u.role IN ('super_admin','admin') OR ur.role IN ('super_admin','admin'))`
+    );
+    for (const admin of admins) {
+      sendToUser(admin.id, title, body, data).catch(e => console.error('Push to admin failed:', e.message));
+    }
+  } catch (e) {
+    console.error('notifyAdmins error:', e.message);
+  }
+}
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
@@ -439,6 +471,14 @@ router.put(
 
       await conn.commit();
 
+      // 🔔 Push notification to admins when tech completes a job
+      const techName = req.user.full_name || req.user.username || 'ช่าง';
+      notifyAdmins(
+        '✅ งานเสร็จสิ้น',
+        `${techName} ปิดงาน ${job.access_no || ''} - ${job.customer || 'ลูกค้า'} เรียบร้อยแล้ว`,
+        { type: 'job_completed', job_id: String(jobId) }
+      );
+
       res.json({ message: 'Job completed successfully', job_id: jobId });
     } catch (err) {
       await conn.rollback();
@@ -612,6 +652,19 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
     const placeholders = ids.map(() => '?').join(',');
     const [result] = await pool.query(`UPDATE ${table} SET team_id = ? WHERE id IN (${placeholders})`, [team_id, ...ids]);
     console.log('[bulk-assign] updated rows:', result.affectedRows);
+
+    // 🔔 Push notification to team members
+    if (result.affectedRows > 0) {
+      const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
+      const teamName = team?.team_name || 'ทีม';
+      notifyTeamMembers(
+        team_id,
+        '📋 มีงานใหม่!',
+        `${teamName} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน`,
+        { type: 'job_assigned', count: String(result.affectedRows) }
+      );
+    }
+
     res.json({ message: 'Teams assigned successfully', updatedCount: result.affectedRows });
   } catch (err) {
     console.error('Bulk Assign Error:', err);
@@ -786,6 +839,21 @@ router.post('/auto-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => 
     }
 
     await conn.commit();
+
+    // 🔔 Push notification to all teams that got jobs
+    for (const quota of teamQuotas) {
+      if (quota.count > 0) {
+        const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [quota.team_id]);
+        const teamName = team?.team_name || 'ทีม';
+        notifyTeamMembers(
+          quota.team_id,
+          '📋 มีงานใหม่จากระบบจัดสรรอัตโนมัติ!',
+          `${teamName} ได้รับมอบหมายงาน ${quota.count} งาน`,
+          { type: 'auto_dispatch', count: String(quota.count) }
+        );
+      }
+    }
+
     res.json({ message: 'Auto dispatch successful', assignedCount: totalAssigned, remainingJobs: unassignedJobs.length });
   } catch (err) {
     await conn.rollback();
@@ -1029,6 +1097,15 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
     await conn.query('UPDATE jobs SET status = \'failed\', fail_reason = ? WHERE id = ?', [remark, jobId]);
     await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'failed\', ?)', [jobId, techId, remark]);
     await conn.commit();
+
+    // 🔔 Push notification to admins when tech reports incomplete job
+    const techName = req.user.full_name || req.user.username || 'ช่าง';
+    notifyAdmins(
+      '⚠️ งานไม่จบ',
+      `${techName} แจ้งงาน ${job.access_no || ''} ไม่จบ: ${remark.substring(0, 80)}`,
+      { type: 'job_incomplete', job_id: String(jobId) }
+    );
+
     res.json({ message: 'Job marked as incomplete' });
   } catch (err) {
     await conn.rollback();
@@ -1056,6 +1133,15 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
     );
     await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'postponed\', ?)', [jobId, techId, `Postponed to ${new_date}. Reason: ${remark || ''}`]);
     await conn.commit();
+
+    // 🔔 Push notification to admins when tech postpones a job
+    const techName = req.user.full_name || req.user.username || 'ช่าง';
+    notifyAdmins(
+      '📅 เลื่อนนัดงาน',
+      `${techName} เลื่อนนัดงาน ${job.access_no || ''} ไปวันที่ ${new_date}${remark ? ': ' + remark.substring(0, 60) : ''}`,
+      { type: 'job_postponed', job_id: String(jobId) }
+    );
+
     res.json({ message: 'Job postponed' });
   } catch (err) {
     await conn.rollback();

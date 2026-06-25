@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const { sendToUser } = require('../config/firebase-admin');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -52,6 +53,21 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [title, message, type || 'info', status || 'active', expires_at || null, req.user.id]
     );
+
+    // 🔔 Send push notification to all approved users
+    if ((status || 'active') === 'active') {
+      pool.query(`SELECT id FROM users WHERE status = 'approved'`)
+        .then(([users]) => {
+          for (const u of users) {
+            sendToUser(u.id, `📢 ${title}`, message.length > 120 ? message.substring(0, 120) + '...' : message, {
+              type: 'announcement',
+              announcement_id: String(result.insertId),
+            }).catch(e => console.error('Announcement push failed:', e.message));
+          }
+        })
+        .catch(e => console.error('Failed to query users for announcement push:', e.message));
+    }
+
     res.json({ message: 'Announcement created successfully', id: result.insertId });
   } catch (err) {
     console.error('Create announcement error:', err);
