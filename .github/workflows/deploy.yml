@@ -50,7 +50,12 @@ jobs:
             api/**
             cgi-bin/**
 
-      - name: 📂 Deploy Backend (with node_modules)
+      - name: 🗜️ Zip Backend node_modules
+        run: |
+          cd backend
+          zip -q -r node_modules.zip node_modules
+
+      - name: 📂 Deploy Backend (Source + Zip)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -61,24 +66,11 @@ jobs:
           protocol: ftp
           port: 21
           log-level: minimal
-          dangerous-clean-slate: true
           exclude: |
             **/.env
             **/.ftp-deploy-sync-state.json
+            **/node_modules/**
 
-      - name: 🔄 Trigger Node.js Restart
+      - name: 🚀 Trigger Server Unzip & Restart
         run: |
-          mkdir -p backend/tmp
-          touch backend/tmp/restart.txt
-          
-      - name: 📂 Upload Restart Trigger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./backend/tmp/
-          server-dir: ./backend/tmp/
-          protocol: ftp
-          port: 21
-          log-level: minimal
+          curl -sS "https://bonusais.com/unzip.php?secret=bount_deploy_secret_2026"
