@@ -253,6 +253,17 @@ export default function CheckinPage() {
     setIsCameraOn(false);
   };
 
+  const handleImageFallback = (e) => {
+    if (!e.target.dataset.retried) {
+      e.target.dataset.retried = 'true';
+      if (e.target.src.includes('/api/uploads/')) {
+        e.target.src = e.target.src.replace('/api/uploads/', '/uploads/');
+      } else if (e.target.src.includes('/uploads/')) {
+        e.target.src = e.target.src.replace('/uploads/', '/api/uploads/');
+      }
+    }
+  };
+
   // ── Submit ───────────────────────────────────────────────────
   const handleSubmit = async (type) => {
     if (!photo) return Swal.fire({ icon: 'warning', title: 'กรุณาถ่ายรูปก่อน' });
@@ -756,7 +767,7 @@ export default function CheckinPage() {
                         <button
                           onClick={() => setViewerPhoto({ url: imgUrl, name: personName, time })}
                           className="w-14 h-14 rounded-xl overflow-hidden border-2 border-[#E5E7EB] shrink-0 shadow-sm group-hover:border-[#A3E635] transition-all relative">
-                          <img src={imgUrl} alt="selfie" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                          <img src={imgUrl} onError={handleImageFallback} alt="selfie" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                             <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                           </div>
@@ -868,6 +879,7 @@ export default function CheckinPage() {
             <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
               <img
                 src={viewerPhoto.url}
+                onError={handleImageFallback}
                 alt="Check-in photo"
                 className="w-full object-contain max-h-[70vh]"
               />
