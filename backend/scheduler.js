@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const db = require('./db');
+const db = require('./config/db');
 const { getMessaging } = require('firebase-admin/messaging');
 
 let activeJobs = {};
