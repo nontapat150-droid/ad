@@ -106,7 +106,7 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
     if (!msg.is_read) handleMarkAsRead(msg.id, false);
     
     setReceiverId(msg.sender_id.toString());
-    setMessageText(`\n\n--- ตอบกลับ: ${msg.message} ---`);
+    setMessageText('');
     setActiveTab('compose');
   };
 
