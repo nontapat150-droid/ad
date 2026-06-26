@@ -9,47 +9,41 @@ $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 
 $queries = [
-    "CREATE TABLE IF NOT EXISTS messages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        sender_id INT NOT NULL,
-        receiver_id INT NOT NULL,
-        message TEXT NOT NULL,
-        is_read BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_sender (sender_id),
-        INDEX idx_receiver (receiver_id)
-    );",
-    "CREATE TABLE IF NOT EXISTS announcements (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        content TEXT NOT NULL,
-        target_role VARCHAR(50) DEFAULT 'all',
-        created_by INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );",
-    "CREATE TABLE IF NOT EXISTS user_announcement_reads (
-        user_id INT NOT NULL,
-        announcement_id INT NOT NULL,
-        read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (user_id, announcement_id)
-    );"
+    "ALTER TABLE messages MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY",
+    "ALTER TABLE announcements MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY"
 ];
 
 foreach ($queries as $sql) {
-    if ($conn->query($sql) === TRUE) {
-        echo "Query successful<br>";
-    } else {
-        echo "Error: " . $conn->error . "<br>";
+    try {
+        if ($conn->query($sql) === TRUE) {
+            echo "ALTER TABLE successful: " . htmlspecialchars($sql) . "<br>";
+        } else {
+            echo "Error altering table: " . $conn->error . " for query: " . htmlspecialchars($sql) . "<br>";
+        }
+    } catch (Exception $e) {
+        // If it throws an exception (e.g. multiple primary key defined), we catch it
+        echo "Exception altering table: " . $e->getMessage() . "<br>";
+        // Fallback: try just AUTO_INCREMENT without PRIMARY KEY if it's already a primary key
+        $fallback_sql = str_replace(" PRIMARY KEY", "", $sql);
+        if ($conn->query($fallback_sql) === TRUE) {
+             echo "Fallback ALTER TABLE successful: " . htmlspecialchars($fallback_sql) . "<br>";
+        } else {
+             echo "Fallback Error: " . $conn->error . "<br>";
+        }
     }
 }
 
 // Test insert
 $test_sql = "INSERT INTO messages (sender_id, receiver_id, message) VALUES (1, 2, 'Test Message')";
-if ($conn->query($test_sql) === TRUE) {
-    echo "Test Insert successful. ID: " . $conn->insert_id . "<br>";
-    $conn->query("DELETE FROM messages WHERE id = " . $conn->insert_id);
-} else {
-    echo "Insert Error: " . $conn->error . "<br>";
+try {
+    if ($conn->query($test_sql) === TRUE) {
+        echo "Test Insert successful. ID: " . $conn->insert_id . "<br>";
+        $conn->query("DELETE FROM messages WHERE id = " . $conn->insert_id);
+    } else {
+        echo "Insert Error: " . $conn->error . "<br>";
+    }
+} catch (Exception $e) {
+    echo "Insert Exception: " . $e->getMessage() . "<br>";
 }
 
 $conn->close();
