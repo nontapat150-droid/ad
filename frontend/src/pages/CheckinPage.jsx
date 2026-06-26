@@ -720,12 +720,19 @@ export default function CheckinPage() {
                   const time = isCheckoutTab ? record.checkout_time : record.checkin_time;
                   
                   const getImgUrl = (filename) => {
-                    if (!filename || filename === 'null') return null;
+                    if (!filename || filename === 'null' || filename === 'undefined') return null;
                     if (filename.startsWith('http')) return filename;
-                    if (filename.startsWith('/uploads/')) return filename;
-                    if (filename.startsWith('checkouts_')) return `/uploads/checkouts/${filename}`;
-                    if (filename.startsWith('checkins_')) return `/uploads/checkins/${filename}`;
-                    return isCheckoutTab ? `/uploads/checkouts/${filename}` : `/uploads/checkins/${filename}`;
+
+                    // Extract actual filename in case DB contains absolute/relative paths
+                    let cleanName = filename;
+                    if (cleanName.includes('/')) cleanName = cleanName.split('/').pop();
+                    if (cleanName.includes('\\')) cleanName = cleanName.split('\\').pop();
+
+                    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '/api';
+                    
+                    if (cleanName.startsWith('checkouts_')) return `${baseUrl}/uploads/checkouts/${cleanName}`;
+                    if (cleanName.startsWith('checkins_')) return `${baseUrl}/uploads/checkins/${cleanName}`;
+                    return isCheckoutTab ? `${baseUrl}/uploads/checkouts/${cleanName}` : `${baseUrl}/uploads/checkins/${cleanName}`;
                   };
                   const imgUrl = isCheckoutTab ? getImgUrl(record.checkout_image) : getImgUrl(record.image_path);
 
