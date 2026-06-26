@@ -257,7 +257,7 @@ async function runStartupDbTasks() {
           id INT AUTO_INCREMENT PRIMARY KEY,
           message TEXT NOT NULL,
           target_role VARCHAR(50) DEFAULT 'all',
-          target_users JSON NULL,
+          target_users TEXT NULL,
           cron_expression VARCHAR(100) NOT NULL,
           is_active BOOLEAN DEFAULT TRUE,
           created_by INT NOT NULL,
