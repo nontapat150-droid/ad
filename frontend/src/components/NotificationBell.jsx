@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../api/axios';
 import InboxModal from './InboxModal';
 
@@ -43,11 +44,14 @@ export default function NotificationBell() {
         )}
       </button>
 
-      <InboxModal 
-        open={inboxOpen} 
-        onClose={() => setInboxOpen(false)} 
-        onReadMessage={fetchUnreadCount}
-      />
+      {createPortal(
+        <InboxModal 
+          open={inboxOpen} 
+          onClose={() => setInboxOpen(false)} 
+          onReadMessage={fetchUnreadCount}
+        />,
+        document.body
+      )}
     </>
   );
 }
