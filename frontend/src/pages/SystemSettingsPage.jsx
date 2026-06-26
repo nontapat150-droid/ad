@@ -41,7 +41,7 @@ export default function SystemSettingsPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get('/users');
+      const res = await api.get('/scheduled-messages/users');
       setUsers(res.data);
     } catch (err) {
       console.error('Failed to fetch users', err);
