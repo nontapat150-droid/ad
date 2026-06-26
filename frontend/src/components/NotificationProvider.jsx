@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { requestNotificationPermission, onForegroundMessage } from '../lib/firebase';
 import api from '../api/axios';
+import Swal from 'sweetalert2';
 
 // ── Toast Notification Component ────────────────────────────
 function NotificationToast({ notification, onClose }) {
@@ -106,10 +107,40 @@ export default function NotificationProvider({ children }) {
       // Small delay to not block initial render
       await new Promise(r => setTimeout(r, 2000));
 
-      const fcmToken = await requestNotificationPermission();
-      if (fcmToken) {
-        fcmTokenRef.current = fcmToken;
-        await registerToken(fcmToken);
+      // If notification permission is default (not asked yet), prompt with SweetAlert first
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        const result = await Swal.fire({
+          title: 'เปิดรับการแจ้งเตือน',
+          text: 'กรุณากดอนุญาตเพื่อรับแจ้งเตือนงานและข้อความใหม่ๆ ได้ทันที',
+          icon: 'info',
+          showCancelButton: true,
+          confirmButtonText: 'อนุญาต',
+          cancelButtonText: 'ไว้ทีหลัง',
+          confirmButtonColor: '#3B82F6',
+          cancelButtonColor: '#9CA3AF',
+        });
+
+        if (result.isConfirmed) {
+          const fcmToken = await requestNotificationPermission();
+          if (fcmToken) {
+            fcmTokenRef.current = fcmToken;
+            await registerToken(fcmToken);
+            Swal.fire({
+              title: 'สำเร็จ!',
+              text: 'เปิดการแจ้งเตือนเรียบร้อยแล้ว',
+              icon: 'success',
+              timer: 2000,
+              showConfirmButton: false
+            });
+          }
+        }
+      } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        // Already granted, just fetch token silently
+        const fcmToken = await requestNotificationPermission();
+        if (fcmToken) {
+          fcmTokenRef.current = fcmToken;
+          await registerToken(fcmToken);
+        }
       }
     };
 
