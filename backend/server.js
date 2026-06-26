@@ -206,6 +206,48 @@ async function runStartupDbTasks() {
       `,
       ignoreError: true,
     },
+    {
+      label: 'create messages table',
+      sql: `
+        CREATE TABLE IF NOT EXISTS messages (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          sender_id INT NOT NULL,
+          receiver_id INT NOT NULL,
+          message TEXT NOT NULL,
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_sender (sender_id),
+          INDEX idx_receiver (receiver_id)
+        )
+      `,
+      ignoreError: true,
+    },
+    {
+      label: 'create announcements table',
+      sql: `
+        CREATE TABLE IF NOT EXISTS announcements (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          content TEXT NOT NULL,
+          target_role VARCHAR(50) DEFAULT 'all',
+          created_by INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `,
+      ignoreError: true,
+    },
+    {
+      label: 'create user_announcement_reads table',
+      sql: `
+        CREATE TABLE IF NOT EXISTS user_announcement_reads (
+          user_id INT NOT NULL,
+          announcement_id INT NOT NULL,
+          read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, announcement_id)
+        )
+      `,
+      ignoreError: true,
+    },
   ];
 
   for (const item of startupQueries) {
