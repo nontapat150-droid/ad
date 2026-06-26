@@ -101,6 +101,15 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
     });
   };
 
+  const handleReply = (e, msg) => {
+    e.stopPropagation();
+    if (!msg.is_read) handleMarkAsRead(msg.id, false);
+    
+    setReceiverId(msg.sender_id.toString());
+    setMessageText(`\n\n--- ตอบกลับ: ${msg.message} ---`);
+    setActiveTab('compose');
+  };
+
   if (!open) return null;
 
   return (
@@ -181,7 +190,7 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
                         className={`p-4 rounded-2xl border transition-all ${
                           isUnread 
                             ? 'bg-white/80 border-[#378ADD]/30 shadow-md cursor-pointer hover:shadow-lg' 
-                            : 'glass border-white/50 opacity-90 cursor-default'
+                            : 'glass border-white/50 opacity-90 cursor-default hover:shadow-md'
                         }`}
                       >
                         <div className="flex justify-between items-start mb-2">
@@ -193,13 +202,24 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
                         <p className={`text-sm leading-relaxed ${isUnread ? 'text-[#185FA5] font-medium' : 'text-slate-600'}`}>
                           {msg.message}
                         </p>
-                        {isUnread && (
-                          <div className="mt-3 flex justify-end">
+                        
+                        <div className="mt-3 flex justify-between items-center">
+                          {activeTab === 'inbox' ? (
+                            <button 
+                              onClick={(e) => handleReply(e, msg)}
+                              className="text-[11px] font-semibold text-[#185FA5] flex items-center gap-1 hover:text-[#042C53] transition-colors bg-white/50 px-2.5 py-1 rounded-lg border border-[#185FA5]/20 hover:border-[#185FA5]/50 active:scale-95"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                              ตอบกลับ
+                            </button>
+                          ) : <div />}
+                          
+                          {isUnread && (
                             <span className="text-[10px] font-semibold text-[#378ADD] bg-[#E6F1FB] px-2 py-1 rounded-md">
-                              แตะเพื่ออ่าน
+                              ข้อความใหม่
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     );
                   })}
