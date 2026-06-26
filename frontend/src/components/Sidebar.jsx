@@ -97,6 +97,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       else if (key === 'customers')     navigate('/customers');
       else if (key === 'ais_expansion') navigate('/ais-expansion');
       else if (key === 'oil_history')   navigate('/oil-history');
+      else if (key === 'settings')      navigate('/settings');
     }
     if (window.innerWidth < 768) onClose();
   };
