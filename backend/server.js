@@ -28,6 +28,7 @@ const messagesRouter = require('./routes/messages');
 const announcementsRouter = require('./routes/announcements');
 const migrateRouter = require('./routes/migrate');
 const fcmRouter = require('./routes/fcm');
+const scheduledMessagesRouter = require('./routes/scheduledMessages');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -81,6 +82,7 @@ apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
 apiRouter.use('/migrate', migrateRouter);
 apiRouter.use('/fcm', fcmRouter);
+apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
 app.use('/api', apiRouter);
@@ -248,6 +250,22 @@ async function runStartupDbTasks() {
       `,
       ignoreError: true,
     },
+    {
+      label: 'create scheduled_messages table',
+      sql: `
+        CREATE TABLE IF NOT EXISTS scheduled_messages (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          message TEXT NOT NULL,
+          target_role VARCHAR(50) DEFAULT 'all',
+          target_users JSON NULL,
+          cron_expression VARCHAR(100) NOT NULL,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_by INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `,
+      ignoreError: true,
+    },
   ];
 
   for (const item of startupQueries) {
@@ -261,6 +279,14 @@ async function runStartupDbTasks() {
   }
 
   require('./cron/reminders');
+  
+  // Start Automated Messages Scheduler
+  try {
+    const { loadSchedules } = require('./scheduler');
+    await loadSchedules();
+  } catch (err) {
+    console.error('Failed to start automated messages scheduler:', err.message);
+  }
 }
 
 runStartupDbTasks();

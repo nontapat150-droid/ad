@@ -20,6 +20,7 @@ import UnifiedDashboard from './pages/UnifiedDashboard';
 import AisExpansionPage from './pages/AisExpansionPage';
 import ReportIssuePage from './pages/ReportIssuePage';
 import TechOilHistoryPage from './pages/TechOilHistoryPage';
+import SystemSettingsPage from './pages/SystemSettingsPage';
 
 // ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -131,6 +132,7 @@ function AppRoutes() {
       <Route path="/announcements" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AnnouncementsPage /></ProtectedRoute>} />
       <Route path="/ais-expansion" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'ma_technician', 'technician', 'sales']}><AisExpansionPage /></ProtectedRoute>} />
       <Route path="/oil-history" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'sales', 'super_admin', 'admin']}><TechOilHistoryPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute allowedRoles={['super_admin']}><SystemSettingsPage /></ProtectedRoute>} />
       <Route path="/report" element={<ProtectedRoute><ReportIssuePage /></ProtectedRoute>} />
 
       {/* Default: redirect based on role */}
