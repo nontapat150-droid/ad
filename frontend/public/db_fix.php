@@ -1,14 +1,14 @@
-﻿<?php
+<?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-\System.Management.Automation.Internal.Host.InternalHost = "localhost";
-\ = "zvucfpsz_BO";
-\ = "@2*]BC9AuGO^%P&-";
-\ = "zvucfpsz_RT";
-\ = new mysqli(\System.Management.Automation.Internal.Host.InternalHost, \, \, \);
-if (\->connect_error) { die("Connection failed: " . \->connect_error); }
+$host = "localhost";
+$user = "zvucfpsz_BO";
+$pass = "@2*]BC9AuGO^%P&-";
+$db = "zvucfpsz_RT";
+$conn = new mysqli($host, $user, $pass, $db);
+if ($conn->connect_error) { die("Connection failed: " . $conn->connect_error); }
 
-\ = [
+$queries = [
     "CREATE TABLE IF NOT EXISTS messages (
         id INT AUTO_INCREMENT PRIMARY KEY,
         sender_id INT NOT NULL,
@@ -35,12 +35,22 @@ if (\->connect_error) { die("Connection failed: " . \->connect_error); }
     );"
 ];
 
-foreach (\ as \) {
-    if (\->query(\) === TRUE) {
+foreach ($queries as $sql) {
+    if ($conn->query($sql) === TRUE) {
         echo "Query successful<br>";
     } else {
-        echo "Error: " . \->error . "<br>";
+        echo "Error: " . $conn->error . "<br>";
     }
 }
-\->close();
+
+// Test insert
+$test_sql = "INSERT INTO messages (sender_id, receiver_id, message) VALUES (1, 2, 'Test Message')";
+if ($conn->query($test_sql) === TRUE) {
+    echo "Test Insert successful. ID: " . $conn->insert_id . "<br>";
+    $conn->query("DELETE FROM messages WHERE id = " . $conn->insert_id);
+} else {
+    echo "Insert Error: " . $conn->error . "<br>";
+}
+
+$conn->close();
 ?>
