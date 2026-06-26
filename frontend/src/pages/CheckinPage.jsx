@@ -721,6 +721,8 @@ export default function CheckinPage() {
                   
                   const getImgUrl = (filename) => {
                     if (!filename || filename === 'null') return null;
+                    if (filename.startsWith('http')) return filename;
+                    if (filename.startsWith('/uploads/')) return filename;
                     if (filename.startsWith('checkouts_')) return `/uploads/checkouts/${filename}`;
                     if (filename.startsWith('checkins_')) return `/uploads/checkins/${filename}`;
                     return isCheckoutTab ? `/uploads/checkouts/${filename}` : `/uploads/checkins/${filename}`;
