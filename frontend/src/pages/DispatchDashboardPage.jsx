@@ -9,6 +9,7 @@ import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../compo
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
+import NotificationBell from '../components/NotificationBell';
 
 // Fix leaflet marker icon issue in Vite
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';

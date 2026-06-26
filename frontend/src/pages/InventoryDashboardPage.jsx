@@ -4,6 +4,7 @@ import InventoryStockPage from './InventoryStockPage';
 import InventoryReceivePage from './InventoryReceivePage';
 import InventoryDispatchPage from './InventoryDispatchPage';
 import InventoryHistoryPage from './InventoryHistoryPage';
+import NotificationBell from '../components/NotificationBell';
 
 export default function InventoryDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -25,9 +26,10 @@ export default function InventoryDashboardPage() {
               </button>
               <div>
                 <h1 className="text-2xl font-black text-[#1F2937] tracking-tight">ระบบคลังสินค้า</h1>
-                <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">จัดการสินค้าคงคลัง นำเข้า เบิกจ่าย และดูประวัติรายการ</p>
+                <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">จัดการสต๊อกสินค้าและอะไหล่</p>
               </div>
             </div>
+            <NotificationBell />
           </div>
         </header>
 

@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import TeamManagementModal from '../components/TeamManagementModal';
+import NotificationBell from '../components/NotificationBell';
 
 export default function UserManagementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -136,6 +137,7 @@ export default function UserManagementPage() {
                 <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">เพิ่ม แก้ไข ลบบัญชี และตั้งค่าเวลาเข้างาน</p>
               </div>
             </div>
+            <NotificationBell />
           </div>
         </header>
 
@@ -168,7 +170,7 @@ export default function UserManagementPage() {
                     onClick={() => setEditingUser({ username: '', full_name: '', password: '', role: 'technician', extra_roles: [], status: 'approved', team_id: '', allow_late_time: '08:30:00' })}
                     className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-black transition-all flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 bg-[#A3E635] text-[#1F2937] hover:bg-[#84CC16]">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
-                    เพิ่มผู้ใช้ใหม่
+                    <span className="hidden sm:inline">เพิ่มผู้ใช้ใหม่</span>
                   </button>
                 </div>
               )}

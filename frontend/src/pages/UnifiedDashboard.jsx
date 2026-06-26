@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import NotificationBell from '../components/NotificationBell';
 
 import SuperAdminSection from '../components/dashboards/SuperAdminSection';
 import AdminSection from '../components/dashboards/AdminSection';
@@ -93,6 +94,8 @@ export default function UnifiedDashboard() {
             </svg>
             รีเฟรช
           </button>
+
+          <NotificationBell />
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">

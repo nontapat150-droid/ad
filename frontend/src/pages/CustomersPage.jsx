@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
+import NotificationBell from '../components/NotificationBell';
 import axios from '../api/axios';
 
 export default function CustomersPage() {
@@ -69,6 +70,7 @@ export default function CustomersPage() {
               <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">ข้อมูลลูกค้าและประวัติงาน</h1>
             </div>
           </div>
+          <NotificationBell />
         </header>
 
         {/* ── Main Content ────────────────────────────────── */}

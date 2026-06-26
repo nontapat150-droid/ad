@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from '../components/NotificationBell';
 
 export default function TechBagPage() {
   const { user } = useAuth();
@@ -230,16 +231,19 @@ export default function TechBagPage() {
             </div>
           </div>
           
-          {/* Admin User Selector (Desktop) */}
-          {isAdmin && (
-            <div className="hidden sm:block">
-              <CustomUserSelect 
-                value={selectedUserId} 
-                onChange={setSelectedUserId} 
-                users={users} 
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            {/* Admin User Selector (Desktop) */}
+            {isAdmin && (
+              <div className="hidden sm:block">
+                <CustomUserSelect 
+                  value={selectedUserId} 
+                  onChange={setSelectedUserId} 
+                  users={users} 
+                />
+              </div>
+            )}
+          </div>
         </header>
 
         {/* Mobile Admin User Selector */}
