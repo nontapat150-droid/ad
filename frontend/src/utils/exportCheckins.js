@@ -36,11 +36,13 @@ export const generateCheckinExcel = async (data, monthString) => {
   
   // Group users by role
   const roleGroups = {
-    'general': 'ช่าง Office',
-    'ma': 'ทีม MA',
+    'technician': 'ช่างทั่วไป',
+    'office_technician': 'ช่าง Office',
+    'ma_technician': 'ทีม MA',
     'sales': 'เซลส์',
-    'manager': 'ผู้จัดการ',
-    'admin': 'แอดมิน'
+    'general': 'ช่างทั่วไป',
+    'ma': 'ทีม MA',
+    'manager': 'ผู้จัดการ'
   };
 
   const groupedUsers = users.reduce((acc, user) => {
@@ -51,8 +53,10 @@ export const generateCheckinExcel = async (data, monthString) => {
   }, {});
 
   // Add data rows
-  for (const [roleKey, roleName] of Object.entries(roleGroups)) {
-    if (!groupedUsers[roleKey] || groupedUsers[roleKey].length === 0) continue;
+  for (const [roleKey, roleUsers] of Object.entries(groupedUsers)) {
+    if (!roleUsers || roleUsers.length === 0) continue;
+    
+    const roleName = roleGroups[roleKey] || roleKey.toUpperCase();
     
     // Add Role Header Row
     const roleRow = worksheet.addRow([`--- ${roleName} ---`]);
@@ -65,7 +69,7 @@ export const generateCheckinExcel = async (data, monthString) => {
     worksheet.mergeCells(`A${roleRow.number}:${worksheet.getColumn(worksheet.columns.length).letter}${roleRow.number}`);
     
     // Add Users
-    groupedUsers[roleKey].forEach(user => {
+    roleUsers.forEach(user => {
       const rowData = { name: user.full_name || user.username };
       const userCheckins = checkins.filter(c => c.user_id === user.id);
       
