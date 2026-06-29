@@ -977,6 +977,12 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
     if (!customer_name) return res.status(400).json({ error: 'Missing customer_name' });
     if (!network_provider) return res.status(400).json({ error: 'Missing network_provider (AIS/3BB)' });
 
+    // Check for duplicates
+    const [existingFee] = await pool.query('SELECT id FROM entry_fees WHERE access_no = ?', [access_no]);
+    if (existingFee.length > 0) {
+      return res.status(409).json({ error: 'รหัสลูกค้านี้มีการบันทึกค่าแรกเข้าในระบบแล้ว ไม่สามารถบันทึกซ้ำได้' });
+    }
+
     let finalCreatedBy = req.user.id;
     let finalCreatedAt = null;
 
