@@ -6,40 +6,17 @@ export const generateCheckinExcel = async (data, monthString) => {
   const { users, checkins } = data;
   
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(`ข้อมูลลงเวลา ${monthString}`);
-
+  
   // Get days in month
   const [year, month] = monthString.split('-');
   const daysInMonth = new Date(year, month, 0).getDate();
   
-  // Set up columns
-  const columns = [
-    { header: 'ชื่อพนักงาน', key: 'name', width: 25 },
-  ];
-  
-  for (let i = 1; i <= daysInMonth; i++) {
-    columns.push({ header: `วันที่ ${i} (เข้า)`, key: `day_${i}_in`, width: 12 });
-    columns.push({ header: `วันที่ ${i} (ออก)`, key: `day_${i}_out`, width: 12 });
-  }
-  
-  worksheet.columns = columns;
-
-  // Formatting Header Row
-  const headerRow = worksheet.getRow(1);
-  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  headerRow.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF1F2937' } // Dark gray
-  };
-  headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
-  
   // Group users by role
   const roleGroups = {
     'technician': 'ช่างทั่วไป',
-    'office_technician': 'ช่าง Office',
+    'office_technician': 'ช่าง',
     'ma_technician': 'ทีม MA',
-    'sales': 'เซลส์',
+    'sales': 'เซล',
     'general': 'ช่างทั่วไป',
     'ma': 'ทีม MA',
     'manager': 'ผู้จัดการ'
@@ -52,22 +29,38 @@ export const generateCheckinExcel = async (data, monthString) => {
     return acc;
   }, {});
 
-  // Add data rows
+  // Add worksheet for each role
   for (const [roleKey, roleUsers] of Object.entries(groupedUsers)) {
     if (!roleUsers || roleUsers.length === 0) continue;
     
-    const roleName = roleGroups[roleKey] || roleKey.toUpperCase();
+    // As requested: if it's sales, just write 'เซล'
+    let roleName = roleGroups[roleKey] || roleKey.toUpperCase();
+    if (roleKey === 'sales') roleName = 'เซล'; // enforce exact name
+
+    // Excel worksheet names must be <= 31 chars and not contain certain symbols, 
+    // but these simple names are fine.
+    const worksheet = workbook.addWorksheet(roleName);
     
-    // Add Role Header Row
-    const roleRow = worksheet.addRow([`--- ${roleName} ---`]);
-    roleRow.font = { bold: true, color: { argb: 'FF374151' } };
-    roleRow.fill = {
+    // Set up columns for this worksheet
+    const columns = [
+      { header: 'ชื่อพนักงาน', key: 'name', width: 25 },
+    ];
+    for (let i = 1; i <= daysInMonth; i++) {
+      columns.push({ header: `วันที่ ${i} (เข้า)`, key: `day_${i}_in`, width: 12 });
+      columns.push({ header: `วันที่ ${i} (ออก)`, key: `day_${i}_out`, width: 12 });
+    }
+    worksheet.columns = columns;
+
+    // Formatting Header Row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FFF3F4F6' } // Light gray
+      fgColor: { argb: 'FF1F2937' } // Dark gray
     };
-    worksheet.mergeCells(`A${roleRow.number}:${worksheet.getColumn(worksheet.columns.length).letter}${roleRow.number}`);
-    
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+
     // Add Users
     roleUsers.forEach(user => {
       const rowData = { name: user.full_name || user.username };
@@ -82,7 +75,6 @@ export const generateCheckinExcel = async (data, monthString) => {
         const checkin = userCheckins.find(c => {
           if (!c.checkin_time) return false;
           const ct = new Date(c.checkin_time);
-          // Assuming DB time matches local time roughly for formatting date
           const ctYear = ct.getFullYear();
           const ctMonth = String(ct.getMonth() + 1).padStart(2, '0');
           const ctDay = String(ct.getDate()).padStart(2, '0');
@@ -111,7 +103,6 @@ export const generateCheckinExcel = async (data, monthString) => {
       
       const addedRow = worksheet.addRow(rowData);
       addedRow.alignment = { horizontal: 'center', vertical: 'middle' };
-      // Align name to left
       addedRow.getCell('name').alignment = { horizontal: 'left', vertical: 'middle' };
       
       // Highlight late cells
@@ -125,7 +116,7 @@ export const generateCheckinExcel = async (data, monthString) => {
         cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
       });
       
-      // Add borders to all cells in this row
+      // Add borders
       addedRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.border = {
           top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
@@ -135,12 +126,12 @@ export const generateCheckinExcel = async (data, monthString) => {
         };
       });
     });
+
+    // Freeze first column and top row
+    worksheet.views = [
+      { state: 'frozen', xSplit: 1, ySplit: 1 }
+    ];
   }
-  
-  // Freeze first column and top row
-  worksheet.views = [
-    { state: 'frozen', xSplit: 1, ySplit: 1 }
-  ];
 
   // Generate buffer and save
   const buffer = await workbook.xlsx.writeBuffer();
