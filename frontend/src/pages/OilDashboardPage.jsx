@@ -989,7 +989,7 @@ export default function OilDashboardPage() {
                         รูปที่ {idx + 1}
                       </div>
                       <button
-                        onClick={() => window.open(`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`, '_blank')}
+                        onClick={() => window.open(getImageUrl(img, 'oil_receipts'), '_blank')}
                         className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md text-[#185FA5] shadow-sm border border-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#185FA5] hover:text-white"
                         title="เปิดรูปในแท็บใหม่"
                       >
