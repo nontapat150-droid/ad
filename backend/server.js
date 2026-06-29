@@ -262,8 +262,13 @@ async function runStartupDbTasks() {
           is_active BOOLEAN DEFAULT TRUE,
           created_by INT NOT NULL,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
       `,
+      ignoreError: true,
+    },
+    {
+      label: 'alter scheduled_messages charset',
+      sql: `ALTER TABLE scheduled_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
       ignoreError: true,
     },
   ];

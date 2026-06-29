@@ -28,13 +28,21 @@ $sql_create = "
         is_active BOOLEAN DEFAULT TRUE,
         created_by INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ";
 
 if ($conn->query($sql_create) === TRUE) {
-    echo "<strong style='color: green;'>SUCCESS:</strong> Table 'scheduled_messages' created or already exists.<br>";
+    echo "<p style='color:green;'>CREATE TABLE scheduled_messages successful or already exists.</p>";
 } else {
-    echo "<strong style='color: red;'>ERROR creating table:</strong> " . $conn->error . "<br>";
+    echo "<p style='color:red;'>Error creating table scheduled_messages: " . $conn->error . "</p>";
+}
+
+// Convert existing table to utf8mb4 to support Thai characters
+$sql_charset = "ALTER TABLE scheduled_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
+if ($conn->query($sql_charset) === TRUE) {
+    echo "<p style='color:green;'>ALTER TABLE charset utf8mb4 successful.</p>";
+} else {
+    echo "<p style='color:red;'>Error altering table charset: " . $conn->error . "</p>";
 }
 
 echo "<br><b>Database setup complete!</b>";
