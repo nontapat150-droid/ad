@@ -42,11 +42,11 @@ export const generateCheckinExcel = async (data, monthString) => {
     
     // Set up columns for this worksheet
     const columns = [
-      { key: 'name', width: 25 },
+      { key: 'name', width: 35 }, // Increased from 25
     ];
     for (let i = 1; i <= daysInMonth; i++) {
-      columns.push({ key: `day_${i}_in`, width: 12 });
-      columns.push({ key: `day_${i}_out`, width: 12 });
+      columns.push({ key: `day_${i}_in`, width: 16 }); // Increased from 12
+      columns.push({ key: `day_${i}_out`, width: 16 }); // Increased from 12
     }
     worksheet.columns = columns;
 
@@ -71,7 +71,7 @@ export const generateCheckinExcel = async (data, monthString) => {
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         if (!cell.value && cell.master === cell) return; // Skip completely empty trailing cells
 
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14 };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         
         if (colNumber === 1) {
@@ -144,11 +144,16 @@ export const generateCheckinExcel = async (data, monthString) => {
           pattern: 'solid',
           fgColor: { argb: 'FFF97316' } // Orange-500
         };
-        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 12 };
       });
       
-      // Add borders
+      // Add borders and base font size
       addedRow.eachCell({ includeEmpty: true }, (cell) => {
+        // Only set font size if it hasn't been set by late cell logic
+        if (!cell.font) {
+          cell.font = { size: 12 };
+        }
+        
         cell.border = {
           top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
           left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
