@@ -5,8 +5,19 @@ import api from '../api/axios';
  * Handles full HTTP URLs, absolute paths starting with /uploads, and plain filenames.
  */
 export const getImageUrl = (img, folder = 'misc') => {
-  if (!img) return '';
-  if (img.startsWith('http')) return img;
-  if (img.startsWith('/uploads/')) return `${api.defaults.baseURL.replace('/api', '')}${img}`;
-  return `${api.defaults.baseURL.replace('/api', '')}/uploads/${folder}/${img}`;
+  if (!img || typeof img !== 'string') return '';
+  
+  const cleanImg = img.trim();
+  if (cleanImg.startsWith('http')) return cleanImg;
+  
+  // If it already contains 'uploads/', strip everything before 'uploads/' and ensure leading slash
+  if (cleanImg.includes('uploads/')) {
+    const parts = cleanImg.split('uploads/');
+    return `${api.defaults.baseURL.replace('/api', '')}/uploads/${parts[1]}`;
+  }
+  
+  // Standard case: just a filename
+  // Clean up any accidental leading slashes on the filename itself
+  const filename = cleanImg.replace(/^\/+/, '');
+  return `${api.defaults.baseURL.replace('/api', '')}/uploads/${folder}/${filename}`;
 };
