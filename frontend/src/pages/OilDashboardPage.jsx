@@ -7,7 +7,8 @@ import OilRecordEditModal from '../components/OilRecordEditModal';
 import DateRangeFilter from '../components/DateRangeFilter';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
-import { thaiDateTime, thaiDate, thaiDateShort } from '../utils/thaiDate';
+import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear, thaiDateShort } from '../utils/thaiDate';
+import { getImageUrl } from '../utils/imageUtils';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
 // Tooltip shared between line and bar charts
@@ -979,10 +980,10 @@ export default function OilDashboardPage() {
                   <div key={idx} className="group relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col">
                     <div className="flex-1 overflow-hidden bg-slate-100 relative">
                       <img
-                        src={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`}
+                        src={getImageUrl(img, 'oil_receipts')}
                         alt={`Evidence ${idx + 1}`}
                         className="w-full h-full object-cover min-h-[300px] max-h-[600px] hover:scale-105 transition-transform duration-500 cursor-zoom-in"
-                        onClick={() => window.open(`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`, '_blank')}
+                        onClick={() => window.open(getImageUrl(img, 'oil_receipts'), '_blank')}
                       />
                       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-black text-[#042C53] shadow-sm border border-white">
                         รูปที่ {idx + 1}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { getImageUrl } from '../utils/imageUtils';
 
 export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -158,7 +159,7 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
                   <div className="flex gap-2 flex-wrap">
                     {existingImages.map((img, i) => (
                       <div key={i} className="relative group">
-                        <img src={`/uploads/oil_receipts/${img}`} className="w-20 h-20 object-cover rounded-lg border border-slate-200" />
+                        <img src={getImageUrl(img, 'oil_receipts')} className="w-20 h-20 object-cover rounded-lg border border-slate-200" />
                         <button type="button" onClick={() => handleRemoveExistingImage(img)} className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md hover:scale-110 transition-transform">✕</button>
                       </div>
                     ))}

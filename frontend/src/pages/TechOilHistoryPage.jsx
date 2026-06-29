@@ -3,6 +3,7 @@ import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear } from '../utils/thaiDate';
+import { getImageUrl } from '../utils/imageUtils';
 
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
@@ -300,10 +301,10 @@ export default function TechOilHistoryPage() {
               {selectedImage && (
                 <div className="mb-4">
                   <img
-                    src={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${selectedImage}`}
+                    src={getImageUrl(selectedImage, 'oil_receipts')}
                     alt="Evidence"
                     className="w-full rounded-2xl border border-[#E5E7EB] shadow-sm cursor-zoom-in"
-                    onClick={() => window.open(`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${selectedImage}`, '_blank')}
+                    onClick={() => window.open(getImageUrl(selectedImage, 'oil_receipts'), '_blank')}
                   />
                 </div>
               )}
@@ -315,7 +316,7 @@ export default function TechOilHistoryPage() {
                     className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all hover:shadow-md group ${selectedImage === img ? 'border-amber-400 shadow-md' : 'border-[#E5E7EB] hover:border-amber-300'}`}
                   >
                     <img
-                      src={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${img}`}
+                      src={getImageUrl(img, 'oil_receipts')}
                       alt={`Evidence ${idx + 1}`}
                       className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -458,7 +459,7 @@ function RecordCard({ record, onViewImages }) {
           >
             <div className="relative">
               <img
-                src={`${api.defaults.baseURL.replace('/api', '')}/uploads/oil_receipts/${r.images[0]}`}
+                src={getImageUrl(r.images[0], 'oil_receipts')}
                 alt="Evidence"
                 className="w-8 h-8 rounded-lg object-cover border border-[#E5E7EB] group-hover:border-amber-300 transition-colors"
               />
