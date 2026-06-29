@@ -10,14 +10,23 @@ export const getImageUrl = (img, folder = 'misc') => {
   const cleanImg = img.trim();
   if (cleanImg.startsWith('http')) return cleanImg;
   
-  // If it already contains 'uploads/', strip everything before 'uploads/' and ensure leading slash
+  // Use backend's /api/uploads fallback to bypass strict Nginx static interception
+  // which might be pointing to a stale directory for newly uploaded files.
+  
+  let base = api.defaults.baseURL || '';
+  // Ensure we don't end up with double slashes
+  if (base.endsWith('/')) {
+    base = base.slice(0, -1);
+  }
+
+  // If the path already has 'uploads/', split and append
   if (cleanImg.includes('uploads/')) {
     const parts = cleanImg.split('uploads/');
-    return `${api.defaults.baseURL.replace('/api', '')}/uploads/${parts[1]}`;
+    const filename = parts[1].replace(/^\/+/, '');
+    return `${base}/uploads/${filename}`;
   }
   
-  // Standard case: just a filename
-  // Clean up any accidental leading slashes on the filename itself
+  // Standard case
   const filename = cleanImg.replace(/^\/+/, '');
-  return `${api.defaults.baseURL.replace('/api', '')}/uploads/${folder}/${filename}`;
+  return `${base}/uploads/${folder}/${filename}`;
 };
