@@ -4,29 +4,26 @@ import api from '../api/axios';
  * Robustly resolve image URLs. 
  * Handles full HTTP URLs, absolute paths starting with /uploads, and plain filenames.
  */
-export const getImageUrl = (img, folder = 'misc') => {
-  if (!img || typeof img !== 'string') return '';
+export const getImageUrl = (img, defaultFolder = 'misc') => {
+  if (!img || typeof img !== 'string' || img === 'รับหน้างาน') return '';
   
   const cleanImg = img.trim();
   if (cleanImg.startsWith('http')) return cleanImg;
   
   // Use backend's /api/uploads fallback to bypass strict Nginx static interception
-  // which might be pointing to a stale directory for newly uploaded files.
-  
   let base = api.defaults.baseURL || '';
-  // Ensure we don't end up with double slashes
   if (base.endsWith('/')) {
     base = base.slice(0, -1);
   }
 
-  // If the path already has 'uploads/', split and append
-  if (cleanImg.includes('uploads/')) {
-    const parts = cleanImg.split('uploads/');
-    const filename = parts[1].replace(/^\/+/, '');
-    return `${base}/uploads/${filename}`;
-  }
+  const filename = cleanImg.split('/').pop();
   
-  // Standard case
-  const filename = cleanImg.replace(/^\/+/, '');
-  return `${base}/uploads/${folder}/${filename}`;
+  // Auto-detect folder by prefix
+  let folder = defaultFolder ? (defaultFolder.endsWith('/') ? defaultFolder : `${defaultFolder}/`) : '';
+  if (filename.startsWith('profiles_')) folder = 'profiles/';
+  else if (filename.startsWith('misc_')) folder = 'misc/';
+  else if (filename.startsWith('checkins_')) folder = 'checkins/';
+  else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
+  
+  return `${base}/api/uploads/${folder}${filename}`;
 };
