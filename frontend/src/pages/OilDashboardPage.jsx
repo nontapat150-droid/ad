@@ -865,31 +865,50 @@ export default function OilDashboardPage() {
             
             <div className="p-6 overflow-y-auto bg-white flex-1">
               <div className="mb-6">
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-center justify-between shadow-sm">
-                  <div>
-                    <div className="text-sm font-bold text-blue-700 mb-1">ความถี่ในการเติมน้ำมันโดยเฉลี่ย</div>
-                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งจากข้อมูลในตารางนี้</div>
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
+                  <div className="mb-3">
+                    <div className="text-sm font-bold text-blue-700 mb-1">ความถี่ในการเติมน้ำมันโดยเฉลี่ย (รายคัน)</div>
+                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งของรถแต่ละคัน</div>
                   </div>
-                  <div className="text-2xl font-black text-blue-700">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {(() => {
-                      if (!records || records.length < 2) return '-';
+                      if (!records || records.length < 2) return <div className="text-sm font-bold text-blue-700">-</div>;
                       const recordsByPlate = {};
                       records.forEach(r => {
-                        const plate = r.license_plate || r.team_name || 'unknown';
+                        const plate = r.license_plate || r.team_name || 'ไม่ระบุ';
                         if (!recordsByPlate[plate]) recordsByPlate[plate] = [];
                         recordsByPlate[plate].push(new Date(r.date_recorded).getTime());
                       });
-                      let totalDays = 0, totalIntervals = 0;
-                      Object.values(recordsByPlate).forEach(dates => {
-                        if (dates.length < 2) return;
+                      
+                      const freqElements = [];
+                      Object.keys(recordsByPlate).forEach(plate => {
+                        const dates = recordsByPlate[plate];
+                        if (dates.length < 2) {
+                          freqElements.push(
+                            <div key={plate} className="bg-white p-3 rounded-xl border border-blue-100 flex flex-col">
+                              <span className="text-[11px] text-slate-500 font-bold">{plate}</span>
+                              <span className="text-sm font-black text-slate-400">ข้อมูลไม่พอ</span>
+                            </div>
+                          );
+                          return;
+                        }
+                        
                         dates.sort((a, b) => a - b);
+                        let totalDays = 0;
                         for (let i = 1; i < dates.length; i++) {
                           totalDays += (dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24);
-                          totalIntervals++;
                         }
+                        const freq = totalDays / (dates.length - 1);
+                        
+                        freqElements.push(
+                          <div key={plate} className="bg-white p-3 rounded-xl border border-blue-100 flex flex-col shadow-sm">
+                            <span className="text-[11px] text-blue-600 font-bold">{plate}</span>
+                            <span className="text-lg font-black text-blue-700">{freq.toFixed(1)} <span className="text-[10px] text-blue-500 font-bold">วัน/ครั้ง</span></span>
+                          </div>
+                        );
                       });
-                      const freq = totalIntervals > 0 ? (totalDays / totalIntervals) : 0;
-                      return freq > 0 ? `${freq.toFixed(1)} วัน/ครั้ง` : '-';
+                      
+                      return freqElements;
                     })()}
                   </div>
                 </div>
