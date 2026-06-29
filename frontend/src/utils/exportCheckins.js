@@ -42,28 +42,54 @@ export const generateCheckinExcel = async (data, monthString) => {
     
     // Set up columns for this worksheet
     const columns = [
-      { header: 'ชื่อพนักงาน', key: 'name', width: 25 },
+      { key: 'name', width: 25 },
     ];
     for (let i = 1; i <= daysInMonth; i++) {
-      columns.push({ header: `วันที่ ${i} (เข้า)`, key: `day_${i}_in`, width: 12 });
-      columns.push({ header: `วันที่ ${i} (ออก)`, key: `day_${i}_out`, width: 12 });
+      columns.push({ key: `day_${i}_in`, width: 12 });
+      columns.push({ key: `day_${i}_out`, width: 12 });
     }
     worksheet.columns = columns;
 
-    // Formatting Header Row
-    const headerRow = worksheet.getRow(1);
-    headerRow.eachCell((cell, colNumber) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      
-      const colKey = worksheet.getColumn(colNumber).key;
-      if (colKey === 'name') {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } }; // Dark Gray
-      } else if (colKey && colKey.endsWith('_in')) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } }; // Emerald-500
-      } else if (colKey && colKey.endsWith('_out')) {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }; // Indigo-500
-      }
+    // Set Header Row 1 (Dates)
+    const headerRow1 = worksheet.getRow(1);
+    headerRow1.getCell(1).value = 'ชื่อพนักงาน';
+    for (let i = 1; i <= daysInMonth; i++) {
+      headerRow1.getCell(i * 2).value = `วันที่ ${i}`;
+      worksheet.mergeCells(1, i * 2, 1, (i * 2) + 1); // Merge "วันที่ X" across In and Out
+    }
+    worksheet.mergeCells(1, 1, 2, 1); // Merge "ชื่อพนักงาน" vertically
+
+    // Set Header Row 2 (In/Out)
+    const headerRow2 = worksheet.getRow(2);
+    for (let i = 1; i <= daysInMonth; i++) {
+      headerRow2.getCell(i * 2).value = 'เข้า';
+      headerRow2.getCell((i * 2) + 1).value = 'ออก';
+    }
+
+    // Formatting Header Rows
+    [headerRow1, headerRow2].forEach(row => {
+      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        if (!cell.value && cell.master === cell) return; // Skip completely empty trailing cells
+
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        
+        if (colNumber === 1) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } }; // Dark Gray
+        } else if (colNumber % 2 === 0) { // Even columns (In)
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } }; // Emerald-500
+        } else { // Odd columns > 1 (Out)
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }; // Indigo-500
+        }
+        
+        // Add thin border to headers for neatness
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+          left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+          bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+          right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
+        };
+      });
     });
 
     // Add Users
@@ -132,9 +158,9 @@ export const generateCheckinExcel = async (data, monthString) => {
       });
     });
 
-    // Freeze first column and top row
+    // Freeze first column and top 2 rows
     worksheet.views = [
-      { state: 'frozen', xSplit: 1, ySplit: 1 }
+      { state: 'frozen', xSplit: 1, ySplit: 2 }
     ];
   }
 
