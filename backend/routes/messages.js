@@ -128,4 +128,26 @@ router.put('/:id/read', auth, async (req, res) => {
   }
 });
 
+// DELETE /api/messages/:id - Delete a message
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    
+    // Allow delete if the user is either sender or receiver
+    const [result] = await pool.query(
+      `DELETE FROM messages WHERE id = ? AND (sender_id = ? OR receiver_id = ?)`,
+      [messageId, req.user.id, req.user.id]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Message not found or not authorized to delete' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
+  }
+});
+
 module.exports = router;

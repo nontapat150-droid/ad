@@ -110,6 +110,19 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
     setActiveTab('compose');
   };
 
+  const handleDeleteMessage = async (e, id) => {
+    e.stopPropagation();
+    try {
+      if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?')) {
+        await api.delete(`/messages/${id}`);
+        setMessages(messages.filter(m => m.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to delete message', err);
+      alert('ไม่สามารถลบข้อความได้');
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -204,15 +217,24 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
                         </p>
                         
                         <div className="mt-3 flex justify-between items-center">
-                          {activeTab === 'inbox' ? (
-                            <button 
-                              onClick={(e) => handleReply(e, msg)}
-                              className="text-[11px] font-semibold text-[#185FA5] flex items-center gap-1 hover:text-[#042C53] transition-colors bg-white/50 px-2.5 py-1 rounded-lg border border-[#185FA5]/20 hover:border-[#185FA5]/50 active:scale-95"
+                          <div className="flex gap-2">
+                            {activeTab === 'inbox' && (
+                              <button 
+                                onClick={(e) => handleReply(e, msg)}
+                                className="text-[11px] font-semibold text-[#185FA5] flex items-center gap-1 hover:text-[#042C53] transition-colors bg-white/50 px-2.5 py-1 rounded-lg border border-[#185FA5]/20 hover:border-[#185FA5]/50 active:scale-95"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                ตอบกลับ
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => handleDeleteMessage(e, msg.id)}
+                              className="text-[11px] font-semibold text-rose-500 flex items-center gap-1 hover:text-rose-700 transition-colors bg-white/50 px-2.5 py-1 rounded-lg border border-rose-500/20 hover:border-rose-500/50 active:scale-95"
                             >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-                              ตอบกลับ
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              ลบ
                             </button>
-                          ) : <div />}
+                          </div>
                           
                           {isUnread && (
                             <span className="text-[10px] font-semibold text-[#378ADD] bg-[#E6F1FB] px-2 py-1 rounded-md">
