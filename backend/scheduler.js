@@ -18,17 +18,8 @@ async function sendScheduledMessage(msgConfig) {
 
     if (target_role === 'all') {
       query = 'SELECT id, role FROM users';
-    } else if (target_role === 'specific') {
-      let userIds = [];
-      try {
-        userIds = typeof target_users === 'string' ? JSON.parse(target_users) : target_users;
-      } catch (e) {
-        console.error(`[Scheduler] Failed to parse target_users for msg ${id}`);
-        return;
-      }
-      if (!Array.isArray(userIds) || userIds.length === 0) return;
-      query = `SELECT id, role FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`;
-      queryParams = userIds;
+    } else if (target_role === 'admin') {
+      query = "SELECT id, role FROM users WHERE role IN ('admin', 'super_admin')";
     } else {
       query = 'SELECT id, role FROM users WHERE role = ?';
       queryParams = [target_role];

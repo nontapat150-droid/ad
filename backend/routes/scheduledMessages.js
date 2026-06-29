@@ -3,17 +3,6 @@ const router = express.Router();
 const db = require('../config/db');
 const { loadSchedules } = require('../scheduler');
 
-// Get users for selection (Safe query)
-router.get('/users', async (req, res) => {
-  try {
-    const [users] = await db.execute('SELECT id, full_name, role FROM users WHERE status = "active" ORDER BY full_name ASC');
-    res.json(users);
-  } catch (err) {
-    console.error('Error fetching users for scheduled messages:', err);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
 // Get all scheduled messages
 router.get('/', async (req, res) => {
   try {

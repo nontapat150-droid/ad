@@ -25,7 +25,6 @@ export default function SystemSettingsPage() {
 
   useEffect(() => {
     fetchMessages();
-    fetchUsers();
   }, []);
 
   const fetchMessages = async () => {
@@ -39,14 +38,7 @@ export default function SystemSettingsPage() {
     }
   };
 
-  const fetchUsers = async () => {
-    try {
-      const res = await api.get('/scheduled-messages/users');
-      setUsers(res.data);
-    } catch (err) {
-      console.error('Failed to fetch users', err);
-    }
-  };
+
 
   const handleOpenModal = (msg = null) => {
     if (msg) {
@@ -181,14 +173,7 @@ export default function SystemSettingsPage() {
     }
   };
 
-  const handleUserToggle = (userId) => {
-    setFormData(prev => {
-      const users = prev.target_users.includes(userId)
-        ? prev.target_users.filter(id => id !== userId)
-        : [...prev.target_users, userId];
-      return { ...prev, target_users: users };
-    });
-  };
+
 
   const translateCron = (cron) => {
     // Very basic translation for UI display
@@ -244,7 +229,7 @@ export default function SystemSettingsPage() {
                 <div className="flex justify-between items-start mb-3 pl-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-brand-100 text-brand-700">
-                      {msg.target_role === 'all' ? 'ทุกคน' : msg.target_role === 'specific' ? `ระบุบุคคล (${msg.target_users ? JSON.parse(msg.target_users).length : 0} คน)` : msg.target_role}
+                      {msg.target_role === 'all' ? 'ทุกคน' : msg.target_role === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : msg.target_role}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -311,29 +296,9 @@ export default function SystemSettingsPage() {
                     <option value="technician">ช่าง Office</option>
                     <option value="ma_technician">ทีม MA</option>
                     <option value="sales">เซลส์</option>
-                    <option value="specific">ระบุผู้รับเจาะจง</option>
+                    <option value="admin">ผู้ดูแลระบบ (Admin)</option>
                   </select>
                 </div>
-
-                {/* Specific Users (if selected) */}
-                {formData.target_role === 'specific' && (
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 max-h-48 overflow-y-auto custom-scrollbar">
-                    <p className="text-xs font-bold text-slate-500 mb-2">เลือกผู้รับ ({formData.target_users.length} คน)</p>
-                    <div className="space-y-2">
-                      {users.map(u => (
-                        <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors border border-transparent hover:border-slate-200">
-                          <input 
-                            type="checkbox"
-                            checked={formData.target_users.includes(u.id)}
-                            onChange={() => handleUserToggle(u.id)}
-                            className="w-4 h-4 text-brand-500 rounded border-slate-300 focus:ring-brand-500"
-                          />
-                          <span className="text-sm font-medium text-slate-700">{u.full_name} <span className="text-xs text-slate-400">({u.role})</span></span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {/* Schedule Options */}
                 <div className="p-5 bg-brand-50 rounded-2xl border border-brand-100">
