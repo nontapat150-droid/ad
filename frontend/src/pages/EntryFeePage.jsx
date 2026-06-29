@@ -226,17 +226,20 @@ export default function EntryFeePage() {
     }
   };
 
-  const resolveImageUrl = (pathOrName) => {
+  const resolveImageUrl = (pathOrName, defaultFolder = '') => {
     if (!pathOrName || pathOrName === 'รับหน้างาน') return '';
     if (pathOrName.startsWith('http')) return pathOrName;
-    const baseUrl = import.meta.env.VITE_API_URL || '/api';
+    const baseUrl = import.meta.env.VITE_API_URL || '';
     const filename = pathOrName.split('/').pop();
-    let folder = '';
+    let folder = defaultFolder ? (defaultFolder.endsWith('/') ? defaultFolder : `${defaultFolder}/`) : '';
     if (filename.startsWith('profiles_')) folder = 'profiles/';
     else if (filename.startsWith('misc_')) folder = 'misc/';
     else if (filename.startsWith('checkins_')) folder = 'checkins/';
     else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
-    return `${baseUrl}/uploads/${folder}${filename}`;
+    
+    // Ensure we don't have double slashes and route through /api
+    const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${base}/api/uploads/${folder}${filename}`;
   };
 
   const handleFileChange = (e) => {
@@ -798,7 +801,7 @@ export default function EntryFeePage() {
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-[#1F2937] flex items-center justify-center text-[10px] font-bold text-[#A3E635] shrink-0 overflow-hidden">
                                     {item.profile_image ? (
-                                      <img src={resolveImageUrl(item.profile_image)} alt={item.creator_name} className="w-full h-full object-cover" />
+                                      <img src={resolveImageUrl(item.profile_image, 'profiles')} alt={item.creator_name} className="w-full h-full object-cover" />
                                     ) : (
                                       item.creator_name ? item.creator_name.charAt(0) : '?'
                                     )}
@@ -883,7 +886,7 @@ export default function EntryFeePage() {
                                   <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border-2 border-white ring-1 ring-[#E5E7EB]">
                                       {item.profile_image ? (
-                                        <img src={resolveImageUrl(item.profile_image)} alt={item.creator_name} className="w-full h-full object-cover" />
+                                        <img src={resolveImageUrl(item.profile_image, 'profiles')} alt={item.creator_name} className="w-full h-full object-cover" />
                                       ) : (
                                         item.creator_name ? item.creator_name.charAt(0) : '?'
                                       )}
