@@ -186,6 +186,11 @@ router.get('/migrate-entry-fee', async (req, res) => {
     } catch(e) { results.push('entry_fees.backdate: ' + e.message); }
 
     try {
+      await pool.query(`ALTER TABLE entry_fees ADD COLUMN network_provider ENUM('AIS', '3BB') NOT NULL DEFAULT 'AIS'`);
+      results.push('✅ entry_fees.network_provider added');
+    } catch(e) { results.push('entry_fees.network_provider: ' + e.message); }
+
+    try {
       await pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL`);
       results.push('✅ customers.entry_fee_status added');
     } catch(e) { results.push('customers.entry_fee_status: ' + e.message); }

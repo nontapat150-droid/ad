@@ -137,6 +137,7 @@ export default function EntryFeePage() {
   // --- RECORD STATE ---
   const [accessNo, setAccessNo] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [networkProvider, setNetworkProvider] = useState(''); // 'AIS' | '3BB'
   const [feeType, setFeeType] = useState('slip'); // 'slip' | 'cash' | 'backdate'
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -252,8 +253,8 @@ export default function EntryFeePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!accessNo.trim() || !customerName.trim()) {
-      Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณากรอกรหัส NON และชื่อลูกค้าให้ครบถ้วน' });
+    if (!accessNo.trim() || !customerName.trim() || !networkProvider) {
+      Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณากรอกรหัส NON, ชื่อลูกค้า และเลือกผู้ให้บริการให้ครบถ้วน' });
       return;
     }
     if ((feeType === 'slip' || feeType === 'backdate') && !selectedFile) {
@@ -278,6 +279,7 @@ export default function EntryFeePage() {
     const formData = new FormData();
     formData.append('access_no', accessNo.trim());
     formData.append('customer_name', customerName.trim());
+    formData.append('network_provider', networkProvider);
     formData.append('fee_type', feeType);
     if (selectedFile) formData.append('image', selectedFile);
     if (feeType === 'backdate') formData.append('backdate', backdateValue);
@@ -302,6 +304,7 @@ export default function EntryFeePage() {
       // Reset form
       setAccessNo('');
       setCustomerName('');
+      setNetworkProvider('');
       setSelectedFile(null);
       setPreviewUrl(null);
       setBackdateValue('');
@@ -484,7 +487,7 @@ export default function EntryFeePage() {
 
                 <form onSubmit={handleSubmit}>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 border-b border-[#F3F4F6] pb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div>
                       <label className="block text-sm font-bold text-[#374151] mb-2 uppercase tracking-wide">รหัส NON <span className="text-red-500">*</span></label>
                       <input 
@@ -506,6 +509,36 @@ export default function EntryFeePage() {
                         className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl focus:ring-4 focus:ring-[#A3E635]/20 focus:border-[#A3E635] outline-none text-[#1F2937] font-bold transition-all"
                         required
                       />
+                    </div>
+                  </div>
+
+                  {/* ── Network Provider Selection ─────────────────── */}
+                  <div className="mb-8 border-b border-[#F3F4F6] pb-8">
+                    <label className="block text-sm font-bold text-[#374151] mb-3 uppercase tracking-wide">ผู้ให้บริการ <span className="text-red-500">*</span></label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setNetworkProvider('AIS')}
+                        className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-2 transition-all ${
+                          networkProvider === 'AIS'
+                            ? 'border-[#A3E635] bg-[#A3E635]/10 shadow-sm text-[#4D7C0F]'
+                            : 'border-[#E5E7EB] bg-white hover:border-[#A3E635]/50 text-[#6B7280]'
+                        }`}
+                      >
+                        <span className="text-2xl font-black tracking-tight" style={{ color: networkProvider === 'AIS' ? '#A3E635' : '#9CA3AF' }}>AIS</span>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setNetworkProvider('3BB')}
+                        className={`p-4 rounded-2xl border-2 flex items-center justify-center gap-2 transition-all ${
+                          networkProvider === '3BB'
+                            ? 'border-orange-500 bg-orange-50 shadow-sm text-orange-700'
+                            : 'border-[#E5E7EB] bg-white hover:border-orange-300 text-[#6B7280]'
+                        }`}
+                      >
+                        <span className="text-2xl font-black tracking-tight" style={{ color: networkProvider === '3BB' ? '#f97316' : '#9CA3AF' }}>3BB</span>
+                      </button>
                     </div>
                   </div>
 
@@ -730,7 +763,16 @@ export default function EntryFeePage() {
                         return (
                           <div key={item.id} className="bg-white border border-[#E5E7EB] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
                             <div className="flex justify-between items-start">
-                              <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-3 py-1.5 rounded-lg text-sm">{item.access_no}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-3 py-1.5 rounded-lg text-sm">{item.access_no}</span>
+                                <span className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-[10px] font-bold ${
+                                  item.network_provider === '3BB' 
+                                    ? 'bg-orange-100 text-orange-700 border border-orange-200' 
+                                    : 'bg-[#A3E635]/20 text-[#4D7C0F] border border-[#A3E635]/30'
+                                }`}>
+                                  {item.network_provider || 'AIS'}
+                                </span>
+                              </div>
                               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border ${typeInfo.color}`}>
                                 {typeInfo.icon} {typeInfo.label}
                               </span>
@@ -784,7 +826,7 @@ export default function EntryFeePage() {
                                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95"
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                                 ดูหลักฐาน
                               </button>
@@ -797,14 +839,14 @@ export default function EntryFeePage() {
                     {/* Desktop Table Layout */}
                     <div className="hidden lg:block overflow-x-auto rounded-xl border border-[#E5E7EB]">
                       <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">รหัส NON</th>
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider w-[25%]">ชื่อลูกค้า</th>
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">ประเภท</th>
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[20%]">วันที่บันทึก</th>
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider whitespace-nowrap w-[15%]">ผู้บันทึก</th>
-                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right whitespace-nowrap w-[10%]">หลักฐาน</th>
+                        <thead className="bg-[#F9FAFB] sticky top-0 z-10">
+                          <tr>
+                            <th className="text-left py-4 px-5 font-black text-[11px] text-[#6B7280] uppercase tracking-wider">ลูกค้า / รหัส NON</th>
+                            <th className="text-center py-4 px-5 font-black text-[11px] text-[#6B7280] uppercase tracking-wider">ผู้ให้บริการ</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ประเภท</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่บันทึก</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ผู้บันทึก</th>
+                            <th className="py-4 px-5 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">หลักฐาน</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -813,10 +855,19 @@ export default function EntryFeePage() {
                             const isBackdate = item.fee_type === 'backdate';
                             return (
                               <tr key={item.id} className={`transition-colors hover:bg-[#F9FAFB] ${idx !== historyData.length - 1 ? 'border-b border-[#F3F4F6]' : ''}`}>
-                                <td className="py-4 px-5 whitespace-nowrap">
-                                  <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-3 py-1.5 rounded-lg text-sm">{item.access_no}</span>
+                                <td className="py-4 px-5">
+                                  <div className="font-bold text-[#1F2937] text-sm">{item.customer_name}</div>
+                                  <span className="font-bold text-[#65a30d] bg-[#A3E635]/10 border border-[#A3E635]/20 px-2 py-0.5 rounded text-[10px]">{item.access_no}</span>
                                 </td>
-                                <td className="py-4 px-5 font-bold text-[#1F2937] text-sm break-words">{item.customer_name}</td>
+                                <td className="py-4 px-5 text-center">
+                                  <span className={`inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[10px] font-bold ${
+                                    item.network_provider === '3BB' 
+                                      ? 'bg-orange-100 text-orange-700 border border-orange-200' 
+                                      : 'bg-[#A3E635]/20 text-[#4D7C0F] border border-[#A3E635]/30'
+                                  }`}>
+                                    {item.network_provider || 'AIS'}
+                                  </span>
+                                </td>
                                 <td className="py-4 px-5 whitespace-nowrap">
                                   <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap ${typeInfo.color}`}>
                                     {typeInfo.icon} {typeInfo.label}
