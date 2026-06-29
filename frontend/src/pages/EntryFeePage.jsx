@@ -237,9 +237,9 @@ export default function EntryFeePage() {
     else if (filename.startsWith('checkins_')) folder = 'checkins/';
     else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
     
-    // Ensure we don't have double slashes and route through /api
+    // Ensure we don't have double slashes and route through backend uploads
     const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    return `${base}/api/uploads/${folder}${filename}`;
+    return `${base}/uploads/${folder}${filename}`;
   };
 
   const handleImageError = (e) => {

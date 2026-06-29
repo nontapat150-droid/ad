@@ -26,5 +26,5 @@ export const getImageUrl = (img, defaultFolder = 'misc') => {
   else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
   else if (filename.startsWith('oil_receipts_')) folder = 'oil_receipts/';
   
-  return `${base}/api/uploads/${folder}${filename}`;
+  return `${base}/uploads/${folder}${filename}`;
 };
