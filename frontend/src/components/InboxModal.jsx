@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import Swal from 'sweetalert2';
 
 export default function InboxModal({ open, onClose, onReadMessage }) {
   const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' | 'sent' | 'compose'
@@ -113,13 +114,24 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
   const handleDeleteMessage = async (e, id) => {
     e.stopPropagation();
     try {
-      if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?')) {
+      const result = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#94a3b8',
+        confirmButtonText: 'ใช่, ลบเลย!',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if (result.isConfirmed) {
         await api.delete(`/messages/${id}`);
         setMessages(messages.filter(m => m.id !== id));
       }
     } catch (err) {
       console.error('Failed to delete message', err);
-      alert('ไม่สามารถลบข้อความได้');
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถลบข้อความได้' });
     }
   };
 
