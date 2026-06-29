@@ -242,6 +242,13 @@ export default function EntryFeePage() {
     return `${base}/api/uploads/${folder}${filename}`;
   };
 
+  const handleImageError = (e) => {
+    // If the image fails to load from /api/uploads/ (Node's folder), fallback to /uploads/ (Nginx's old folder)
+    if (e.target.src.includes('/api/uploads/')) {
+      e.target.src = e.target.src.replace('/api/uploads/', '/uploads/');
+    }
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -801,7 +808,12 @@ export default function EntryFeePage() {
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded-full bg-[#1F2937] flex items-center justify-center text-[10px] font-bold text-[#A3E635] shrink-0 overflow-hidden">
                                     {item.profile_image ? (
-                                      <img src={resolveImageUrl(item.profile_image, 'profiles')} alt={item.creator_name} className="w-full h-full object-cover" />
+                                      <img 
+                                        src={resolveImageUrl(item.profile_image, 'profiles')} 
+                                        alt={item.creator_name} 
+                                        className="w-full h-full object-cover" 
+                                        onError={handleImageError}
+                                      />
                                     ) : (
                                       item.creator_name ? item.creator_name.charAt(0) : '?'
                                     )}
@@ -886,7 +898,12 @@ export default function EntryFeePage() {
                                   <div className="flex items-center gap-3">
                                     <div className="w-9 h-9 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border-2 border-white ring-1 ring-[#E5E7EB]">
                                       {item.profile_image ? (
-                                        <img src={resolveImageUrl(item.profile_image, 'profiles')} alt={item.creator_name} className="w-full h-full object-cover" />
+                                        <img 
+                                          src={resolveImageUrl(item.profile_image, 'profiles')} 
+                                          alt={item.creator_name} 
+                                          className="w-full h-full object-cover" 
+                                          onError={handleImageError}
+                                        />
                                       ) : (
                                         item.creator_name ? item.creator_name.charAt(0) : '?'
                                       )}
