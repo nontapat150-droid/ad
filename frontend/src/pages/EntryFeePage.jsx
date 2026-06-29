@@ -796,7 +796,7 @@ export default function EntryFeePage() {
                                   <div className="w-6 h-6 rounded-full bg-[#1F2937] flex items-center justify-center text-[10px] font-bold text-[#A3E635] shrink-0 overflow-hidden">
                                     {item.profile_image ? (
                                       <img 
-                                        src={resolveImageUrl(item.profile_image, 'profiles')} 
+                                        src={getImageUrl(item.profile_image, 'profiles')} 
                                         alt={item.creator_name} 
                                         className="w-full h-full object-cover" 
                                         onError={handleImageError}

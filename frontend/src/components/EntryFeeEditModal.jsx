@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { getImageUrl } from '../utils/imageUtils';
 
 export default function EntryFeeEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -45,17 +46,6 @@ export default function EntryFeeEditModal({ record, onClose, onSuccess }) {
     if (e.target.files && e.target.files[0]) {
       setNewImage(e.target.files[0]);
     }
-  };
-
-  const resolveImageUrl = (pathOrName) => {
-    if (!pathOrName || pathOrName === 'รับหน้างาน') return '';
-    if (pathOrName.startsWith('http')) return pathOrName;
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    let folder = '';
-    const filename = pathOrName.split('/').pop();
-    if (filename.startsWith('misc_')) folder = 'misc/';
-    return `${base}/uploads/${folder}${filename}`;
   };
 
   const handleSubmit = async (e) => {
@@ -178,8 +168,9 @@ export default function EntryFeeEditModal({ record, onClose, onSuccess }) {
                 
                 {existingImage && !newImage && (
                   <div className="mb-4">
-                    <p className="text-xs text-slate-500 mb-2">รูปภาพปัจจุบัน</p>
-                    <img src={resolveImageUrl(existingImage)} className="h-32 object-contain rounded-lg border border-slate-200 bg-slate-50 p-1" />
+                    {existingImage && existingImage !== 'รับหน้างาน' && (
+                      <img src={getImageUrl(existingImage)} className="h-32 object-contain rounded-lg border border-slate-200 bg-slate-50 p-1" />
+                    )}
                   </div>
                 )}
 
