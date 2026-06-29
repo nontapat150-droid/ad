@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import EntryFeeEditModal from '../components/EntryFeeEditModal';
+import { getImageUrl } from '../utils/imageUtils';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -226,22 +227,6 @@ export default function EntryFeePage() {
     } finally {
       setIsLoadingHistory(false);
     }
-  };
-
-  const resolveImageUrl = (pathOrName, defaultFolder = '') => {
-    if (!pathOrName || pathOrName === 'รับหน้างาน') return '';
-    if (pathOrName.startsWith('http')) return pathOrName;
-    const baseUrl = import.meta.env.VITE_API_URL || '';
-    const filename = pathOrName.split('/').pop();
-    let folder = defaultFolder ? (defaultFolder.endsWith('/') ? defaultFolder : `${defaultFolder}/`) : '';
-    if (filename.startsWith('profiles_')) folder = 'profiles/';
-    else if (filename.startsWith('misc_')) folder = 'misc/';
-    else if (filename.startsWith('checkins_')) folder = 'checkins/';
-    else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
-    
-    // Ensure we don't have double slashes and route through backend uploads
-    const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    return `${base}/uploads/${folder}${filename}`;
   };
 
   const handleImageError = (e) => {
@@ -829,7 +814,7 @@ export default function EntryFeePage() {
                               {item.image_path && item.image_path !== 'รับหน้างาน' && (
                                 <button 
                                   onClick={() => {
-                                    const fullUrl = resolveImageUrl(item.image_path);
+                                    const fullUrl = getImageUrl(item.image_path);
                                     Swal.fire({
                                       imageUrl: fullUrl,
                                       imageAlt: 'หลักฐานค่าแรกเข้า',
@@ -911,7 +896,7 @@ export default function EntryFeePage() {
                                     <div className="w-9 h-9 rounded-full bg-[#1F2937] flex items-center justify-center text-xs font-bold text-[#A3E635] shrink-0 shadow-sm overflow-hidden border-2 border-white ring-1 ring-[#E5E7EB]">
                                       {item.profile_image ? (
                                         <img 
-                                          src={resolveImageUrl(item.profile_image, 'profiles')} 
+                                          src={getImageUrl(item.profile_image, 'profiles')} 
                                           alt={item.creator_name} 
                                           className="w-full h-full object-cover" 
                                           onError={handleImageError}
@@ -937,7 +922,7 @@ export default function EntryFeePage() {
                                   {item.image_path && item.image_path !== 'รับหน้างาน' ? (
                                     <button 
                                       onClick={() => {
-                                        const fullUrl = resolveImageUrl(item.image_path);
+                                        const fullUrl = getImageUrl(item.image_path);
                                         Swal.fire({
                                           imageUrl: fullUrl,
                                           imageAlt: 'หลักฐานค่าแรกเข้า',
