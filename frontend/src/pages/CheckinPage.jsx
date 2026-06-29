@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { DateTimePicker } from '../components/DateTimePicker';
 import { format } from 'date-fns';
+import { generateCheckinExcel } from '../utils/exportCheckins';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -91,6 +92,33 @@ export default function CheckinPage() {
   }, [isAdmin, filterUserId]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const handleExportMonthly = async () => {
+    const { value: monthValue } = await Swal.fire({
+      title: 'เลือกเดือนที่ต้องการ Export',
+      html: '<input type="month" id="exportMonth" class="swal2-input">',
+      showCancelButton: true,
+      confirmButtonText: '📥 Export (Excel)',
+      confirmButtonColor: '#1F2937',
+      cancelButtonText: 'ยกเลิก',
+      preConfirm: () => {
+        const val = document.getElementById('exportMonth').value;
+        if (!val) Swal.showValidationMessage('กรุณาเลือกเดือน');
+        return val;
+      }
+    });
+
+    if (monthValue) {
+      try {
+        Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const res = await api.get(`/checkin/export-monthly?month=${monthValue}`);
+        await generateCheckinExcel(res.data, monthValue);
+        Swal.close();
+      } catch (err) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถดาวน์โหลดข้อมูลได้', 'error');
+      }
+    }
+  };
   useEffect(() => {
     if (checkinType === 'ma') {
       api.get('/checkin/ma-threshold')
@@ -687,6 +715,11 @@ export default function CheckinPage() {
                     className="text-xs font-bold text-[#4B5563] bg-white hover:bg-[#F3F4F6] border border-[#E5E7EB] hover:text-[#1F2937] px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
                     เพิ่มย้อนหลัง
+                  </button>
+                  <button
+                    onClick={handleExportMonthly}
+                    className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-2 rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                    📥 Export
                   </button>
                   <button
                     onClick={() => navigate('/attendance-summary')}

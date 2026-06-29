@@ -711,4 +711,36 @@ router.put('/admin/edit/:id', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/checkin/export-monthly — Export checkins for a month ──
+router.get('/export-monthly', auth, async (req, res) => {
+  try {
+    const { month } = req.query; // YYYY-MM
+    if (!month) return res.status(400).json({ error: 'Missing month parameter' });
+
+    // Get users (excluding admins)
+    const [users] = await pool.query(
+      `SELECT id, username, full_name, role 
+       FROM users 
+       WHERE role != 'admin' AND role != 'super_admin' AND status = 'approved'
+       ORDER BY role, full_name, username`
+    );
+
+    // Get checkins for the month
+    const [checkins] = await pool.query(
+      `SELECT user_id, 
+              checkin_time, 
+              checkout_time, 
+              is_late 
+       FROM checkins 
+       WHERE DATE_FORMAT(checkin_time, '%Y-%m') = ?`,
+      [month]
+    );
+
+    res.json({ users, checkins });
+  } catch (err) {
+    console.error('Export checkins error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;
