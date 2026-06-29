@@ -271,6 +271,11 @@ async function runStartupDbTasks() {
       sql: `ALTER TABLE scheduled_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
       ignoreError: true,
     },
+    {
+      label: 'alter scheduled_messages columns charset',
+      sql: `ALTER TABLE scheduled_messages MODIFY message TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL`,
+      ignoreError: true,
+    },
   ];
 
   for (const item of startupQueries) {

@@ -37,12 +37,21 @@ if ($conn->query($sql_create) === TRUE) {
     echo "<p style='color:red;'>Error creating table scheduled_messages: " . $conn->error . "</p>";
 }
 
-// Convert existing table to utf8mb4 to support Thai characters
+// Convert existing table and specific columns to utf8mb4 to support Thai characters
 $sql_charset = "ALTER TABLE scheduled_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;";
-if ($conn->query($sql_charset) === TRUE) {
-    echo "<p style='color:green;'>ALTER TABLE charset utf8mb4 successful.</p>";
+$conn->query($sql_charset);
+
+$sql_col1 = "ALTER TABLE scheduled_messages MODIFY message TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL;";
+$conn->query($sql_col1);
+
+$sql_col2 = "ALTER TABLE scheduled_messages MODIFY target_role VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'all';";
+$conn->query($sql_col2);
+
+$sql_col3 = "ALTER TABLE scheduled_messages MODIFY target_users TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL;";
+if ($conn->query($sql_col3) === TRUE) {
+    echo "<p style='color:green;'>ALTER TABLE columns to utf8mb4 successful.</p>";
 } else {
-    echo "<p style='color:red;'>Error altering table charset: " . $conn->error . "</p>";
+    echo "<p style='color:red;'>Error altering columns charset: " . $conn->error . "</p>";
 }
 
 echo "<br><b>Database setup complete!</b>";
