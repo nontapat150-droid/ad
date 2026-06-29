@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ message: 'Scheduled message created successfully', id: result.insertId });
   } catch (err) {
     console.error('Error creating scheduled message:', err);
-    res.status(500).json({ error: 'Failed to create scheduled message' });
+    res.status(500).json({ error: err.message || 'Failed to create scheduled message' });
   }
 });
 
@@ -68,7 +68,7 @@ router.put('/:id', async (req, res) => {
     res.json({ message: 'Scheduled message updated successfully' });
   } catch (err) {
     console.error('Error updating scheduled message:', err);
-    res.status(500).json({ error: 'Failed to update scheduled message' });
+    res.status(500).json({ error: err.message || 'Failed to update scheduled message' });
   }
 });
 

@@ -135,7 +135,8 @@ export default function SystemSettingsPage() {
       setShowModal(false);
       fetchMessages();
     } catch (err) {
-      Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+      const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
+      Swal.fire('ผิดพลาด', `ไม่สามารถบันทึกข้อมูลได้: ${errorMsg}`, 'error');
     }
   };
 
