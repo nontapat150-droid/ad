@@ -53,13 +53,19 @@ export const generateCheckinExcel = async (data, monthString) => {
 
     // Formatting Header Row
     const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1F2937' } // Dark gray
-    };
-    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.eachCell((cell, colNumber) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      
+      const colKey = worksheet.getColumn(colNumber).key;
+      if (colKey === 'name') {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } }; // Dark Gray
+      } else if (colKey && colKey.endsWith('_in')) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF10B981' } }; // Emerald-500
+      } else if (colKey && colKey.endsWith('_out')) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } }; // Indigo-500
+      }
+    });
 
     // Add Users
     roleUsers.forEach(user => {
