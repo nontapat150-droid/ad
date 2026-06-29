@@ -11,7 +11,7 @@ export const generateCheckinExcel = async (data, monthString) => {
   const [year, month] = monthString.split('-');
   const daysInMonth = new Date(year, month, 0).getDate();
   
-  // Group users by role
+  // Map of raw roles to display names
   const roleGroups = {
     'technician': 'ช่างทั่วไป',
     'office_technician': 'ช่าง',
@@ -22,23 +22,22 @@ export const generateCheckinExcel = async (data, monthString) => {
     'manager': 'ผู้จัดการ'
   };
 
+  // Group users by the mapped role name (so 'ma' and 'ma_technician' go to the same tab)
   const groupedUsers = users.reduce((acc, user) => {
-    const r = user.role || 'general';
-    if (!acc[r]) acc[r] = [];
-    acc[r].push(user);
+    const rawRole = user.role || 'general';
+    let roleName = roleGroups[rawRole] || rawRole.toUpperCase();
+    if (rawRole === 'sales') roleName = 'เซล'; // enforce exact name
+    
+    if (!acc[roleName]) acc[roleName] = [];
+    acc[roleName].push(user);
     return acc;
   }, {});
 
-  // Add worksheet for each role
-  for (const [roleKey, roleUsers] of Object.entries(groupedUsers)) {
+  // Add worksheet for each mapped role
+  for (const [roleName, roleUsers] of Object.entries(groupedUsers)) {
     if (!roleUsers || roleUsers.length === 0) continue;
     
-    // As requested: if it's sales, just write 'เซล'
-    let roleName = roleGroups[roleKey] || roleKey.toUpperCase();
-    if (roleKey === 'sales') roleName = 'เซล'; // enforce exact name
-
-    // Excel worksheet names must be <= 31 chars and not contain certain symbols, 
-    // but these simple names are fine.
+    // Excel worksheet names must be <= 31 chars and not contain certain symbols
     const worksheet = workbook.addWorksheet(roleName);
     
     // Set up columns for this worksheet
