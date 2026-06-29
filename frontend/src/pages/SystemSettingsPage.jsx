@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 
 export default function SystemSettingsPage() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('notifications');
+  const navigate = useNavigate();
   
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -193,26 +196,53 @@ export default function SystemSettingsPage() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen pt-24 animate-fade-in-up">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pt-24 animate-fade-in-up">
+      {/* Header with Back Button */}
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-8">
+        <button 
+          onClick={() => navigate(-1)}
+          className="bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md active:scale-95 flex items-center justify-center"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        </button>
         <div>
           <h1 className="text-3xl font-black text-slate-800 drop-shadow-sm">ตั้งค่าระบบ</h1>
           <p className="text-slate-500 mt-2 font-medium">จัดการข้อความอัตโนมัติและการตั้งค่าอื่นๆ</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-brand-500/30 transition-all flex items-center gap-2 active:scale-95"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-          สร้างข้อความอัตโนมัติ
-        </button>
       </div>
 
-      <div className="glass rounded-3xl p-6 shadow-xl border border-white/40">
-        <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-          <svg className="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          รายการข้อความอัตโนมัติ
-        </h2>
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Sidebar Tabs */}
+        <div className="w-full md:w-72 shrink-0">
+          <div className="bg-white/70 backdrop-blur-md rounded-3xl p-4 shadow-xl border border-white/50 sticky top-24">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">หมวดหมู่การตั้งค่า</h3>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${activeTab === 'notifications' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              จัดการแจ้งเตือน
+            </button>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1">
+          {activeTab === 'notifications' && (
+            <div className="glass rounded-3xl p-6 shadow-xl border border-white/40 animate-fade-in-up">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4 border-b border-slate-200/50 pb-6">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <svg className="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  รายการข้อความอัตโนมัติ
+                </h2>
+                <button 
+                  onClick={() => handleOpenModal()}
+                  className="bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-brand-500/30 transition-all flex items-center gap-2 active:scale-95 text-sm"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                  สร้างข้อความอัตโนมัติ
+                </button>
+              </div>
 
         {loading ? (
           <div className="flex justify-center py-10"><span className="loading loading-spinner text-brand-500 loading-lg"></span></div>
@@ -267,6 +297,9 @@ export default function SystemSettingsPage() {
             ))}
           </div>
         )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
