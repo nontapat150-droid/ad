@@ -92,6 +92,33 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      const result = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: "คุณแน่ใจหรือไม่ที่จะลบรายการเติมน้ำมันนี้? การกระทำนี้ไม่สามารถย้อนกลับได้",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#94a3b8',
+        confirmButtonText: 'ใช่, ลบเลย!',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if (result.isConfirmed) {
+        setLoading(true);
+        await api.delete(`/oil/records/${record.id}`);
+        await api.post('/oil/recalculate');
+        Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', showConfirmButton: false, timer: 1500 });
+        onSuccess();
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถลบได้' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out] flex flex-col max-h-[90vh]">
@@ -188,13 +215,18 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end shrink-0">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-sm">
-            ยกเลิก
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-between shrink-0">
+          <button type="button" onClick={handleDelete} disabled={loading} className="px-5 py-2.5 rounded-xl font-bold text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 transition-colors text-sm flex items-center gap-1">
+            🗑️ ลบรายการ
           </button>
-          <button type="submit" form="editOilForm" disabled={loading} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-md transition-all active:scale-95 text-sm flex items-center gap-2">
-            {loading ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
-          </button>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-sm">
+              ยกเลิก
+            </button>
+            <button type="submit" form="editOilForm" disabled={loading} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-md transition-all active:scale-95 text-sm flex items-center gap-2">
+              {loading ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
