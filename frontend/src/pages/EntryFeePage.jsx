@@ -9,6 +9,7 @@ import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
+import EntryFeeEditModal from '../components/EntryFeeEditModal';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -178,6 +179,7 @@ export default function EntryFeePage() {
 
   // --- HISTORY STATE ---
   const [historyData, setHistoryData] = useState([]);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
@@ -823,29 +825,39 @@ export default function EntryFeePage() {
                               </div>
                             </div>
 
-                            {item.image_path && item.image_path !== 'รับหน้างาน' && (
-                              <button 
-                                onClick={() => {
-                                  const fullUrl = resolveImageUrl(item.image_path);
-                                  Swal.fire({
-                                    imageUrl: fullUrl,
-                                    imageAlt: 'หลักฐานค่าแรกเข้า',
-                                    width: 'auto',
-                                    showConfirmButton: false,
-                                    showCloseButton: true,
-                                    customClass: {
-                                      image: 'max-h-[80vh] object-contain rounded-xl'
-                                    }
-                                  });
-                                }}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                ดูหลักฐาน
-                              </button>
-                            )}
+                            <div className="flex gap-2 mt-2 w-full">
+                              {item.image_path && item.image_path !== 'รับหน้างาน' && (
+                                <button 
+                                  onClick={() => {
+                                    const fullUrl = resolveImageUrl(item.image_path);
+                                    Swal.fire({
+                                      imageUrl: fullUrl,
+                                      imageAlt: 'หลักฐานค่าแรกเข้า',
+                                      width: 'auto',
+                                      showConfirmButton: false,
+                                      showCloseButton: true,
+                                      customClass: {
+                                        image: 'max-h-[80vh] object-contain rounded-xl'
+                                      }
+                                    });
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  ดูหลักฐาน
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button 
+                                  onClick={() => setEditingRecord(item)}
+                                  className={`${(!item.image_path || item.image_path === 'รับหน้างาน') ? 'w-full' : 'flex-1'} flex items-center justify-center gap-2 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 font-bold text-sm rounded-xl transition-all shadow-sm active:scale-95`}
+                                >
+                                  ✏️ แก้ไข
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -912,6 +924,16 @@ export default function EntryFeePage() {
                                   </div>
                                 </td>
                                 <td className="py-4 px-5 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {isAdmin && (
+                                      <button 
+                                        onClick={() => setEditingRecord(item)}
+                                        className="inline-flex items-center justify-center p-2.5 bg-white border border-[#E5E7EB] hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 text-[#6B7280] rounded-xl transition-all shadow-sm hover:shadow-md active:scale-95 cursor-pointer"
+                                        title="แก้ไข"
+                                      >
+                                        ✏️
+                                      </button>
+                                    )}
                                   {item.image_path && item.image_path !== 'รับหน้างาน' ? (
                                     <button 
                                       onClick={() => {
@@ -931,12 +953,13 @@ export default function EntryFeePage() {
                                       title="ดูรูปภาพ"
                                     >
                                       <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                       </svg>
                                     </button>
                                   ) : (
-                                    <span className="text-xs text-[#9CA3AF] italic bg-gray-50 px-2 py-1 rounded">—</span>
+                                    <span className="text-[#9CA3AF] text-sm font-medium mr-2">ไม่มีรูป</span>
                                   )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -959,6 +982,18 @@ export default function EntryFeePage() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      {/* Edit Modal */}
+      {editingRecord && (
+        <EntryFeeEditModal 
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          onSuccess={() => {
+            setEditingRecord(null);
+            fetchHistory();
+          }}
+        />
+      )}
     </div>
   );
 }

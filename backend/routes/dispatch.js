@@ -1039,8 +1039,73 @@ router.post('/entry-fee', auth, upload.single('image'), async (req, res) => {
 
     return res.json({ message: 'Entry fee saved successfully', imagePath, fee_type: type });
   } catch (err) {
-    console.error('Entry Fee Error:', err);
-    res.status(500).json({ error: 'Server Error: ' + err.message });
+    console.error('Entry fee error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /api/dispatch/entry-fee/:id — Update Entry Fee ──
+router.put('/entry-fee/:id', auth, requireRole(ADMIN_ROLES), upload.single('image'), async (req, res) => {
+  try {
+    const feeId = req.params.id;
+    const { access_no, customer_name, fee_type, backdate, target_user_id, admin_date, network_provider } = req.body;
+    
+    if (!access_no) return res.status(400).json({ error: 'Missing access_no' });
+    if (!customer_name) return res.status(400).json({ error: 'Missing customer_name' });
+    
+    const [old] = await pool.query('SELECT * FROM entry_fees WHERE id = ?', [feeId]);
+    if (old.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    let imagePath = old[0].image_path;
+    const type = fee_type || old[0].fee_type;
+    
+    if (type === 'slip' || type === 'backdate') {
+      if (req.file) {
+        imagePath = '/uploads/' + req.file.filename;
+      }
+    } else if (type === 'cash') {
+      imagePath = 'รับหน้างาน';
+    }
+
+    let created_by = target_user_id || old[0].created_by;
+    let created_at = old[0].created_at;
+    if (admin_date) {
+      created_at = admin_date.includes(' ') ? admin_date : admin_date + ' 12:00:00';
+    }
+
+    await pool.query(
+      `UPDATE entry_fees 
+       SET access_no = ?, customer_name = ?, image_path = ?, created_by = ?, fee_type = ?, backdate = ?, network_provider = ?, created_at = ?
+       WHERE id = ?`,
+      [access_no, customer_name, imagePath, created_by, type, type === 'backdate' ? backdate : null, network_provider || old[0].network_provider, created_at, feeId]
+    );
+
+    // Sync entry_fee_status to customers table
+    try {
+      await pool.query(
+        `UPDATE customers SET entry_fee_status = ?, customer_name = ? WHERE access_no = ?`,
+        [type, customer_name, access_no]
+      );
+    } catch (e) {
+      console.error('Customers Sync Error on Update:', e.message);
+    }
+
+    res.json({ message: 'Updated successfully' });
+  } catch (err) {
+    console.error('Entry fee update error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── DELETE /api/dispatch/entry-fee/:id — Delete Entry Fee ──
+router.delete('/entry-fee/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const feeId = req.params.id;
+    await pool.query('DELETE FROM entry_fees WHERE id = ?', [feeId]);
+    res.json({ message: 'Deleted successfully' });
+  } catch (err) {
+    console.error('Entry fee delete error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
