@@ -738,6 +738,7 @@ export default function OilDashboardPage() {
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                   <thead>
                     <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                      <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-center w-12">ลำดับ</th>
                       <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่/เวลา</th>
                       <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">ชื่อผู้เติม / ทีม / ตำแหน่ง</th>
                       <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-right">เลขไมล์</th>
@@ -752,7 +753,7 @@ export default function OilDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3F4F6]">
-                    {records.map((r) => {
+                    {records.map((r, index) => {
                       const teamEff = efficiency.find(e => e.team_id === r.team_id);
                       const caseCount = teamEff ? parseInt(teamEff.case_count || 0) : 0;
                       const kmPerLiter = parseFloat(r.liters) > 0 ? (parseFloat(r.distance || 0) / parseFloat(r.liters)).toFixed(2) : '0.00';
@@ -761,6 +762,9 @@ export default function OilDashboardPage() {
 
                       return (
                         <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors group">
+                          <td className="p-4 text-sm text-[#9CA3AF] font-bold text-center">
+                            {index + 1}
+                          </td>
                           <td className="p-4 text-sm text-[#4B5563] font-medium whitespace-nowrap">
                             {thaiDateTime(r.date_recorded)}
                           </td>
@@ -925,6 +929,7 @@ export default function OilDashboardPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-center w-10">ลำดับ</th>
                       <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">วันที่เติม</th>
                       <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ชื่อผู้เติม</th>
                       <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ป้ายทะเบียน</th>
@@ -934,8 +939,11 @@ export default function OilDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F3F4F6]">
-                    {records.map(r => (
+                    {records.map((r, index) => (
                       <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
+                        <td className="p-3 text-sm text-[#9CA3AF] font-bold text-center">
+                          {index + 1}
+                        </td>
                         <td className="p-3 text-sm text-[#4B5563] font-medium whitespace-nowrap">
                           {thaiDate(r.date_recorded)}
                         </td>
