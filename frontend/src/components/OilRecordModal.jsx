@@ -48,6 +48,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const [loading, setLoading] = useState(false);
   const [isFillOnBehalf, setIsFillOnBehalf] = useState(false);
   const [fillerId, setFillerId] = useState('');
+  const [isTripMileage, setIsTripMileage] = useState(false);
 
   const handleTechChange = (e) => {
     const tId = e.target.value;
@@ -84,6 +85,10 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
         if (fillerTech) {
           formData.append('filler_name', fillerTech.full_name);
         }
+      }
+
+      if (isAdmin && isTripMileage) {
+        formData.append('is_trip', 'true');
       }
 
       await api.post('/oil/records', formData, {
@@ -343,12 +348,37 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           </div>
 
           {/* Mileage */}
-          <div>
-            <label className="block text-sm font-bold text-[#1F2937] mb-2">เลขไมล์ปัจจุบัน (กม.)</label>
+          <div className={`p-4 rounded-xl border ${isTripMileage ? 'border-red-400 bg-red-50' : 'border-[#E5E7EB] bg-white'} transition-colors`}>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-[#1F2937]">เลขไมล์ปัจจุบัน (กม.)</label>
+              {isAdmin && (
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input 
+                      type="checkbox" 
+                      className="peer appearance-none w-4 h-4 border-2 border-red-300 rounded bg-white checked:bg-red-500 checked:border-red-500 transition-all"
+                      checked={isTripMileage}
+                      onChange={(e) => setIsTripMileage(e.target.checked)}
+                    />
+                    <svg className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className={`text-xs font-bold ${isTripMileage ? 'text-red-600' : 'text-gray-500 group-hover:text-red-500'} transition-colors`}>
+                    กรณีไมล์ทริป
+                  </span>
+                </label>
+              )}
+            </div>
+            {isTripMileage && (
+              <p className="text-xs text-red-500 font-bold mb-2">
+                * เลขไมล์นี้จะไม่ถูกนำไปคำนวณอัตราสิ้นเปลือง แต่จะแสดงในประวัติ
+              </p>
+            )}
             <input
               required type="number"
               name="mileage" value={form.mileage} onChange={handleChange}
-              className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-mono font-bold tracking-wider text-[#1F2937] bg-white" 
+              className={`w-full px-4 py-3.5 rounded-xl border ${isTripMileage ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 text-red-600' : 'border-[#E5E7EB] focus:border-[#A3E635] focus:ring-[#A3E635]/20 text-[#1F2937]'} outline-none transition-all focus:ring-2 font-mono font-bold tracking-wider bg-white`} 
               placeholder="0"
             />
           </div>

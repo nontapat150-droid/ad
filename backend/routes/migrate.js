@@ -205,6 +205,11 @@ router.get('/migrate-entry-fee', async (req, res) => {
       results.push('✅ entry_fees update legacy cash values');
     } catch(e) { results.push('entry_fees update legacy: ' + e.message); }
 
+    try {
+      await pool.query(`ALTER TABLE oil_records ADD COLUMN is_trip BOOLEAN DEFAULT FALSE`);
+      results.push('✅ oil_records.is_trip added');
+    } catch(e) { results.push('oil_records.is_trip: ' + e.message); }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });

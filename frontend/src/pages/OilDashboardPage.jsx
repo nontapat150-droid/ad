@@ -784,7 +784,14 @@ export default function OilDashboardPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="p-4 text-sm font-black tracking-wide text-[#6B7280] whitespace-nowrap text-right">{r.mileage.toLocaleString()}</td>
+                          <td className="p-4 text-sm font-black tracking-wide text-[#6B7280] whitespace-nowrap text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <span>{r.mileage.toLocaleString()}</span>
+                              {r.is_trip ? (
+                                <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200">ไมล์ทริป</span>
+                              ) : null}
+                            </div>
+                          </td>
                           <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">{r.distance || 0}</td>
                           <td className="p-4 text-sm font-black tracking-wide text-[#374151] whitespace-nowrap text-right">{kmPerLiter}</td>
                           <td className="p-4 text-sm font-black tracking-wide text-indigo-600 font-bold whitespace-nowrap text-right">{caseCount}</td>
@@ -936,7 +943,14 @@ export default function OilDashboardPage() {
                           {r.filler_name ? r.filler_name : (r.tech_name || '-')}
                         </td>
                         <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
-                        <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">{r.mileage.toLocaleString()}</td>
+                        <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{r.mileage.toLocaleString()}</span>
+                            {r.is_trip ? (
+                              <span className="text-[9px] text-red-500 font-bold">ไมล์ทริป</span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="p-3 text-sm font-black tracking-wide text-[#374151] font-bold text-right">{r.distance || 0}</td>
                         <td className="p-3 text-sm font-bold text-emerald-600 text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
                       </tr>

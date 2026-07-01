@@ -86,7 +86,7 @@ router.post(
   async (req, res) => {
     const {
       tech_id, license_plate, liters, mileage, price_per_liter,
-      total_price, distance, filler_name, date_recorded,
+      total_price, distance, filler_name, date_recorded, is_trip
     } = req.body;
 
     if (!license_plate || !liters || !mileage || !price_per_liter) {
@@ -99,7 +99,9 @@ router.post(
 
     const targetDate = date_recorded ? new Date(date_recorded) : new Date();
 
-    const bahtPerKm = distance && distance > 0
+    const isTripMileage = is_trip === 'true' || is_trip === true;
+
+    const bahtPerKm = distance && distance > 0 && !isTripMileage
       ? (parseFloat(total_price) / parseFloat(distance)).toFixed(2)
       : 0;
 
@@ -138,12 +140,13 @@ router.post(
       const [result] = await conn.query(
         `INSERT INTO oil_records
            (tech_id, license_plate, liters, mileage, price_per_liter, total_price,
-            distance, baht_per_km, filler_name, date_recorded)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            distance, baht_per_km, filler_name, date_recorded, is_trip)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           targetTechId, license_plate, liters, mileage, price_per_liter,
-          total_price, distance || 0, bahtPerKm, filler_name || null,
+          total_price, isTripMileage ? 0 : (distance || 0), bahtPerKm, filler_name || null,
           (date_recorded ? date_recorded.replace('T', ' ') : null) || new Date(),
+          isTripMileage ? 1 : 0
         ]
       );
 
@@ -201,7 +204,7 @@ router.post('/recalculate', auth, async (req, res) => {
 
     // Get all records ordered by normalized license_plate and date_recorded
     const [records] = await conn.query(
-      `SELECT id, license_plate, mileage, total_price 
+      `SELECT id, license_plate, mileage, total_price, is_trip 
        FROM oil_records 
        ORDER BY REPLACE(LOWER(license_plate), ' ', '') ASC, date_recorded ASC, id ASC`
     );
@@ -213,14 +216,18 @@ router.post('/recalculate', auth, async (req, res) => {
       const plate = record.license_plate.replace(/\s+/g, '').toLowerCase();
       let distance = 0;
 
-      if (lastMileageByPlate[plate] !== undefined) {
-        distance = record.mileage - lastMileageByPlate[plate];
-        if (distance < 0) distance = 0;
+      if (record.is_trip) {
+        distance = 0;
+      } else {
+        if (lastMileageByPlate[plate] !== undefined) {
+          distance = record.mileage - lastMileageByPlate[plate];
+          if (distance < 0) distance = 0;
+        }
+        lastMileageByPlate[plate] = record.mileage;
       }
 
       const bahtPerKm = distance > 0 ? (parseFloat(record.total_price) / distance).toFixed(2) : 0;
       batchValues.push([distance, parseFloat(bahtPerKm), record.id]);
-      lastMileageByPlate[plate] = record.mileage;
     }
 
     // Batch update in chunks of 500 instead of one-by-one
