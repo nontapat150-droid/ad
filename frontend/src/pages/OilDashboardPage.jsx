@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear, thaiDateShort } from '../utils/thaiDate';
 import { getImageUrl } from '../utils/imageUtils';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
 // Tooltip shared between line and bar charts
@@ -1020,22 +1021,16 @@ export default function OilDashboardPage() {
                 {viewingImages.map((img, idx) => (
                   <div key={idx} className="group relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col">
                     <div className="flex-1 overflow-hidden bg-slate-100 relative">
-                      <img
-                        src={getImageUrl(img, 'oil_receipts')}
+                      <ImageWithFallback
+                        img={img}
+                        defaultFolder="oil_receipts"
                         alt={`Evidence ${idx + 1}`}
                         className="w-full h-full object-cover min-h-[300px] max-h-[600px] hover:scale-105 transition-transform duration-500 cursor-zoom-in"
-                        onClick={() => window.open(getImageUrl(img, 'oil_receipts'), '_blank')}
+                        onClick={(workingUrl) => window.open(workingUrl, '_blank')}
                       />
                       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-black text-[#042C53] shadow-sm border border-white">
                         รูปที่ {idx + 1}
                       </div>
-                      <button
-                        onClick={() => window.open(getImageUrl(img, 'oil_receipts'), '_blank')}
-                        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md text-[#185FA5] shadow-sm border border-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#185FA5] hover:text-white"
-                        title="เปิดรูปในแท็บใหม่"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                      </button>
                     </div>
                   </div>
                 ))}

@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { thaiDate, thaiDateTime, thaiTimeAgo, thaiMonthYear } from '../utils/thaiDate';
 import { getImageUrl } from '../utils/imageUtils';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
@@ -300,11 +301,12 @@ export default function TechOilHistoryPage() {
               {/* Full-size selected image */}
               {selectedImage && (
                 <div className="mb-4">
-                  <img
-                    src={getImageUrl(selectedImage, 'oil_receipts')}
+                  <ImageWithFallback
+                    img={selectedImage}
+                    defaultFolder="oil_receipts"
                     alt="Evidence"
                     className="w-full rounded-2xl border border-[#E5E7EB] shadow-sm cursor-zoom-in"
-                    onClick={() => window.open(getImageUrl(selectedImage, 'oil_receipts'), '_blank')}
+                    onClick={(workingUrl) => window.open(workingUrl, '_blank')}
                   />
                 </div>
               )}
@@ -315,8 +317,9 @@ export default function TechOilHistoryPage() {
                     onClick={() => setSelectedImage(img)}
                     className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all hover:shadow-md group ${selectedImage === img ? 'border-amber-400 shadow-md' : 'border-[#E5E7EB] hover:border-amber-300'}`}
                   >
-                    <img
-                      src={getImageUrl(img, 'oil_receipts')}
+                    <ImageWithFallback
+                      img={img}
+                      defaultFolder="oil_receipts"
                       alt={`Evidence ${idx + 1}`}
                       className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -458,8 +461,9 @@ function RecordCard({ record, onViewImages }) {
             className="flex items-center gap-2 bg-white hover:bg-amber-50 border border-[#E5E7EB] hover:border-amber-300 px-3 py-2 rounded-xl text-sm font-bold text-[#374151] hover:text-amber-700 transition-all active:scale-95 shadow-sm group"
           >
             <div className="relative">
-              <img
-                src={getImageUrl(r.images[0], 'oil_receipts')}
+              <ImageWithFallback
+                img={r.images[0]}
+                defaultFolder="oil_receipts"
                 alt="Evidence"
                 className="w-8 h-8 rounded-lg object-cover border border-[#E5E7EB] group-hover:border-amber-300 transition-colors"
               />
