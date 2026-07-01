@@ -10,11 +10,6 @@ export const getImageUrl = (img, defaultFolder = 'misc') => {
   const cleanImg = img.trim();
   if (cleanImg.startsWith('http')) return cleanImg;
   
-  // Use backend's /api/uploads fallback to bypass strict Nginx static interception
-  let base = api.defaults.baseURL || '';
-  if (base.endsWith('/')) {
-    base = base.slice(0, -1);
-  }
 
   const filename = cleanImg.split('/').pop();
   
@@ -26,5 +21,10 @@ export const getImageUrl = (img, defaultFolder = 'misc') => {
   else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
   else if (filename.startsWith('oil_receipts_')) folder = 'oil_receipts/';
   
-  return `/uploads/${folder}${filename}`;
+  let baseUrl = import.meta.env.VITE_API_URL || api.defaults.baseURL || '';
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1);
+  }
+  
+  return `${baseUrl}/uploads/${folder}${filename}`;
 };
