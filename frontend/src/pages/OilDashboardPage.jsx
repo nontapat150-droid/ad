@@ -279,6 +279,339 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
 }
 
 
+// ── Vehicle Summary Modal with Anomaly Detection ──────────────────────
+function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('cards'); // 'cards' | 'anomalies'
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      setLoading(true);
+      try {
+        const queryParams = new URLSearchParams();
+        if (startDate) queryParams.append('start_date', startDate);
+        if (endDate) queryParams.append('end_date', endDate);
+        if (selectedTeams && selectedTeams.length > 0) queryParams.append('team_ids', selectedTeams.join(','));
+        const res = await api.get(`/oil/vehicle-summary?${queryParams.toString()}`);
+        setData(res.data);
+      } catch (err) {
+        console.error('Vehicle summary error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSummary();
+  }, [startDate, endDate, selectedTeams]);
+
+  const vehicles = data?.vehicles || [];
+  const anomalies = data?.anomalies || [];
+  const fleet = data?.fleetAvg || {};
+
+  // Severity color mapping for anomaly alerts
+  const severityConfig = {
+    high:   { bg: 'bg-rose-50',  border: 'border-rose-200', icon: '🚨', text: 'text-rose-700', badge: 'bg-rose-100 text-rose-700', label: 'สำคัญ' },
+    medium: { bg: 'bg-amber-50', border: 'border-amber-200', icon: '⚠️', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-700', label: 'ปานกลาง' },
+    low:    { bg: 'bg-sky-50',   border: 'border-sky-200',   icon: 'ℹ️', text: 'text-sky-700',   badge: 'bg-sky-100 text-sky-700',   label: 'แจ้งเตือน' },
+  };
+
+  // Compute max cost for comparison bar widths
+  const maxCost = Math.max(...vehicles.map(v => v.total_cost), 1);
+  const maxDistance = Math.max(...vehicles.map(v => v.total_distance), 1);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#1F2937]/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+      <div className="bg-white rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-scale-up">
+
+        {/* Header */}
+        <div className="p-5 md:p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-gradient-to-r from-[#F9FAFB] to-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#185FA5] to-[#1e40af] text-white flex items-center justify-center text-xl shadow-md">
+              📊
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-[#1F2937]">สรุปข้อมูลรถ & ตรวจจับความผิดปกติ</h2>
+              <p className="text-sm font-medium text-[#6B7280]">
+                วิเคราะห์เปรียบเทียบรถแต่ละคัน {vehicles.length > 0 ? `• ${vehicles.length} คัน` : ''}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-[#E5E7EB] text-[#6B7280] rounded-xl transition-colors">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {/* View Tabs */}
+        <div className="flex items-center gap-2 px-5 md:px-6 pt-4 pb-0 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-[#F3F4F6] rounded-xl">
+            <button
+              onClick={() => setActiveView('cards')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeView === 'cards' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+              }`}>
+              📋 สรุปรายคัน
+            </button>
+            <button
+              onClick={() => setActiveView('anomalies')}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all relative ${
+                activeView === 'anomalies' ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-[#6B7280] hover:text-[#374151]'
+              }`}>
+              🔍 ตรวจจับผิดปกติ
+              {anomalies.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-sm">
+                  {anomalies.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 md:p-6 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-12 h-12 border-4 border-[#E5E7EB] border-t-[#185FA5] rounded-full animate-spin mb-4" />
+              <p className="text-[#6B7280] font-bold">กำลังวิเคราะห์ข้อมูล...</p>
+            </div>
+          ) : vehicles.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-[#9CA3AF]">
+              <span className="text-5xl mb-4 opacity-40">🚗</span>
+              <p className="font-bold text-lg">ไม่มีข้อมูลในช่วงเวลานี้</p>
+            </div>
+          ) : activeView === 'cards' ? (
+            <div className="flex flex-col gap-5">
+
+              {/* Fleet Average Overview */}
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 p-5 rounded-2xl border border-[#E5E7EB] shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-lg">📈</span>
+                  <h3 className="font-black text-[#374151] text-sm">ค่าเฉลี่ยของรถทั้งหมด ({fleet.total_vehicles || 0} คัน)</h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">ค่าใช้จ่าย/คัน</div>
+                    <div className="text-lg font-black text-emerald-600">฿{(fleet.avg_cost || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">ลิตร/คัน</div>
+                    <div className="text-lg font-black text-amber-500">{(fleet.avg_liters || 0).toFixed(1)}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">ระยะทาง/คัน</div>
+                    <div className="text-lg font-black text-blue-600">{(fleet.avg_distance || 0).toLocaleString()} กม.</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">เติม/คัน</div>
+                    <div className="text-lg font-black text-violet-600">{(fleet.avg_refuels || 0).toFixed(1)} ครั้ง</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">กม./ลิตร</div>
+                    <div className="text-lg font-black text-teal-600">{(fleet.avg_km_per_liter || 0).toFixed(2)}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] shadow-sm">
+                    <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1">บาท/กม.</div>
+                    <div className="text-lg font-black text-orange-600">฿{(fleet.avg_cost_per_km || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Per-Vehicle Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {vehicles.map((v, idx) => {
+                  const hasAnomaly = anomalies.some(a => a.license_plate === v.license_plate);
+                  const vehicleAnomalies = anomalies.filter(a => a.license_plate === v.license_plate);
+                  const costBar = maxCost > 0 ? (v.total_cost / maxCost * 100) : 0;
+                  const distBar = maxDistance > 0 ? (v.total_distance / maxDistance * 100) : 0;
+
+                  return (
+                    <div
+                      key={v.license_plate}
+                      className={`bg-white rounded-2xl border shadow-sm p-5 hover:shadow-md transition-all ${
+                        hasAnomaly ? 'border-rose-200 ring-1 ring-rose-100' : 'border-[#E5E7EB]'
+                      }`}
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-sm ${
+                            hasAnomaly ? 'bg-gradient-to-br from-rose-400 to-rose-600' : 'bg-gradient-to-br from-slate-600 to-slate-800'
+                          }`}>
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <div className="text-lg font-black text-[#1F2937]">{v.license_plate}</div>
+                            <div className="text-[11px] font-medium text-[#9CA3AF]">
+                              เติม {v.refuel_count} ครั้ง
+                            </div>
+                          </div>
+                        </div>
+                        {hasAnomaly && (
+                          <span className="px-2.5 py-1 bg-rose-100 text-rose-700 text-[10px] font-black rounded-full flex items-center gap-1">
+                            🚨 พบ {vehicleAnomalies.length} จุดผิดปกติ
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mb-4">
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">💰 ค่าใช้จ่ายรวม</span>
+                          <span className="font-black text-emerald-600">฿{v.total_cost.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">⛽ ลิตรรวม</span>
+                          <span className="font-black text-amber-500">{v.total_liters.toFixed(1)} L</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">🛣️ ระยะทางรวม</span>
+                          <span className="font-black text-blue-600">{v.total_distance.toLocaleString()} กม.</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">📊 กม./ลิตร</span>
+                          <span className="font-black text-teal-600">{v.km_per_liter}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">💵 เฉลี่ย/ครั้ง</span>
+                          <span className="font-black text-[#374151]">฿{v.avg_cost_per_refuel.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm border-b border-[#F3F4F6] pb-2">
+                          <span className="text-[#6B7280] font-medium text-xs">🔧 บาท/กม.</span>
+                          <span className="font-black text-orange-600">฿{v.cost_per_km}</span>
+                        </div>
+                      </div>
+
+                      {/* Comparison Bars */}
+                      <div className="space-y-2">
+                        <div>
+                          <div className="flex justify-between text-[10px] font-bold text-[#9CA3AF] mb-1">
+                            <span>ค่าใช้จ่าย (เทียบกับคันอื่น)</span>
+                            <span>{costBar.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-2 bg-[#F3F4F6] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${costBar > 80 ? 'bg-rose-400' : costBar > 50 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                              style={{ width: `${costBar}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-[10px] font-bold text-[#9CA3AF] mb-1">
+                            <span>ระยะทาง (เทียบกับคันอื่น)</span>
+                            <span>{distBar.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-2 bg-[#F3F4F6] rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-400 rounded-full transition-all duration-700"
+                              style={{ width: `${distBar}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Inline anomaly hints */}
+                      {vehicleAnomalies.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {vehicleAnomalies.map((a, ai) => {
+                            const sc = severityConfig[a.severity] || severityConfig.low;
+                            return (
+                              <div key={ai} className={`${sc.bg} ${sc.border} border rounded-xl px-3 py-2 text-[11px] ${sc.text} font-bold flex items-start gap-2`}>
+                                <span className="shrink-0 text-sm">{sc.icon}</span>
+                                <span className="leading-relaxed">{a.message}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Anomalies Tab */
+            <div className="flex flex-col gap-4">
+              {anomalies.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-[#9CA3AF]">
+                  <span className="text-5xl mb-4">✅</span>
+                  <p className="font-black text-lg text-emerald-600">ไม่พบความผิดปกติ</p>
+                  <p className="font-medium text-sm mt-1">รถทุกคันมีพฤติกรรมการใช้น้ำมันอยู่ในเกณฑ์ปกติ</p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">🔍</span>
+                      <h3 className="font-black text-rose-800 text-sm">พบ {anomalies.length} รายการผิดปกติ</h3>
+                    </div>
+                    <p className="text-xs text-rose-600 font-medium">ระบบเปรียบเทียบข้อมูลของรถแต่ละคันกับค่าเฉลี่ยของรถทั้งหมด หากพบความแตกต่างมากกว่า 40% จะถูกแจ้งเตือน</p>
+                  </div>
+
+                  {/* Group anomalies by severity */}
+                  {['high', 'medium', 'low'].map(severity => {
+                    const filtered = anomalies.filter(a => a.severity === severity);
+                    if (filtered.length === 0) return null;
+                    const sc = severityConfig[severity];
+
+                    return (
+                      <div key={severity}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className={`text-xs font-black px-2.5 py-1 rounded-full ${sc.badge}`}>
+                            {sc.icon} {sc.label} ({filtered.length})
+                          </span>
+                        </div>
+                        <div className="space-y-3">
+                          {filtered.map((a, i) => (
+                            <div key={i} className={`${sc.bg} ${sc.border} border rounded-2xl p-4 shadow-sm`}>
+                              <div className="flex items-start gap-3">
+                                <span className="text-2xl shrink-0">{sc.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="font-black text-[#1F2937] text-sm bg-white px-2.5 py-1 rounded-lg border border-[#E5E7EB] shadow-sm">
+                                      🚗 {a.license_plate}
+                                    </span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.badge}`}>
+                                      {a.type === 'high_cost_low_distance' ? 'ค่าใช้จ่ายสูง-ระยะทางน้อย'
+                                        : a.type === 'low_efficiency' ? 'อัตราสิ้นเปลืองสูง'
+                                        : a.type === 'high_cost_per_km' ? 'ต้นทุน/กม. สูง'
+                                        : 'เติมบ่อย'}
+                                    </span>
+                                  </div>
+                                  <p className={`${sc.text} font-bold text-sm leading-relaxed`}>{a.message}</p>
+                                  <p className="text-[11px] text-[#6B7280] font-medium mt-1">{a.detail}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-between items-center shrink-0">
+          <div className="text-xs text-[#9CA3AF] font-medium">
+            {anomalies.length > 0 && (
+              <span className="text-rose-500 font-bold">⚠️ {anomalies.length} รายการต้องตรวจสอบ</span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-xl bg-[#1F2937] text-white font-bold hover:bg-[#374151] transition-all shadow-sm active:scale-95"
+          >
+            ปิดหน้าต่าง
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function OilDashboardPage() {
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
@@ -858,141 +1191,14 @@ export default function OilDashboardPage() {
 
       {showModal && <OilRecordModal onClose={() => setShowModal(false)} onSuccess={fetchData} />}
 
-      {/* Summary Modal */}
+      {/* Summary Modal — Vehicle Analysis with Anomaly Detection */}
       {showSummaryModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#1F2937]/80 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-scale-up">
-            <div className="p-6 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB] shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#185FA5] text-white flex items-center justify-center font-bold text-xl shadow-sm">📄</div>
-                <div>
-                  <h2 className="text-xl font-black text-[#1F2937]">สรุปข้อมูลการเติมน้ำมัน</h2>
-                  <p className="text-sm font-medium text-[#6B7280]">สรุปรายการประวัติการเติมน้ำมันที่แสดงอยู่ปัจจุบัน</p>
-                </div>
-              </div>
-              <button onClick={() => setShowSummaryModal(false)} className="p-2 hover:bg-[#E5E7EB] text-[#6B7280] rounded-xl transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto bg-white flex-1">
-              <div className="mb-6">
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm">
-                  <div className="mb-3">
-                    <div className="text-sm font-bold text-blue-700 mb-1">ความถี่ในการเติมน้ำมันโดยเฉลี่ย (รายคัน)</div>
-                    <div className="text-xs font-medium text-blue-600">ระยะห่างเฉลี่ยของการเติมน้ำมันแต่ละครั้งของรถแต่ละคัน</div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {(() => {
-                      if (!records || records.length < 2) return <div className="text-sm font-bold text-blue-700">-</div>;
-                      const recordsByPlate = {};
-                      records.forEach(r => {
-                        const plate = r.license_plate || r.team_name || 'ไม่ระบุ';
-                        if (!recordsByPlate[plate]) recordsByPlate[plate] = [];
-                        recordsByPlate[plate].push(new Date(r.date_recorded).getTime());
-                      });
-                      
-                      const freqElements = [];
-                      Object.keys(recordsByPlate).forEach(plate => {
-                        const dates = recordsByPlate[plate];
-                        if (dates.length < 2) {
-                          freqElements.push(
-                            <div key={plate} className="bg-white p-3 rounded-xl border border-blue-100 flex flex-col">
-                              <span className="text-[11px] text-slate-500 font-bold">{plate}</span>
-                              <span className="text-sm font-black text-slate-400">ข้อมูลไม่พอ</span>
-                            </div>
-                          );
-                          return;
-                        }
-                        
-                        dates.sort((a, b) => a - b);
-                        let totalDays = 0;
-                        for (let i = 1; i < dates.length; i++) {
-                          totalDays += (dates[i] - dates[i-1]) / (1000 * 60 * 60 * 24);
-                        }
-                        const freq = totalDays / (dates.length - 1);
-                        
-                        freqElements.push(
-                          <div key={plate} className="bg-white p-3 rounded-xl border border-blue-100 flex flex-col shadow-sm">
-                            <span className="text-[11px] text-blue-600 font-bold">{plate}</span>
-                            <span className="text-lg font-black text-blue-700">{freq.toFixed(1)} <span className="text-[10px] text-blue-500 font-bold">วัน/ครั้ง</span></span>
-                          </div>
-                        );
-                      });
-                      
-                      return freqElements;
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto border border-[#E5E7EB] rounded-2xl shadow-sm">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-center w-10">ลำดับ</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">วันที่เติม</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ชื่อผู้เติม</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider">ป้ายทะเบียน</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">เลขไมล์</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">ระยะทาง (กม.)</th>
-                      <th className="p-3 text-[12px] font-bold text-[#6B7280] uppercase tracking-wider text-right">ยอดรวม (บาท)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#F3F4F6]">
-                    {records.map((r, index) => (
-                      <tr key={r.id} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="p-3 text-sm text-[#9CA3AF] font-bold text-center">
-                          {index + 1}
-                        </td>
-                        <td className="p-3 text-sm text-[#4B5563] font-medium whitespace-nowrap">
-                          {thaiDate(r.date_recorded)}
-                        </td>
-                        <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">
-                          {r.filler_name ? r.filler_name : (r.tech_name || '-')}
-                        </td>
-                        <td className="p-3 text-sm text-[#1F2937] font-bold whitespace-nowrap">{r.license_plate || r.team_name || '-'}</td>
-                        <td className="p-3 text-sm font-black tracking-wide text-[#6B7280] text-right">
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span>{r.mileage.toLocaleString()}</span>
-                            {r.is_trip ? (
-                              <span className="text-[9px] text-red-500 font-bold">ไมล์ทริป</span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="p-3 text-sm font-black tracking-wide text-[#374151] font-bold text-right">{r.distance || 0}</td>
-                        <td className="p-3 text-sm font-bold text-emerald-600 text-right">฿{parseFloat(r.total_price).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                    {records.length === 0 && (
-                      <tr>
-                        <td colSpan="6" className="p-6 text-center text-[#9CA3AF] font-bold">ไม่มีข้อมูลประวัติ</td>
-                      </tr>
-                    )}
-                  </tbody>
-                  {records.length > 0 && (
-                    <tfoot className="bg-[#F9FAFB] border-t border-[#E5E7EB]">
-                      <tr>
-                        <td colSpan="4" className="p-4 text-right font-bold text-[#374151]">รวมทั้งหมด:</td>
-                        <td className="p-4 text-right font-black tracking-wide text-[#1F2937] text-lg">{records.reduce((sum, r) => sum + (parseFloat(r.distance) || 0), 0).toLocaleString()}</td>
-                        <td className="p-4 text-right font-black text-emerald-600 text-lg">฿{records.reduce((sum, r) => sum + parseFloat(r.total_price), 0).toLocaleString()}</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-[#E5E7EB] bg-[#F9FAFB] flex justify-end shrink-0">
-              <button 
-                onClick={() => setShowSummaryModal(false)}
-                className="px-6 py-2.5 rounded-xl bg-[#1F2937] text-white font-bold hover:bg-[#374151] transition-all shadow-sm active:scale-95"
-              >
-                ปิดหน้าต่าง
-              </button>
-            </div>
-          </div>
-        </div>
+        <VehicleSummaryModal
+          onClose={() => setShowSummaryModal(false)}
+          startDate={startDate}
+          endDate={endDate}
+          selectedTeams={selectedTeams}
+        />
       )}
 
       {/* Evidence Images Modal */}

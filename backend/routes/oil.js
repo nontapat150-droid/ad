@@ -618,4 +618,171 @@ router.get('/team-records', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/oil/vehicle-summary — Per-vehicle summary with anomaly detection ──
+router.get('/vehicle-summary', auth, async (req, res) => {
+  const { start_date, end_date, team_ids } = req.query;
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
+
+  let where = [];
+  let params = [];
+
+  if (!isAdmin) {
+    where.push('r.tech_id = ?');
+    params.push(req.user.id);
+  } else if (team_ids) {
+    where.push('u.team_id IN (?)');
+    params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
+  }
+
+  if (start_date && end_date) {
+    where.push("DATE(r.date_recorded) BETWEEN ? AND ?");
+    params.push(start_date, end_date);
+  }
+
+  const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+  try {
+    // Per-vehicle aggregation
+    const [vehicles] = await pool.query(`
+      SELECT 
+        r.license_plate,
+        COUNT(*) AS refuel_count,
+        COALESCE(SUM(r.total_price), 0) AS total_cost,
+        COALESCE(SUM(r.liters), 0) AS total_liters,
+        COALESCE(SUM(r.distance), 0) AS total_distance,
+        COALESCE(AVG(r.price_per_liter), 0) AS avg_price_per_liter,
+        MAX(r.mileage) AS latest_mileage,
+        MIN(r.mileage) AS earliest_mileage,
+        MIN(r.date_recorded) AS first_refuel,
+        MAX(r.date_recorded) AS last_refuel
+      FROM oil_records r
+      LEFT JOIN users u ON u.id = r.tech_id
+      ${whereClause}
+      GROUP BY r.license_plate
+      ORDER BY total_cost DESC
+    `, params);
+
+    // Calculate fleet-wide averages for anomaly detection
+    const totalVehicles = vehicles.length;
+    if (totalVehicles === 0) {
+      return res.json({ vehicles: [], anomalies: [], fleetAvg: {} });
+    }
+
+    const fleetTotalCost = vehicles.reduce((s, v) => s + parseFloat(v.total_cost), 0);
+    const fleetTotalLiters = vehicles.reduce((s, v) => s + parseFloat(v.total_liters), 0);
+    const fleetTotalDistance = vehicles.reduce((s, v) => s + parseFloat(v.total_distance), 0);
+    const fleetTotalRefuels = vehicles.reduce((s, v) => s + parseInt(v.refuel_count), 0);
+
+    const fleetAvg = {
+      avg_cost: fleetTotalCost / totalVehicles,
+      avg_liters: fleetTotalLiters / totalVehicles,
+      avg_distance: fleetTotalDistance / totalVehicles,
+      avg_refuels: fleetTotalRefuels / totalVehicles,
+      avg_km_per_liter: fleetTotalLiters > 0 ? (fleetTotalDistance / fleetTotalLiters) : 0,
+      avg_cost_per_km: fleetTotalDistance > 0 ? (fleetTotalCost / fleetTotalDistance) : 0,
+    };
+
+    // Enriched vehicle data with computed metrics
+    const enrichedVehicles = vehicles.map(v => {
+      const cost = parseFloat(v.total_cost);
+      const liters = parseFloat(v.total_liters);
+      const distance = parseFloat(v.total_distance);
+      const refuels = parseInt(v.refuel_count);
+
+      return {
+        ...v,
+        total_cost: cost,
+        total_liters: liters,
+        total_distance: distance,
+        refuel_count: refuels,
+        km_per_liter: liters > 0 ? parseFloat((distance / liters).toFixed(2)) : 0,
+        cost_per_km: distance > 0 ? parseFloat((cost / distance).toFixed(2)) : 0,
+        avg_cost_per_refuel: refuels > 0 ? parseFloat((cost / refuels).toFixed(2)) : 0,
+        avg_liters_per_refuel: refuels > 0 ? parseFloat((liters / refuels).toFixed(2)) : 0,
+      };
+    });
+
+    // Anomaly detection: compare each vehicle against fleet average
+    const anomalies = [];
+    const THRESHOLD = 0.4; // 40% deviation from average is flagged
+
+    for (const v of enrichedVehicles) {
+      // Anomaly: High cost but low distance (possible fuel misuse)
+      if (fleetAvg.avg_cost > 0 && fleetAvg.avg_distance > 0) {
+        const costRatio = v.total_cost / fleetAvg.avg_cost;
+        const distRatio = v.total_distance / fleetAvg.avg_distance;
+        if (costRatio > (1 + THRESHOLD) && distRatio < (1 - THRESHOLD)) {
+          anomalies.push({
+            license_plate: v.license_plate,
+            type: 'high_cost_low_distance',
+            severity: 'high',
+            message: `${v.license_plate} จ่ายค่าน้ำมันสูงกว่าค่าเฉลี่ย ${((costRatio - 1) * 100).toFixed(0)}% แต่วิ่งระยะทางน้อยกว่าค่าเฉลี่ย ${((1 - distRatio) * 100).toFixed(0)}%`,
+            detail: `ค่าใช้จ่าย ฿${v.total_cost.toLocaleString()} (เฉลี่ย ฿${fleetAvg.avg_cost.toFixed(0).toLocaleString()}) | ระยะทาง ${v.total_distance.toLocaleString()} กม. (เฉลี่ย ${fleetAvg.avg_distance.toFixed(0).toLocaleString()} กม.)`
+          });
+        }
+      }
+
+      // Anomaly: Very low km/liter (fuel efficiency problem)
+      if (fleetAvg.avg_km_per_liter > 0 && v.km_per_liter > 0) {
+        const effRatio = v.km_per_liter / fleetAvg.avg_km_per_liter;
+        if (effRatio < (1 - THRESHOLD)) {
+          anomalies.push({
+            license_plate: v.license_plate,
+            type: 'low_efficiency',
+            severity: 'medium',
+            message: `${v.license_plate} มีอัตราสิ้นเปลืองน้ำมันสูงผิดปกติ (${v.km_per_liter} กม./ลิตร) ต่ำกว่าค่าเฉลี่ย ${((1 - effRatio) * 100).toFixed(0)}%`,
+            detail: `กม./ลิตร: ${v.km_per_liter} (เฉลี่ย ${fleetAvg.avg_km_per_liter.toFixed(2)})`
+          });
+        }
+      }
+
+      // Anomaly: High cost per km
+      if (fleetAvg.avg_cost_per_km > 0 && v.cost_per_km > 0) {
+        const cpkRatio = v.cost_per_km / fleetAvg.avg_cost_per_km;
+        if (cpkRatio > (1 + THRESHOLD)) {
+          anomalies.push({
+            license_plate: v.license_plate,
+            type: 'high_cost_per_km',
+            severity: 'medium',
+            message: `${v.license_plate} มีต้นทุนต่อกิโลเมตรสูงกว่าค่าเฉลี่ย ${((cpkRatio - 1) * 100).toFixed(0)}% (฿${v.cost_per_km}/กม.)`,
+            detail: `ต้นทุน/กม.: ฿${v.cost_per_km} (เฉลี่ย ฿${fleetAvg.avg_cost_per_km.toFixed(2)})`
+          });
+        }
+      }
+
+      // Anomaly: Unusually high refuel frequency
+      if (fleetAvg.avg_refuels > 0) {
+        const refuelRatio = v.refuel_count / fleetAvg.avg_refuels;
+        if (refuelRatio > (1 + THRESHOLD * 1.5)) {
+          anomalies.push({
+            license_plate: v.license_plate,
+            type: 'high_refuel_freq',
+            severity: 'low',
+            message: `${v.license_plate} เติมน้ำมันบ่อยกว่าค่าเฉลี่ย ${((refuelRatio - 1) * 100).toFixed(0)}% (${v.refuel_count} ครั้ง)`,
+            detail: `จำนวนครั้ง: ${v.refuel_count} (เฉลี่ย ${fleetAvg.avg_refuels.toFixed(1)})`
+          });
+        }
+      }
+    }
+
+    res.json({
+      vehicles: enrichedVehicles,
+      anomalies,
+      fleetAvg: {
+        avg_cost: parseFloat(fleetAvg.avg_cost.toFixed(2)),
+        avg_liters: parseFloat(fleetAvg.avg_liters.toFixed(2)),
+        avg_distance: parseFloat(fleetAvg.avg_distance.toFixed(2)),
+        avg_refuels: parseFloat(fleetAvg.avg_refuels.toFixed(1)),
+        avg_km_per_liter: parseFloat(fleetAvg.avg_km_per_liter.toFixed(2)),
+        avg_cost_per_km: parseFloat(fleetAvg.avg_cost_per_km.toFixed(2)),
+        total_vehicles: totalVehicles,
+      }
+    });
+  } catch (err) {
+    console.error('Vehicle summary error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 module.exports = router;
