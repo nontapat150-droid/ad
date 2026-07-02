@@ -703,72 +703,170 @@ router.get('/vehicle-summary', auth, async (req, res) => {
       };
     });
 
-    // Anomaly detection: compare each vehicle against fleet average
+    // Sort helpers for finding best/worst performers
+    const sortedByEfficiency = [...enrichedVehicles].filter(v => v.km_per_liter > 0).sort((a, b) => b.km_per_liter - a.km_per_liter);
+    const sortedByCostPerKm = [...enrichedVehicles].filter(v => v.cost_per_km > 0).sort((a, b) => a.cost_per_km - b.cost_per_km);
+    const sortedByCost = [...enrichedVehicles].sort((a, b) => a.total_cost - b.total_cost);
+    const sortedByDistance = [...enrichedVehicles].sort((a, b) => b.total_distance - a.total_distance);
+
+    // Anomaly detection: compare each vehicle against fleet average AND specific vehicles
     const anomalies = [];
     const THRESHOLD = 0.4; // 40% deviation from average is flagged
 
     for (const v of enrichedVehicles) {
-      // Anomaly: High cost but low distance (possible fuel misuse)
+      // ── Anomaly 1: High cost but low distance ──
       if (fleetAvg.avg_cost > 0 && fleetAvg.avg_distance > 0) {
         const costRatio = v.total_cost / fleetAvg.avg_cost;
         const distRatio = v.total_distance / fleetAvg.avg_distance;
         if (costRatio > (1 + THRESHOLD) && distRatio < (1 - THRESHOLD)) {
+          // Find the best counterpart: vehicle that spent less but drove more
+          const betterVehicles = enrichedVehicles
+            .filter(o => o.license_plate !== v.license_plate && o.total_cost < v.total_cost && o.total_distance > v.total_distance)
+            .sort((a, b) => (b.total_distance - a.total_distance));
+          const best = betterVehicles[0] || null;
+
+          const comparisons = [];
+          if (best) {
+            const costDiff = v.total_cost - best.total_cost;
+            const distDiff = best.total_distance - v.total_distance;
+            comparisons.push({
+              compare_plate: best.license_plate,
+              compare_cost: best.total_cost,
+              compare_distance: best.total_distance,
+              compare_liters: best.total_liters,
+              compare_km_per_liter: best.km_per_liter,
+              cost_diff: costDiff,
+              distance_diff: distDiff,
+              narrative: `${best.license_plate} จ่ายน้อยกว่า ฿${costDiff.toLocaleString()} แต่วิ่งได้มากกว่า ${distDiff.toLocaleString()} กม.`
+            });
+          }
+
           anomalies.push({
             license_plate: v.license_plate,
             type: 'high_cost_low_distance',
             severity: 'high',
-            message: `${v.license_plate} จ่ายค่าน้ำมันสูงกว่าค่าเฉลี่ย ${((costRatio - 1) * 100).toFixed(0)}% แต่วิ่งระยะทางน้อยกว่าค่าเฉลี่ย ${((1 - distRatio) * 100).toFixed(0)}%`,
-            detail: `ค่าใช้จ่าย ฿${v.total_cost.toLocaleString()} (เฉลี่ย ฿${fleetAvg.avg_cost.toFixed(0).toLocaleString()}) | ระยะทาง ${v.total_distance.toLocaleString()} กม. (เฉลี่ย ${fleetAvg.avg_distance.toFixed(0).toLocaleString()} กม.)`
+            message: `${v.license_plate} จ่ายค่าน้ำมัน ฿${v.total_cost.toLocaleString()} (สูงกว่าค่าเฉลี่ย ${((costRatio - 1) * 100).toFixed(0)}%) แต่วิ่งได้แค่ ${v.total_distance.toLocaleString()} กม. (น้อยกว่าค่าเฉลี่ย ${((1 - distRatio) * 100).toFixed(0)}%)`,
+            detail: `เติมน้ำมันไป ${v.total_liters.toFixed(1)} ลิตร จำนวน ${v.refuel_count} ครั้ง | ประสิทธิภาพ: ${v.km_per_liter} กม./ลิตร`,
+            formula: `สูตร: ค่าเบี่ยงเบน = (ค่าใช้จ่ายรถ ÷ ค่าเฉลี่ยทุกคัน) × 100 → (${v.total_cost.toLocaleString()} ÷ ${fleetAvg.avg_cost.toFixed(0)}) = ${(costRatio * 100).toFixed(0)}% | ระยะทาง: (${v.total_distance.toLocaleString()} ÷ ${fleetAvg.avg_distance.toFixed(0)}) = ${(distRatio * 100).toFixed(0)}%`,
+            data_source: `ข้อมูลจากตาราง oil_records ช่วง ${start_date || 'ทั้งหมด'} ถึง ${end_date || 'ปัจจุบัน'} | รถทั้งหมด ${totalVehicles} คัน`,
+            comparisons,
+            vehicle_data: { cost: v.total_cost, liters: v.total_liters, distance: v.total_distance, refuels: v.refuel_count, km_per_liter: v.km_per_liter, cost_per_km: v.cost_per_km },
+            fleet_data: { avg_cost: parseFloat(fleetAvg.avg_cost.toFixed(2)), avg_distance: parseFloat(fleetAvg.avg_distance.toFixed(2)), avg_km_per_liter: parseFloat(fleetAvg.avg_km_per_liter.toFixed(2)) }
           });
         }
       }
 
-      // Anomaly: Very low km/liter (fuel efficiency problem)
+      // ── Anomaly 2: Low km/liter efficiency ──
       if (fleetAvg.avg_km_per_liter > 0 && v.km_per_liter > 0) {
         const effRatio = v.km_per_liter / fleetAvg.avg_km_per_liter;
         if (effRatio < (1 - THRESHOLD)) {
+          const bestEffVehicle = sortedByEfficiency.find(o => o.license_plate !== v.license_plate);
+          const comparisons = [];
+          if (bestEffVehicle) {
+            const effDiff = bestEffVehicle.km_per_liter - v.km_per_liter;
+            comparisons.push({
+              compare_plate: bestEffVehicle.license_plate,
+              compare_km_per_liter: bestEffVehicle.km_per_liter,
+              compare_liters: bestEffVehicle.total_liters,
+              compare_distance: bestEffVehicle.total_distance,
+              eff_diff: effDiff,
+              narrative: `${bestEffVehicle.license_plate} (คันที่ดีที่สุด) เติม ${bestEffVehicle.total_liters.toFixed(1)} ลิตร วิ่งได้ ${bestEffVehicle.total_distance.toLocaleString()} กม. (${bestEffVehicle.km_per_liter} กม./ลิตร) ดีกว่า ${v.license_plate} อยู่ ${effDiff.toFixed(2)} กม./ลิตร`
+            });
+          }
+
           anomalies.push({
             license_plate: v.license_plate,
             type: 'low_efficiency',
             severity: 'medium',
-            message: `${v.license_plate} มีอัตราสิ้นเปลืองน้ำมันสูงผิดปกติ (${v.km_per_liter} กม./ลิตร) ต่ำกว่าค่าเฉลี่ย ${((1 - effRatio) * 100).toFixed(0)}%`,
-            detail: `กม./ลิตร: ${v.km_per_liter} (เฉลี่ย ${fleetAvg.avg_km_per_liter.toFixed(2)})`
+            message: `${v.license_plate} ได้ ${v.km_per_liter} กม./ลิตร ต่ำกว่าค่าเฉลี่ย ${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร อยู่ ${((1 - effRatio) * 100).toFixed(0)}% — เติมไป ${v.total_liters.toFixed(1)} ลิตร แต่วิ่งได้แค่ ${v.total_distance.toLocaleString()} กม.`,
+            detail: `ถ้าประสิทธิภาพเท่าค่าเฉลี่ย (${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร) ควรวิ่งได้ ${(v.total_liters * fleetAvg.avg_km_per_liter).toFixed(0).toLocaleString()} กม. แต่วิ่งจริงแค่ ${v.total_distance.toLocaleString()} กม. → หายไป ${((v.total_liters * fleetAvg.avg_km_per_liter) - v.total_distance).toFixed(0).toLocaleString()} กม.`,
+            formula: `สูตร: กม./ลิตร = ระยะทางรวม ÷ ลิตรรวม → ${v.total_distance.toLocaleString()} ÷ ${v.total_liters.toFixed(1)} = ${v.km_per_liter} กม./ลิตร | ค่าเฉลี่ยทุกคัน: ${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร (${fleetTotalDistance.toLocaleString()} ÷ ${fleetTotalLiters.toFixed(1)})`,
+            data_source: `ข้อมูลจากตาราง oil_records ช่วง ${start_date || 'ทั้งหมด'} ถึง ${end_date || 'ปัจจุบัน'} | รถทั้งหมด ${totalVehicles} คัน`,
+            comparisons,
+            vehicle_data: { cost: v.total_cost, liters: v.total_liters, distance: v.total_distance, refuels: v.refuel_count, km_per_liter: v.km_per_liter },
+            fleet_data: { avg_km_per_liter: parseFloat(fleetAvg.avg_km_per_liter.toFixed(2)) }
           });
         }
       }
 
-      // Anomaly: High cost per km
+      // ── Anomaly 3: High cost per km ──
       if (fleetAvg.avg_cost_per_km > 0 && v.cost_per_km > 0) {
         const cpkRatio = v.cost_per_km / fleetAvg.avg_cost_per_km;
         if (cpkRatio > (1 + THRESHOLD)) {
+          const bestCpkVehicle = sortedByCostPerKm.find(o => o.license_plate !== v.license_plate);
+          const comparisons = [];
+          if (bestCpkVehicle) {
+            const cpkDiff = v.cost_per_km - bestCpkVehicle.cost_per_km;
+            comparisons.push({
+              compare_plate: bestCpkVehicle.license_plate,
+              compare_cost_per_km: bestCpkVehicle.cost_per_km,
+              cpk_diff: cpkDiff,
+              narrative: `${bestCpkVehicle.license_plate} (คันที่ประหยัดสุด) ต้นทุน ฿${bestCpkVehicle.cost_per_km}/กม. ขณะที่ ${v.license_plate} อยู่ที่ ฿${v.cost_per_km}/กม. แพงกว่า ฿${cpkDiff.toFixed(2)}/กม.`
+            });
+          }
+
           anomalies.push({
             license_plate: v.license_plate,
             type: 'high_cost_per_km',
             severity: 'medium',
-            message: `${v.license_plate} มีต้นทุนต่อกิโลเมตรสูงกว่าค่าเฉลี่ย ${((cpkRatio - 1) * 100).toFixed(0)}% (฿${v.cost_per_km}/กม.)`,
-            detail: `ต้นทุน/กม.: ฿${v.cost_per_km} (เฉลี่ย ฿${fleetAvg.avg_cost_per_km.toFixed(2)})`
+            message: `${v.license_plate} ต้นทุน ฿${v.cost_per_km}/กม. สูงกว่าค่าเฉลี่ย ฿${fleetAvg.avg_cost_per_km.toFixed(2)}/กม. อยู่ ${((cpkRatio - 1) * 100).toFixed(0)}%`,
+            detail: `จ่าย ฿${v.total_cost.toLocaleString()} วิ่ง ${v.total_distance.toLocaleString()} กม. | ถ้าต้นทุนเท่าค่าเฉลี่ย ควรจ่ายแค่ ฿${(v.total_distance * fleetAvg.avg_cost_per_km).toFixed(0).toLocaleString()} → จ่ายเกินไป ฿${(v.total_cost - (v.total_distance * fleetAvg.avg_cost_per_km)).toFixed(0).toLocaleString()}`,
+            formula: `สูตร: ต้นทุน/กม. = ค่าใช้จ่ายรวม ÷ ระยะทางรวม → ฿${v.total_cost.toLocaleString()} ÷ ${v.total_distance.toLocaleString()} = ฿${v.cost_per_km}/กม. | ค่าเฉลี่ยทุกคัน: ฿${fleetAvg.avg_cost_per_km.toFixed(2)}/กม. (฿${fleetTotalCost.toLocaleString()} ÷ ${fleetTotalDistance.toLocaleString()})`,
+            data_source: `ข้อมูลจากตาราง oil_records ช่วง ${start_date || 'ทั้งหมด'} ถึง ${end_date || 'ปัจจุบัน'} | รถทั้งหมด ${totalVehicles} คัน`,
+            comparisons,
+            vehicle_data: { cost: v.total_cost, distance: v.total_distance, cost_per_km: v.cost_per_km },
+            fleet_data: { avg_cost_per_km: parseFloat(fleetAvg.avg_cost_per_km.toFixed(2)) }
           });
         }
       }
 
-      // Anomaly: Unusually high refuel frequency
+      // ── Anomaly 4: High refuel frequency ──
       if (fleetAvg.avg_refuels > 0) {
         const refuelRatio = v.refuel_count / fleetAvg.avg_refuels;
         if (refuelRatio > (1 + THRESHOLD * 1.5)) {
+          const leastRefuelVehicle = [...enrichedVehicles].filter(o => o.license_plate !== v.license_plate).sort((a, b) => a.refuel_count - b.refuel_count)[0];
+          const comparisons = [];
+          if (leastRefuelVehicle) {
+            comparisons.push({
+              compare_plate: leastRefuelVehicle.license_plate,
+              compare_refuels: leastRefuelVehicle.refuel_count,
+              compare_liters: leastRefuelVehicle.total_liters,
+              narrative: `${leastRefuelVehicle.license_plate} เติมแค่ ${leastRefuelVehicle.refuel_count} ครั้ง (${leastRefuelVehicle.total_liters.toFixed(1)} ลิตร) ขณะที่ ${v.license_plate} เติม ${v.refuel_count} ครั้ง (${v.total_liters.toFixed(1)} ลิตร) มากกว่า ${v.refuel_count - leastRefuelVehicle.refuel_count} ครั้ง`
+            });
+          }
+
           anomalies.push({
             license_plate: v.license_plate,
             type: 'high_refuel_freq',
             severity: 'low',
-            message: `${v.license_plate} เติมน้ำมันบ่อยกว่าค่าเฉลี่ย ${((refuelRatio - 1) * 100).toFixed(0)}% (${v.refuel_count} ครั้ง)`,
-            detail: `จำนวนครั้ง: ${v.refuel_count} (เฉลี่ย ${fleetAvg.avg_refuels.toFixed(1)})`
+            message: `${v.license_plate} เติมน้ำมัน ${v.refuel_count} ครั้ง มากกว่าค่าเฉลี่ย ${fleetAvg.avg_refuels.toFixed(1)} ครั้ง อยู่ ${((refuelRatio - 1) * 100).toFixed(0)}%`,
+            detail: `เติมรวม ${v.total_liters.toFixed(1)} ลิตร เฉลี่ยครั้งละ ${v.avg_liters_per_refuel} ลิตร | ค่าใช้จ่ายรวม ฿${v.total_cost.toLocaleString()} เฉลี่ยครั้งละ ฿${v.avg_cost_per_refuel.toLocaleString()}`,
+            formula: `สูตร: อัตราเบี่ยงเบน = (จำนวนเติมรถคันนี้ ÷ ค่าเฉลี่ยทุกคัน) × 100 → (${v.refuel_count} ÷ ${fleetAvg.avg_refuels.toFixed(1)}) = ${(refuelRatio * 100).toFixed(0)}% | เกณฑ์แจ้งเตือน: เกิน 160%`,
+            data_source: `ข้อมูลจากตาราง oil_records ช่วง ${start_date || 'ทั้งหมด'} ถึง ${end_date || 'ปัจจุบัน'} | รถทั้งหมด ${totalVehicles} คัน`,
+            comparisons,
+            vehicle_data: { refuels: v.refuel_count, liters: v.total_liters, avg_liters_per_refuel: v.avg_liters_per_refuel },
+            fleet_data: { avg_refuels: parseFloat(fleetAvg.avg_refuels.toFixed(1)) }
           });
         }
       }
     }
 
+    // Add formula explanations to the response
+    const formulas = {
+      km_per_liter: 'กม./ลิตร = ระยะทางรวม (กม.) ÷ ปริมาณน้ำมันรวม (ลิตร)',
+      cost_per_km: 'ต้นทุน/กม. = ค่าใช้จ่ายรวม (บาท) ÷ ระยะทางรวม (กม.)',
+      avg_cost_per_refuel: 'ค่าเฉลี่ยต่อครั้ง = ค่าใช้จ่ายรวม (บาท) ÷ จำนวนครั้งเติม',
+      fleet_avg_cost: `ค่าเฉลี่ยค่าใช้จ่าย/คัน = ค่าใช้จ่ายรวมทุกคัน (฿${fleetTotalCost.toLocaleString()}) ÷ จำนวนรถ (${totalVehicles}) = ฿${fleetAvg.avg_cost.toFixed(2)}`,
+      fleet_avg_distance: `ค่าเฉลี่ยระยะทาง/คัน = ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) ÷ จำนวนรถ (${totalVehicles}) = ${fleetAvg.avg_distance.toFixed(2)} กม.`,
+      fleet_avg_km_per_liter: `ค่าเฉลี่ย กม./ลิตร = ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) ÷ ลิตรรวมทุกคัน (${fleetTotalLiters.toFixed(1)} ลิตร) = ${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร`,
+      fleet_avg_cost_per_km: `ค่าเฉลี่ยต้นทุน/กม. = ค่าใช้จ่ายรวมทุกคัน (฿${fleetTotalCost.toLocaleString()}) ÷ ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) = ฿${fleetAvg.avg_cost_per_km.toFixed(2)}/กม.`,
+      anomaly_threshold: 'เกณฑ์แจ้งเตือน: เมื่อค่าของรถคันใดคันหนึ่งเบี่ยงเบนจากค่าเฉลี่ยมากกว่า 40% ระบบจะแจ้งเตือนเป็นความผิดปกติ',
+    };
+
     res.json({
       vehicles: enrichedVehicles,
       anomalies,
+      formulas,
       fleetAvg: {
         avg_cost: parseFloat(fleetAvg.avg_cost.toFixed(2)),
         avg_liters: parseFloat(fleetAvg.avg_liters.toFixed(2)),
@@ -777,6 +875,11 @@ router.get('/vehicle-summary', auth, async (req, res) => {
         avg_km_per_liter: parseFloat(fleetAvg.avg_km_per_liter.toFixed(2)),
         avg_cost_per_km: parseFloat(fleetAvg.avg_cost_per_km.toFixed(2)),
         total_vehicles: totalVehicles,
+        total_cost: parseFloat(fleetTotalCost.toFixed(2)),
+        total_liters: parseFloat(fleetTotalLiters.toFixed(2)),
+        total_distance: parseFloat(fleetTotalDistance.toFixed(2)),
+        total_refuels: fleetTotalRefuels,
+        date_range: { start: start_date || null, end: end_date || null },
       }
     });
   } catch (err) {

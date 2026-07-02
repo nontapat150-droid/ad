@@ -528,7 +528,7 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
               </div>
             </div>
           ) : (
-            /* Anomalies Tab */
+            /* Anomalies Tab — Detailed Analysis */
             <div className="flex flex-col gap-4">
               {anomalies.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-[#9CA3AF]">
@@ -538,13 +538,62 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                 </div>
               ) : (
                 <>
+                  {/* Summary Header */}
                   <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg">🔍</span>
                       <h3 className="font-black text-rose-800 text-sm">พบ {anomalies.length} รายการผิดปกติ</h3>
                     </div>
-                    <p className="text-xs text-rose-600 font-medium">ระบบเปรียบเทียบข้อมูลของรถแต่ละคันกับค่าเฉลี่ยของรถทั้งหมด หากพบความแตกต่างมากกว่า 40% จะถูกแจ้งเตือน</p>
+                    <p className="text-xs text-rose-600 font-medium">ระบบเปรียบเทียบข้อมูลของรถแต่ละคันกับค่าเฉลี่ยของรถทั้งหมด {fleet.total_vehicles || 0} คัน หากพบความแตกต่างมากกว่า 40% จะถูกแจ้งเตือน</p>
                   </div>
+
+                  {/* Data Source & Formulas Section */}
+                  {data?.formulas && (
+                    <details className="bg-slate-50 border border-[#E5E7EB] rounded-2xl overflow-hidden group">
+                      <summary className="p-4 cursor-pointer flex items-center gap-2 hover:bg-slate-100 transition-colors select-none">
+                        <span className="text-base">📐</span>
+                        <span className="font-black text-[#374151] text-sm">สูตรคำนวณ & แหล่งข้อมูล</span>
+                        <svg className="w-4 h-4 text-[#9CA3AF] ml-auto group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                      </summary>
+                      <div className="px-4 pb-4 space-y-3">
+                        {/* Data Source */}
+                        <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
+                          <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1.5">📂 แหล่งข้อมูล</div>
+                          <p className="text-xs text-[#374151] font-medium">
+                            ตาราง <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">oil_records</code> (บันทึกการเติมน้ำมัน)
+                            {fleet.date_range?.start && fleet.date_range?.end ? (
+                              <> • ช่วงวันที่: <span className="font-bold text-[#1F2937]">{fleet.date_range.start}</span> ถึง <span className="font-bold text-[#1F2937]">{fleet.date_range.end}</span></>
+                            ) : ' • ข้อมูลทั้งหมด'}
+                            {' '}• รถ <span className="font-bold text-[#1F2937]">{fleet.total_vehicles}</span> คัน
+                            {' '}• รวม <span className="font-bold text-[#1F2937]">{fleet.total_refuels}</span> รายการเติม
+                          </p>
+                        </div>
+
+                        {/* Fleet Totals */}
+                        <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
+                          <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-1.5">📊 ข้อมูลรวมทั้งหมด</div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div><span className="text-[#6B7280]">ค่าใช้จ่ายรวม:</span> <span className="font-bold text-emerald-600">฿{(fleet.total_cost || 0).toLocaleString()}</span></div>
+                            <div><span className="text-[#6B7280]">ลิตรรวม:</span> <span className="font-bold text-amber-500">{(fleet.total_liters || 0).toFixed(1)}</span></div>
+                            <div><span className="text-[#6B7280]">ระยะทางรวม:</span> <span className="font-bold text-blue-600">{(fleet.total_distance || 0).toLocaleString()} กม.</span></div>
+                            <div><span className="text-[#6B7280]">เติมรวม:</span> <span className="font-bold text-violet-600">{fleet.total_refuels || 0} ครั้ง</span></div>
+                          </div>
+                        </div>
+
+                        {/* Formulas */}
+                        <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
+                          <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">🧮 สูตรคำนวณค่าเฉลี่ย</div>
+                          <div className="space-y-1.5">
+                            {Object.entries(data.formulas).map(([key, formula]) => (
+                              <div key={key} className="text-[11px] text-[#4B5563] font-medium bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                                <code className="text-[10px] font-mono text-[#9CA3AF] mr-1">{key}:</code> {formula}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  )}
 
                   {/* Group anomalies by severity */}
                   {['high', 'medium', 'low'].map(severity => {
@@ -559,27 +608,67 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                             {sc.icon} {sc.label} ({filtered.length})
                           </span>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           {filtered.map((a, i) => (
-                            <div key={i} className={`${sc.bg} ${sc.border} border rounded-2xl p-4 shadow-sm`}>
-                              <div className="flex items-start gap-3">
-                                <span className="text-2xl shrink-0">{sc.icon}</span>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                    <span className="font-black text-[#1F2937] text-sm bg-white px-2.5 py-1 rounded-lg border border-[#E5E7EB] shadow-sm">
-                                      🚗 {a.license_plate}
-                                    </span>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.badge}`}>
-                                      {a.type === 'high_cost_low_distance' ? 'ค่าใช้จ่ายสูง-ระยะทางน้อย'
-                                        : a.type === 'low_efficiency' ? 'อัตราสิ้นเปลืองสูง'
-                                        : a.type === 'high_cost_per_km' ? 'ต้นทุน/กม. สูง'
-                                        : 'เติมบ่อย'}
-                                    </span>
+                            <div key={i} className={`${sc.bg} ${sc.border} border rounded-2xl shadow-sm overflow-hidden`}>
+                              {/* Anomaly Main Info */}
+                              <div className="p-4">
+                                <div className="flex items-start gap-3">
+                                  <span className="text-2xl shrink-0">{sc.icon}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                      <span className="font-black text-[#1F2937] text-sm bg-white px-2.5 py-1 rounded-lg border border-[#E5E7EB] shadow-sm">
+                                        🚗 {a.license_plate}
+                                      </span>
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sc.badge}`}>
+                                        {a.type === 'high_cost_low_distance' ? 'ค่าใช้จ่ายสูง-ระยะทางน้อย'
+                                          : a.type === 'low_efficiency' ? 'อัตราสิ้นเปลืองสูง'
+                                          : a.type === 'high_cost_per_km' ? 'ต้นทุน/กม. สูง'
+                                          : 'เติมบ่อย'}
+                                      </span>
+                                    </div>
+                                    <p className={`${sc.text} font-bold text-sm leading-relaxed`}>{a.message}</p>
+                                    <p className="text-[12px] text-[#4B5563] font-medium mt-1.5 leading-relaxed">{a.detail}</p>
                                   </div>
-                                  <p className={`${sc.text} font-bold text-sm leading-relaxed`}>{a.message}</p>
-                                  <p className="text-[11px] text-[#6B7280] font-medium mt-1">{a.detail}</p>
                                 </div>
                               </div>
+
+                              {/* Vehicle vs Vehicle Comparison */}
+                              {a.comparisons && a.comparisons.length > 0 && (
+                                <div className="mx-4 mb-3 bg-white rounded-xl border border-[#E5E7EB] p-3">
+                                  <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">⚖️ เปรียบเทียบกับรถคันอื่น</div>
+                                  {a.comparisons.map((c, ci) => (
+                                    <div key={ci} className="flex items-start gap-2">
+                                      <span className="text-sm shrink-0 mt-0.5">🏆</span>
+                                      <p className="text-[12px] text-[#374151] font-bold leading-relaxed">{c.narrative}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Formula & Data Source (collapsible) */}
+                              {(a.formula || a.data_source) && (
+                                <details className="border-t border-[#E5E7EB]/50 group/detail">
+                                  <summary className="px-4 py-2.5 cursor-pointer flex items-center gap-1.5 text-[11px] font-bold text-[#9CA3AF] hover:text-[#6B7280] transition-colors select-none">
+                                    <span>📐</span> ดูสูตรคำนวณและแหล่งข้อมูล
+                                    <svg className="w-3.5 h-3.5 ml-auto group-open/detail:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                                  </summary>
+                                  <div className="px-4 pb-3 space-y-2">
+                                    {a.formula && (
+                                      <div className="bg-white/80 px-3 py-2 rounded-lg border border-[#E5E7EB]/50">
+                                        <div className="text-[10px] font-bold text-[#9CA3AF] mb-0.5">🧮 สูตรคำนวณ</div>
+                                        <p className="text-[11px] text-[#4B5563] font-medium leading-relaxed font-mono">{a.formula}</p>
+                                      </div>
+                                    )}
+                                    {a.data_source && (
+                                      <div className="bg-white/80 px-3 py-2 rounded-lg border border-[#E5E7EB]/50">
+                                        <div className="text-[10px] font-bold text-[#9CA3AF] mb-0.5">📂 แหล่งข้อมูล</div>
+                                        <p className="text-[11px] text-[#4B5563] font-medium">{a.data_source}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </details>
+                              )}
                             </div>
                           ))}
                         </div>
