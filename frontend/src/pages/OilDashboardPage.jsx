@@ -1278,9 +1278,9 @@ export default function OilDashboardPage() {
                   สรุปข้อมูล
                 </button>
               </div>
-              <div className="overflow-x-auto w-full pb-2">
+              <div className="overflow-auto max-h-[600px] w-full pb-2 relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-white shadow-sm">
                     <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
                       <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider text-center w-12">ลำดับ</th>
                       <th className="p-4 font-bold text-[11px] text-[#6B7280] uppercase tracking-wider">วันที่/เวลา</th>
