@@ -504,7 +504,7 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                       <div className="bg-white/80 p-3 rounded-xl border border-violet-100">
                         <div className="text-[10px] font-black text-violet-600 uppercase mb-2">📈 วิธีคำนวณค่าเฉลี่ย (พร้อมตัวเลขจริง)</div>
                         <div className="space-y-1.5">
-                          {data.formulas && data.formulas.map((f, fi) => (
+                          {data.formulas && (Array.isArray(data.formulas) ? data.formulas : Object.entries(data.formulas).map(([k, v]) => ({ label: k, explanation: v }))).map((f, fi) => (
                             <div key={fi} className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
                               <span className="font-black text-violet-700">{f.label}:</span>{' '}
                               <span className="leading-relaxed">{f.explanation}</span>
@@ -705,7 +705,7 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                         <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
                           <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">🧮 วิธีคำนวณค่าเฉลี่ย</div>
                           <div className="space-y-1.5">
-                            {data.formulas.map((f, fi) => (
+                            {(Array.isArray(data.formulas) ? data.formulas : Object.entries(data.formulas).map(([k, v]) => ({ label: k, explanation: v }))).map((f, fi) => (
                               <div key={fi} className="text-[11px] text-[#4B5563] font-medium bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                                 <span className="font-bold text-[#374151]">{f.label}:</span>{' '}{f.explanation}
                               </div>
