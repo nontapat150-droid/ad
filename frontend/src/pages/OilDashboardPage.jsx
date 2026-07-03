@@ -500,14 +500,14 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                         </div>
                       </div>
 
-                      {/* Fleet average formulas with actual numbers */}
+                      {/* Fleet average formulas — user-friendly */}
                       <div className="bg-white/80 p-3 rounded-xl border border-violet-100">
-                        <div className="text-[10px] font-black text-violet-600 uppercase mb-2">📈 สูตรคำนวณค่าเฉลี่ยทั้ง Fleet (พร้อมตัวเลขจริง)</div>
+                        <div className="text-[10px] font-black text-violet-600 uppercase mb-2">📈 วิธีคำนวณค่าเฉลี่ย (พร้อมตัวเลขจริง)</div>
                         <div className="space-y-1.5">
-                          {data.formulas && Object.entries(data.formulas).map(([key, formula]) => (
-                            <div key={key} className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
-                              <code className="text-[10px] font-mono font-black text-violet-500 mr-1.5">{key}:</code>
-                              <span className="leading-relaxed">{formula}</span>
+                          {data.formulas && data.formulas.map((f, fi) => (
+                            <div key={fi} className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
+                              <span className="font-black text-violet-700">{f.label}:</span>{' '}
+                              <span className="leading-relaxed">{f.explanation}</span>
                             </div>
                           ))}
                         </div>
@@ -701,13 +701,13 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                           </div>
                         </div>
 
-                        {/* Formulas */}
+                        {/* Formulas — user-friendly */}
                         <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
-                          <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">🧮 สูตรคำนวณค่าเฉลี่ย</div>
+                          <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-2">🧮 วิธีคำนวณค่าเฉลี่ย</div>
                           <div className="space-y-1.5">
-                            {Object.entries(data.formulas).map(([key, formula]) => (
-                              <div key={key} className="text-[11px] text-[#4B5563] font-medium bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
-                                <code className="text-[10px] font-mono text-[#9CA3AF] mr-1">{key}:</code> {formula}
+                            {data.formulas.map((f, fi) => (
+                              <div key={fi} className="text-[11px] text-[#4B5563] font-medium bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                                <span className="font-bold text-[#374151]">{f.label}:</span>{' '}{f.explanation}
                               </div>
                             ))}
                           </div>

@@ -851,17 +851,15 @@ router.get('/vehicle-summary', auth, async (req, res) => {
       }
     }
 
-    // Add formula explanations to the response
-    const formulas = {
-      km_per_liter: 'กม./ลิตร = ระยะทางรวม (กม.) ÷ ปริมาณน้ำมันรวม (ลิตร)',
-      cost_per_km: 'ต้นทุน/กม. = ค่าใช้จ่ายรวม (บาท) ÷ ระยะทางรวม (กม.)',
-      avg_cost_per_refuel: 'ค่าเฉลี่ยต่อครั้ง = ค่าใช้จ่ายรวม (บาท) ÷ จำนวนครั้งเติม',
-      fleet_avg_cost: `ค่าเฉลี่ยค่าใช้จ่าย/คัน = ค่าใช้จ่ายรวมทุกคัน (฿${fleetTotalCost.toLocaleString()}) ÷ จำนวนรถ (${totalVehicles}) = ฿${fleetAvg.avg_cost.toFixed(2)}`,
-      fleet_avg_distance: `ค่าเฉลี่ยระยะทาง/คัน = ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) ÷ จำนวนรถ (${totalVehicles}) = ${fleetAvg.avg_distance.toFixed(2)} กม.`,
-      fleet_avg_km_per_liter: `ค่าเฉลี่ย กม./ลิตร = ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) ÷ ลิตรรวมทุกคัน (${fleetTotalLiters.toFixed(1)} ลิตร) = ${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร`,
-      fleet_avg_cost_per_km: `ค่าเฉลี่ยต้นทุน/กม. = ค่าใช้จ่ายรวมทุกคัน (฿${fleetTotalCost.toLocaleString()}) ÷ ระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) = ฿${fleetAvg.avg_cost_per_km.toFixed(2)}/กม.`,
-      anomaly_threshold: 'เกณฑ์แจ้งเตือน: เมื่อค่าของรถคันใดคันหนึ่งเบี่ยงเบนจากค่าเฉลี่ยมากกว่า 40% ระบบจะแจ้งเตือนเป็นความผิดปกติ',
-    };
+    // Add formula explanations to the response — ใช้ภาษาไทยที่เข้าใจง่ายสำหรับผู้ใช้ทั่วไป
+    const formulas = [
+      { label: 'กิโลเมตรต่อลิตร', explanation: `นำระยะทางที่วิ่งทั้งหมดมาหารด้วยจำนวนลิตรที่เติมไป เช่น วิ่ง ${fleetTotalDistance.toLocaleString()} กม. เติมไป ${fleetTotalLiters.toFixed(1)} ลิตร ได้ ${fleetAvg.avg_km_per_liter.toFixed(2)} กม./ลิตร` },
+      { label: 'ต้นทุนต่อกิโลเมตร', explanation: `นำค่าใช้จ่ายน้ำมันทั้งหมดมาหารด้วยระยะทางที่วิ่ง เช่น จ่ายไป ฿${fleetTotalCost.toLocaleString()} วิ่ง ${fleetTotalDistance.toLocaleString()} กม. ได้ ฿${fleetAvg.avg_cost_per_km.toFixed(2)}/กม.` },
+      { label: 'ค่าเฉลี่ยต่อครั้งเติม', explanation: 'นำค่าใช้จ่ายทั้งหมดของรถคันนั้นมาหารด้วยจำนวนครั้งที่เติมน้ำมัน' },
+      { label: 'ค่าเฉลี่ยค่าใช้จ่ายต่อคัน', explanation: `นำค่าใช้จ่ายรวมทุกคัน (฿${fleetTotalCost.toLocaleString()}) มาหารด้วยจำนวนรถทั้งหมด (${totalVehicles} คัน) ได้ ฿${fleetAvg.avg_cost.toFixed(0)} ต่อคัน` },
+      { label: 'ค่าเฉลี่ยระยะทางต่อคัน', explanation: `นำระยะทางรวมทุกคัน (${fleetTotalDistance.toLocaleString()} กม.) มาหารด้วยจำนวนรถ (${totalVehicles} คัน) ได้ ${fleetAvg.avg_distance.toFixed(0)} กม. ต่อคัน` },
+      { label: 'เกณฑ์ตรวจจับผิดปกติ', explanation: 'เมื่อค่าของรถคันใดแตกต่างจากค่าเฉลี่ยรถทุกคันมากกว่า 40% ระบบจะแจ้งเตือนว่าผิดปกติ' },
+    ];
 
     res.json({
       vehicles: enrichedVehicles,
