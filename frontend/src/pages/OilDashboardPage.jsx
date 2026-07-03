@@ -415,6 +415,127 @@ function VehicleSummaryModal({ onClose, startDate, endDate, selectedTeams }) {
                 </div>
               </div>
 
+              {/* Data Source & Calculation Formulas */}
+              {data?.formulas && (
+                <div className="space-y-3">
+                  {/* Data Source */}
+                  <div className="bg-gradient-to-r from-sky-50 to-indigo-50 p-4 rounded-2xl border border-sky-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">📂</span>
+                      <h3 className="font-black text-sky-800 text-sm">แหล่งที่มาของข้อมูล</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-sky-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">ตารางข้อมูล</div>
+                        <p className="text-xs text-[#1F2937] font-bold">
+                          <code className="bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded text-[11px] font-mono">oil_records</code> (บันทึกการเติมน้ำมัน)
+                        </p>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-sky-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">ช่วงเวลาข้อมูล</div>
+                        <p className="text-xs text-[#1F2937] font-bold">
+                          {fleet.date_range?.start && fleet.date_range?.end
+                            ? <>{fleet.date_range.start} <span className="text-[#9CA3AF] font-medium">ถึง</span> {fleet.date_range.end}</>
+                            : 'ข้อมูลทั้งหมด'}
+                        </p>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-sky-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">จำนวนรถ</div>
+                        <p className="text-xs text-[#1F2937] font-bold">{fleet.total_vehicles || 0} คัน</p>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-sky-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">จำนวนรายการเติม</div>
+                        <p className="text-xs text-[#1F2937] font-bold">{fleet.total_refuels || 0} รายการ</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fleet Totals */}
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-2xl border border-emerald-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">📊</span>
+                      <h3 className="font-black text-emerald-800 text-sm">ข้อมูลรวมทั้งหมด (Fleet Totals)</h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">💰 ค่าใช้จ่ายรวมทุกคัน</div>
+                        <div className="text-base font-black text-emerald-600">฿{(fleet.total_cost || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">⛽ ลิตรรวมทุกคัน</div>
+                        <div className="text-base font-black text-amber-500">{(fleet.total_liters || 0).toFixed(1)} ลิตร</div>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">🛣️ ระยะทางรวมทุกคัน</div>
+                        <div className="text-base font-black text-blue-600">{(fleet.total_distance || 0).toLocaleString()} กม.</div>
+                      </div>
+                      <div className="bg-white/80 px-3 py-2.5 rounded-xl border border-emerald-100">
+                        <div className="text-[10px] font-bold text-[#9CA3AF] uppercase mb-0.5">🔄 จำนวนเติมรวม</div>
+                        <div className="text-base font-black text-violet-600">{fleet.total_refuels || 0} ครั้ง</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculation Formulas */}
+                  <details className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-2xl overflow-hidden shadow-sm group">
+                    <summary className="p-4 cursor-pointer flex items-center gap-2 hover:bg-violet-100/50 transition-colors select-none">
+                      <span className="text-base">🧮</span>
+                      <span className="font-black text-violet-800 text-sm">สูตรคำนวณค่าเฉลี่ย (กดเพื่อดู)</span>
+                      <svg className="w-4 h-4 text-violet-400 ml-auto group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+                    </summary>
+                    <div className="px-4 pb-4 space-y-2">
+                      {/* Individual metric formulas */}
+                      <div className="bg-white/80 p-3 rounded-xl border border-violet-100">
+                        <div className="text-[10px] font-black text-violet-600 uppercase mb-2">📐 สูตรคำนวณรายตัว (ต่อรถ 1 คัน)</div>
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
+                            <span className="font-black text-violet-700">กม./ลิตร</span> = ระยะทางรวมของรถคันนั้น (กม.) ÷ ปริมาณน้ำมันรวมของรถคันนั้น (ลิตร)
+                          </div>
+                          <div className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
+                            <span className="font-black text-violet-700">บาท/กม.</span> = ค่าใช้จ่ายรวมของรถคันนั้น (บาท) ÷ ระยะทางรวมของรถคันนั้น (กม.)
+                          </div>
+                          <div className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
+                            <span className="font-black text-violet-700">เฉลี่ย/ครั้ง</span> = ค่าใช้จ่ายรวมของรถคันนั้น (บาท) ÷ จำนวนครั้งที่เติมน้ำมัน
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fleet average formulas with actual numbers */}
+                      <div className="bg-white/80 p-3 rounded-xl border border-violet-100">
+                        <div className="text-[10px] font-black text-violet-600 uppercase mb-2">📈 สูตรคำนวณค่าเฉลี่ยทั้ง Fleet (พร้อมตัวเลขจริง)</div>
+                        <div className="space-y-1.5">
+                          {data.formulas && Object.entries(data.formulas).map(([key, formula]) => (
+                            <div key={key} className="text-[11px] text-[#374151] font-medium bg-violet-50/50 px-3 py-2 rounded-lg border border-violet-100">
+                              <code className="text-[10px] font-mono font-black text-violet-500 mr-1.5">{key}:</code>
+                              <span className="leading-relaxed">{formula}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Anomaly detection methodology */}
+                      <div className="bg-white/80 p-3 rounded-xl border border-violet-100">
+                        <div className="text-[10px] font-black text-violet-600 uppercase mb-2">🔍 วิธีการตรวจจับความผิดปกติ</div>
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] text-[#374151] font-medium bg-rose-50 px-3 py-2 rounded-lg border border-rose-100">
+                            <span className="font-black text-rose-600">🚨 สำคัญ:</span> จ่ายค่าน้ำมันสูงกว่าค่าเฉลี่ย &gt;40% <span className="text-[#6B7280]">และ</span> วิ่งระยะทางน้อยกว่าค่าเฉลี่ย &gt;40% พร้อมกัน
+                          </div>
+                          <div className="text-[11px] text-[#374151] font-medium bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+                            <span className="font-black text-amber-600">⚠️ ปานกลาง:</span> กม./ลิตร ต่ำกว่าค่าเฉลี่ย &gt;40% หรือ ต้นทุน/กม. สูงกว่าค่าเฉลี่ย &gt;40%
+                          </div>
+                          <div className="text-[11px] text-[#374151] font-medium bg-sky-50 px-3 py-2 rounded-lg border border-sky-100">
+                            <span className="font-black text-sky-600">ℹ️ แจ้งเตือน:</span> จำนวนครั้งเติมน้ำมันมากกว่าค่าเฉลี่ย &gt;60%
+                          </div>
+                          <div className="text-[11px] text-[#6B7280] font-medium bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                            <span className="font-black text-[#374151]">📌 หมายเหตุ:</span> ค่าเฉลี่ย คำนวณจากผลรวมของรถทุกคันในช่วงเวลาที่เลือก หารด้วยจำนวนรถทั้งหมด — ระบบจะเปรียบเทียบทุกคันกับค่าเฉลี่ยนี้ และนำคันที่ดีที่สุดมาเป็นตัวอ้างอิงเปรียบเทียบ
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              )}
+
               {/* Per-Vehicle Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {vehicles.map((v, idx) => {
