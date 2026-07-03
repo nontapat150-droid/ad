@@ -3,6 +3,7 @@ import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { getImageUrl } from '../utils/imageUtils';
 import ImageWithFallback from './common/ImageWithFallback';
+import { useAuth } from '../context/AuthContext';
 
 export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -14,10 +15,14 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
     total_price: '',
   });
   
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
+
   const [existingImages, setExistingImages] = useState([]);
   const [newImages, setNewImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [usersList, setUsersList] = useState([]);
+  const [isTripMileage, setIsTripMileage] = useState(false);
 
   useEffect(() => {
     if (record) {
@@ -35,6 +40,7 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
         total_price: record.total_price || '',
       });
       setExistingImages(record.images || []);
+      setIsTripMileage(record.is_trip === 1 || record.is_trip === true || record.is_trip === 'true');
     }
     
     // Fetch users for the dropdown
@@ -76,6 +82,10 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
       newImages.forEach(file => {
         fd.append('images', file);
       });
+
+      if (isAdmin) {
+        fd.append('is_trip', isTripMileage ? 'true' : 'false');
+      }
 
       await api.put(`/oil/records/${record.id}`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -175,9 +185,31 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">ยอดรวม (บาท) *</label>
                 <input type="number" step="0.01" name="total_price" value={formData.total_price} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] bg-slate-50" />
               </div>
+              </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-200">
+            {isAdmin && (
+              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <div className="relative flex items-center pt-0.5">
+                    <input 
+                      type="checkbox" 
+                      checked={isTripMileage}
+                      onChange={(e) => setIsTripMileage(e.target.checked)}
+                      className="w-5 h-5 text-[#185FA5] border-gray-300 rounded focus:ring-[#185FA5] transition-all cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <span className="font-bold text-[#1F2937] block">บันทึกเป็นไมล์ทริป (Trip Mileage)</span>
+                    <span className="text-xs text-slate-500 block mt-0.5">
+                      * เลขไมล์นี้จะไม่ถูกนำไปคำนวณอัตราสิ้นเปลือง แต่จะแสดงในประวัติ
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-slate-200 mt-4">
               <label className="block text-sm font-bold text-[#042C53] mb-3">หลักฐาน รูปภาพ</label>
               
               {/* Existing Images */}

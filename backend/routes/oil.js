@@ -430,7 +430,7 @@ router.put(
   async (req, res) => {
     const recordId = req.params.id;
     const {
-      tech_id, license_plate, liters, mileage, total_price, date_recorded, existing_images
+      tech_id, license_plate, liters, mileage, total_price, date_recorded, existing_images, is_trip
     } = req.body;
 
     const userRoles = req.user.roles || [req.user.role];
@@ -455,6 +455,7 @@ router.put(
       // We just update the values. price_per_liter can be recalculated.
       const price_per_liter = parseFloat(liters) > 0 ? (parseFloat(total_price) / parseFloat(liters)).toFixed(2) : 0;
       
+      const newIsTrip = is_trip !== undefined ? (is_trip === 'true' || is_trip === true) : old[0].is_trip;
       const newMileage = mileage || old[0].mileage;
       const cleanNewMileage = String(newMileage).replace(/,/g, '').trim();
       const newTechId = tech_id || old[0].tech_id;
@@ -491,7 +492,7 @@ router.put(
 
       await conn.query(
         `UPDATE oil_records
-         SET tech_id = ?, license_plate = ?, liters = ?, mileage = ?, price_per_liter = ?, total_price = ?, date_recorded = ?
+         SET tech_id = ?, license_plate = ?, liters = ?, mileage = ?, price_per_liter = ?, total_price = ?, date_recorded = ?, is_trip = ?
          WHERE id = ?`,
         [
           tech_id || old[0].tech_id, 
@@ -501,6 +502,7 @@ router.put(
           price_per_liter, 
           total_price || old[0].total_price, 
           (date_recorded ? date_recorded.replace('T', ' ') : null) || old[0].date_recorded,
+          newIsTrip,
           recordId
         ]
       );
