@@ -260,7 +260,8 @@ function StockSelectionModal({ isOpen, onClose, onSelect }) {
       model_name: model.model_name,
       has_sn: model.has_sn,
       unit: model.unit,
-      pieces_per_crate: model.pieces_per_crate
+      pieces_per_crate: model.pieces_per_crate,
+      crate_unit: model.crate_unit
     });
   };
 
