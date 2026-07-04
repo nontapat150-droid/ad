@@ -437,7 +437,7 @@ export default function InventoryDispatchPage() {
 
           {/* Scanner */}
           <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
-            <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">สแกน / ค้นหาสินค้า</h2>
+            <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">1. ค้นหาสินค้า หรือ สแกนบาร์โค้ด</h2>
             <form onSubmit={handleSearchSn} className="flex flex-col gap-4">
               <div className="relative">
                 <input
@@ -450,7 +450,7 @@ export default function InventoryDispatchPage() {
                       setTimeout(() => { if (snInputRef.current?.value.length >= 12) handleSearchSn(); }, 300);
                     }
                   }}
-                  placeholder="สแกนบาร์โค้ด SN..."
+                  placeholder="สแกนบาร์โค้ด หรือ พิมพ์รหัส..."
                   className="w-full px-5 py-4 bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-2xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] font-black tracking-wide transition-all"
                   autoFocus
                 />
@@ -476,7 +476,7 @@ export default function InventoryDispatchPage() {
                   disabled={loading || !snInput}
                   className="flex-1 bg-[#1F2937] hover:bg-[#374151] text-white font-black px-4 py-4 rounded-2xl transition-all disabled:opacity-50 shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95"
                 >
-                  นำมาพัก
+                  ➕ เพิ่มลงตะกร้า
                 </button>
               </div>
             </form>
@@ -484,7 +484,7 @@ export default function InventoryDispatchPage() {
 
           {/* User Picker */}
           <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
-            <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">เลือกผู้รับของ (ช่าง)</h2>
+            <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">2. เลือกผู้รับของ (ช่าง)</h2>
             <UserDropdown users={users} value={selectedUserId} onChange={setSelectedUserId} />
             {selectedUserId && (
               <div className="mt-3 p-3 bg-[#F0FDF4] border border-[#A3E635]/40 rounded-2xl flex items-center gap-2">
@@ -501,7 +501,7 @@ export default function InventoryDispatchPage() {
         <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-[#E5E7EB] flex flex-col h-[calc(100vh-160px)]">
           <div className="p-6 sm:p-8 border-b border-[#E5E7EB] rounded-t-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 bg-[#F9FAFB]">
             <div>
-              <h2 className="text-xl font-black text-[#1F2937]">รายการรอเบิก (Staging)</h2>
+              <h2 className="text-xl font-black text-[#1F2937]">3. ตะกร้าสินค้าเตรียมเบิก</h2>
               <div className="flex items-center gap-3 mt-1">
                 <p className="text-sm font-bold text-[#6B7280]">จำนวนทั้งหมด {stagedItems.length} รายการ</p>
                 <button 
@@ -556,37 +556,42 @@ export default function InventoryDispatchPage() {
                         <p className="text-sm font-bold text-[#6B7280] mt-1">{item.product_name} - {item.model_name}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        {item.dispatchMode === 'crate' || item.has_sn ? (
+                        {item.has_sn ? (
                           <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
                             {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })} {itemUnit}
                           </span>
                         ) : (
-                          <div className="flex items-center gap-2 bg-[#F3F4F6] border border-[#E5E7EB] pl-1 pr-3 py-1 rounded-xl shadow-sm">
-                            <input 
-                              type="number" 
-                              min="0.1" 
-                              step="0.1" 
-                              max={item.db_quantity || item.quantity}
-                              value={item.quantity}
-                              onChange={(e) => {
-                                let val = e.target.value;
-                                if (val !== '') {
-                                  let numVal = parseFloat(val);
-                                  if (numVal < 0) numVal = 0;
-                                  const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
-                                  if (numVal > maxVal) numVal = maxVal;
-                                  val = numVal;
-                                }
-                                setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: val } : si));
-                              }}
-                              onBlur={(e) => {
-                                if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
-                                  setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: 1 } : si));
-                                }
-                              }}
-                              className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
-                            />
-                            <span className="text-sm font-black text-[#1F2937]">{itemUnit}</span>
+                          <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-2 bg-[#F3F4F6] border border-[#E5E7EB] pl-1 pr-3 py-1 rounded-xl shadow-sm">
+                              <input 
+                                type="number" 
+                                min="0.1" 
+                                step="0.1" 
+                                max={item.db_quantity || item.quantity}
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  let val = e.target.value;
+                                  if (val !== '') {
+                                    let numVal = parseFloat(val);
+                                    if (numVal < 0) numVal = 0;
+                                    const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
+                                    if (numVal > maxVal) numVal = maxVal;
+                                    val = numVal;
+                                  }
+                                  setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: val } : si));
+                                }}
+                                onBlur={(e) => {
+                                  if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                                    setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: 1 } : si));
+                                  }
+                                }}
+                                className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
+                              />
+                              <span className="text-sm font-black text-[#1F2937]">{itemUnit}</span>
+                            </div>
+                            <span className="text-xs font-bold text-slate-400 mt-1 mr-1">
+                              (มีในคลังสูงสุด {parseFloat(item.db_quantity || item.quantity).toLocaleString()} {itemUnit})
+                            </span>
                           </div>
                         )}
                         <button
@@ -600,58 +605,6 @@ export default function InventoryDispatchPage() {
                         </button>
                       </div>
                     </div>
-
-                    {/* Crate selection — แสดงเฉพาะสินค้าที่มี pieces_per_crate */}
-                    {ppc && ppc > 0 && (
-                      <div className="mt-3 pt-3 border-t border-[#F3F4F6] flex flex-wrap items-center gap-3">
-                        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              setStagedItems(prev => prev.map((si, i) => 
-                                i === index ? { ...si, dispatchMode: 'unit', dispatchCrates: undefined } : si
-                              ));
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${(!item.dispatchMode || item.dispatchMode === 'unit') ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}
-                          >
-                            เบิกเป็น{itemUnit}
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const crateQty = 1;
-                              setStagedItems(prev => prev.map((si, i) => 
-                                i === index ? { ...si, dispatchMode: 'crate', dispatchCrates: crateQty, quantity: crateQty * ppc } : si
-                              ));
-                            }}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${item.dispatchMode === 'crate' ? 'bg-white text-amber-600 shadow-sm border border-amber-200' : 'text-slate-500 hover:text-[#042C53]'}`}
-                          >
-                            เบิกเป็น{item.crate_unit || 'ลัง'}
-                          </button>
-                        </div>
-
-                        {item.dispatchMode === 'crate' && (
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number" 
-                              min="1" 
-                              value={item.dispatchCrates || 1}
-                              onChange={(e) => {
-                                const crates = parseInt(e.target.value) || 1;
-                                setStagedItems(prev => prev.map((si, i) => 
-                                  i === index ? { ...si, dispatchCrates: crates, quantity: crates * ppc } : si
-                                ));
-                              }}
-                              className="w-16 px-3 py-1.5 border border-slate-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-300 outline-none"
-                            />
-                            <span className="text-sm font-bold text-[#6B7280]">{item.crate_unit || 'ลัง'}</span>
-                            <span className="text-sm font-black text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-                              = {((item.dispatchCrates || 1) * ppc).toLocaleString()} {itemUnit}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                   );
                 })}
