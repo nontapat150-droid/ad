@@ -1097,7 +1097,7 @@ export default function InventoryReceivePage() {
                       </svg>
                       Import Excel
                     </button>
-                    <span className="text-sm font-bold text-[#1F2937] bg-[#A3E635] px-4 py-2 rounded-xl shadow-sm">⚡ สแกนต่อเนื่องอัตโนมัติ</span>
+
                   </div>
                 </div>
 
@@ -1157,72 +1157,53 @@ export default function InventoryReceivePage() {
               {/* Step 2: Receive Data */}
               {selectedProduct && selectedModelId && (
                 <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8 animate-[slideUp_0.3s_ease-out]">
-                  <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">2. ระบุข้อมูลนำเข้า</h2>
+                  <h2 className="text-xl font-black text-[#1F2937] mb-6 border-b border-[#E5E7EB] pb-4">2. ใส่จำนวน หรือ สแกนรหัส</h2>
                   
                   {selectedProduct.has_sn ? (
                     <div className="space-y-6">
-                      <div className="flex gap-4 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
-                        <button type="button" onClick={() => { setInputType('scan'); setSn(''); snInputRef.current?.focus(); }}
-                          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inputType === 'scan' ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}>
-                          <span className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                            โหมดสแกน
-                          </span>
-                        </button>
-                        <button type="button" onClick={() => { setInputType('type'); setSn(''); snInputRef.current?.focus(); }}
-                          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inputType === 'type' ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}>
-                          <span className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                            โหมดพิมพ์
-                          </span>
-                        </button>
-                      </div>
-
                       <div className="flex flex-col gap-4">
-                        <label className="block text-sm font-semibold text-[#042C53]">Serial Number (SN)</label>
+                        <label className="block text-sm font-semibold text-[#042C53]">สแกนบาร์โค้ด หรือ พิมพ์รหัส SN (กด Enter)</label>
                         <div className="flex gap-2">
                           <input ref={snInputRef} type="text" value={sn} onChange={handleSnChange} onKeyDown={handleSnKeyDown}
-                            placeholder={inputType === 'scan' ? 'ยิงบาร์โค้ดเลย ระบบจะเพิ่มลงตารางล่างอัตโนมัติ...' : 'พิมพ์ SN แล้วกด Enter เพื่อเพิ่มลงตารางล่าง...'}
-                            className={`flex-1 min-w-0 px-4 py-4 border rounded-xl outline-none font-medium transition-all ${inputType === 'scan' ? 'bg-[#E6F1FB] border-[#185FA5]/30 text-brand-800 focus:ring-2 focus:ring-brand-500' : 'bg-white border-slate-300 text-[#042C53] focus:ring-2 focus:ring-brand-500'}`}
+                            placeholder="สแกน หรือ พิมพ์รหัส SN..."
+                            className="flex-1 min-w-0 px-5 py-4 border-2 border-[#E5E7EB] rounded-2xl outline-none font-black text-[#1F2937] bg-[#F9FAFB] focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 transition-all tracking-wide"
                             autoFocus />
-                          {inputType === 'type' && (
-                            <button type="button" onClick={handleAddToStaging} disabled={!sn.trim()}
-                              className="bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold px-6 py-4 rounded-xl disabled:opacity-50 transition-colors shrink-0">
-                              เพิ่ม
-                            </button>
-                          )}
+                          <button type="button" onClick={handleAddToStaging} disabled={!sn.trim()}
+                            className="bg-[#1F2937] hover:bg-[#374151] text-white font-black px-6 py-4 rounded-2xl disabled:opacity-50 transition-all shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95 shrink-0">
+                            ➕ เพิ่ม
+                          </button>
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <div className="flex gap-4 p-1 bg-slate-100 rounded-xl w-fit border border-slate-200">
+                      <div className="flex gap-4 p-1 bg-[#F3F4F6] rounded-xl w-fit border border-[#E5E7EB]">
                         <button type="button" onClick={() => setIsAutoGenerate(true)}
-                          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${isAutoGenerate ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}>
-                          รันรหัสอัตโนมัติ
+                          className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${isAutoGenerate ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-slate-500 hover:text-[#1F2937]'}`}>
+                          สร้างบาร์โค้ดใหม่ (อัตโนมัติ)
                         </button>
                         <button type="button" onClick={() => setIsAutoGenerate(false)}
-                          className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!isAutoGenerate ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}>
-                          กำหนดรหัสเอง
+                          className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${!isAutoGenerate ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]' : 'text-slate-500 hover:text-[#1F2937]'}`}>
+                          มีบาร์โค้ดเดิมอยู่แล้ว
                         </button>
                       </div>
 
                       {isAutoGenerate ? (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-6">
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวนรายการที่ต้องการสร้าง</label>
+                            <label className="block text-sm font-black text-[#1F2937] mb-2">ต้องการสร้างกี่รายการ? (เพื่อพิมพ์สติกเกอร์แยก)</label>
                             <input type="number" min="1" value={generateCount} onChange={(e) => setGenerateCount(e.target.value)}
-                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                              className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-2">
-                              <label className="block text-sm font-semibold text-[#042C53]">
-                                จำนวน/รายการ
+                              <label className="block text-sm font-black text-[#1F2937]">
+                                จำนวนต่อ 1 รายการ
                               </label>
                               {selectedProduct?.pieces_per_crate && (
-                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#185FA5]' : 'text-slate-500'}`}>เป็น{selectedProduct.unit || 'ชิ้น'}</button>
-                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>เป็น{selectedProduct.crate_unit || 'ลัง'}</button>
+                                <div className="flex bg-[#F3F4F6] p-1 rounded-lg border border-[#E5E7EB]">
+                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-slate-500'}`}>ระบุเป็น({selectedProduct.unit || 'ชิ้น'})</button>
+                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>ระบุเป็น({selectedProduct.crate_unit || 'ลัง'})</button>
                                 </div>
                               )}
                             </div>
@@ -1243,23 +1224,23 @@ export default function InventoryReceivePage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-6">
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">รหัสสินค้า</label>
+                            <label className="block text-sm font-black text-[#1F2937] mb-2">รหัสบาร์โค้ด</label>
                             <input type="text" value={sn} onChange={(e) => setSn(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
-                              placeholder="กรอกรหัสสินค้า..."
-                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                              placeholder="สแกนหรือพิมพ์รหัส..."
+                              className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-2">
-                              <label className="block text-sm font-semibold text-[#042C53]">
-                                จำนวน/รายการ
+                              <label className="block text-sm font-black text-[#1F2937]">
+                                จำนวนนำเข้า
                               </label>
                               {selectedProduct?.pieces_per_crate && (
-                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#185FA5]' : 'text-slate-500'}`}>เป็น{selectedProduct.unit || 'ชิ้น'}</button>
-                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>เป็น{selectedProduct.crate_unit || 'ลัง'}</button>
+                                <div className="flex bg-[#F3F4F6] p-1 rounded-lg border border-[#E5E7EB]">
+                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-slate-500'}`}>ระบุเป็น({selectedProduct.unit || 'ชิ้น'})</button>
+                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>ระบุเป็น({selectedProduct.crate_unit || 'ลัง'})</button>
                                 </div>
                               )}
                             </div>
@@ -1285,8 +1266,8 @@ export default function InventoryReceivePage() {
                       )}
                       
                       <button type="button" onClick={handleAddToStaging} disabled={(!isAutoGenerate && !sn.trim())}
-                        className="w-full bg-[#185FA5] hover:bg-[#0C447C] text-white font-bold px-8 py-3 rounded-xl disabled:opacity-50 mt-4 transition-colors">
-                        เพิ่มลงรายการพักรอ
+                        className="w-full bg-[#1F2937] hover:bg-[#374151] text-white font-black px-8 py-4 rounded-xl disabled:opacity-50 mt-4 transition-all shadow-md active:scale-95 text-lg">
+                        ➕ เพิ่มลงตะกร้า
                       </button>
                     </div>
                   )}
@@ -1298,7 +1279,7 @@ export default function InventoryReceivePage() {
                 <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8 animate-[slideUp_0.3s_ease-out]">
                   <div className="flex justify-between items-end mb-6 border-b border-[#E5E7EB] pb-4">
                     <div>
-                      <h2 className="text-xl font-black text-[#1F2937]">3. รายการพักรอเข้าคลัง (Staging)</h2>
+                      <h2 className="text-xl font-black text-[#1F2937]">3. ตะกร้าสรุปรายการนำเข้า</h2>
                       <div className="flex items-center gap-3 mt-1">
                         <p className="text-sm font-bold text-[#6B7280]">ตรวจสอบรายการก่อนกดยืนยันทั้งหมด</p>
                         <button 
@@ -1325,7 +1306,7 @@ export default function InventoryReceivePage() {
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">สินค้า</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">โมเดล</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">SN / รหัส</th>
-                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">จำนวน/รายการ</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">จำนวน</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">แหล่งที่มา</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">ลบ</th>
                         </tr>
