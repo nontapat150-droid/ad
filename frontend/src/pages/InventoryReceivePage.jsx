@@ -729,7 +729,8 @@ export default function InventoryReceivePage() {
         name: productSearchInput, 
         has_sn: hasSn,
         unit,
-        pieces_per_crate: piecesPerCrate
+        pieces_per_crate: piecesPerCrate,
+        crate_unit: crateUnit
       });
       const res = await axios.get('/inventory/products');
       setProducts(res.data);
