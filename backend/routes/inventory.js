@@ -30,17 +30,53 @@ router.get('/products', auth, async (req, res) => {
 
 // ── POST /api/inventory/products ──
 router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { name, has_sn } = req.body;
+  const { name, has_sn, unit, pieces_per_crate } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   try {
+    // SN สินค้า → หน่วย = ชิ้น เสมอ, แต่กำหนดลังได้
+    // ไม่มี SN → หน่วยเลือกเองได้ + กำหนดลังได้
+    const productUnit = has_sn ? 'ชิ้น' : (unit || 'ชิ้น');
+    const ppc = (pieces_per_crate && parseInt(pieces_per_crate) > 0) ? parseInt(pieces_per_crate) : null;
+
     const [result] = await pool.query(
-      'INSERT INTO inventory_products (name, has_sn) VALUES (?, ?)',
-      [name, has_sn !== false]
+      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate) VALUES (?, ?, ?, ?)',
+      [name, has_sn !== false, productUnit, ppc]
     );
     res.json({ message: 'Product created', id: result.insertId });
   } catch (err) {
     console.error('Add product error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── PUT /api/inventory/products/:id — Update unit / pieces_per_crate ──
+router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { unit, pieces_per_crate } = req.body;
+  const productId = req.params.id;
+
+  try {
+    const updates = [];
+    const values = [];
+
+    if (unit !== undefined) {
+      updates.push('unit = ?');
+      values.push(unit || 'ชิ้น');
+    }
+    if (pieces_per_crate !== undefined) {
+      updates.push('pieces_per_crate = ?');
+      values.push(pieces_per_crate ? parseInt(pieces_per_crate) : null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(productId);
+    await pool.query(`UPDATE inventory_products SET ${updates.join(', ')} WHERE id = ?`, values);
+    res.json({ message: 'Product updated' });
+  } catch (err) {
+    console.error('Update product error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
@@ -197,7 +233,7 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 router.get('/search-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT ii.*, pm.model_name, p.name AS product_name 
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit, p.pieces_per_crate 
        FROM inventory_items ii
        JOIN inventory_models pm ON pm.id = ii.model_id
        JOIN inventory_products p ON p.id = pm.product_id
@@ -515,6 +551,7 @@ router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT p.id AS product_id, p.name AS product_name, p.has_sn,
+              p.unit, p.pieces_per_crate,
               m.id AS model_id, m.model_name,
               COUNT(ii.id) AS item_count,
               SUM(ii.quantity) AS total_quantity

@@ -620,9 +620,84 @@ export default function InventoryReceivePage() {
     if (result.isDismissed) return;
     const hasSn = result.isConfirmed;
 
+    // ถามหน่วยนับ (เฉพาะไม่มี SN) และจำนวนต่อลัง (ทั้ง SN และไม่มี SN)
+    let unit = 'ชิ้น';
+    let piecesPerCrate = null;
+
+    if (!hasSn) {
+      // ไม่มี SN → ถามหน่วยนับ + จำนวนต่อลัง
+      const unitResult = await Swal.fire({
+        title: 'ตั้งค่าหน่วยนับ',
+        html: `
+          <div style="text-align:left;font-size:14px;">
+            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
+            <select id="swal-unit" class="swal2-select" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;">
+              <option value="ชิ้น">ชิ้น</option>
+              <option value="ตัว">ตัว</option>
+              <option value="กล่อง">กล่อง</option>
+              <option value="อัน">อัน</option>
+              <option value="เมตร">เมตร</option>
+              <option value="ม้วน">ม้วน</option>
+              <option value="ชุด">ชุด</option>
+              <option value="แผ่น">แผ่น</option>
+            </select>
+            <div style="margin-top:16px;">
+              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">1 ลัง = กี่หน่วย? <span style="color:#9CA3AF;font-weight:500;">(เว้นว่างหากไม่ใช้ระบบลัง)</span></label>
+              <input id="swal-ppc" type="number" min="1" placeholder="เช่น 12 (1 ลัง = 12 ชิ้น)" class="swal2-input" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+            </div>
+          </div>
+        `,
+        confirmButtonText: 'ยืนยัน',
+        confirmButtonColor: '#185FA5',
+        showCancelButton: true,
+        cancelButtonText: 'ข้าม (ใช้ค่าเริ่มต้น)',
+        cancelButtonColor: '#9CA3AF',
+        preConfirm: () => {
+          return {
+            unit: document.getElementById('swal-unit').value,
+            ppc: document.getElementById('swal-ppc').value
+          };
+        }
+      });
+
+      if (unitResult.isConfirmed && unitResult.value) {
+        unit = unitResult.value.unit || 'ชิ้น';
+        piecesPerCrate = unitResult.value.ppc ? parseInt(unitResult.value.ppc) : null;
+      }
+    } else {
+      // มี SN → หน่วยเป็นชิ้นเสมอ แต่กำหนดลังได้ (optional)
+      const crateResult = await Swal.fire({
+        title: 'ตั้งค่าจำนวนต่อลัง',
+        html: `
+          <div style="text-align:left;font-size:14px;">
+            <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
+            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">1 ลัง = กี่ชิ้น? <span style="color:#9CA3AF;font-weight:500;">(เว้นว่างหากไม่ใช้ระบบลัง)</span></label>
+            <input id="swal-ppc" type="number" min="1" placeholder="เช่น 12 (1 ลัง = 12 ชิ้น)" class="swal2-input" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+          </div>
+        `,
+        confirmButtonText: 'ยืนยัน',
+        confirmButtonColor: '#185FA5',
+        showCancelButton: true,
+        cancelButtonText: 'ข้าม',
+        cancelButtonColor: '#9CA3AF',
+        preConfirm: () => {
+          return { ppc: document.getElementById('swal-ppc').value };
+        }
+      });
+
+      if (crateResult.isConfirmed && crateResult.value) {
+        piecesPerCrate = crateResult.value.ppc ? parseInt(crateResult.value.ppc) : null;
+      }
+    }
+
     setLoading(true);
     try {
-      await axios.post('/inventory/products', { name: productSearchInput, has_sn: hasSn });
+      await axios.post('/inventory/products', { 
+        name: productSearchInput, 
+        has_sn: hasSn,
+        unit,
+        pieces_per_crate: piecesPerCrate
+      });
       const res = await axios.get('/inventory/products');
       setProducts(res.data);
       const newProduct = res.data.find(p => p.name === productSearchInput);
@@ -1103,7 +1178,7 @@ export default function InventoryReceivePage() {
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ (เช่น 100 เมตร)</label>
+                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ ({selectedProduct?.unit || 'ชิ้น'})</label>
                             <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
                           </div>
@@ -1118,7 +1193,7 @@ export default function InventoryReceivePage() {
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ</label>
+                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ ({selectedProduct?.unit || 'ชิ้น'})</label>
                             <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />

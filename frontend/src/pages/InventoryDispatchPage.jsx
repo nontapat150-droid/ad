@@ -423,32 +423,91 @@ export default function InventoryDispatchPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {stagedItems.map((item, index) => (
+                {stagedItems.map((item, index) => {
+                  const ppc = item.pieces_per_crate;
+                  const itemUnit = item.unit || 'ชิ้น';
+                  
+                  return (
                   <div
                     key={`stage-${index}`}
-                    className="flex items-center justify-between p-5 bg-white border border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:shadow-[0_4px_12px_rgba(163,230,53,0.15)] transition-all"
+                    className="flex flex-col p-5 bg-white border border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:shadow-[0_4px_12px_rgba(163,230,53,0.15)] transition-all"
                     style={{ animation: `dropdownIn 0.25s ease-out ${index * 30}ms both` }}
                   >
-                    <div>
-                      <p className="font-black text-[#1F2937] text-lg font-mono">{item.sn}</p>
-                      <p className="text-sm font-bold text-[#6B7280] mt-1">{item.product_name} - {item.model_name}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-black text-[#1F2937] text-lg font-mono">{item.sn}</p>
+                        <p className="text-sm font-bold text-[#6B7280] mt-1">{item.product_name} - {item.model_name}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
+                          {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })} {itemUnit}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveFromStaging(index)}
+                          className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100 active:scale-95"
+                          title="เอาออก"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
-                        จำนวน: {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })}
-                      </span>
-                      <button
-                        onClick={() => handleRemoveFromStaging(index)}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100 active:scale-95"
-                        title="เอาออก"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
+
+                    {/* Crate selection — แสดงเฉพาะสินค้าที่มี pieces_per_crate */}
+                    {ppc && ppc > 0 && (
+                      <div className="mt-3 pt-3 border-t border-[#F3F4F6] flex flex-wrap items-center gap-3">
+                        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setStagedItems(prev => prev.map((si, i) => 
+                                i === index ? { ...si, dispatchMode: 'unit', dispatchCrates: undefined } : si
+                              ));
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${(!item.dispatchMode || item.dispatchMode === 'unit') ? 'bg-white text-[#185FA5] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-[#042C53]'}`}
+                          >
+                            เบิกเป็น{itemUnit}
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const crateQty = 1;
+                              setStagedItems(prev => prev.map((si, i) => 
+                                i === index ? { ...si, dispatchMode: 'crate', dispatchCrates: crateQty, quantity: crateQty * ppc } : si
+                              ));
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${item.dispatchMode === 'crate' ? 'bg-white text-amber-600 shadow-sm border border-amber-200' : 'text-slate-500 hover:text-[#042C53]'}`}
+                          >
+                            เบิกเป็นลัง
+                          </button>
+                        </div>
+
+                        {item.dispatchMode === 'crate' && (
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="number" 
+                              min="1" 
+                              value={item.dispatchCrates || 1}
+                              onChange={(e) => {
+                                const crates = parseInt(e.target.value) || 1;
+                                setStagedItems(prev => prev.map((si, i) => 
+                                  i === index ? { ...si, dispatchCrates: crates, quantity: crates * ppc } : si
+                                ));
+                              }}
+                              className="w-16 px-3 py-1.5 border border-slate-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-300 outline-none"
+                            />
+                            <span className="text-sm font-bold text-[#6B7280]">ลัง</span>
+                            <span className="text-sm font-black text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                              = {((item.dispatchCrates || 1) * ppc).toLocaleString()} {itemUnit}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

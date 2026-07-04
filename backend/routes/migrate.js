@@ -210,6 +210,17 @@ router.get('/migrate-entry-fee', async (req, res) => {
       results.push('✅ oil_records.is_trip added');
     } catch(e) { results.push('oil_records.is_trip: ' + e.message); }
 
+    // ── Inventory unit & crate conversion ──
+    try {
+      await pool.query(`ALTER TABLE inventory_products ADD COLUMN unit VARCHAR(50) DEFAULT 'ชิ้น'`);
+      results.push('✅ inventory_products.unit added');
+    } catch(e) { results.push('inventory_products.unit: ' + e.message); }
+
+    try {
+      await pool.query(`ALTER TABLE inventory_products ADD COLUMN pieces_per_crate INT DEFAULT NULL`);
+      results.push('✅ inventory_products.pieces_per_crate added');
+    } catch(e) { results.push('inventory_products.pieces_per_crate: ' + e.message); }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });

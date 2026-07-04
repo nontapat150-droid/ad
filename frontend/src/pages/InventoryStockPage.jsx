@@ -29,6 +29,8 @@ export default function InventoryStockPage() {
         product_id: item.product_id,
         product_name: item.product_name,
         has_sn: item.has_sn,
+        unit: item.unit || 'ชิ้น',
+        pieces_per_crate: item.pieces_per_crate || null,
         total_quantity: 0,
         item_count: 0,
         models: []
@@ -199,6 +201,58 @@ export default function InventoryStockPage() {
     }
   };
 
+  // ── แก้ไขหน่วยนับ / จำนวนต่อลัง ──
+  const handleEditUnitSettings = async (product) => {
+    const unitOptions = ['ชิ้น', 'ตัว', 'กล่อง', 'อัน', 'เมตร', 'ม้วน', 'ชุด', 'แผ่น'].map(u => 
+      `<option value="${u}" ${product.unit === u ? 'selected' : ''}>${u}</option>`
+    ).join('');
+
+    const result = await Swal.fire({
+      title: `ตั้งค่าหน่วยนับ / ลัง`,
+      html: `
+        <div style="text-align:left;font-size:14px;">
+          <p style="font-weight:900;font-size:1rem;color:#1F2937;margin-bottom:16px;">📦 ${product.product_name}</p>
+          ${!product.has_sn ? `
+            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
+            <select id="swal-edit-unit" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;">
+              ${unitOptions}
+            </select>
+          ` : `
+            <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
+          `}
+          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">1 ลัง = กี่${product.unit || 'ชิ้น'}? <span style="color:#9CA3AF;font-weight:500;">(เว้นว่างหากไม่ใช้ระบบลัง)</span></label>
+          <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+        </div>
+      `,
+      confirmButtonText: 'บันทึก',
+      confirmButtonColor: '#185FA5',
+      showCancelButton: true,
+      cancelButtonText: 'ยกเลิก',
+      cancelButtonColor: '#9CA3AF',
+      customClass: { popup: 'rounded-3xl' },
+      preConfirm: () => {
+        const unitEl = document.getElementById('swal-edit-unit');
+        return {
+          unit: unitEl ? unitEl.value : product.unit,
+          ppc: document.getElementById('swal-edit-ppc').value
+        };
+      }
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        await axios.put(`/inventory/products/${product.product_id}`, {
+          unit: result.value.unit,
+          pieces_per_crate: result.value.ppc || null
+        });
+        Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1000, showConfirmButton: false });
+        fetchStock();
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถบันทึกได้' });
+      }
+    }
+  };
+
   return (
     <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-[#E5E7EB] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#F9FAFB]">
@@ -305,17 +359,37 @@ export default function InventoryStockPage() {
                           <span className="text-lg font-black text-[#1F2937]">
                             {parseFloat(item.total_quantity).toLocaleString()}
                           </span>
-                          <span className="text-xs font-bold text-[#6B7280] bg-[#F3F4F6] px-2 py-1 rounded-md">หน่วย</span>
+                          <span className="text-xs font-bold text-[#6B7280] bg-[#F3F4F6] px-2 py-1 rounded-md">{item.unit || 'ชิ้น'}</span>
+                          {item.pieces_per_crate && (
+                            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                              1 ลัง = {item.pieces_per_crate} {item.unit || 'ชิ้น'}
+                            </span>
+                          )}
                         </>
                       ) : (
-                        <span className="text-sm font-black text-[#1F2937] bg-[#A3E635] px-3 py-1.5 rounded-xl shadow-[0_2px_8px_rgba(163,230,53,0.3)]">
-                          {item.item_count.toLocaleString()} รายการ
-                        </span>
+                        <>
+                          <span className="text-sm font-black text-[#1F2937] bg-[#A3E635] px-3 py-1.5 rounded-xl shadow-[0_2px_8px_rgba(163,230,53,0.3)]">
+                            {item.item_count.toLocaleString()} ชิ้น
+                          </span>
+                          {item.pieces_per_crate && (
+                            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 ml-1">
+                              1 ลัง = {item.pieces_per_crate} ชิ้น
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>
                   <td className="p-5 text-center">
                     <div className="flex justify-center items-center gap-2">
+                      <button 
+                        type="button" 
+                        onClick={() => handleEditUnitSettings(item)}
+                        className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 flex items-center justify-center transition-colors shadow-sm border border-amber-100 active:scale-95"
+                        title="ตั้งค่าหน่วย / ลัง"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </button>
                       <button 
                         type="button" 
                         onClick={() => handleViewDetails(item)}
