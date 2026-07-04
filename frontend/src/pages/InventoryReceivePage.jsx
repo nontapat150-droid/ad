@@ -709,7 +709,12 @@ export default function InventoryReceivePage() {
         Swal.fire({ icon: 'success', title: 'เพิ่มสินค้าแล้ว', timer: 1000, showConfirmButton: false });
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเพิ่มสินค้าได้' });
+      console.error('Add product error:', err);
+      Swal.fire({ 
+        icon: 'error', 
+        title: 'เกิดข้อผิดพลาด', 
+        text: err.response?.data?.error || err.response?.data?.details || err.message || 'ไม่สามารถเพิ่มสินค้าได้' 
+      });
     } finally {
       setLoading(false);
     }
