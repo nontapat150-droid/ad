@@ -228,6 +228,98 @@ function UserDropdown({ users, value, onChange }) {
   );
 }
 
+// ── Stock Selection Modal ────────────────────────────────────────────────────
+function StockSelectionModal({ isOpen, onClose, onSelect }) {
+  const [stock, setStock] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(null);
+  const [modelItems, setModelItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      setSelectedModel(null);
+      axios.get('/inventory/stock').then(res => setStock(res.data)).finally(() => setLoading(false));
+    }
+  }, [isOpen]);
+
+  const handleSelectModel = (model) => {
+    setSelectedModel(model);
+    setItemsLoading(true);
+    axios.get(`/inventory/stock/${model.model_id}`).then(res => setModelItems(res.data)).finally(() => setItemsLoading(false));
+  };
+
+  const handleAddItem = (item, model) => {
+    onSelect({
+      id: item.id,
+      sn: item.sn,
+      quantity: item.quantity,
+      db_quantity: item.quantity,
+      product_name: model.product_name,
+      model_name: model.model_name,
+      has_sn: model.has_sn,
+      unit: model.unit,
+      pieces_per_crate: model.pieces_per_crate
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#1F2937]/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" style={{ animation: 'dropdownIn 0.25s ease-out' }}>
+        <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
+          <h2 className="text-xl font-black text-[#1F2937]">
+            {selectedModel ? `📦 ${selectedModel.product_name} - ${selectedModel.model_name}` : '🛒 เลือกสินค้าจากคลัง'}
+          </h2>
+          <button onClick={() => selectedModel ? setSelectedModel(null) : onClose()} className="p-2 text-gray-500 hover:bg-gray-200 rounded-xl font-bold transition">
+            {selectedModel ? '← ย้อนกลับ' : '✕ ปิด'}
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          {loading ? <div className="text-center py-10 font-bold text-[#9CA3AF]">กำลังโหลด...</div> : 
+           selectedModel ? (
+             itemsLoading ? <div className="text-center py-10 font-bold text-[#9CA3AF]">กำลังโหลดรายการ...</div> :
+             <div className="space-y-3">
+               {modelItems.length === 0 ? <div className="text-center py-10 font-bold text-[#9CA3AF]">ไม่มีสินค้านี้ในคลัง</div> :
+                modelItems.map(item => (
+                  <button key={item.id} onClick={() => handleAddItem(item, selectedModel)} className="w-full text-left p-4 border-2 border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:bg-[#F0FDF4] transition-all flex justify-between items-center group shadow-sm hover:shadow-md">
+                    <div>
+                      <p className="font-mono font-black text-[#1F2937] text-lg">{item.sn}</p>
+                      <p className="text-sm font-bold text-[#6B7280] mt-1">สต็อกคงเหลือ: <span className="text-[#185FA5]">{parseFloat(item.quantity).toLocaleString()} {selectedModel.unit || 'ชิ้น'}</span></p>
+                    </div>
+                    <span className="bg-[#E5E7EB] group-hover:bg-[#A3E635] text-[#1F2937] px-4 py-2 text-sm font-black rounded-xl transition-colors">
+                      เลือกเบิก
+                    </span>
+                  </button>
+                ))
+               }
+             </div>
+           ) : (
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               {stock.map(m => (
+                 <button key={m.model_id} onClick={() => handleSelectModel(m)} className="text-left p-4 bg-white border-2 border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:shadow-md transition-all group">
+                   <p className="font-black text-[#1F2937] text-base truncate group-hover:text-[#185FA5] transition-colors">{m.product_name}</p>
+                   <p className="text-sm font-bold text-[#6B7280] truncate mt-0.5">{m.model_name}</p>
+                   <div className="mt-3 flex gap-2">
+                     <span className="bg-[#F0FDF4] text-[#16A34A] border border-[#16A34A]/20 px-2.5 py-1 text-xs font-black rounded-lg">ในคลัง {m.item_count} รายการ</span>
+                     {m.total_quantity > m.item_count && (
+                       <span className="bg-blue-50 text-blue-600 border border-blue-200 px-2.5 py-1 text-xs font-black rounded-lg">รวม {parseFloat(m.total_quantity).toLocaleString()} {m.unit || 'ชิ้น'}</span>
+                     )}
+                   </div>
+                 </button>
+               ))}
+               {stock.length === 0 && <div className="col-span-full text-center py-10 font-bold text-[#9CA3AF]">ไม่มีสินค้าในคลัง</div>}
+             </div>
+           )
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function InventoryDispatchPage() {
   const [loading, setLoading] = useState(false);
@@ -236,6 +328,7 @@ export default function InventoryDispatchPage() {
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showStockModal, setShowStockModal] = useState(false);
   const snInputRef = useRef(null);
 
   useEffect(() => {
@@ -263,7 +356,9 @@ export default function InventoryDispatchPage() {
     setLoading(true);
     try {
       const res = await axios.get(`/inventory/search-sn/${encodeURIComponent(snInput.trim())}`);
-      setStagedItems(prev => [...prev, res.data]);
+      const fetchedItem = res.data;
+      fetchedItem.db_quantity = fetchedItem.quantity; // Save original max quantity
+      setStagedItems(prev => [...prev, fetchedItem]);
       setSnInput('');
     } catch (err) {
       const msg = err.response?.data?.error || 'ไม่พบสินค้า หรือสินค้านี้เบิกไปแล้ว';
@@ -272,6 +367,15 @@ export default function InventoryDispatchPage() {
       setLoading(false);
       setTimeout(() => snInputRef.current?.focus(), 100);
     }
+  };
+
+  const handleSelectFromStock = (item) => {
+    if (stagedItems.some(si => si.sn === item.sn)) {
+      Swal.fire({ icon: 'warning', title: 'สินค้านี้รอเบิกอยู่แล้ว', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+      return;
+    }
+    setStagedItems(prev => [...prev, item]);
+    Swal.fire({ icon: 'success', title: 'เพิ่มลงตะกร้าแล้ว', toast: true, position: 'top-end', timer: 1000, showConfirmButton: false });
   };
 
   const handleRemoveFromStaging = (index) => {
@@ -310,7 +414,7 @@ export default function InventoryDispatchPage() {
     if (!result.isConfirmed) return;
     setLoading(true);
     try {
-      const payload = { target_user_id: selectedUser.id, items: stagedItems.map(item => ({ id: item.id })) };
+      const payload = { target_user_id: selectedUser.id, items: stagedItems.map(item => ({ id: item.id, quantity_to_dispatch: item.quantity })) };
       const res = await axios.post('/inventory/dispatch', payload);
       Swal.fire({ icon: 'success', title: 'เบิกสินค้าเรียบร้อย!', text: res.data.message, confirmButtonColor: '#1F2937', customClass: { popup: 'rounded-3xl' } });
       setStagedItems([]);
@@ -355,13 +459,25 @@ export default function InventoryDispatchPage() {
                   </svg>
                 </div>
               </div>
-              <button
-                type="submit"
-                disabled={loading || !snInput}
-                className="bg-[#1F2937] hover:bg-[#374151] text-white font-bold px-4 py-4 rounded-2xl transition-all disabled:opacity-50 shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95"
-              >
-                นำมาพักรอเบิก
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowStockModal(true)}
+                  className="flex-1 bg-white hover:bg-[#F9FAFB] text-[#1F2937] font-black border-2 border-[#E5E7EB] hover:border-[#A3E635] px-4 py-4 rounded-2xl transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <svg className="w-5 h-5 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  เลือกจากคลัง
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !snInput}
+                  className="flex-1 bg-[#1F2937] hover:bg-[#374151] text-white font-black px-4 py-4 rounded-2xl transition-all disabled:opacity-50 shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95"
+                >
+                  นำมาพัก
+                </button>
+              </div>
             </form>
           </div>
 
@@ -439,9 +555,39 @@ export default function InventoryDispatchPage() {
                         <p className="text-sm font-bold text-[#6B7280] mt-1">{item.product_name} - {item.model_name}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
-                          {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })} {itemUnit}
-                        </span>
+                        {item.dispatchMode === 'crate' ? (
+                          <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
+                            {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })} {itemUnit}
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2 bg-[#F3F4F6] border border-[#E5E7EB] pl-1 pr-3 py-1 rounded-xl shadow-sm">
+                            <input 
+                              type="number" 
+                              min="0.1" 
+                              step="0.1" 
+                              max={item.db_quantity || item.quantity}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                let val = e.target.value;
+                                if (val !== '') {
+                                  let numVal = parseFloat(val);
+                                  if (numVal < 0) numVal = 0;
+                                  const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
+                                  if (numVal > maxVal) numVal = maxVal;
+                                  val = numVal;
+                                }
+                                setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: val } : si));
+                              }}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                                  setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: 1 } : si));
+                                }
+                              }}
+                              className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
+                            />
+                            <span className="text-sm font-black text-[#1F2937]">{itemUnit}</span>
+                          </div>
+                        )}
                         <button
                           onClick={() => handleRemoveFromStaging(index)}
                           className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-red-100 active:scale-95"
@@ -479,7 +625,7 @@ export default function InventoryDispatchPage() {
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${item.dispatchMode === 'crate' ? 'bg-white text-amber-600 shadow-sm border border-amber-200' : 'text-slate-500 hover:text-[#042C53]'}`}
                           >
-                            เบิกเป็นลัง
+                            เบิกเป็น{item.crate_unit || 'ลัง'}
                           </button>
                         </div>
 
@@ -497,7 +643,7 @@ export default function InventoryDispatchPage() {
                               }}
                               className="w-16 px-3 py-1.5 border border-slate-300 rounded-xl text-sm font-bold text-center focus:ring-2 focus:ring-amber-300 outline-none"
                             />
-                            <span className="text-sm font-bold text-[#6B7280]">ลัง</span>
+                            <span className="text-sm font-bold text-[#6B7280]">{item.crate_unit || 'ลัง'}</span>
                             <span className="text-sm font-black text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
                               = {((item.dispatchCrates || 1) * ppc).toLocaleString()} {itemUnit}
                             </span>
@@ -522,6 +668,13 @@ export default function InventoryDispatchPage() {
         data={stagedItems}
         title="ส่งออกรายการนำออก (Dispatch)"
         fileNamePrefix="Dispatch_Staging"
+      />
+      
+      {/* Stock Selection Modal */}
+      <StockSelectionModal 
+        isOpen={showStockModal}
+        onClose={() => setShowStockModal(false)}
+        onSelect={handleSelectFromStock}
       />
     </div>
   );

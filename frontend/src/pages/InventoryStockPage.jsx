@@ -225,8 +225,24 @@ export default function InventoryStockPage() {
           ` : `
             <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
           `}
-          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">1 ลัง = กี่${product.unit || 'ชิ้น'}? <span style="color:#9CA3AF;font-weight:500;">(เว้นว่างหากไม่ใช้ระบบลัง)</span></label>
-          <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+          <div style="display:flex;gap:12px;margin-bottom:6px;">
+            <div style="flex:1;">
+              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">จำนวนย่อยต่อ 1 กลุ่ม</label>
+              <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+            </div>
+            <div style="flex:1;">
+              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">คำเรียกกลุ่ม (เช่น ลัง, ม้วน)</label>
+              <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, ม้วน..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+              <datalist id="crate-unit-options">
+                <option value="ลัง"></option>
+                <option value="ม้วน"></option>
+                <option value="กล่อง"></option>
+                <option value="แพ็ค"></option>
+                <option value="โหล"></option>
+              </datalist>
+            </div>
+          </div>
+          <p style="color:#9CA3AF;font-size:12px;margin-top:6px;font-weight:500;">(เว้นว่างจำนวนย่อย หากไม่ต้องการจัดกลุ่ม)</p>
         </div>
       `,
       confirmButtonText: 'บันทึก',
@@ -239,7 +255,8 @@ export default function InventoryStockPage() {
         const unitEl = document.getElementById('swal-edit-unit');
         return {
           unit: unitEl ? unitEl.value : product.unit,
-          ppc: document.getElementById('swal-edit-ppc').value
+          ppc: document.getElementById('swal-edit-ppc').value,
+          crate_unit: document.getElementById('swal-edit-crate-unit').value
         };
       }
     });
@@ -248,7 +265,8 @@ export default function InventoryStockPage() {
       try {
         await axios.put(`/inventory/products/${product.product_id}`, {
           unit: result.value.unit,
-          pieces_per_crate: result.value.ppc || null
+          pieces_per_crate: result.value.ppc,
+          crate_unit: result.value.crate_unit
         });
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1000, showConfirmButton: false });
         fetchStock();

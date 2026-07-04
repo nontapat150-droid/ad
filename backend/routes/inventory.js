@@ -30,18 +30,18 @@ router.get('/products', auth, async (req, res) => {
 
 // ── POST /api/inventory/products ──
 router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { name, has_sn, unit, pieces_per_crate } = req.body;
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  const { name, has_sn, unit, pieces_per_crate, crate_unit } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Product name is required' });
+  }
 
   try {
-    // SN สินค้า → หน่วย = ชิ้น เสมอ, แต่กำหนดลังได้
-    // ไม่มี SN → หน่วยเลือกเองได้ + กำหนดลังได้
-    const productUnit = has_sn ? 'ชิ้น' : (unit || 'ชิ้น');
     const ppc = (pieces_per_crate && parseInt(pieces_per_crate) > 0) ? parseInt(pieces_per_crate) : null;
-
+    const cu = crate_unit || 'ลัง';
     const [result] = await pool.query(
-      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate) VALUES (?, ?, ?, ?)',
-      [name, has_sn !== false, productUnit, ppc]
+      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate, crate_unit) VALUES (?, ?, ?, ?, ?)',
+      [name, has_sn ? 1 : 0, unit || 'ชิ้น', ppc, cu]
     );
     res.json({ message: 'Product created', id: result.insertId });
   } catch (err) {
@@ -52,20 +52,27 @@ router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── PUT /api/inventory/products/:id — Update unit / pieces_per_crate ──
 router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { unit, pieces_per_crate } = req.body;
-  const productId = req.params.id;
+  const { unit, pieces_per_crate, crate_unit } = req.body;
+
+  if (!unit && pieces_per_crate === undefined && crate_unit === undefined) {
+    return res.status(400).json({ error: 'Nothing to update' });
+  }
 
   try {
     const updates = [];
     const values = [];
 
-    if (unit !== undefined) {
+    if (unit) {
       updates.push('unit = ?');
-      values.push(unit || 'ชิ้น');
+      values.push(unit);
     }
     if (pieces_per_crate !== undefined) {
       updates.push('pieces_per_crate = ?');
       values.push(pieces_per_crate ? parseInt(pieces_per_crate) : null);
+    }
+    if (crate_unit !== undefined) {
+      updates.push('crate_unit = ?');
+      values.push(crate_unit || 'ลัง');
     }
 
     if (updates.length === 0) {
@@ -233,7 +240,7 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 router.get('/search-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit, p.pieces_per_crate 
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit, p.pieces_per_crate, p.crate_unit
        FROM inventory_items ii
        JOIN inventory_models pm ON pm.id = ii.model_id
        JOIN inventory_products p ON p.id = pm.product_id
@@ -277,22 +284,40 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       // The requirement: "เมื่อกดยืนยันระบบจะขึ้นหน้าต่างลอยคล้ายบิลใบเสร็จ และมี ดรอปดาวให้เลือกว่าจะเบิกให้คนไหน"
       // If we just transfer the whole row:
       
-      const [[dbItem]] = await conn.query('SELECT quantity FROM inventory_items WHERE id = ? AND status = "in_stock" FOR UPDATE', [item.id]);
+      const [[dbItem]] = await conn.query('SELECT model_id, sn, quantity FROM inventory_items WHERE id = ? AND status = "in_stock" FOR UPDATE', [item.id]);
       if (!dbItem) continue; // Skip if not found or not in_stock
 
-      // We dispatch the whole row to the technician.
-      // In tech-bag they can split it. Or if admin wants to split, they can do it, but for now we just transfer the whole item.
-      await conn.query(
-        `UPDATE inventory_items 
-         SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
-         WHERE id = ?`,
-        [target_user_id, team_id, item.id]
-      );
+      let dispatchQty = parseFloat(item.quantity_to_dispatch);
+      if (isNaN(dispatchQty) || dispatchQty <= 0 || dispatchQty > parseFloat(dbItem.quantity)) {
+        dispatchQty = parseFloat(dbItem.quantity);
+      }
 
-      await conn.query(
-        'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
-        [item.id, adminId, target_user_id, dbItem.quantity]
-      );
+      if (dispatchQty < parseFloat(dbItem.quantity)) {
+        // Split the item
+        await conn.query('UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?', [dispatchQty, item.id]);
+        
+        const [insertRes] = await conn.query(
+          `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at) VALUES (?, ?, ?, 'dispatched', ?, ?, NOW())`,
+          [dbItem.model_id, dbItem.sn, dispatchQty, target_user_id, team_id]
+        );
+        
+        await conn.query('INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
+          [insertRes.insertId, adminId, target_user_id, dispatchQty]
+        );
+      } else {
+        // Dispatch the whole item
+        await conn.query(
+          `UPDATE inventory_items 
+           SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
+           WHERE id = ?`,
+          [target_user_id, team_id, item.id]
+        );
+
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
+          [item.id, adminId, target_user_id, dispatchQty]
+        );
+      }
       dispatchedCount++;
     }
 
@@ -551,7 +576,7 @@ router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT p.id AS product_id, p.name AS product_name, p.has_sn,
-              p.unit, p.pieces_per_crate,
+              p.unit, p.pieces_per_crate, p.crate_unit,
               m.id AS model_id, m.model_name,
               COUNT(ii.id) AS item_count,
               SUM(ii.quantity) AS total_quantity

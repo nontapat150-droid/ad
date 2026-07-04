@@ -221,6 +221,11 @@ router.get('/migrate-entry-fee', async (req, res) => {
       results.push('✅ inventory_products.pieces_per_crate added');
     } catch(e) { results.push('inventory_products.pieces_per_crate: ' + e.message); }
 
+    try {
+      await pool.query(`ALTER TABLE inventory_products ADD COLUMN crate_unit VARCHAR(50) DEFAULT 'ลัง'`);
+      results.push('✅ inventory_products.crate_unit added');
+    } catch(e) { results.push('inventory_products.crate_unit: ' + e.message); }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });
