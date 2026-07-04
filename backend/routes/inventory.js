@@ -53,6 +53,7 @@ router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ── PUT /api/inventory/products/:id — Update unit / pieces_per_crate ──
 router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { unit, pieces_per_crate, crate_unit } = req.body;
+  const productId = req.params.id;
 
   if (!unit && pieces_per_crate === undefined && crate_unit === undefined) {
     return res.status(400).json({ error: 'Nothing to update' });
