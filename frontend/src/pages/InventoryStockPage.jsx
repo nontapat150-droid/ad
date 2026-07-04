@@ -385,7 +385,7 @@ export default function InventoryStockPage() {
                           <span className="text-xs font-bold text-[#6B7280] bg-[#F3F4F6] px-2 py-1 rounded-md">{item.unit || 'ชิ้น'}</span>
                           {item.pieces_per_crate && (
                             <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
-                              1 ลัง = {item.pieces_per_crate} {item.unit || 'ชิ้น'}
+                              1 {item.crate_unit || 'ลัง'} = {item.pieces_per_crate} {item.unit || 'ชิ้น'}
                             </span>
                           )}
                         </>
@@ -396,7 +396,7 @@ export default function InventoryStockPage() {
                           </span>
                           {item.pieces_per_crate && (
                             <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 ml-1">
-                              1 ลัง = {item.pieces_per_crate} ชิ้น
+                              1 {item.crate_unit || 'ลัง'} = {item.pieces_per_crate} ชิ้น
                             </span>
                           )}
                         </>
