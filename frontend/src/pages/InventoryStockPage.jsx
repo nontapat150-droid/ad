@@ -31,6 +31,7 @@ export default function InventoryStockPage() {
         has_sn: item.has_sn,
         unit: item.unit || 'ชิ้น',
         pieces_per_crate: item.pieces_per_crate || null,
+        crate_unit: item.crate_unit || 'ลัง',
         total_quantity: 0,
         item_count: 0,
         models: []
