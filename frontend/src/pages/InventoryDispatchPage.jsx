@@ -358,6 +358,8 @@ export default function InventoryDispatchPage() {
       const res = await axios.get(`/inventory/search-sn/${encodeURIComponent(snInput.trim())}`);
       const fetchedItem = res.data;
       fetchedItem.db_quantity = fetchedItem.quantity; // Save original max quantity
+      fetchedItem.dispatchMode = 'unit';
+      fetchedItem.inputCrates = fetchedItem.pieces_per_crate ? (1 / fetchedItem.pieces_per_crate).toFixed(2) : 0;
       setStagedItems(prev => [...prev, fetchedItem]);
       setSnInput('');
     } catch (err) {
@@ -374,7 +376,12 @@ export default function InventoryDispatchPage() {
       Swal.fire({ icon: 'warning', title: 'สินค้านี้รอเบิกอยู่แล้ว', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
       return;
     }
-    const clonedItem = { ...item, db_quantity: item.quantity };
+    const clonedItem = { 
+      ...item, 
+      db_quantity: item.quantity,
+      dispatchMode: 'unit',
+      inputCrates: item.pieces_per_crate ? (1 / item.pieces_per_crate).toFixed(2) : 0
+    };
     setStagedItems(prev => [...prev, clonedItem]);
     Swal.fire({ icon: 'success', title: 'เพิ่มลงตะกร้าแล้ว', toast: true, position: 'top-end', timer: 1000, showConfirmButton: false });
   };
@@ -562,33 +569,91 @@ export default function InventoryDispatchPage() {
                           </span>
                         ) : (
                           <div className="flex flex-col items-end">
+                            {ppc && (
+                              <div className="flex bg-[#F3F4F6] p-1 rounded-lg border border-[#E5E7EB] mb-2">
+                                <button type="button" 
+                                  onClick={() => {
+                                    setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, dispatchMode: 'unit', quantity: si.inputCrates ? parseFloat(si.inputCrates) * ppc : 1 } : si));
+                                  }}
+                                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${item.dispatchMode !== 'crate' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-slate-500'}`}>
+                                  ระบุเป็น({itemUnit})
+                                </button>
+                                <button type="button" 
+                                  onClick={() => {
+                                    setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, dispatchMode: 'crate', inputCrates: si.quantity ? parseFloat(si.quantity) / ppc : 1 } : si));
+                                  }}
+                                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${item.dispatchMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>
+                                  ระบุเป็น({item.crate_unit || 'ลัง'})
+                                </button>
+                              </div>
+                            )}
+
                             <div className="flex items-center gap-2 bg-[#F3F4F6] border border-[#E5E7EB] pl-1 pr-3 py-1 rounded-xl shadow-sm">
-                              <input 
-                                type="number" 
-                                min="0.1" 
-                                step="0.1" 
-                                max={item.db_quantity || item.quantity}
-                                value={item.quantity}
-                                onChange={(e) => {
-                                  let val = e.target.value;
-                                  if (val !== '') {
-                                    let numVal = parseFloat(val);
-                                    if (numVal < 0) numVal = 0;
-                                    const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
-                                    if (numVal > maxVal) numVal = maxVal;
-                                    val = numVal;
-                                  }
-                                  setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: val } : si));
-                                }}
-                                onBlur={(e) => {
-                                  if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
-                                    setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: 1 } : si));
-                                  }
-                                }}
-                                className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
-                              />
-                              <span className="text-sm font-black text-[#1F2937]">{itemUnit}</span>
+                              {item.dispatchMode === 'crate' && ppc ? (
+                                <>
+                                  <input 
+                                    type="number" 
+                                    min="0.1" 
+                                    step="0.1"
+                                    max={(item.db_quantity || item.quantity) / ppc}
+                                    value={item.inputCrates || ''}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (val !== '') {
+                                        let numVal = parseFloat(val);
+                                        if (numVal < 0) numVal = 0;
+                                        const maxCrates = (item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity)) / ppc;
+                                        if (numVal > maxCrates) numVal = maxCrates;
+                                        val = numVal;
+                                      }
+                                      setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, inputCrates: val, quantity: val !== '' ? val * ppc : 0 } : si));
+                                    }}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                                        setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, inputCrates: 1, quantity: ppc } : si));
+                                      }
+                                    }}
+                                    className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
+                                  />
+                                  <span className="text-sm font-black text-[#1F2937]">{item.crate_unit || 'ลัง'}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <input 
+                                    type="number" 
+                                    min="0.1" 
+                                    step="0.1" 
+                                    max={item.db_quantity || item.quantity}
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (val !== '') {
+                                        let numVal = parseFloat(val);
+                                        if (numVal < 0) numVal = 0;
+                                        const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
+                                        if (numVal > maxVal) numVal = maxVal;
+                                        val = numVal;
+                                      }
+                                      setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: val, inputCrates: val !== '' ? val / ppc : 0 } : si));
+                                    }}
+                                    onBlur={(e) => {
+                                      if (e.target.value === '' || parseFloat(e.target.value) <= 0) {
+                                        setStagedItems(prev => prev.map((si, i) => i === index ? { ...si, quantity: 1, inputCrates: 1 / ppc } : si));
+                                      }
+                                    }}
+                                    className="w-24 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-black text-right focus:ring-2 focus:ring-[#A3E635] outline-none"
+                                  />
+                                  <span className="text-sm font-black text-[#1F2937]">{itemUnit}</span>
+                                </>
+                              )}
                             </div>
+
+                            {item.dispatchMode === 'crate' && ppc && (
+                              <span className="text-xs font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 mt-2">
+                                = {parseFloat(item.quantity || 0).toLocaleString()} {itemUnit}
+                              </span>
+                            )}
+
                             <span className="text-xs font-bold text-slate-400 mt-1 mr-1">
                               (มีในคลังสูงสุด {parseFloat(item.db_quantity || item.quantity).toLocaleString()} {itemUnit})
                             </span>
