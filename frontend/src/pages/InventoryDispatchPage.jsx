@@ -374,7 +374,8 @@ export default function InventoryDispatchPage() {
       Swal.fire({ icon: 'warning', title: 'สินค้านี้รอเบิกอยู่แล้ว', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
       return;
     }
-    setStagedItems(prev => [...prev, item]);
+    const clonedItem = { ...item, db_quantity: item.quantity };
+    setStagedItems(prev => [...prev, clonedItem]);
     Swal.fire({ icon: 'success', title: 'เพิ่มลงตะกร้าแล้ว', toast: true, position: 'top-end', timer: 1000, showConfirmButton: false });
   };
 
@@ -555,7 +556,7 @@ export default function InventoryDispatchPage() {
                         <p className="text-sm font-bold text-[#6B7280] mt-1">{item.product_name} - {item.model_name}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        {item.dispatchMode === 'crate' ? (
+                        {item.dispatchMode === 'crate' || item.has_sn ? (
                           <span className="bg-[#F3F4F6] border border-[#E5E7EB] text-[#1F2937] px-4 py-2 rounded-xl text-sm font-black shadow-sm">
                             {parseFloat(item.quantity).toLocaleString('th-TH', { maximumFractionDigits: 0 })} {itemUnit}
                           </span>
