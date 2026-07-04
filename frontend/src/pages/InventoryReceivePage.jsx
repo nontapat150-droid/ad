@@ -530,6 +530,8 @@ export default function InventoryReceivePage() {
   const [inputType, setInputType] = useState('scan');
   const [sn, setSn] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [receiveMode, setReceiveMode] = useState('unit');
+  const [receiveCrates, setReceiveCrates] = useState(1);
   const [isAutoGenerate, setIsAutoGenerate] = useState(true);
   const [generateCount, setGenerateCount] = useState(1);
   
@@ -631,16 +633,17 @@ export default function InventoryReceivePage() {
         html: `
           <div style="text-align:left;font-size:14px;">
             <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
-            <select id="swal-unit" class="swal2-select" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;">
-              <option value="ชิ้น">ชิ้น</option>
-              <option value="ตัว">ตัว</option>
-              <option value="กล่อง">กล่อง</option>
-              <option value="อัน">อัน</option>
-              <option value="เมตร">เมตร</option>
-              <option value="ม้วน">ม้วน</option>
-              <option value="ชุด">ชุด</option>
-              <option value="แผ่น">แผ่น</option>
-            </select>
+            <input id="swal-unit" list="unit-options" class="swal2-input" placeholder="พิมพ์หรือเลือกหน่วยนับ..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" value="ชิ้น" />
+            <datalist id="unit-options">
+              <option value="ชิ้น"></option>
+              <option value="ตัว"></option>
+              <option value="กล่อง"></option>
+              <option value="อัน"></option>
+              <option value="เมตร"></option>
+              <option value="ม้วน"></option>
+              <option value="ชุด"></option>
+              <option value="แผ่น"></option>
+            </datalist>
             <div style="margin-top:16px;">
               <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">1 ลัง = กี่หน่วย? <span style="color:#9CA3AF;font-weight:500;">(เว้นว่างหากไม่ใช้ระบบลัง)</span></label>
               <input id="swal-ppc" type="number" min="1" placeholder="เช่น 12 (1 ลัง = 12 ชิ้น)" class="swal2-input" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
@@ -1178,9 +1181,31 @@ export default function InventoryReceivePage() {
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ ({selectedProduct?.unit || 'ชิ้น'})</label>
-                            <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
-                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                            <div className="flex justify-between items-center mb-2">
+                              <label className="block text-sm font-semibold text-[#042C53]">
+                                จำนวน/รายการ
+                              </label>
+                              {selectedProduct?.pieces_per_crate && (
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#185FA5]' : 'text-slate-500'}`}>เป็น{selectedProduct.unit || 'ชิ้น'}</button>
+                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>เป็นลัง</button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {receiveMode === 'crate' && selectedProduct?.pieces_per_crate ? (
+                              <div className="flex gap-2 items-center">
+                                <input type="number" min="1" value={receiveCrates} onChange={(e) => { setReceiveCrates(e.target.value); setQuantity(e.target.value * selectedProduct.pieces_per_crate); }}
+                                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                                <span className="text-sm font-bold text-[#6B7280]">ลัง</span>
+                                <span className="text-sm font-black text-amber-600 bg-amber-50 px-3 py-3 rounded-xl border border-amber-200 whitespace-nowrap">
+                                  = {receiveCrates * selectedProduct.pieces_per_crate} {selectedProduct.unit || 'ชิ้น'}
+                                </span>
+                              </div>
+                            ) : (
+                              <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
+                                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -1193,10 +1218,34 @@ export default function InventoryReceivePage() {
                               className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
                           </div>
                           <div>
-                            <label className="block text-sm font-semibold text-[#042C53] mb-2">จำนวน/รายการ ({selectedProduct?.unit || 'ชิ้น'})</label>
-                            <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
-                              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                            <div className="flex justify-between items-center mb-2">
+                              <label className="block text-sm font-semibold text-[#042C53]">
+                                จำนวน/รายการ
+                              </label>
+                              {selectedProduct?.pieces_per_crate && (
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                  <button type="button" onClick={() => setReceiveMode('unit')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'unit' ? 'bg-white shadow-sm text-[#185FA5]' : 'text-slate-500'}`}>เป็น{selectedProduct.unit || 'ชิ้น'}</button>
+                                  <button type="button" onClick={() => setReceiveMode('crate')} className={`px-2 py-1 text-xs font-bold rounded-md transition-all ${receiveMode === 'crate' ? 'bg-white shadow-sm text-amber-600' : 'text-slate-500'}`}>เป็นลัง</button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {receiveMode === 'crate' && selectedProduct?.pieces_per_crate ? (
+                              <div className="flex gap-2 items-center">
+                                <input type="number" min="1" value={receiveCrates} 
+                                  onChange={(e) => { setReceiveCrates(e.target.value); setQuantity(e.target.value * selectedProduct.pieces_per_crate); }}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
+                                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                                <span className="text-sm font-bold text-[#6B7280]">ลัง</span>
+                                <span className="text-sm font-black text-amber-600 bg-amber-50 px-3 py-3 rounded-xl border border-amber-200 whitespace-nowrap">
+                                  = {receiveCrates * selectedProduct.pieces_per_crate} {selectedProduct.unit || 'ชิ้น'}
+                                </span>
+                              </div>
+                            ) : (
+                              <input type="number" min="0.1" step="0.1" value={quantity} onChange={(e) => setQuantity(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
+                                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none bg-white" />
+                            )}
                           </div>
                         </div>
                       )}

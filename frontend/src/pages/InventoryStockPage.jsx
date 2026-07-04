@@ -203,9 +203,6 @@ export default function InventoryStockPage() {
 
   // ── แก้ไขหน่วยนับ / จำนวนต่อลัง ──
   const handleEditUnitSettings = async (product) => {
-    const unitOptions = ['ชิ้น', 'ตัว', 'กล่อง', 'อัน', 'เมตร', 'ม้วน', 'ชุด', 'แผ่น'].map(u => 
-      `<option value="${u}" ${product.unit === u ? 'selected' : ''}>${u}</option>`
-    ).join('');
 
     const result = await Swal.fire({
       title: `ตั้งค่าหน่วยนับ / ลัง`,
@@ -214,9 +211,17 @@ export default function InventoryStockPage() {
           <p style="font-weight:900;font-size:1rem;color:#1F2937;margin-bottom:16px;">📦 ${product.product_name}</p>
           ${!product.has_sn ? `
             <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
-            <select id="swal-edit-unit" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;">
-              ${unitOptions}
-            </select>
+            <input id="swal-edit-unit" list="unit-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.unit || 'ชิ้น'}" placeholder="พิมพ์หรือเลือกหน่วยนับ..." />
+            <datalist id="unit-options">
+              <option value="ชิ้น"></option>
+              <option value="ตัว"></option>
+              <option value="กล่อง"></option>
+              <option value="อัน"></option>
+              <option value="เมตร"></option>
+              <option value="ม้วน"></option>
+              <option value="ชุด"></option>
+              <option value="แผ่น"></option>
+            </datalist>
           ` : `
             <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
           `}
