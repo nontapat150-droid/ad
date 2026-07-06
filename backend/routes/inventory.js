@@ -271,8 +271,9 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     await conn.beginTransaction();
 
     // Fetch user team
-    const [[user]] = await conn.query('SELECT team_id FROM users WHERE id = ?', [target_user_id]);
+    const [[user]] = await conn.query('SELECT team_id, name FROM users WHERE id = ?', [target_user_id]);
     const team_id = user ? user.team_id : null;
+    const techName = user ? user.name : 'พนักงาน';
 
     const adminId = req.user.id;
     let dispatchedCount = 0;
@@ -323,6 +324,17 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
+
+    try {
+      const { sendEventNotification } = require('../utils/eventNotifier');
+      sendEventNotification('inventory_dispatch', {
+        tech_name: techName,
+        items: `${dispatchedCount} รายการ`
+      }, target_user_id, adminId);
+    } catch (e) {
+      console.error('Failed to send inventory notification:', e);
+    }
+
     res.json({ message: `Successfully dispatched ${dispatchedCount} items to technician.` });
   } catch (err) {
     await conn.rollback();

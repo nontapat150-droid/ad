@@ -43,37 +43,57 @@ async function initializeEventMessages() {
       {
         key: 'job_dispatch',
         label: 'เมื่อมีการจ่ายงาน (Dispatch Job)',
-        template: 'มีงานใหม่เข้ามา: {job_id}\\nผู้ปฏิบัติงาน: {tech_name}\\nรายละเอียด: {description}',
+        template: '🔔 [มอบหมายงานใหม่]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name}\\nรายละเอียด: {description}\\n(โปรดตรวจสอบรายละเอียดในระบบ)',
         role: 'target_user' // Special role: send only to the specific technician
       },
       {
         key: 'check_in',
         label: 'เมื่อพนักงานเช็คอิน (Check-in)',
-        template: 'พนักงาน {tech_name} ได้เช็คอินที่: {location}\\nเวลานัด: {appointment_time}',
+        template: '📍 [แจ้งเตือนการเข้าพื้นที่]\\nพนักงาน: {tech_name} ได้ทำการเช็คอินแล้ว\\nสถานที่: {location}\\nเวลานัดหมาย: {appointment_time}',
         role: 'admin'
       },
       {
         key: 'oil_record',
         label: 'เมื่อมีการบันทึกค่าน้ำมัน (Oil Record)',
-        template: 'มีการบันทึกค่าน้ำมันใหม่โดย {tech_name}\\nจำนวนเงิน: {amount} บาท',
+        template: '⛽ [บันทึกเบิกค่าน้ำมัน]\\nพนักงาน: {tech_name} ได้บันทึกค่าน้ำมันใหม่\\nยอดเบิก: {amount} บาท\\n(กรุณาตรวจสอบและอนุมัติ)',
         role: 'admin'
       },
       {
         key: 'inventory_dispatch',
         label: 'เมื่อมีการเบิกอะไหล่ (Inventory Dispatch)',
-        template: 'มีการเบิกอะไหล่โดย {tech_name}\\nรายการ: {items}',
+        template: '📦 [แจ้งเตือนเบิกอะไหล่]\\nพนักงาน: {tech_name} ได้ทำการเบิกอุปกรณ์/อะไหล่\\nรายการ: {items}\\n(กรุณาตรวจสอบในระบบคลังสินค้า)',
+        role: 'admin'
+      },
+      {
+        key: 'job_complete',
+        label: 'เมื่องานเสร็จสิ้น (Job Complete)',
+        template: '✅ [แจ้งเตือนปิดงาน]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} ปิดงานเรียบร้อยแล้ว\\nรายละเอียด: {description}',
+        role: 'admin'
+      },
+      {
+        key: 'job_incomplete',
+        label: 'เมื่องานไม่สำเร็จ (Job Incomplete)',
+        template: '❌ [แจ้งเตือนงานไม่สำเร็จ]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} แจ้งงานไม่สำเร็จ\\nเหตุผล: {reason}',
+        role: 'admin'
+      },
+      {
+        key: 'job_postponed',
+        label: 'เมื่อขอเลื่อนงาน (Job Postponed)',
+        template: '⏳ [แจ้งเตือนเลื่อนงาน]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} ขอเลื่อนงาน\\nเหตุผล: {reason}',
         role: 'admin'
       }
     ];
 
     for (const evt of standardEvents) {
-      const [existing] = await db.execute('SELECT id FROM event_messages WHERE event_key = ?', [evt.key]);
-      if (existing.length === 0) {
-        await db.execute(
-          'INSERT INTO event_messages (event_key, event_label, message_template, target_role) VALUES (?, ?, ?, ?)',
-          [evt.key, evt.label, evt.template, evt.role]
-        );
-      }
+      await db.execute(
+        `INSERT INTO event_messages (event_key, event_label, message_template, target_role) 
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         event_label = VALUES(event_label),
+         message_template = VALUES(message_template),
+         target_role = VALUES(target_role)`,
+        [evt.key, evt.label, evt.template, evt.role]
+      );
     }
     console.log('✅ Event messages system initialized.');
   } catch (err) {
