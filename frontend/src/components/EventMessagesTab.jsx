@@ -70,6 +70,11 @@ export default function EventMessagesTab() {
 
   const handleTestEvent = async (evt) => {
     try {
+      // ขออนุญาตแจ้งเตือนจากเบราว์เซอร์ถ้ายังไม่เคยอนุญาต
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        await Notification.requestPermission();
+      }
+
       await api.post(`/event-messages/${evt.event_key}/test`);
       window.dispatchEvent(new CustomEvent('new_message_alert', {
         detail: {
@@ -79,7 +84,7 @@ export default function EventMessagesTab() {
       }));
       Swal.fire({
         title: 'ส่งข้อความทดสอบแล้ว',
-        text: 'ระบบได้จำลองส่งข้อความให้คุณแล้ว โปรดเช็คที่ไอคอนกระดิ่งมุมขวาบน หรือรอรับการแจ้งเตือน',
+        text: 'ระบบได้จำลองส่งข้อความให้คุณแล้ว หากไม่เห็นป๊อปอัปแจ้งเตือนจากเบราว์เซอร์ กรุณาตรวจสอบว่าได้ "อนุญาต (Allow)" การแจ้งเตือนที่รูปแม่กุญแจบนแถบ URL แล้วหรือยัง',
         icon: 'success',
         confirmButtonColor: '#84cc16'
       });
