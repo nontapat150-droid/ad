@@ -56,13 +56,13 @@ export default function UnifiedDashboard() {
     : 'ผู้ใช้งาน';
 
   return (
-    <div className="flex h-dvh font-sans overflow-hidden bg-[#F3F4F6]">
+    <div className="flex h-dvh font-sans overflow-hidden bg-[#F3F4F6] dark:bg-slate-900">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="dashboard" />
 
       <div className="flex-1 flex flex-col min-w-0 md:ml-[280px] overflow-hidden">
 
         {/* ── Header ── */}
-        <header className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 bg-white border-b border-[#E5E7EB] shrink-0"
+        <header className="sticky top-0 z-30 flex items-center gap-3 px-4 h-14 bg-white dark:bg-slate-800 border-b border-[#E5E7EB] dark:border-slate-700 shrink-0"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
           {/* Mobile hamburger */}
           <button
@@ -88,13 +88,13 @@ export default function UnifiedDashboard() {
                 </svg>
               </div>
             )}
-            <h2 className="text-[#1F2937] font-bold text-base hidden sm:block">ภาพรวมระบบ</h2>
+            <h2 className="text-[#1F2937] dark:text-slate-100 font-bold text-base hidden sm:block">ภาพรวมระบบ</h2>
           </div>
 
           {/* Refresh */}
           <button
             onClick={() => window.location.reload()}
-            className="flex items-center gap-1.5 text-xs text-[#65a30d] hover:text-[#1F2937] font-semibold bg-[#F3F4F6] hover:bg-[#A3E635]/15 px-3 py-1.5 rounded-lg border border-[#E5E7EB] hover:border-[#A3E635]/40 transition-all"
+            className="flex items-center gap-1.5 text-xs text-[#65a30d] hover:text-[#1F2937] font-semibold bg-[#F3F4F6] dark:bg-slate-700 hover:bg-[#A3E635]/15 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-slate-600 hover:border-[#A3E635]/40 transition-all"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -145,7 +145,7 @@ export default function UnifiedDashboard() {
             {/* ── Global Announcements (non-admin roles) ── */}
             {(!isSuperAdmin && !isAdmin) && announcements.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-[#1F2937] font-bold text-sm flex items-center gap-2">
+                <h3 className="text-[#1F2937] dark:text-slate-100 font-bold text-sm flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-sm shadow-md shadow-amber-500/20">📢</div>
                   ประกาศจากบริษัท
                 </h3>

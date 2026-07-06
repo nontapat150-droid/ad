@@ -66,7 +66,7 @@ function SectionHeader({ icon, title }) {
       <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center text-base shadow-md shadow-lime-500/20">
         {icon}
       </div>
-      <h3 className="text-[#1F2937] font-black text-lg">{title}</h3>
+      <h3 className="text-[#1F2937] dark:text-slate-100 font-black text-lg">{title}</h3>
     </div>
   );
 }
@@ -178,16 +178,16 @@ export default function SuperAdminSection() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* ── Activity Feed ── */}
-        <div className="bg-white rounded-3xl border border-[#E5E7EB] overflow-hidden flex flex-col h-[480px] shadow-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-[#E5E7EB] dark:border-slate-700 overflow-hidden flex flex-col h-[480px] shadow-sm">
           {/* Header */}
-          <div className="px-6 py-5 border-b border-[#F3F4F6] flex items-center justify-between shrink-0 bg-[#F9FAFB]">
+          <div className="px-6 py-5 border-b border-[#F3F4F6] dark:border-slate-700 flex items-center justify-between shrink-0 bg-[#F9FAFB] dark:bg-slate-900/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center shadow-md shadow-lime-500/20">
                 <span className="text-[#1F2937] text-lg font-black">⚡</span>
               </div>
               <div>
-                <h2 className="text-[#1F2937] font-black text-base">Activity Feed</h2>
-                <p className="text-[#6B7280] text-xs font-bold mt-0.5">การทำรายการล่าสุด</p>
+                <h2 className="text-[#1F2937] dark:text-slate-100 font-black text-base">Activity Feed</h2>
+                <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">การทำรายการล่าสุด</p>
               </div>
             </div>
             <span className="flex items-center gap-1.5 text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm">
@@ -204,7 +204,7 @@ export default function SuperAdminSection() {
             onMouseLeave={() => setIsHovered(false)}
             onTouchStart={() => setIsHovered(true)}
             onTouchEnd={() => setIsHovered(false)}
-            className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-[#F9FAFB]"
+            className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar bg-[#F9FAFB] dark:bg-slate-900/30"
           >
             {data?.feed?.length > 0 ? (
               data.feed.map((item, idx) => {
@@ -212,7 +212,7 @@ export default function SuperAdminSection() {
                 return (
                   <div
                     key={`feed-${item.type}-${item.id}-${idx}`}
-                    className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
+                    className="flex items-center gap-4 p-4 bg-white dark:bg-slate-700 rounded-2xl border border-[#E5E7EB] dark:border-slate-600 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-all hover:border-[#A3E635]/40"
                   >
                     <div className="relative shrink-0">
                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black overflow-hidden shadow-sm border border-black/5 relative ${cfg.color}`}>
@@ -228,7 +228,7 @@ export default function SuperAdminSection() {
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[#1F2937] text-sm font-medium truncate">
+                      <p className="text-[#1F2937] dark:text-slate-100 text-sm font-medium truncate">
                         <span className="font-black text-base">{item.user_name || 'ผู้ใช้'}</span>
                         {' '}
                         <span className="text-[#6B7280] font-bold">{item.action}</span>
@@ -252,29 +252,29 @@ export default function SuperAdminSection() {
         </div>
 
         {/* ── User Online Status ── */}
-        <div className="bg-white rounded-3xl border border-[#E5E7EB] overflow-hidden flex flex-col h-[480px] shadow-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-[#E5E7EB] dark:border-slate-700 overflow-hidden flex flex-col h-[480px] shadow-sm">
           {/* Header */}
-          <div className="px-6 py-5 border-b border-[#F3F4F6] flex items-center gap-3 shrink-0 bg-[#F9FAFB]">
+          <div className="px-6 py-5 border-b border-[#F3F4F6] dark:border-slate-700 flex items-center gap-3 shrink-0 bg-[#F9FAFB] dark:bg-slate-900/50">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/20">
               <span className="text-white text-lg">👥</span>
             </div>
             <div>
-              <h2 className="text-[#1F2937] font-black text-base">สถานะการทำงาน</h2>
-              <p className="text-[#6B7280] text-xs font-bold mt-0.5">ผู้ใช้งานแยกตามทีม</p>
+              <h2 className="text-[#1F2937] dark:text-slate-100 font-black text-base">สถานะการทำงาน</h2>
+              <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">ผู้ใช้งานแยกตามทีม</p>
             </div>
           </div>
           
           {/* Status List */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar bg-[#F9FAFB]">
+          <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar bg-[#F9FAFB] dark:bg-slate-900/30">
             {Object.keys(onlineGroups).length > 0 ? (
               Object.entries(onlineGroups).map(([teamName, users]) => {
                 const tc = teamColorMap[teamName === 'ไม่มีทีม' ? '__none__' : teamName];
                 return (
-                  <div key={teamName} className={`bg-white rounded-2xl p-4 border ${tc?.border || 'border-[#E5E7EB]'} shadow-[0_2px_12px_rgba(0,0,0,0.03)]`}>
+                  <div key={teamName} className={`bg-white dark:bg-slate-700 rounded-2xl p-4 border ${tc?.border || 'border-[#E5E7EB]'} dark:border-slate-600 shadow-[0_2px_12px_rgba(0,0,0,0.03)]`}>
                     
                     {/* Team Header */}
-                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#F3F4F6]">
-                      <h3 className="font-black text-[#1F2937] flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#F3F4F6] dark:border-slate-600">
+                      <h3 className="font-black text-[#1F2937] dark:text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wide">
                         <span className={`w-3 h-3 rounded-full ${tc?.dot || 'bg-[#D1D5DB]'}`} />
                         {teamName}
                       </h3>
@@ -288,7 +288,7 @@ export default function SuperAdminSection() {
                       {users.map(u => {
                         const roles = u.roles_csv ? u.roles_csv.split(',') : [u.role];
                         return (
-                          <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] hover:border-[#A3E635]/50 hover:shadow-sm transition-all group">
+                          <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#F9FAFB] dark:bg-slate-800 border border-[#E5E7EB] dark:border-slate-600 hover:border-[#A3E635]/50 hover:shadow-sm transition-all group">
                             
                             {/* Avatar */}
                             <div className="relative shrink-0">
@@ -305,7 +305,7 @@ export default function SuperAdminSection() {
 
                             {/* Info */}
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-black text-[#1F2937] truncate leading-tight">{u.full_name}</p>
+                              <p className="text-sm font-black text-[#1F2937] dark:text-slate-100 truncate leading-tight">{u.full_name}</p>
                               <p className={`text-[10px] ${u.is_online ? 'text-[#65a30d] font-bold' : 'text-[#9CA3AF] font-medium'}`}>
                                 {u.is_online ? '● กำลังใช้งาน' : `○ ${timeOffline(u.last_active)}`}
                               </p>

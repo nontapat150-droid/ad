@@ -4,7 +4,7 @@
 export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent }) {
   return (
     <div className={`rounded-2xl overflow-hidden border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group cursor-default ${
-      urgent ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'
+      urgent ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-[#E5E7EB] dark:border-slate-700 bg-white dark:bg-slate-800'
     }`}
       style={urgent ? {} : { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       {/* Lime top accent bar */}
@@ -21,10 +21,10 @@ export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent 
           )}
         </div>
         <div className="flex items-baseline gap-1.5">
-          <span className="text-3xl font-black text-[#1F2937]">{value}</span>
-          <span className="text-sm font-medium text-[#6B7280]">{suffix}</span>
+          <span className="text-3xl font-black text-[#1F2937] dark:text-slate-100">{value}</span>
+          <span className="text-sm font-medium text-[#6B7280] dark:text-slate-400">{suffix}</span>
         </div>
-        <p className="text-xs font-medium text-[#6B7280] mt-1 truncate">{title}</p>
+        <p className="text-xs font-medium text-[#6B7280] dark:text-slate-400 mt-1 truncate">{title}</p>
       </div>
     </div>
   );
@@ -50,20 +50,20 @@ export function ShortcutBtn({ icon, label, sublabel, onClick, gradient, shadow }
 
 export function ProgressCard({ title, icon, current, target, suffix, pct, gradient, trackColor, barColor }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-[#E5E7EB] hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-[#E5E7EB] dark:border-slate-700 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-xl shadow-md`}>
             {icon}
           </div>
-          <p className="text-sm font-bold text-[#1F2937]">{title}</p>
+          <p className="text-sm font-bold text-[#1F2937] dark:text-slate-100">{title}</p>
         </div>
         <div className="text-lg font-black text-[#A3E635]">{pct}%</div>
       </div>
       <div className="flex items-baseline gap-1 mb-3">
-        <span className="text-3xl font-black text-[#1F2937]">{current}</span>
-        <span className="text-sm text-[#6B7280]">/ {target} {suffix}</span>
+        <span className="text-3xl font-black text-[#1F2937] dark:text-slate-100">{current}</span>
+        <span className="text-sm text-[#6B7280] dark:text-slate-400">/ {target} {suffix}</span>
       </div>
       <div className={`w-full ${trackColor} rounded-full h-2.5 overflow-hidden`}>
         <div
