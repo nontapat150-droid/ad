@@ -71,7 +71,12 @@ export default function EventMessagesTab() {
   const handleTestEvent = async (evt) => {
     try {
       await api.post(`/event-messages/${evt.event_key}/test`);
-      window.dispatchEvent(new Event('new_message_alert'));
+      window.dispatchEvent(new CustomEvent('new_message_alert', {
+        detail: {
+          title: 'ข้อความอัตโนมัติ ⚡',
+          body: `[ทดสอบ] ระบบจำลองเหตุการณ์: ${evt.event_label}`
+        }
+      }));
       Swal.fire({
         title: 'ส่งข้อความทดสอบแล้ว',
         text: 'ระบบได้จำลองส่งข้อความให้คุณแล้ว โปรดเช็คที่ไอคอนกระดิ่งมุมขวาบน หรือรอรับการแจ้งเตือน',

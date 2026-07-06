@@ -150,15 +150,36 @@ export default function NotificationProvider({ children }) {
   // Listen for foreground messages
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
-      setToast({
-        title: payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่',
-        body: payload.notification?.body || payload.data?.body || '',
-      });
+      const title = payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่';
+      const body = payload.notification?.body || payload.data?.body || '';
+      
+      setToast({ title, body });
+      
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        new Notification(title, { body });
+      }
     });
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
+  }, []);
+
+  // Listen for local test alerts
+  useEffect(() => {
+    const handleLocalAlert = (e) => {
+      if (e.detail) {
+        const { title, body } = e.detail;
+        setToast({ title, body });
+        
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification(title, { body });
+        }
+      }
+    };
+    
+    window.addEventListener('new_message_alert', handleLocalAlert);
+    return () => window.removeEventListener('new_message_alert', handleLocalAlert);
   }, []);
 
   return (
