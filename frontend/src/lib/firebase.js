@@ -39,8 +39,9 @@ export async function requestNotificationPermission() {
       return null;
     }
 
-    // Register service worker explicitly
-    const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+    // Register service worker explicitly with version string to bypass mobile cache
+    const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=3');
+    await swRegistration.update();
 
     const token = await getToken(messaging, {
       vapidKey: VAPID_KEY,

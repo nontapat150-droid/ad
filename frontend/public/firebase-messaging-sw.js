@@ -33,7 +33,7 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification click
