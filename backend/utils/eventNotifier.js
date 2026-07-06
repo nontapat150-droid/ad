@@ -49,37 +49,37 @@ async function initializeEventMessages() {
       {
         key: 'check_in',
         label: 'เมื่อพนักงานเช็คอิน (Check-in)',
-        template: '📍 [แจ้งเตือนการเข้าพื้นที่]\\nพนักงาน: {tech_name} ได้ทำการเช็คอินแล้ว\\nสถานที่: {location}\\nเวลานัดหมาย: {appointment_time}',
+        template: '📍 [แจ้งเตือนการเข้าพื้นที่]\nพนักงาน: {tech_name} ได้ทำการเช็คอินแล้ว\nสถานที่: {location}\nเวลานัดหมาย: {appointment_time}',
         role: 'admin'
       },
       {
         key: 'oil_record',
         label: 'เมื่อมีการบันทึกค่าน้ำมัน (Oil Record)',
-        template: '⛽ [บันทึกเบิกค่าน้ำมัน]\\nพนักงาน: {tech_name} ได้บันทึกค่าน้ำมันใหม่\\nยอดเบิก: {amount} บาท\\n(กรุณาตรวจสอบและอนุมัติ)',
+        template: '⛽ [บันทึกเบิกค่าน้ำมัน]\nพนักงาน: {tech_name} ได้บันทึกค่าน้ำมันใหม่\nยอดเบิก: {amount} บาท\n(กรุณาตรวจสอบและอนุมัติ)',
         role: 'admin'
       },
       {
         key: 'inventory_dispatch',
         label: 'เมื่อมีการเบิกอะไหล่ (Inventory Dispatch)',
-        template: '📦 [แจ้งเตือนเบิกอะไหล่]\\nพนักงาน: {tech_name} ได้ทำการเบิกอุปกรณ์/อะไหล่\\nรายการ: {items}\\n(กรุณาตรวจสอบในระบบคลังสินค้า)',
+        template: '📦 [แจ้งเตือนเบิกอะไหล่]\nพนักงาน: {tech_name} ได้ทำการเบิกอุปกรณ์/อะไหล่\nรายการ: {items}\n(กรุณาตรวจสอบในระบบคลังสินค้า)',
         role: 'admin'
       },
       {
         key: 'job_complete',
         label: 'เมื่องานเสร็จสิ้น (Job Complete)',
-        template: '✅ [แจ้งเตือนปิดงาน]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} ปิดงานเรียบร้อยแล้ว\\nรายละเอียด: {description}',
+        template: '✅ [แจ้งเตือนปิดงาน]\nหมายเลขงาน: #{job_id}\nพนักงาน: {tech_name} ปิดงานเรียบร้อยแล้ว\nรายละเอียด: {description}',
         role: 'admin'
       },
       {
         key: 'job_incomplete',
         label: 'เมื่องานไม่สำเร็จ (Job Incomplete)',
-        template: '❌ [แจ้งเตือนงานไม่สำเร็จ]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} แจ้งงานไม่สำเร็จ\\nเหตุผล: {reason}',
+        template: '❌ [แจ้งเตือนงานไม่สำเร็จ]\nหมายเลขงาน: #{job_id}\nพนักงาน: {tech_name} แจ้งงานไม่สำเร็จ\nเหตุผล: {reason}',
         role: 'admin'
       },
       {
         key: 'job_postponed',
         label: 'เมื่อขอเลื่อนงาน (Job Postponed)',
-        template: '⏳ [แจ้งเตือนเลื่อนงาน]\\nหมายเลขงาน: #{job_id}\\nพนักงาน: {tech_name} ขอเลื่อนงาน\\nเหตุผล: {reason}',
+        template: '⏳ [แจ้งเตือนเลื่อนงาน]\nหมายเลขงาน: #{job_id}\nพนักงาน: {tech_name} ขอเลื่อนงาน\nเหตุผล: {reason}',
         role: 'admin'
       }
     ];

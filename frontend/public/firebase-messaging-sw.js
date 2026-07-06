@@ -21,9 +21,14 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[SW] Background message received:', payload);
 
-  const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
+  if (payload.notification) {
+    // Let Firebase native SDK handle it to prevent duplicate notifications
+    return;
+  }
+
+  const notificationTitle = payload.data?.title || 'แจ้งเตือนใหม่';
   const notificationOptions = {
-    body: payload.notification?.body || 'คุณมีข้อความใหม่',
+    body: payload.data?.body || 'คุณมีข้อความใหม่',
     tag: 'bou-notification-' + Date.now(),
     data: payload.data || {},
     vibrate: [200, 100, 200],
@@ -33,9 +38,9 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
-  if (payload.notification?.icon) {
-    notificationOptions.icon = payload.notification.icon;
-    notificationOptions.badge = payload.notification.icon;
+  if (payload.data?.icon) {
+    notificationOptions.icon = payload.data.icon;
+    notificationOptions.badge = payload.data.icon;
   }
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
