@@ -955,8 +955,15 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
     }
 
     // Get completion images
-    if (jobData.id) {
-      const [imgRows] = await pool.query('SELECT image_path FROM job_completion_images WHERE job_id = ?', [jobData.id]);
+    const lookupAccessImages = jobData.access_no || accessNo;
+    if (lookupAccessImages) {
+      const [imgRows] = await pool.query(`
+        SELECT jci.image_path 
+        FROM job_completion_images jci
+        JOIN jobs j ON j.id = jci.job_id
+        WHERE j.access_no = ?
+        ORDER BY jci.id DESC
+      `, [lookupAccessImages]);
       jobData.completion_images = imgRows.map(r => r.image_path);
     } else {
       jobData.completion_images = [];

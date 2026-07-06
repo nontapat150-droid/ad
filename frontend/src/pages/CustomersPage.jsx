@@ -431,10 +431,10 @@ export default function CustomersPage() {
                       {customerData.completion_images.map((img, idx) => (
                         <div key={idx} className="aspect-square border border-[#E5E7EB] rounded-xl overflow-hidden bg-[#F9FAFB] shadow-sm">
                           <img 
-                            src={`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${img}`}
+                            src={getImageUrl(img, 'job_evidence')}
                             alt={`Evidence ${idx + 1}`} 
                             className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                            onClick={() => window.open(`${import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : ''}${img}`, '_blank')}
+                            onClick={() => window.open(getImageUrl(img, 'job_evidence'), '_blank')}
                           />
                         </div>
                       ))}
