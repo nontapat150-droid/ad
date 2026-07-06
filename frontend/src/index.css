@@ -353,3 +353,105 @@ label {
   left: 0;
   cursor: pointer;
 }
+
+/* ── Dark Mode Global Overrides ─────────────────────────── */
+.dark {
+  /* Dark Glassmorphism Variables */
+  --glass-bg:          rgba(15, 23, 42, 0.72);
+  --glass-bg-deep:     rgba(30, 41, 59, 0.55);
+  --glass-border:      rgba(51, 65, 85, 0.50);
+  --glass-border-hover:rgba(71, 85, 105, 0.70);
+  --glass-shadow:      0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+  --glass-shadow-hover:0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+
+  /* Dark Page Background */
+  --page-bg: linear-gradient(145deg, #020617 0%, #0f172a 50%, #020617 100%);
+}
+
+/* Base Body Color Overrides */
+.dark body {
+  background: var(--page-bg);
+  color: #f1f5f9;
+}
+
+/* Global Utility Force-Overrides for Dark Mode 
+   These target the most commonly hardcoded utilities in the codebase */
+
+.dark .bg-white, 
+.dark .bg-slate-50, 
+.dark .bg-slate-100, 
+.dark .bg-gray-50, 
+.dark .bg-blue-50 {
+  background-color: #1e293b !important;
+  color: #f1f5f9;
+  border-color: #334155 !important;
+}
+
+.dark .bg-slate-200,
+.dark .bg-\[\#E6F1FB\] {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+.dark .text-slate-800, 
+.dark .text-slate-700, 
+.dark .text-slate-600,
+.dark .text-\[\#042C53\] {
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .border-slate-200, 
+.dark .border-slate-300, 
+.dark .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+/* Input Fields & Textareas Overrides */
+.dark input, 
+.dark select, 
+.dark textarea, 
+.dark .input-field {
+  background: rgba(15, 23, 42, 0.65) !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark input:focus, 
+.dark select:focus, 
+.dark textarea:focus {
+  background: rgba(30, 41, 59, 0.88) !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Table specific overrides */
+.dark thead.bg-\[\#E6F1FB\],
+.dark thead.bg-slate-50,
+.dark th {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+.dark tr.hover\:bg-slate-50:hover {
+  background-color: #334155 !important;
+}
+
+.dark td {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-emerald-700 { color: #34d399 !important; }
+.dark .text-red-700 { color: #f87171 !important; }
+.dark .text-blue-700 { color: #60a5fa !important; }
+.dark .text-amber-700, .dark .text-yellow-700 { color: #fbbf24 !important; }
+
+.dark .bg-emerald-100 { background-color: rgba(6, 78, 59, 0.6) !important; }
+.dark .bg-red-100 { background-color: rgba(127, 29, 29, 0.6) !important; }
+.dark .bg-blue-100 { background-color: rgba(30, 58, 138, 0.6) !important; }
+.dark .bg-amber-100, .dark .bg-yellow-100 { background-color: rgba(120, 53, 15, 0.6) !important; }
