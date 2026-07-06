@@ -151,10 +151,25 @@ export default function NotificationProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log('[NotificationProvider] FCM Foreground message received:', payload);
-      setToast({
-        title: payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่',
-        body: payload.notification?.body || payload.data?.body || '',
-      });
+      const title = payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่';
+      const body = payload.notification?.body || payload.data?.body || '';
+      
+      // 1. Show in-app toast
+      setToast({ title, body });
+
+      // 2. ALSO trigger a native system notification (so it shows in the mobile notification bar even when app is open)
+      if ('serviceWorker' in navigator && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then((registration) => {
+          const icon = payload.notification?.icon || payload.data?.icon;
+          registration.showNotification(title, {
+            body: body,
+            icon: icon,
+            tag: payload.collapseKey || 'bou-notification-fg-' + Date.now(),
+            data: payload.data || {},
+            vibrate: [200, 100, 200]
+          }).catch(err => console.error('Error showing foreground native notification:', err));
+        });
+      }
     });
 
     return () => {
