@@ -74,7 +74,7 @@ cron.schedule('* * * * *', async () => {
           // Send message to DB
           const msg = `🔔 อย่าลืมเช็คอินเข้างานนะครับ! กำหนดการเช็คอินของคุณคือเวลา ${lateThreshold.slice(0, 5)} น. (เหลือเวลาอีก 1 ชม.)`;
           await pool.query(
-            `INSERT INTO messages (sender_id, receiver_id, message) VALUES (1, ?, ?)`,
+            `INSERT INTO messages (sender_id, receiver_id, message, is_automated) VALUES (1, ?, ?, TRUE)`,
             [user.id, msg]
           );
 

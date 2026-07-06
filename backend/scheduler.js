@@ -34,7 +34,7 @@ async function sendScheduledMessage(msgConfig) {
     // Insert messages for each target user
     for (const user of users) {
       await db.execute(
-        'INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)',
+        'INSERT INTO messages (sender_id, receiver_id, message, is_automated) VALUES (?, ?, ?, TRUE)',
         [created_by, user.id, message]
       );
     }

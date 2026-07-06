@@ -217,6 +217,7 @@ async function runStartupDbTasks() {
           receiver_id INT NOT NULL,
           message TEXT NOT NULL,
           is_read BOOLEAN DEFAULT FALSE,
+          is_automated BOOLEAN DEFAULT FALSE,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_sender (sender_id),
           INDEX idx_receiver (receiver_id)
@@ -224,6 +225,7 @@ async function runStartupDbTasks() {
       `,
       ignoreError: true,
     },
+    { label: 'messages is_automated', sql: 'ALTER TABLE messages ADD COLUMN is_automated BOOLEAN DEFAULT FALSE', ignoreError: true },
     {
       label: 'create announcements table',
       sql: `
