@@ -159,7 +159,7 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
         const iconUrl = await getFavicon(db);
         
         try {
-          await getMessaging().sendEachForMulticast({
+          const response = await getMessaging().sendEachForMulticast({
             tokens: fcmTokens,
             notification: {
               title: 'ข้อความอัตโนมัติ ⚡',
@@ -171,6 +171,23 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
               }
             }
           });
+          
+          if (response.failureCount > 0) {
+            const failedTokens = [];
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success) {
+                if (resp.error.code === 'messaging/invalid-registration-token' ||
+                    resp.error.code === 'messaging/registration-token-not-registered') {
+                  failedTokens.push(fcmTokens[idx]);
+                }
+              }
+            });
+            if (failedTokens.length > 0) {
+              const qMarks = failedTokens.map(() => '?').join(',');
+              await db.execute(`DELETE FROM user_fcm_tokens WHERE fcm_token IN (${qMarks})`, failedTokens);
+              console.log(`[EventNotifier] Cleaned up ${failedTokens.length} invalid tokens`);
+            }
+          }
           console.log(`[EventNotifier] Sent FCM push to ${fcmTokens.length} devices for event ${eventKey}`);
         } catch (pushErr) {
           console.error('[EventNotifier] FCM push error:', pushErr.message);
