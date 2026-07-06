@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useBranding } from '../context/BrandingContext';
+import EventMessagesTab from '../components/EventMessagesTab';
 
 export default function SystemSettingsPage() {
   const [messages, setMessages] = useState([]);
@@ -270,16 +271,27 @@ export default function SystemSettingsPage() {
             </button>
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${activeTab === 'notifications' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all mb-2 ${activeTab === 'notifications' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-              จัดการแจ้งเตือน
+              แจ้งเตือนตามเวลา
+            </button>
+            <button
+              onClick={() => setActiveTab('event_messages')}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${activeTab === 'event_messages' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              แจ้งเตือนตามเหตุการณ์
             </button>
           </div>
         </div>
 
         {/* Main Content Area */}
         <div className="flex-1">
+          {activeTab === 'event_messages' && (
+            <EventMessagesTab />
+          )}
+
           {activeTab === 'notifications' && (
             <div className="glass rounded-3xl p-6 shadow-xl border border-white/40 animate-fade-in-up">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4 border-b border-slate-200/50 pb-6">

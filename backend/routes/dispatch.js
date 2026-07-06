@@ -4,6 +4,7 @@ const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
+const { sendEventNotification } = require('../utils/eventNotifier');
 
 const router = express.Router();
 
@@ -542,6 +543,20 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     } finally {
       conn.release();
     }
+    
+    // Trigger event notification if assigned to a tech
+    if (field_engineer_id) {
+      // Find tech name
+      const [techs] = await pool.query('SELECT name FROM users WHERE id = ?', [field_engineer_id]);
+      const techName = techs.length > 0 ? techs[0].name : 'ช่าง';
+      
+      sendEventNotification('job_dispatch', { 
+        job_id: access_no, 
+        tech_name: techName, 
+        description: service_note || 'ไม่มีรายละเอียดเพิ่มเติม'
+      }, field_engineer_id, req.user ? req.user.id : 1).catch(console.error);
+    }
+
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
