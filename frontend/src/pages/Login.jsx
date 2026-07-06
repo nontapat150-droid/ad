@@ -47,7 +47,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const loggedInUser = await login(form.username, form.password, false);
+      // Force rememberMe to true to always remember login sessions (localStorage)
+      const loggedInUser = await login(form.username, form.password, true);
       setSuccess(true);
 
       Swal.fire({
