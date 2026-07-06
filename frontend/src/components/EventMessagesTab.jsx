@@ -70,9 +70,9 @@ export default function EventMessagesTab() {
 
   const handleTestEvent = async (evt) => {
     try {
-      // ขออนุญาตแจ้งเตือนจากเบราว์เซอร์ถ้ายังไม่เคยอนุญาต
+      // ขออนุญาตแจ้งเตือนจากเบราว์เซอร์ถ้ายังไม่เคยอนุญาต (แบบไม่บล็อคโค้ดส่วนอื่น)
       if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-        await Notification.requestPermission();
+        Promise.resolve(Notification.requestPermission()).catch(console.error);
       }
 
       await api.post(`/event-messages/${evt.event_key}/test`);

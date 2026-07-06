@@ -151,25 +151,10 @@ export default function NotificationProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log('[NotificationProvider] FCM Foreground message received:', payload);
-      const title = payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่';
-      const body = payload.notification?.body || payload.data?.body || '';
-      
-      setToast({ title, body });
-      
-      setTimeout(() => {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          try {
-            new Notification(title, { body });
-          } catch (e) {
-            console.error('[NotificationProvider] Native Notification error:', e);
-            if (navigator.serviceWorker) {
-              navigator.serviceWorker.ready.then((registration) => {
-                registration.showNotification(title, { body }).catch(err => console.error('[SW] Notification error:', err));
-              });
-            }
-          }
-        }
-      }, 50);
+      setToast({
+        title: payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่',
+        body: payload.notification?.body || payload.data?.body || '',
+      });
     });
 
     return () => {
@@ -182,23 +167,10 @@ export default function NotificationProvider({ children }) {
     const handleLocalAlert = (e) => {
       console.log('[NotificationProvider] Local alert triggered:', e.detail);
       if (e.detail) {
-        const { title, body } = e.detail;
-        setToast({ title, body });
-        
-        setTimeout(() => {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try {
-              new Notification(title, { body });
-            } catch (err) {
-              console.error('[NotificationProvider] Native Notification error:', err);
-              if (navigator.serviceWorker) {
-                navigator.serviceWorker.ready.then((registration) => {
-                  registration.showNotification(title, { body }).catch(swErr => console.error('[SW] Notification error:', swErr));
-                });
-              }
-            }
-          }
-        }, 50);
+        setToast({ 
+          title: e.detail.title, 
+          body: e.detail.body 
+        });
       }
     };
     
