@@ -7,7 +7,7 @@ import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
 
 export default function Login() {
-  const [form, setForm] = useState({ username: '', password: '', rememberMe: false });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -47,7 +47,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const loggedInUser = await login(form.username, form.password, form.rememberMe);
+      const loggedInUser = await login(form.username, form.password, false);
       setSuccess(true);
 
       Swal.fire({
@@ -345,17 +345,8 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Remember / Forgot */}
-            <div className="flex items-center justify-between text-sm pt-0.5">
-              <label className="flex items-center gap-2 text-[#6B7280] cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={form.rememberMe}
-                  onChange={(e) => setForm({ ...form, rememberMe: e.target.checked })}
-                  className="w-4 h-4 rounded border-[#D1D5DB] text-[#A3E635] focus:ring-[#A3E635]/40 accent-[#A3E635]"
-                />
-                <span>จดจำฉัน</span>
-              </label>
+            {/* Forgot Password */}
+            <div className="flex items-center justify-end text-sm pt-0.5">
               <a href="#" className="text-[#65a30d] font-semibold hover:text-[#1F2937] hover:underline transition-colors">
                 ลืมรหัสผ่าน?
               </a>
