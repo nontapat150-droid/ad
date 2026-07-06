@@ -29,8 +29,6 @@ const announcementsRouter = require('./routes/announcements');
 const migrateRouter = require('./routes/migrate');
 const fcmRouter = require('./routes/fcm');
 const scheduledMessagesRouter = require('./routes/scheduledMessages');
-const eventMessagesRouter = require('./routes/eventMessages');
-const { initializeEventMessages } = require('./utils/eventNotifier');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,14 +83,14 @@ apiRouter.use('/settings', require('./routes/settings'));
 apiRouter.use('/migrate', migrateRouter);
 apiRouter.use('/fcm', fcmRouter);
 apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
-apiRouter.use('/event-messages', eventMessagesRouter);
+
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
 app.use('/api', apiRouter);
 app.use('/', apiRouter);
 
 // Initialize DB for Event Messages
-initializeEventMessages();
+
 
 if (process.env.RUN_LEGACY_STARTUP_DB_TASKS === 'true') {
 pool.query("DELETE FROM oil_records WHERE license_plate = 'ทีม 6'").catch(console.error);

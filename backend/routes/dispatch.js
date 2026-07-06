@@ -4,7 +4,6 @@ const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
-const { sendEventNotification } = require('../utils/eventNotifier');
 
 const router = express.Router();
 
@@ -474,16 +473,11 @@ router.put(
 
       // 🔔 Push notification to admins when tech completes a job
       const techName = req.user.full_name || req.user.username || 'ช่าง';
-      try {
-        const { sendEventNotification } = require('../utils/eventNotifier');
-        sendEventNotification('job_complete', {
-          job_id: String(job.access_no || jobId),
-          tech_name: techName,
-          description: `${job.customer || 'ลูกค้า'} | ${req.body.remark || ''}`
-        }, null, techId);
-      } catch (e) {
-        console.error('sendEventNotification job_complete error:', e.message);
-      }
+      notifyAdmins(
+        '✅ งานเสร็จสิ้น',
+        `${techName} ปิดงาน ${job.access_no || ''} - ${job.customer || 'ลูกค้า'} เรียบร้อยแล้ว`,
+        { type: 'job_completed', job_id: String(jobId) }
+      );
 
       res.json({ message: 'Job completed successfully', job_id: jobId });
     } catch (err) {
@@ -548,20 +542,6 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     } finally {
       conn.release();
     }
-    
-    // Trigger event notification if assigned to a tech
-    if (field_engineer_id) {
-      // Find tech name
-      const [techs] = await pool.query('SELECT name FROM users WHERE id = ?', [field_engineer_id]);
-      const techName = techs.length > 0 ? techs[0].name : 'ช่าง';
-      
-      sendEventNotification('job_dispatch', { 
-        job_id: access_no, 
-        tech_name: techName, 
-        description: service_note || 'ไม่มีรายละเอียดเพิ่มเติม'
-      }, field_engineer_id, req.user ? req.user.id : 1).catch(console.error);
-    }
-
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -1199,16 +1179,11 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
 
     // 🔔 Push notification to admins when tech reports incomplete job
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    try {
-      const { sendEventNotification } = require('../utils/eventNotifier');
-      sendEventNotification('job_incomplete', {
-        job_id: String(job.access_no || jobId),
-        tech_name: techName,
-        reason: remark
-      }, null, techId);
-    } catch (e) {
-      console.error('sendEventNotification job_incomplete error:', e.message);
-    }
+    notifyAdmins(
+      '⚠️ งานไม่จบ',
+      `${techName} แจ้งงาน ${job.access_no || ''} ไม่จบ: ${remark.substring(0, 80)}`,
+      { type: 'job_incomplete', job_id: String(jobId) }
+    );
 
     res.json({ message: 'Job marked as incomplete' });
   } catch (err) {
@@ -1240,16 +1215,11 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
 
     // 🔔 Push notification to admins when tech postpones a job
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    try {
-      const { sendEventNotification } = require('../utils/eventNotifier');
-      sendEventNotification('job_postponed', {
-        job_id: String(job.access_no || jobId),
-        tech_name: techName,
-        reason: `${new_date} ${remark || ''}`
-      }, null, techId);
-    } catch (e) {
-      console.error('sendEventNotification job_postponed error:', e.message);
-    }
+    notifyAdmins(
+      '📅 เลื่อนนัดงาน',
+      `${techName} เลื่อนนัดงาน ${job.access_no || ''} ไปวันที่ ${new_date}${remark ? ': ' + remark.substring(0, 60) : ''}`,
+      { type: 'job_postponed', job_id: String(jobId) }
+    );
 
     res.json({ message: 'Job postponed' });
   } catch (err) {
