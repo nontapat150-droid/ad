@@ -76,7 +76,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
     setImportRows([]);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const data = new Uint8Array(evt.target.result);
         // raw: true  → don't auto-parse numbers, keep cell values as-is
@@ -140,11 +140,61 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           );
         }
 
+        let globalProduct = '';
+        let globalModel = '';
+
+        if ((productIdx === null || modelIdx === null) && validDataRows.length > 0) {
+          const htmlInputs = [];
+          if (productIdx === null) {
+            htmlInputs.push(`
+              <div style="margin-bottom: 12px; text-align: left;">
+                <label style="font-weight: bold; font-size: 14px; color: #042C53;">ชื่อสินค้า (ใช้กับทุกแถวในไฟล์)</label>
+                <input id="swal-global-product" class="swal2-input" placeholder="พิมพ์ชื่อสินค้า..." style="margin-top: 4px; width: 100%; box-sizing: border-box;" />
+              </div>
+            `);
+          }
+          if (modelIdx === null) {
+            htmlInputs.push(`
+              <div style="margin-bottom: 12px; text-align: left;">
+                <label style="font-weight: bold; font-size: 14px; color: #042C53;">โมเดล (ใช้กับทุกแถวในไฟล์)</label>
+                <input id="swal-global-model" class="swal2-input" placeholder="พิมพ์ชื่อโมเดล..." style="margin-top: 4px; width: 100%; box-sizing: border-box;" />
+              </div>
+            `);
+          }
+
+          const res = await Swal.fire({
+            title: 'กำหนดข้อมูลเริ่มต้น',
+            html: `
+              <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
+                ไม่พบคอลัมน์ ${[productIdx === null ? 'ชื่อสินค้า' : null, modelIdx === null ? 'โมเดล' : null].filter(Boolean).join(' และ ')} ในไฟล์<br>คุณสามารถกำหนดค่าเริ่มต้นที่จะใช้กับทุกแถวได้เลย (หรือเว้นว่างไว้เพื่อไปกรอกเองทีหลัง)
+              </p>
+              ${htmlInputs.join('')}
+            `,
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#185FA5',
+            allowOutsideClick: false,
+            preConfirm: () => {
+              return {
+                product: productIdx === null ? document.getElementById('swal-global-product').value.trim() : '',
+                model: modelIdx === null ? document.getElementById('swal-global-model').value.trim() : ''
+              };
+            }
+          });
+
+          if (res.isConfirmed) {
+            globalProduct = res.value.product;
+            globalModel = res.value.model;
+          }
+        }
+
         const rows = validDataRows.map((row, idx) => {
-          const rawProduct = productIdx !== null ? String(row[productIdx] ?? '').trim() : '';
-          const rawModel   = modelIdx !== null   ? String(row[modelIdx]   ?? '').trim() : '';
+          let rawProduct = productIdx !== null ? String(row[productIdx] ?? '').trim() : '';
+          let rawModel   = modelIdx !== null   ? String(row[modelIdx]   ?? '').trim() : '';
           const rawSn      = snIdx !== null      ? String(row[snIdx]      ?? '').trim() : '';
           const rawPhone   = phoneIdx !== null   ? String(row[phoneIdx]   ?? '').trim() : '';
+
+          if (!rawProduct && globalProduct) rawProduct = globalProduct;
+          if (!rawModel && globalModel) rawModel = globalModel;
 
           const matchedProduct = matchProduct(rawProduct);
           const matchedModel   = matchedProduct ? matchModel(matchedProduct, rawModel) : null;
