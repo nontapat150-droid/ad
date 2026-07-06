@@ -142,12 +142,16 @@ function AppRoutes() {
   );
 }
 
+import { BrandingProvider } from './context/BrandingContext';
+
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <BrandingProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </BrandingProvider>
     </AuthProvider>
   );
 }

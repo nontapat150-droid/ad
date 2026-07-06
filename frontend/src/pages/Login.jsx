@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import AOS from 'aos';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '../utils/imageUtils';
 
 export default function Login() {
   const [form, setForm] = useState({ username: '', password: '' });
@@ -12,6 +14,7 @@ export default function Login() {
   const [isFailed, setIsFailed] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const { login } = useAuth();
+  const { branding } = useBranding();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -55,11 +58,8 @@ export default function Login() {
         showConfirmButton: false,
       });
 
-      const userRoles = loggedInUser.roles || [loggedInUser.role];
-      let redirectUrl = '/dashboard';
-
       setTimeout(() => {
-        navigate(redirectUrl, { replace: true });
+        navigate('/dashboard', { replace: true });
       }, 1500);
     } catch (err) {
       setIsFailed(true);
@@ -187,27 +187,29 @@ export default function Login() {
 
           <div className="relative z-10 flex flex-col items-center text-center space-y-8">
 
-            {/* AIS-style Logo Mark */}
+            {/* Logo Mark */}
             <div className="relative">
               {/* Outer glow ring */}
               <div className="absolute -inset-3 rounded-[28px] bg-[#A3E635]/15 blur-md" />
-              <div className="relative w-24 h-24 rounded-[24px] flex items-center justify-center overflow-hidden"
-                style={{background:'linear-gradient(135deg, #A3E635 0%, #65a30d 100%)', boxShadow:'0 8px 32px rgba(163,230,53,0.35), inset 0 1px 0 rgba(255,255,255,0.3)'}}>
-                {/* AIS-style signal/wave icon */}
-                <svg className="w-12 h-12 text-[#1F2937]" viewBox="0 0 48 48" fill="none">
-                  {/* Wi-Fi / signal arc — AIS brand cue */}
-                  <path d="M24 36a2 2 0 100-4 2 2 0 000 4z" fill="currentColor"/>
-                  <path d="M17.1 29.1a9.9 9.9 0 0113.8 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                  <path d="M11.3 23.3a17.9 17.9 0 0125.4 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                  <path d="M5.5 17.5a26 26 0 0137 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                </svg>
+              <div className="relative w-24 h-24 rounded-[24px] flex items-center justify-center overflow-hidden shadow-[0_8px_32px_rgba(163,230,53,0.35),inset_0_1px_0_rgba(255,255,255,0.3)]"
+                style={branding?.website_logo ? {} : {background:'linear-gradient(135deg, #A3E635 0%, #65a30d 100%)'}}>
+                {branding?.website_logo ? (
+                  <img src={getImageUrl(branding.website_logo, 'branding')} alt="Logo" className="w-full h-full object-contain p-2" />
+                ) : (
+                  <svg className="w-12 h-12 text-[#1F2937]" viewBox="0 0 48 48" fill="none">
+                    <path d="M24 36a2 2 0 100-4 2 2 0 000 4z" fill="currentColor"/>
+                    <path d="M17.1 29.1a9.9 9.9 0 0113.8 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                    <path d="M11.3 23.3a17.9 17.9 0 0125.4 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                    <path d="M5.5 17.5a26 26 0 0137 0" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
+                )}
               </div>
             </div>
 
             {/* Brand name */}
             <div>
               <h1 className="text-5xl font-black text-[#F3F4F6] tracking-tight leading-none">
-                Bonus
+                {branding?.website_name || 'Bonus'}
               </h1>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <div className="h-px w-8 bg-[#A3E635]/50" />
@@ -246,16 +248,21 @@ export default function Login() {
 
           {/* Mobile header */}
           <div className="flex md:hidden items-center gap-3 mb-7">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{background:'linear-gradient(135deg, #A3E635, #65a30d)'}}>
-              <svg className="w-5 h-5 text-[#1F2937]" viewBox="0 0 48 48" fill="none">
-                <path d="M24 36a2 2 0 100-4 2 2 0 000 4z" fill="currentColor"/>
-                <path d="M17.1 29.1a9.9 9.9 0 0113.8 0" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"/>
-                <path d="M11.3 23.3a17.9 17.9 0 0125.4 0" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"/>
-              </svg>
-            </div>
+            {branding?.website_logo ? (
+              <img src={getImageUrl(branding.website_logo, 'branding')} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
+            ) : (
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{background:'linear-gradient(135deg, #A3E635, #65a30d)'}}>
+                <svg className="w-5 h-5 text-[#1F2937]" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 18a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+                  <path d="M8.5 14.5a5 5 0 017 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M5.5 11.5a9 9 0 0113 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M2.5 8.5a13 13 0 0119 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
             <div>
-              <p className="text-lg font-black text-[#1F2937]">Bonus</p>
+              <p className="text-lg font-black text-[#1F2937]">{branding?.website_name || 'Bonus'}</p>
               <p className="text-xs text-[#6B7280]">AIS Platform</p>
             </div>
           </div>

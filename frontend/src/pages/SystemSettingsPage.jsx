@@ -2,12 +2,29 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { useBranding } from '../context/BrandingContext';
 
 export default function SystemSettingsPage() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('notifications');
   const navigate = useNavigate();
+  const { branding, fetchBranding } = useBranding();
+
+  const [brandingForm, setBrandingForm] = useState({
+    website_name: '',
+    logoFile: null,
+    faviconFile: null
+  });
+
+  useEffect(() => {
+    if (branding) {
+      setBrandingForm(prev => ({
+        ...prev,
+        website_name: branding.website_name || ''
+      }));
+    }
+  }, [branding]);
   
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -179,8 +196,37 @@ export default function SystemSettingsPage() {
 
 
 
+  const handleBrandingSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      if (brandingForm.website_name) formData.append('website_name', brandingForm.website_name);
+      if (brandingForm.logoFile) formData.append('logo', brandingForm.logoFile);
+      if (brandingForm.faviconFile) formData.append('favicon', brandingForm.faviconFile);
+
+      await api.post('/settings/branding', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire('สำเร็จ', 'บันทึกการแสดงผลแล้ว', 'success');
+      fetchBranding(); // Refresh branding context
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
+      Swal.fire('ผิดพลาด', `ไม่สามารถบันทึกข้อมูลได้: ${errorMsg}`, 'error');
+    }
+  };
+
+  const handleFileChange = (e, fieldName) => {
+    if (e.target.files && e.target.files[0]) {
+      setBrandingForm(prev => ({
+        ...prev,
+        [fieldName]: e.target.files[0]
+      }));
+    }
+  };
+
   const translateCron = (cron) => {
     // Very basic translation for UI display
+    if (!cron) return cron;
     if (cron.startsWith('*/') && cron.endsWith('* * * *')) return `ทุกๆ ${cron.split(' ')[0].replace('*/','')} นาที`;
     if (cron.startsWith('0 */') && cron.endsWith('* * *')) return `ทุกๆ ${cron.split(' ')[1].replace('*/','')} ชั่วโมง`;
     
@@ -194,7 +240,6 @@ export default function SystemSettingsPage() {
     }
     return cron;
   };
-
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto min-h-screen pt-24 animate-fade-in-up">
       {/* Header with Back Button */}
@@ -216,6 +261,13 @@ export default function SystemSettingsPage() {
         <div className="w-full md:w-72 shrink-0">
           <div className="bg-white/70 backdrop-blur-md rounded-3xl p-4 shadow-xl border border-white/50 sticky top-24">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">หมวดหมู่การตั้งค่า</h3>
+            <button
+              onClick={() => setActiveTab('branding')}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all mb-2 ${activeTab === 'branding' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              การแสดงผล (Branding)
+            </button>
             <button
               onClick={() => setActiveTab('notifications')}
               className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold transition-all ${activeTab === 'notifications' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'text-slate-600 hover:bg-white/90 border border-transparent hover:border-slate-200'}`}
@@ -297,6 +349,78 @@ export default function SystemSettingsPage() {
             ))}
           </div>
         )}
+            </div>
+          )}
+
+          {activeTab === 'branding' && (
+            <div className="glass rounded-3xl p-6 shadow-xl border border-white/40 animate-fade-in-up">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4 border-b border-slate-200/50 pb-6">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <svg className="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  ตั้งค่าการแสดงผล (Branding)
+                </h2>
+              </div>
+              <form onSubmit={handleBrandingSubmit} className="space-y-6 max-w-2xl">
+                {/* Website Name */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">ชื่อเว็บไซต์ (Website Name)</label>
+                  <input 
+                    type="text" 
+                    value={brandingForm.website_name}
+                    onChange={(e) => setBrandingForm({ ...brandingForm, website_name: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-slate-700 bg-slate-50"
+                    placeholder="เช่น Bount ระบบจัดการงาน"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">ชื่อนี้จะแสดงบนแท็บของเบราว์เซอร์</p>
+                </div>
+
+                {/* Main Logo */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">โลโก้หลัก (Main Logo)</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'logoFile')}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">รูปภาพโลโก้ที่จะแสดงใน Sidebar, หน้า Check-in และหน้า Login</p>
+                  {branding?.website_logo && !brandingForm.logoFile && (
+                    <div className="mt-2 p-2 bg-white rounded-lg border border-slate-100 inline-block shadow-sm">
+                      <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${branding.website_logo}`} alt="Current Logo" className="h-12 object-contain" />
+                    </div>
+                  )}
+                  {brandingForm.logoFile && (
+                    <div className="mt-2 text-sm text-brand-600 font-medium">ไฟล์ที่เลือก: {brandingForm.logoFile.name}</div>
+                  )}
+                </div>
+
+                {/* Favicon */}
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">ไอคอนเว็บไซต์ (Favicon)</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, 'faviconFile')}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">รูปภาพไอคอนขนาดเล็กที่จะแสดงบนแท็บของเบราว์เซอร์</p>
+                  {branding?.website_favicon && !brandingForm.faviconFile && (
+                    <div className="mt-2 p-2 bg-white rounded-lg border border-slate-100 inline-block shadow-sm">
+                      <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${branding.website_favicon}`} alt="Current Favicon" className="h-8 object-contain" />
+                    </div>
+                  )}
+                  {brandingForm.faviconFile && (
+                    <div className="mt-2 text-sm text-brand-600 font-medium">ไฟล์ที่เลือก: {brandingForm.faviconFile.name}</div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-slate-200">
+                  <button type="submit" className="px-6 py-3 rounded-xl font-bold text-white bg-brand-500 hover:bg-brand-600 shadow-lg shadow-brand-500/30 transition-all active:scale-95 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    บันทึกการตั้งค่าการแสดงผล
+                  </button>
+                </div>
+              </form>
             </div>
           )}
         </div>

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProfileModal from './ProfileModal';
+import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '../utils/imageUtils';
 
 // ── Menu Definition ──────────────────────────────────────────────────────────
 const MENU_GROUPS = [
@@ -34,6 +36,7 @@ const MENU_GROUPS = [
 
 export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
   const { user, logout } = useAuth();
+  const { branding } = useBranding();
   const sidebarRef = useRef(null);
   const navigate = useNavigate();
   const [expandedKeys, setExpandedKeys] = useState({ inventory: true });
@@ -193,18 +196,23 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
         <div className="px-5 pt-6 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              {/* AIS-style signal logo */}
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md"
-                style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)', boxShadow: '0 4px 12px rgba(163,230,53,0.3)' }}>
-                <svg className="w-5 h-5 text-[#1F2937]" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 18a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
-                  <path d="M8.5 14.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                  <path d="M5.5 11.5a9 9 0 0113 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                  <path d="M2.5 8.5a13 13 0 0119 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </div>
+              {branding?.website_logo ? (
+                <img src={getImageUrl(branding.website_logo, 'branding')} alt="Logo" className="w-10 h-10 object-contain rounded-xl" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)', boxShadow: '0 4px 12px rgba(163,230,53,0.3)' }}>
+                  <svg className="w-5 h-5 text-[#1F2937]" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 18a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+                    <path d="M8.5 14.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                    <path d="M5.5 11.5a9 9 0 0113 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                    <path d="M2.5 8.5a13 13 0 0119 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              )}
               <div>
-                <p className="text-white font-black text-base leading-tight">Bonus</p>
+                <p className="text-white font-black text-base leading-tight">
+                  {branding?.website_name || 'Bonus'}
+                </p>
                 <p className="text-[#A3E635] text-[10px] font-bold tracking-widest uppercase">AIS Platform</p>
               </div>
             </div>

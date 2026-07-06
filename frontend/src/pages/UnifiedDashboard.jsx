@@ -4,6 +4,8 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import NotificationBell from '../components/NotificationBell';
+import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '../utils/imageUtils';
 
 import SuperAdminSection from '../components/dashboards/SuperAdminSection';
 import AdminSection from '../components/dashboards/AdminSection';
@@ -23,6 +25,7 @@ export default function UnifiedDashboard() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
+  const { branding } = useBranding();
 
   const userRoles = user?.roles || (user?.role ? [user.role] : []);
 
@@ -72,15 +75,19 @@ export default function UnifiedDashboard() {
           </button>
 
           <div className="flex-1 flex items-center gap-2">
-            {/* AIS-style signal logo */}
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)' }}>
-              <svg className="w-4 h-4 text-[#1F2937]" viewBox="0 0 24 24" fill="none">
-                <path d="M12 18a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
-                <path d="M8.5 14.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                <path d="M5.5 11.5a9 9 0 0113 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </div>
+            {/* Branding logo */}
+            {branding?.website_logo ? (
+              <img src={getImageUrl(branding.website_logo, 'branding')} alt="Logo" className="w-7 h-7 object-contain rounded-lg" />
+            ) : (
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #A3E635, #65a30d)' }}>
+                <svg className="w-4 h-4 text-[#1F2937]" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 18a1 1 0 100-2 1 1 0 000 2z" fill="currentColor"/>
+                  <path d="M8.5 14.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M5.5 11.5a9 9 0 0113 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
             <h2 className="text-[#1F2937] font-bold text-base hidden sm:block">ภาพรวมระบบ</h2>
           </div>
 
