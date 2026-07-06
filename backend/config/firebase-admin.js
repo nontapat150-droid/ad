@@ -69,10 +69,27 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         headers: { Urgency: 'high' },
         notification: {
           vibrate: [200, 100, 200],
-          requireInteraction: false,
+          requireInteraction: true,
           ...(iconUrl && { icon: iconUrl }),
         },
       },
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default'
+        }
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            'content-available': 1
+          }
+        }
+      }
     };
 
     const response = await messagingInstance.send(message);
