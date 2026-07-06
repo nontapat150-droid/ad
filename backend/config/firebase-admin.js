@@ -27,33 +27,13 @@ try {
 }
 
 // ── Send Push Notification to a single FCM token ────────────
-async function getFavicon() {
-  try {
-    const [rows] = await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('website_favicon', 'website_logo')");
-    let favicon = null;
-    let logo = null;
-    for (const row of rows) {
-      if (row.setting_key === 'website_favicon' && row.setting_value) favicon = row.setting_value;
-      if (row.setting_key === 'website_logo' && row.setting_value) logo = row.setting_value;
-    }
-    const iconPath = favicon || logo;
-    if (iconPath) {
-      const baseUrl = process.env.API_URL || (process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN + '/api' : 'https://bonusais.com/api');
-      return iconPath.startsWith('http') ? iconPath : `${baseUrl}${iconPath}`;
-    }
-  } catch (err) {
-    console.error('Error fetching favicon:', err);
-  }
-  return null;
-}
+// Removed getFavicon to prevent unused code warnings
 
 async function sendPushNotification(fcmToken, title, body, data = {}) {
   if (!firebaseInitialized) {
     console.warn('Firebase not initialized — skipping push notification');
     return { success: false, error: 'Firebase not initialized' };
   }
-
-  const iconUrl = await getFavicon();
 
   try {
     const message = {
@@ -70,7 +50,7 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         notification: {
           vibrate: [200, 100, 200],
           requireInteraction: true,
-          ...(iconUrl && { icon: iconUrl }),
+          icon: '/favicon.svg'
         },
       },
       android: {
