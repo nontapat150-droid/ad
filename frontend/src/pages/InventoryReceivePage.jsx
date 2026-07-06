@@ -19,6 +19,12 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   const [parseError, setParseError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
   const [allowAutoCreate, setAllowAutoCreate] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState({
+    product_name: true,
+    model_name: true,
+    sn: true,
+    phone_number: false, // Default off for normal products
+  });
   const fileInputRef = useRef(null);
 
   const resetModal = () => {
@@ -416,20 +422,52 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           </div>
 
           {/* Settings Options */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
-            <div>
-              <p className="font-bold text-[#042C53]">อนุญาตให้สร้างใหม่ในระบบอัตโนมัติ</p>
-              <p className="text-xs text-slate-500 mt-1">หากไม่พบชื่อสินค้าหรือโมเดลในระบบ จะสร้างให้ใหม่ตอนนำเข้า (แทนที่จะแสดงเป็นข้อผิดพลาด)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Column Toggles */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <div className="mb-3">
+                <p className="font-bold text-[#042C53]">ตั้งค่าคอลัมน์ที่ต้องการใช้งาน</p>
+                <p className="text-xs text-slate-500 mt-1">เลือกเปิด/ปิด คอลัมน์ที่ไม่ต้องการนำเข้า (เช่น ปิดเบอร์โทรสำหรับสินค้าทั่วไป)</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { key: 'product_name', label: 'ชื่อสินค้า' },
+                  { key: 'model_name', label: 'โมเดล' },
+                  { key: 'sn', label: 'SN / รหัส' },
+                  { key: 'phone_number', label: '📱 เบอร์โทร' },
+                ].map(col => (
+                  <label key={col.key} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${visibleColumns[col.key] ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-400 opacity-60 hover:opacity-100'}`}>
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-300 text-[#185FA5] focus:ring-[#185FA5]"
+                      checked={visibleColumns[col.key]}
+                      onChange={(e) => setVisibleColumns(prev => ({ ...prev, [col.key]: e.target.checked }))}
+                    />
+                    <span className="text-sm font-bold">{col.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={allowAutoCreate}
-                onChange={(e) => setAllowAutoCreate(e.target.checked)}
-              />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#185FA5]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#185FA5]"></div>
-            </label>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-bold text-[#042C53]">อนุญาตให้สร้างใหม่ในระบบอัตโนมัติ</p>
+                  <p className="text-xs text-slate-500 mt-1">สร้างชื่อสินค้า/โมเดลใหม่ทันที หากไม่พบในระบบ</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={allowAutoCreate}
+                    onChange={(e) => setAllowAutoCreate(e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#185FA5]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#185FA5]"></div>
+                </label>
+              </div>
+            </div>
+
           </div>
 
           {/* Parse Error */}
@@ -482,10 +520,10 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                   <thead className="bg-[#042C53] text-white sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">แถว</th>
-                      <th className="px-4 py-3 font-semibold whitespace-nowrap">ชื่อสินค้า</th>
-                      <th className="px-4 py-3 font-semibold whitespace-nowrap">โมเดล</th>
-                      <th className="px-4 py-3 font-semibold whitespace-nowrap">SN / รหัส</th>
-                      <th className="px-4 py-3 font-semibold whitespace-nowrap">เบอร์โทร</th>
+                      {visibleColumns.product_name && <th className="px-4 py-3 font-semibold whitespace-nowrap">ชื่อสินค้า</th>}
+                      {visibleColumns.model_name && <th className="px-4 py-3 font-semibold whitespace-nowrap">โมเดล</th>}
+                      {visibleColumns.sn && <th className="px-4 py-3 font-semibold whitespace-nowrap">SN / รหัส</th>}
+                      {visibleColumns.phone_number && <th className="px-4 py-3 font-semibold whitespace-nowrap">เบอร์โทร</th>}
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">สถานะ</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap text-center">ลบ</th>
                     </tr>
@@ -499,72 +537,80 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                           <td className="px-4 py-3 text-slate-400 text-xs">{row._rowNum}</td>
 
                           {/* Product Name */}
-                          <td className="px-4 py-2 min-w-[160px]">
-                            <input
-                              list={`product-list-excel-${row._id}`}
-                              value={row.product_name}
-                              onChange={(e) => updateRow(row._id, 'product_name', e.target.value)}
-                              className={`w-full px-3 py-1.5 rounded-lg border text-sm font-medium outline-none focus:ring-2 focus:ring-[#185FA5] ${
-                                !row.product_name.trim() ? 'border-red-300 bg-red-50 text-red-700'
-                                : row.matchedProduct ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                                : 'border-blue-300 bg-blue-50 text-blue-800'
-                              }`}
-                              placeholder="ชื่อสินค้า"
-                            />
-                            <datalist id={`product-list-excel-${row._id}`}>
-                              {products.map(p => <option key={p.id} value={p.name} />)}
-                            </datalist>
-                            {row.isNewProduct && (
-                              <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">🆕 จะสร้างใหม่</span>
-                            )}
-                          </td>
+                          {visibleColumns.product_name && (
+                            <td className="px-4 py-2 min-w-[160px]">
+                              <input
+                                list={`product-list-excel-${row._id}`}
+                                value={row.product_name}
+                                onChange={(e) => updateRow(row._id, 'product_name', e.target.value)}
+                                className={`w-full px-3 py-1.5 rounded-lg border text-sm font-medium outline-none focus:ring-2 focus:ring-[#185FA5] ${
+                                  !row.product_name.trim() ? 'border-red-300 bg-red-50 text-red-700'
+                                  : row.matchedProduct ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                  : 'border-blue-300 bg-blue-50 text-blue-800'
+                                }`}
+                                placeholder="ชื่อสินค้า"
+                              />
+                              <datalist id={`product-list-excel-${row._id}`}>
+                                {products.map(p => <option key={p.id} value={p.name} />)}
+                              </datalist>
+                              {row.isNewProduct && (
+                                <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">🆕 จะสร้างใหม่</span>
+                              )}
+                            </td>
+                          )}
 
                           {/* Model Name */}
-                          <td className="px-4 py-2 min-w-[160px]">
-                            <input
-                              list={`model-list-excel-${row._id}`}
-                              value={row.model_name}
-                              onChange={(e) => updateRow(row._id, 'model_name', e.target.value)}
-                              className={`w-full px-3 py-1.5 rounded-lg border text-sm font-medium outline-none focus:ring-2 focus:ring-[#185FA5] ${
-                                !row.model_name.trim() ? 'border-red-300 bg-red-50 text-red-700'
-                                : row.matchedModel ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                                : 'border-blue-300 bg-blue-50 text-blue-800'
-                              }`}
-                              placeholder="โมเดล"
-                            />
-                            <datalist id={`model-list-excel-${row._id}`}>
-                              {(row.matchedProduct?.models || []).map(m => <option key={m.id} value={m.model_name} />)}
-                            </datalist>
-                            {row.isNewModel && (
-                              <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">🆕 จะสร้างโมเดลใหม่</span>
-                            )}
-                          </td>
+                          {visibleColumns.model_name && (
+                            <td className="px-4 py-2 min-w-[160px]">
+                              <input
+                                list={`model-list-excel-${row._id}`}
+                                value={row.model_name}
+                                onChange={(e) => updateRow(row._id, 'model_name', e.target.value)}
+                                className={`w-full px-3 py-1.5 rounded-lg border text-sm font-medium outline-none focus:ring-2 focus:ring-[#185FA5] ${
+                                  !row.model_name.trim() ? 'border-red-300 bg-red-50 text-red-700'
+                                  : row.matchedModel ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                  : 'border-blue-300 bg-blue-50 text-blue-800'
+                                }`}
+                                placeholder="โมเดล"
+                              />
+                              <datalist id={`model-list-excel-${row._id}`}>
+                                {(row.matchedProduct?.models || []).map(m => <option key={m.id} value={m.model_name} />)}
+                              </datalist>
+                              {row.isNewModel && (
+                                <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">🆕 จะสร้างโมเดลใหม่</span>
+                              )}
+                            </td>
+                          )}
 
                           {/* SN */}
-                          <td className="px-4 py-2 min-w-[160px]">
-                            <input
-                              type="text"
-                              value={row.sn}
-                              onChange={(e) => updateRow(row._id, 'sn', e.target.value)}
-                              className={`w-full px-3 py-1.5 rounded-lg border font-mono text-sm outline-none focus:ring-2 focus:ring-[#185FA5] ${
-                                !row.sn && row.matchedProduct?.has_sn
-                                  ? 'border-red-300 bg-red-50 text-red-700'
-                                  : 'border-slate-300 bg-white text-slate-700'
-                              }`}
-                              placeholder={row.matchedProduct?.has_sn ? 'SN (จำเป็น)' : 'SN (ถ้ามี)'}
-                            />
-                          </td>
+                          {visibleColumns.sn && (
+                            <td className="px-4 py-2 min-w-[160px]">
+                              <input
+                                type="text"
+                                value={row.sn}
+                                onChange={(e) => updateRow(row._id, 'sn', e.target.value)}
+                                className={`w-full px-3 py-1.5 rounded-lg border font-mono text-sm outline-none focus:ring-2 focus:ring-[#185FA5] ${
+                                  !row.sn && row.matchedProduct?.has_sn
+                                    ? 'border-red-300 bg-red-50 text-red-700'
+                                    : 'border-slate-300 bg-white text-slate-700'
+                                }`}
+                                placeholder={row.matchedProduct?.has_sn ? 'SN (จำเป็น)' : 'SN (ถ้ามี)'}
+                              />
+                            </td>
+                          )}
 
                           {/* Phone Column */}
-                          <td className="py-2.5 px-3 border-b border-slate-100">
-                            <input
-                              type="text"
-                              value={row.phone_number || ''}
-                              onChange={(e) => updateRow(row._id, 'phone_number', e.target.value)}
-                              className="w-full px-2 py-1.5 text-sm rounded-lg border border-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
-                              placeholder="081xxx"
-                            />
-                          </td>
+                          {visibleColumns.phone_number && (
+                            <td className="py-2.5 px-3 border-b border-slate-100 min-w-[120px]">
+                              <input
+                                type="text"
+                                value={row.phone_number || ''}
+                                onChange={(e) => updateRow(row._id, 'phone_number', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm rounded-lg border border-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                                placeholder="081xxx"
+                              />
+                            </td>
+                          )}
 
                           {/* Status */}
                           <td className="px-4 py-3 whitespace-nowrap">
