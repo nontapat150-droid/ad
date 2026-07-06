@@ -2,7 +2,6 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
-const { sendEventNotification } = require('../utils/eventNotifier');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -160,13 +159,6 @@ router.post(
       }
 
       await conn.commit();
-
-      // Trigger event notification
-      sendEventNotification('oil_record', { 
-        tech_name: req.user.name || 'พนักงาน', 
-        amount: total_price
-      }, targetTechId, req.user.id).catch(console.error);
-
       res.status(201).json({ message: 'Oil record saved', id: result.insertId });
     } catch (err) {
       await conn.rollback();

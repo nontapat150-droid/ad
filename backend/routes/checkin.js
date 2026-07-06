@@ -2,7 +2,6 @@ const express = require('express');
 const pool = require('../config/db');
 const { auth } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
-const { sendEventNotification } = require('../utils/eventNotifier');
 
 const router = express.Router();
 
@@ -87,13 +86,6 @@ router.post(
         checkin_id: result.insertId,
         is_late: !!isLate,
       });
-
-      // Trigger event notification
-      sendEventNotification('check_in', { 
-        tech_name: req.user.name || 'พนักงาน', 
-        location: (lat && lng) ? `${lat}, ${lng}` : 'ไม่ระบุพิกัด',
-        appointment_time: lateThreshold || '08:30:00'
-      }, userId, userId).catch(console.error);
     } catch (err) {
       console.error('Checkin error:', err);
       res.status(500).json({ error: 'Server error: ' + err.message });
