@@ -17,46 +17,9 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Handle background messages
-messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Background message received:', payload);
-  const notificationTitle = payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่';
-  const notificationOptions = {
-    body: payload.notification?.body || payload.data?.body || 'คุณมีข้อความใหม่',
-    tag: payload.collapseKey || 'bou-notification-' + Date.now(),
-    data: payload.data || {},
-    vibrate: [200, 100, 200],
-    actions: [
-      { action: 'open', title: 'เปิดดู' },
-      { action: 'close', title: 'ปิด' }
-    ]
-  };
+// Let Firebase handle background messages natively.
+// We DO NOT define messaging.onBackgroundMessage() here.
+// This ensures mobile browsers reliably show the system notification
+// using the 'notification' and 'webpush' payload from the backend.
 
-  if (payload.notification?.icon || payload.data?.icon) {
-    const icon = payload.notification?.icon || payload.data?.icon;
-    notificationOptions.icon = icon;
-  }
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
-// Handle notification click
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  if (event.action === 'close') return;
-
-  // Open or focus the app
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      // Otherwise, open a new window
-      return clients.openWindow('/dashboard');
-    })
-  );
-});
