@@ -6,6 +6,7 @@ export default function ExportModal({ isOpen, onClose, data, title, fileNamePref
     no: true,
     product_name: true,
     sn: true,
+    phone_number: true,
     time: true
   });
 
@@ -45,6 +46,10 @@ export default function ExportModal({ isOpen, onClose, data, title, fileNamePref
       
       if (cols.sn) {
         row['SN'] = item.sn || '-';
+      }
+      
+      if (cols.phone_number) {
+        row['เบอร์โทร'] = item.phone_number || '-';
       }
       
       if (cols.time) {
@@ -95,34 +100,25 @@ export default function ExportModal({ isOpen, onClose, data, title, fileNamePref
           {/* Checkboxes */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
             <h3 className="text-sm font-bold text-[#042C53] mb-3">เลือกข้อมูลที่ต้องการนำออก (คอลัมน์)</h3>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" name="no" checked={cols.no} onChange={handleCheckboxChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#185FA5] focus:ring-[#185FA5] cursor-pointer" />
-                </div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-[#185FA5]">ลำดับ</span>
-              </label>
-              
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" name="product_name" checked={cols.product_name} onChange={handleCheckboxChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#185FA5] focus:ring-[#185FA5] cursor-pointer" />
-                </div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-[#185FA5]">ชื่อสินค้า</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" name="sn" checked={cols.sn} onChange={handleCheckboxChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#185FA5] focus:ring-[#185FA5] cursor-pointer" />
-                </div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-[#185FA5]">SN</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer group">
-                <div className="relative flex items-center">
-                  <input type="checkbox" name="time" checked={cols.time} onChange={handleCheckboxChange} className="w-5 h-5 border-2 border-slate-300 rounded text-[#185FA5] focus:ring-[#185FA5] cursor-pointer" />
-                </div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-[#185FA5]">เวลา</span>
-              </label>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { key: 'no', label: 'ลำดับ' },
+                { key: 'product_name', label: 'ชื่อสินค้า' },
+                { key: 'sn', label: 'SN / รหัส' },
+                { key: 'phone_number', label: '📱 เบอร์โทร' },
+                { key: 'time', label: 'เวลา' }
+              ].map(col => (
+                <label key={col.key} className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer select-none transition-all shadow-sm ${cols[col.key] ? 'bg-[#E6F1FB] border-[#378ADD] text-[#042C53]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                  <input
+                    type="checkbox"
+                    name={col.key}
+                    checked={cols[col.key]}
+                    onChange={handleCheckboxChange}
+                    className="w-4 h-4 rounded border-slate-300 text-[#185FA5] focus:ring-[#185FA5] cursor-pointer"
+                  />
+                  <span className="text-sm font-bold">{col.label}</span>
+                </label>
+              ))}
             </div>
           </div>
 
