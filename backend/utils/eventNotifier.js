@@ -150,7 +150,7 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
     // Send FCM push notifications
     const userIds = users.map(u => u.id);
     const placeholders = userIds.map(() => '?').join(',');
-    const [tokens] = await db.execute(`SELECT fcm_token FROM user_fcm_tokens WHERE user_id IN (${placeholders})`, userIds);
+    const [tokens] = await db.execute(`SELECT DISTINCT fcm_token FROM user_fcm_tokens WHERE user_id IN (${placeholders})`, userIds);
 
     if (tokens.length > 0) {
       const fcmTokens = tokens.map(t => t.fcm_token);
