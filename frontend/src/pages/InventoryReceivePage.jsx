@@ -725,6 +725,7 @@ export default function InventoryReceivePage() {
   const [receiveCrates, setReceiveCrates] = useState(1);
   const [isAutoGenerate, setIsAutoGenerate] = useState(true);
   const [generateCount, setGenerateCount] = useState(1);
+  const [phoneNumber, setPhoneNumber] = useState('');
   
   // Staging State
   const [stagedItems, setStagedItems] = useState([]);
@@ -1047,12 +1048,12 @@ export default function InventoryReceivePage() {
         Toast.fire({ icon: 'warning', title: 'รหัสซ้ำซ้อน', text: 'รหัส SN นี้อยู่ในรายการพักรอแล้ว' });
         setSn(''); if (snInputRef.current) snInputRef.current.value = ''; return;
       }
-      itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: true, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: 1, is_auto_generate: false, generate_count: 1 });
+      itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: true, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, phone_number: phoneNumber, quantity: 1, is_auto_generate: false, generate_count: 1 });
       Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
     } else {
       if (isAutoGenerate) {
         if (!generateCount || generateCount <= 0) return;
-        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: '(ระบบจะสร้างอัตโนมัติ)', quantity: parseFloat(quantity) || 1, is_auto_generate: true, generate_count: parseInt(generateCount) || 1 });
+        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: '(ระบบจะสร้างอัตโนมัติ)', phone_number: phoneNumber, quantity: parseFloat(quantity) || 1, is_auto_generate: true, generate_count: parseInt(generateCount) || 1 });
         Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
       } else {
         const currentInputValue = autoSn !== null ? autoSn : (snInputRef.current?.value || sn);
@@ -1063,13 +1064,14 @@ export default function InventoryReceivePage() {
           Toast.fire({ icon: 'warning', title: 'รหัสซ้ำซ้อน', text: 'รหัสสินค้านี้อยู่ในรายการพักรอแล้ว' });
           setSn(''); if (snInputRef.current) snInputRef.current.value = ''; return;
         }
-        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, quantity: parseFloat(quantity) || 1, is_auto_generate: false, generate_count: 1 });
+        itemsToAdd.push({ id: crypto.randomUUID(), product_name: selectedProduct.name, has_sn: false, model_id: selectedModelId, model_name: selectedModel.model_name, sn: cleanSn, phone_number: phoneNumber, quantity: parseFloat(quantity) || 1, is_auto_generate: false, generate_count: 1 });
         Toast.fire({ icon: 'success', title: 'บันทึกสำเร็จ' });
       }
     }
 
     setStagedItems(prev => [...prev, ...itemsToAdd]);
     setSn(''); if (snInputRef.current) snInputRef.current.value = '';
+    setPhoneNumber('');
     setGenerateCount(1);
     setTimeout(() => snInputRef.current?.focus(), 50);
   };
@@ -1364,6 +1366,12 @@ export default function InventoryReceivePage() {
                             placeholder="สแกน หรือ พิมพ์รหัส SN..."
                             className="flex-1 min-w-0 px-5 py-4 border-2 border-[#E5E7EB] rounded-2xl outline-none font-black text-[#1F2937] bg-[#F9FAFB] focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 transition-all tracking-wide"
                             autoFocus />
+                          {selectedProduct?.name === 'SIM CARD' && (
+                            <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} onKeyDown={handleSnKeyDown}
+                              placeholder="เบอร์โทรศัพท์ (ถ้ามี)..."
+                              className="flex-1 min-w-0 px-5 py-4 border-2 border-[#E5E7EB] rounded-2xl outline-none font-black text-[#1F2937] bg-white focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 transition-all tracking-wide"
+                            />
+                          )}
                           <button type="button" onClick={handleAddToStaging} disabled={!sn.trim()}
                             className="bg-[#1F2937] hover:bg-[#374151] text-white font-black px-6 py-4 rounded-2xl disabled:opacity-50 transition-all shadow-[0_4px_15px_rgba(31,41,55,0.2)] hover:scale-[1.02] active:scale-95 shrink-0">
                             ➕ เพิ่ม
@@ -1390,6 +1398,14 @@ export default function InventoryReceivePage() {
                             <label className="block text-sm font-black text-[#1F2937] mb-2">ต้องการสร้างกี่รายการ? (เพื่อพิมพ์สติกเกอร์แยก)</label>
                             <input type="number" min="1" value={generateCount} onChange={(e) => setGenerateCount(e.target.value)}
                               className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
+                            {selectedProduct?.name === 'SIM CARD' && (
+                              <div className="mt-4">
+                                <label className="block text-sm font-black text-[#1F2937] mb-2">เบอร์โทรศัพท์</label>
+                                <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
+                                  placeholder="เบอร์โทรศัพท์ (ถ้ามี)..."
+                                  className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
+                              </div>
+                            )}
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-2">
@@ -1427,6 +1443,15 @@ export default function InventoryReceivePage() {
                               onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
                               placeholder="สแกนหรือพิมพ์รหัส..."
                               className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
+                            {selectedProduct?.name === 'SIM CARD' && (
+                              <div className="mt-4">
+                                <label className="block text-sm font-black text-[#1F2937] mb-2">เบอร์โทรศัพท์</label>
+                                <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddToStaging(); }}
+                                  placeholder="เบอร์โทรศัพท์ (ถ้ามี)..."
+                                  className="w-full px-4 py-3 border-2 border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none bg-white font-bold" />
+                              </div>
+                            )}
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-2">
