@@ -156,7 +156,15 @@ export default function NotificationProvider({ children }) {
       setToast({ title, body });
       
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification(title, { body });
+        try {
+          new Notification(title, { body });
+        } catch (e) {
+          if (navigator.serviceWorker) {
+            navigator.serviceWorker.ready.then((registration) => {
+              registration.showNotification(title, { body });
+            });
+          }
+        }
       }
     });
 
@@ -173,7 +181,15 @@ export default function NotificationProvider({ children }) {
         setToast({ title, body });
         
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          new Notification(title, { body });
+          try {
+            new Notification(title, { body });
+          } catch (e) {
+            if (navigator.serviceWorker) {
+              navigator.serviceWorker.ready.then((registration) => {
+                registration.showNotification(title, { body });
+              });
+            }
+          }
         }
       }
     };
