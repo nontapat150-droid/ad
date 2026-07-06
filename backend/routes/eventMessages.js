@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const { sendEventNotification } = require('../utils/eventNotifier');
 
 // Get all event messages
 router.get('/', auth, async (req, res) => {
@@ -83,6 +84,34 @@ router.delete('/:id', auth, requireRole(['admin', 'super_admin']), async (req, r
   } catch (err) {
     console.error('Error deleting event message:', err);
     res.status(500).json({ error: 'Failed to delete event message' });
+  }
+});
+
+// Test an event message
+router.post('/:key/test', auth, requireRole(['admin', 'super_admin']), async (req, res) => {
+  const { key } = req.params;
+  
+  // Dummy variables based on the key to show in the test message
+  const mockVariables = {
+    job_id: 'JOB-9999',
+    tech_name: req.user.full_name || 'ชื่อผู้ทดสอบ',
+    description: 'ข้อความทดสอบจากระบบ',
+    location: 'สถานที่ทดสอบ',
+    appointment_time: '10:00 น.',
+    amount: '500',
+    items: 'สายไฟ 10 เมตร, เทปพันสายไฟ 1 ม้วน'
+  };
+
+  try {
+    // Send to the current admin user who clicked "Test"
+    // For standard events that target "target_user", we pass req.user.id as the targetUserId.
+    // For events that target "all" or "admin", it will ignore targetUserId and send to all admins.
+    // To ensure the tester gets it even if it's "target_user":
+    await sendEventNotification(key, mockVariables, req.user.id, req.user.id);
+    res.json({ message: 'Test message sent successfully' });
+  } catch (err) {
+    console.error('Error testing event message:', err);
+    res.status(500).json({ error: 'Failed to send test message' });
   }
 });
 

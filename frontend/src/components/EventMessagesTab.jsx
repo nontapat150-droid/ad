@@ -68,6 +68,21 @@ export default function EventMessagesTab() {
     setShowModal(true);
   };
 
+  const handleTestEvent = async (evt) => {
+    try {
+      await api.post(`/event-messages/${evt.event_key}/test`);
+      Swal.fire({
+        title: 'ส่งข้อความทดสอบแล้ว',
+        text: 'ระบบได้ส่งข้อความแจ้งเตือนให้คุณแล้ว โปรดตรวจสอบที่หน้าต่างแจ้งเตือนหรือแอปพลิเคชันของคุณ',
+        icon: 'success',
+        confirmButtonColor: '#84cc16'
+      });
+    } catch (err) {
+      console.error('Error testing event:', err);
+      Swal.fire('ข้อผิดพลาด', 'ไม่สามารถส่งข้อความทดสอบได้', 'error');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -142,14 +157,19 @@ export default function EventMessagesTab() {
                 <h3 className="font-bold text-slate-800 text-lg">{evt.event_label}</h3>
                 <p className="text-xs text-slate-500 font-mono mt-1">Key: {evt.event_key}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600">{evt.is_active ? 'เปิดใช้งาน' : 'ปิด'}</span>
-                <input 
-                  type="checkbox" 
-                  className="toggle toggle-success toggle-sm" 
-                  checked={evt.is_active} 
-                  onChange={() => handleToggleActive(evt)}
-                />
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-bold ${evt.is_active ? 'text-brand-500' : 'text-slate-400'}`}>
+                  {evt.is_active ? 'เปิดใช้งาน' : 'ปิด'}
+                </span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={evt.is_active}
+                    onChange={() => handleToggleActive(evt)}
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500 shadow-inner"></div>
+                </label>
               </div>
             </div>
             
@@ -161,16 +181,25 @@ export default function EventMessagesTab() {
               <span className="badge badge-outline text-xs">ส่งถึง: {evt.target_role === 'target_user' ? 'ผู้ที่เกี่ยวข้อง' : evt.target_role === 'all' ? 'ทุกคน' : evt.target_role}</span>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => handleOpenModal(evt)}
-                  className="btn btn-sm btn-ghost text-brand-600 hover:bg-brand-50 rounded-lg"
+                  onClick={() => handleTestEvent(evt)}
+                  className="btn btn-sm btn-ghost text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1"
                 >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  ทดสอบ
+                </button>
+                <button 
+                  onClick={() => handleOpenModal(evt)}
+                  className="btn btn-sm btn-ghost text-brand-600 hover:bg-brand-50 rounded-lg flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                   แก้ไข
                 </button>
                 {!isStandardEvent(evt.event_key) && (
                   <button 
                     onClick={() => handleDelete(evt.id)}
-                    className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50 rounded-lg"
+                    className="btn btn-sm btn-ghost text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1"
                   >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     ลบ
                   </button>
                 )}
