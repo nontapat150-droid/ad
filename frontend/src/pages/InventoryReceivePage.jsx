@@ -405,18 +405,22 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           {/* Column Guide */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <p className="font-bold mb-2">📋 รูปแบบหัวคอลัมน์ที่รองรับ:</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white rounded-lg p-2 border border-amber-100">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white rounded-lg p-3 border border-amber-100 shadow-sm">
                 <p className="font-bold text-[#042C53]">ชื่อสินค้า</p>
-                <p className="text-xs text-slate-500">product, สินค้า, ชื่อสินค้า</p>
+                <p className="text-xs text-slate-500 mt-1">product, สินค้า, ชื่อสินค้า</p>
               </div>
-              <div className="bg-white rounded-lg p-2 border border-amber-100">
+              <div className="bg-white rounded-lg p-3 border border-amber-100 shadow-sm">
                 <p className="font-bold text-[#042C53]">โมเดล</p>
-                <p className="text-xs text-slate-500">model, โมเดล, รุ่น</p>
+                <p className="text-xs text-slate-500 mt-1">model, โมเดล, รุ่น</p>
               </div>
-              <div className="bg-white rounded-lg p-2 border border-amber-100">
+              <div className="bg-white rounded-lg p-3 border border-amber-100 shadow-sm">
                 <p className="font-bold text-[#042C53]">Serial Number</p>
-                <p className="text-xs text-slate-500">sn, serial, SN, รหัส, barcode</p>
+                <p className="text-xs text-slate-500 mt-1">sn, serial, SN, รหัส, barcode</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-amber-100 shadow-sm">
+                <p className="font-bold text-[#042C53]">เบอร์โทร</p>
+                <p className="text-xs text-slate-500 mt-1">phone, เบอร์, เบอร์โทร</p>
               </div>
             </div>
           </div>
@@ -437,14 +441,14 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                   { key: 'sn', label: 'SN / รหัส' },
                   { key: 'phone_number', label: '📱 เบอร์โทร' },
                 ].map(col => (
-                  <label key={col.key} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all ${visibleColumns[col.key] ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-400 opacity-60 hover:opacity-100'}`}>
+                  <label key={col.key} className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer select-none transition-all shadow-sm ${visibleColumns[col.key] ? 'bg-[#E6F1FB] border-[#378ADD] text-[#042C53]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                     <input
                       type="checkbox"
-                      className="rounded border-slate-300 text-[#185FA5] focus:ring-[#185FA5]"
+                      className="w-4 h-4 rounded border-slate-300 text-[#185FA5] focus:ring-[#185FA5] cursor-pointer"
                       checked={visibleColumns[col.key]}
                       onChange={(e) => setVisibleColumns(prev => ({ ...prev, [col.key]: e.target.checked }))}
                     />
-                    <span className="text-sm font-bold">{col.label}</span>
+                    <span className="text-sm font-bold whitespace-nowrap">{col.label}</span>
                   </label>
                 ))}
               </div>
