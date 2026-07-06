@@ -167,7 +167,7 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
             },
             webpush: {
               notification: {
-                ...(iconUrl && { icon: iconUrl, badge: iconUrl }),
+                ...(iconUrl && { icon: iconUrl }),
               }
             }
           });

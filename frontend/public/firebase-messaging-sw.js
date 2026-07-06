@@ -35,7 +35,6 @@ messaging.onBackgroundMessage((payload) => {
   if (payload.notification?.icon || payload.data?.icon) {
     const icon = payload.notification?.icon || payload.data?.icon;
     notificationOptions.icon = icon;
-    notificationOptions.badge = icon;
   }
 
   return self.registration.showNotification(notificationTitle, notificationOptions);

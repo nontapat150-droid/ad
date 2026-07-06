@@ -40,7 +40,7 @@ export async function requestNotificationPermission() {
     }
 
     // Register service worker explicitly with version string to bypass mobile cache
-    const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=6');
+    const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=7');
     await swRegistration.update();
 
     const token = await getToken(messaging, {
