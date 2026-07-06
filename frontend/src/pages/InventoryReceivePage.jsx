@@ -1002,7 +1002,8 @@ export default function InventoryReceivePage() {
 
         if (!product) {
           // Infer has_sn: if SN column has data → has_sn=true, else false
-          await axios.post('/inventory/products', { name: row.product_name.trim(), has_sn: hasSn });
+          const inferredHasSn = !!row.sn?.trim();
+          await axios.post('/inventory/products', { name: row.product_name.trim(), has_sn: inferredHasSn });
           allProducts = await fetchProducts();
           product = allProducts.find(p =>
             p.name.trim().toLowerCase() === row.product_name.trim().toLowerCase()
