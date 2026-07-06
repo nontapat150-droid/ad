@@ -24,8 +24,6 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'แจ้งเตือนใหม่';
   const notificationOptions = {
     body: payload.notification?.body || 'คุณมีข้อความใหม่',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
     tag: 'bou-notification-' + Date.now(),
     data: payload.data || {},
     vibrate: [200, 100, 200],

@@ -46,8 +46,6 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
       webpush: {
         headers: { Urgency: 'high' },
         notification: {
-          icon: '/favicon.svg',
-          badge: '/favicon.svg',
           vibrate: [200, 100, 200],
           requireInteraction: false,
         },
