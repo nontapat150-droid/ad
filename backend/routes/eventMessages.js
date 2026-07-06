@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
-const { auth, hasRole } = require('../middleware/auth');
+const { auth, requireRole } = require('../middleware/auth');
 
 // Get all event messages
 router.get('/', auth, async (req, res) => {
@@ -15,7 +15,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Create a custom event message
-router.post('/', auth, hasRole(['admin', 'super_admin']), async (req, res) => {
+router.post('/', auth, requireRole(['admin', 'super_admin']), async (req, res) => {
   const { event_key, event_label, message_template, target_role, is_active } = req.body;
 
   if (!event_key || !event_label || !message_template) {
@@ -40,7 +40,7 @@ router.post('/', auth, hasRole(['admin', 'super_admin']), async (req, res) => {
 });
 
 // Update an event message
-router.put('/:id', auth, hasRole(['admin', 'super_admin']), async (req, res) => {
+router.put('/:id', auth, requireRole(['admin', 'super_admin']), async (req, res) => {
   const { id } = req.params;
   const { event_label, message_template, target_role, is_active } = req.body;
 
@@ -65,7 +65,7 @@ router.put('/:id', auth, hasRole(['admin', 'super_admin']), async (req, res) => 
 });
 
 // Delete a custom event message
-router.delete('/:id', auth, hasRole(['admin', 'super_admin']), async (req, res) => {
+router.delete('/:id', auth, requireRole(['admin', 'super_admin']), async (req, res) => {
   const { id } = req.params;
 
   try {
