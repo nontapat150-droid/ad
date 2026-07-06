@@ -49,9 +49,8 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         headers: { Urgency: 'high' },
         notification: {
           vibrate: [200, 100, 200],
-          requireInteraction: true,
-          icon: '/favicon.svg'
-        },
+          requireInteraction: true
+        }
       },
       android: {
         priority: 'high',
