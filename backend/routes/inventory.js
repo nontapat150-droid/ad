@@ -145,7 +145,7 @@ router.delete('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
 // ── POST /api/inventory/receive ──
 router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { model_id, sn, quantity = 1, is_auto_generate, generate_count = 1 } = req.body;
+  const { model_id, sn, phone_number, quantity = 1, is_auto_generate, generate_count = 1 } = req.body;
   if (!model_id) return res.status(400).json({ error: 'model_id is required' });
 
   const conn = await pool.getConnection();
@@ -174,8 +174,8 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       }
       
       const [result] = await conn.query(
-        'INSERT INTO inventory_items (model_id, sn, quantity, status) VALUES (?, ?, ?, "in_stock")',
-        [model_id, sn, 1.00]
+        'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+        [model_id, sn, phone_number || null, 1.00]
       );
       
       await conn.query(
@@ -192,8 +192,8 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           // Generate unique code using timestamp and random number
           const uniqueCode = `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
           const [result] = await conn.query(
-            'INSERT INTO inventory_items (model_id, sn, quantity, status) VALUES (?, ?, ?, "in_stock")',
-            [model_id, uniqueCode, quantity] // For No-SN, we allow specifying bulk quantity (e.g. 100 meters)
+            'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+            [model_id, uniqueCode, phone_number || null, quantity] // For No-SN, we allow specifying bulk quantity (e.g. 100 meters)
           );
           await conn.query(
             'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',
@@ -208,8 +208,8 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           return res.status(400).json({ error: 'Code/SN is required' });
         }
         const [result] = await conn.query(
-          'INSERT INTO inventory_items (model_id, sn, quantity, status) VALUES (?, ?, ?, "in_stock")',
-          [model_id, sn, quantity]
+          'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+          [model_id, sn, phone_number || null, quantity]
         );
         await conn.query(
           'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',

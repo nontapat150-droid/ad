@@ -31,12 +31,18 @@ router.get('/migrate-fix', async (req, res) => {
       results.push('inventory_models: ' + e.message);
     }
 
-    // Fix inventory_items
+    // Fix inventory_items and add phone_number
     try {
       await pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY`);
       results.push('✅ inventory_items.id -> AUTO_INCREMENT fixed');
     } catch(e) {
       results.push('inventory_items: ' + e.message);
+    }
+    try {
+      await pool.query(`ALTER TABLE inventory_items ADD COLUMN phone_number VARCHAR(50) NULL`);
+      results.push('✅ inventory_items.phone_number added');
+    } catch(e) {
+      results.push('inventory_items.phone_number: ' + e.message);
     }
 
     // Fix inventory_logs

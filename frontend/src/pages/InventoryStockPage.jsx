@@ -67,6 +67,7 @@ export default function InventoryStockPage() {
           <div style="display:flex; flex-direction:column; gap:4px;">
             <span style="font-weight: 900; font-size: 15px;">
               ${product.has_sn ? si.sn : `รหัส: ${si.sn}`}
+              ${si.phone_number ? `<span style="color:#042C53;font-size:13px;margin-left:8px;font-weight:bold;">📞 ${si.phone_number}</span>` : ''}
               ${!product.has_sn ? `<span style="color:#1F2937; background:#A3E635; padding:2px 8px; border-radius:6px; font-size:12px; font-weight: bold; margin-left:8px; box-shadow: 0 2px 5px rgba(163,230,53,0.3);">จำนวน ${parseFloat(si.quantity).toLocaleString()}</span>` : ''}
             </span>
             <span style="color: #6B7280; font-size: 13px; font-weight: 500;">นำเข้าเมื่อ: ${new Date(si.created_at).toLocaleDateString('th-TH')}</span>

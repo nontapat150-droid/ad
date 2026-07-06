@@ -345,9 +345,15 @@ export default function TechBagPage() {
                                 {item.product_name}
                               </span>
                               <h3 className="font-bold text-[#1F2937] text-base leading-tight break-all">{item.sn}</h3>
-                              <p className="text-xs text-[#9CA3AF] mt-1 flex items-center gap-1">
+                              <p className="text-xs text-[#9CA3AF] mt-1 flex flex-wrap items-center gap-1">
                                 <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block" />
                                 โมเดล: <span className="text-[#6B7280] font-medium">{item.model_name}</span>
+                                {item.phone_number && (
+                                  <>
+                                    <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block ml-1" />
+                                    เบอร์โทร: <span className="text-[#042C53] font-bold">📞 {item.phone_number}</span>
+                                  </>
+                                )}
                               </p>
                             </div>
                             <div className="bg-[#1F2937] text-white font-bold px-3 py-1.5 rounded-lg text-sm shrink-0"

@@ -95,10 +95,11 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         const productKey = findKey('product', 'สินค้า', 'ชื่อสินค้า', 'Product');
         const modelKey   = findKey('model', 'โมเดล', 'รุ่น', 'Model');
         const snKey      = findKey('sn', 'serial', 'ซีเรียล', 'SN', 'รหัส', 'barcode');
+        const phoneKey   = findKey('เบอร์', 'phone', 'tel', 'เบอร์โทร');
 
         if (!productKey && !modelKey && !snKey) {
           setParseError(
-            `ไม่พบคอลัมน์ที่รู้จัก\nคอลัมน์ในไฟล์: ${keys.join(', ')}\n\nกรุณาใช้หัวคอลัมน์: ชื่อสินค้า, โมเดล, SN`
+            `ไม่พบคอลัมน์ที่รู้จัก\nคอลัมน์ในไฟล์: ${keys.join(', ')}\n\nกรุณาใช้หัวคอลัมน์: ชื่อสินค้า, โมเดล, SN, เบอร์โทร`
           );
           return;
         }
@@ -107,6 +108,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           const rawProduct = productKey ? String(row[productKey] ?? '').trim() : '';
           const rawModel   = modelKey   ? String(row[modelKey]   ?? '').trim() : '';
           const rawSn      = snKey      ? String(row[snKey]      ?? '').trim() : '';
+          const rawPhone   = phoneKey   ? String(row[phoneKey]   ?? '').trim() : '';
 
           const matchedProduct = matchProduct(rawProduct);
           const matchedModel   = matchedProduct ? matchModel(matchedProduct, rawModel) : null;
@@ -115,11 +117,12 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           return {
             _rowNum: idx + 2,
             _id: `excel-${idx}-${Date.now()}`,
-            rawProduct, rawModel, rawSn,
+            rawProduct, rawModel, rawSn, rawPhone,
             matchedProduct, matchedModel,
             product_name: rawProduct,
             model_name: rawModel,
             sn: rawSn,
+            phone_number: rawPhone,
             ...meta,
           };
         });
@@ -352,6 +355,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">ชื่อสินค้า</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">โมเดล</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">SN / รหัส</th>
+                      <th className="px-4 py-3 font-semibold whitespace-nowrap">เบอร์โทร</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap">สถานะ</th>
                       <th className="px-4 py-3 font-semibold whitespace-nowrap text-center">ลบ</th>
                     </tr>
@@ -418,6 +422,17 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                                   : 'border-slate-300 bg-white text-slate-700'
                               }`}
                               placeholder={row.matchedProduct?.has_sn ? 'SN (จำเป็น)' : 'SN (ถ้ามี)'}
+                            />
+                          </td>
+
+                          {/* Phone Column */}
+                          <td className="py-2.5 px-3 border-b border-slate-100">
+                            <input
+                              type="text"
+                              value={row.phone_number || ''}
+                              onChange={(e) => updateRow(row._id, 'phone_number', e.target.value)}
+                              className="w-full px-2 py-1.5 text-sm rounded-lg border border-slate-200 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white"
+                              placeholder="081xxx"
                             />
                           </td>
 
@@ -949,7 +964,8 @@ export default function InventoryReceivePage() {
       try {
         await axios.post('/inventory/receive', {
           model_id: item.model_id,
-          sn: item.is_auto_generate ? '' : item.sn,
+          sn: item.sn,
+          phone_number: item.phone_number,
           quantity: item.quantity,
           is_auto_generate: item.is_auto_generate,
           generate_count: item.generate_count
@@ -1035,6 +1051,7 @@ export default function InventoryReceivePage() {
         const hasSn = product.has_sn;
         // Keep full SN string — do NOT strip non-digit chars (SN may contain letters like ZTEGDD20ADB9)
         const cleanSn = row.sn.trim();
+        const cleanPhone = row.phone_number ? row.phone_number.trim() : '';
         newItems.push({
           id: crypto.randomUUID(),
           product_name: product.name,
@@ -1042,6 +1059,7 @@ export default function InventoryReceivePage() {
           model_id: model.id,
           model_name: model.model_name,
           sn: cleanSn || '(ระบบจะสร้างอัตโนมัติ)',
+          phone_number: cleanPhone,
           quantity: 1,
           is_auto_generate: !hasSn && !cleanSn,
           generate_count: 1,
@@ -1308,6 +1326,7 @@ export default function InventoryReceivePage() {
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">สินค้า</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">โมเดล</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">SN / รหัส</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">เบอร์โทร</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">จำนวน</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">แหล่งที่มา</th>
                           <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB] text-center">ลบ</th>
@@ -1322,6 +1341,7 @@ export default function InventoryReceivePage() {
                               {item.sn}
                               {item.is_auto_generate && <span className="ml-2 text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">Auto ({item.generate_count} items)</span>}
                             </td>
+                            <td className="p-3 font-mono text-slate-700">{item.phone_number || '-'}</td>
                             <td className="p-3 text-[#042C53]">{item.quantity}</td>
                             <td className="p-3 text-center">
                               {item._fromExcel ? (
