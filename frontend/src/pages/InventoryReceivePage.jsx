@@ -50,14 +50,18 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   const buildRowMeta = (rawProduct, rawModel, rawSn, matchedProduct, matchedModel) => {
     const isNewProduct = !matchedProduct && !!rawProduct.trim();
     const isNewModel   = !!matchedProduct && !matchedModel && !!rawModel.trim();
-    const willAutoCreate = isNewProduct || isNewModel;
+    const willAutoCreate = false; // ปิดการสร้างใหม่อัตโนมัติในหน้า Excel Import ตามที่ผู้ใช้ต้องการ
 
     // Infer has_sn for NEW products from whether SN column has data
     const inferredHasSn = matchedProduct ? matchedProduct.has_sn : !!rawSn.trim();
 
     const errors = [];
     if (!rawProduct.trim()) errors.push('ไม่มีชื่อสินค้า');
+    else if (!matchedProduct) errors.push('ไม่พบชื่อสินค้านี้ในระบบ');
+
     if (!rawModel.trim()) errors.push('ไม่มีชื่อโมเดล');
+    else if (matchedProduct && !matchedModel) errors.push('ไม่พบชื่อโมเดลนี้ในระบบ');
+
     // SN required only when existing product.has_sn=true
     if (matchedProduct?.has_sn && !rawSn.trim()) errors.push('ไม่มี SN (สินค้านี้ต้องการ SN)');
 
@@ -166,6 +170,23 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
     if (validRows.length === 0) {
       Swal.fire({ icon: 'warning', title: 'ไม่มีแถวที่ถูกต้อง', text: 'กรุณาแก้ไขข้อมูลก่อนยืนยัน' });
       return;
+    }
+
+    if (errorRows.length > 0) {
+      const confirmProceed = await Swal.fire({
+        icon: 'warning',
+        title: 'พบข้อมูลมีปัญหา',
+        html: `มีข้อมูลที่อ่านไม่ได้หรือมีปัญหาจำนวน <b>${errorRows.length}</b> รายการ<br><br>ต้องการ <b>ตัดรายการที่มีปัญหาออก</b> แล้วนำเข้าเฉพาะรายการที่ถูกต้องหรือไม่?`,
+        showCancelButton: true,
+        confirmButtonText: 'ตัดออกและนำเข้าต่อ',
+        cancelButtonText: 'ยกเลิก (เพื่อกลับไปแก้ไข)',
+        confirmButtonColor: '#185FA5',
+        cancelButtonColor: '#94a3b8'
+      });
+
+      if (!confirmProceed.isConfirmed) {
+        return;
+      }
     }
 
     // Collect SNs that are non-empty (for any product; new products inferred has_sn from rawSn)
