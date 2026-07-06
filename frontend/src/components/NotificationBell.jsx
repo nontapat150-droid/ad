@@ -20,7 +20,15 @@ export default function NotificationBell() {
     fetchUnreadCount();
     // Poll every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    
+    // Listen for instant local events (e.g. from testing event messages)
+    const handleInstantAlert = () => fetchUnreadCount();
+    window.addEventListener('new_message_alert', handleInstantAlert);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('new_message_alert', handleInstantAlert);
+    };
   }, [fetchUnreadCount]);
 
   return (

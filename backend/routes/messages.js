@@ -40,9 +40,9 @@ router.get('/unread-count', auth, async (req, res) => {
 router.get('/inbox', auth, async (req, res) => {
   try {
     const [messages] = await pool.query(
-      `SELECT m.*, u.full_name AS sender_name, u.role AS sender_role 
+      `SELECT m.*, COALESCE(u.full_name, 'ระบบแจ้งเตือน') AS sender_name, COALESCE(u.role, 'system') AS sender_role 
        FROM messages m
-       JOIN users u ON m.sender_id = u.id
+       LEFT JOIN users u ON m.sender_id = u.id
        WHERE m.receiver_id = ? AND (m.is_automated = FALSE OR (m.is_automated = TRUE AND m.created_at >= NOW() - INTERVAL 1 DAY))
        ORDER BY m.created_at DESC`,
       [req.user.id]
@@ -58,9 +58,9 @@ router.get('/inbox', auth, async (req, res) => {
 router.get('/sent', auth, async (req, res) => {
   try {
     const [messages] = await pool.query(
-      `SELECT m.*, u.full_name AS receiver_name, u.role AS receiver_role 
+      `SELECT m.*, COALESCE(u.full_name, 'ระบบแจ้งเตือน') AS receiver_name, COALESCE(u.role, 'system') AS receiver_role 
        FROM messages m
-       JOIN users u ON m.receiver_id = u.id
+       LEFT JOIN users u ON m.receiver_id = u.id
        WHERE m.sender_id = ? AND (m.is_automated = FALSE OR (m.is_automated = TRUE AND m.created_at >= NOW() - INTERVAL 1 DAY))
        ORDER BY m.created_at DESC`,
       [req.user.id]

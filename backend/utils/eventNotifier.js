@@ -87,13 +87,13 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
     if (event.target_role === 'target_user' && targetUserId) {
       users = [{ id: targetUserId }];
     } else if (event.target_role === 'all') {
-      const [rows] = await db.execute('SELECT id FROM users WHERE is_active = 1');
+      const [rows] = await db.execute("SELECT id FROM users WHERE status = 'approved'");
       users = rows;
     } else if (event.target_role === 'admin') {
-      const [rows] = await db.execute("SELECT id FROM users WHERE role IN ('admin', 'super_admin') AND is_active = 1");
+      const [rows] = await db.execute("SELECT id FROM users WHERE role IN ('admin', 'super_admin') AND status = 'approved'");
       users = rows;
     } else {
-      const [rows] = await db.execute('SELECT id FROM users WHERE role = ? AND is_active = 1', [event.target_role]);
+      const [rows] = await db.execute("SELECT id FROM users WHERE role = ? AND status = 'approved'", [event.target_role]);
       users = rows;
     }
 
