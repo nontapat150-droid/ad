@@ -83,43 +83,75 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         // cellText: true → also read formatted text in case of custom number formats
         const workbook = XLSX.read(data, { type: 'array', raw: true, cellText: true });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        // raw: false → prefer formatted text over raw numeric values
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        // อ่านเป็น Array 2 มิติเพื่อค้นหาแถวที่เป็น Header จริงๆ
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
 
-        if (json.length === 0) {
+        if (rawData.length === 0) {
           setParseError('ไฟล์ Excel ว่างเปล่า หรือไม่มีข้อมูล');
           return;
         }
 
-        // Detect columns dynamically (case-insensitive)
-        const keys = Object.keys(json[0]);
-        const findKey = (...candidates) =>
-          keys.find(k => candidates.some(c => k.trim().toLowerCase().includes(c.toLowerCase()))) || null;
+        // ค้นหาแถวที่มีโอกาสเป็น Header มากที่สุด (จาก 10 แถวแรก)
+        let headerRowIndex = -1;
+        let bestScore = 0;
+        const keywords = ['product', 'สินค้า', 'ชื่อสินค้า', 'model', 'โมเดล', 'รุ่น', 'sn', 'serial', 'ซีเรียล', 'รหัส', 'barcode', 'เบอร์', 'phone', 'tel', 'เบอร์โทร'];
 
-        const productKey = findKey('product', 'สินค้า', 'ชื่อสินค้า', 'Product');
-        const modelKey   = findKey('model', 'โมเดล', 'รุ่น', 'Model');
-        const snKey      = findKey('sn', 'serial', 'ซีเรียล', 'SN', 'รหัส', 'barcode');
-        const phoneKey   = findKey('เบอร์', 'phone', 'tel', 'เบอร์โทร');
-
-        if (!productKey && !modelKey && !snKey) {
-          setParseError(
-            `⚠️ คำเตือน: ไม่พบคอลัมน์ที่รู้จักเลย\nคอลัมน์ในไฟล์: ${keys.join(', ')}\n\n(ระบบข้ามการอ่านคอลัมน์เหล่านี้ และสร้างแถวว่างเพื่อให้คุณกรอกข้อมูลเองตามจำนวนแถวในไฟล์)`
-          );
-          // เอา return ออก เพื่อให้ข้ามการอ่านคอลัมน์ที่ไม่รู้จัก และนำเข้าเป็นแถวว่างแทน
+        for (let i = 0; i < Math.min(10, rawData.length); i++) {
+          const rowArr = rawData[i].map(String);
+          let score = 0;
+          rowArr.forEach(cell => {
+            const lowerCell = cell.toLowerCase().trim();
+            if (keywords.some(kw => lowerCell.includes(kw))) score++;
+          });
+          if (score > bestScore) {
+            bestScore = score;
+            headerRowIndex = i;
+          }
         }
 
-        const rows = json.map((row, idx) => {
-          const rawProduct = productKey ? String(row[productKey] ?? '').trim() : '';
-          const rawModel   = modelKey   ? String(row[modelKey]   ?? '').trim() : '';
-          const rawSn      = snKey      ? String(row[snKey]      ?? '').trim() : '';
-          const rawPhone   = phoneKey   ? String(row[phoneKey]   ?? '').trim() : '';
+        let headers = [];
+        let dataRows = [];
+
+        if (headerRowIndex !== -1) {
+          headers = rawData[headerRowIndex].map(String);
+          dataRows = rawData.slice(headerRowIndex + 1);
+        } else {
+          headers = [];
+          dataRows = rawData;
+        }
+
+        // กรองแถวที่ว่างเปล่าออกไปเลย
+        const validDataRows = dataRows.filter(row => row.some(cell => String(cell).trim() !== ''));
+
+        const findKeyIdx = (...candidates) => {
+          const idx = headers.findIndex(h => candidates.some(c => h.trim().toLowerCase().includes(c.toLowerCase())));
+          return idx !== -1 ? idx : null;
+        };
+
+        const productIdx = findKeyIdx('product', 'สินค้า', 'ชื่อสินค้า', 'Product');
+        const modelIdx   = findKeyIdx('model', 'โมเดล', 'รุ่น', 'Model');
+        const snIdx      = findKeyIdx('sn', 'serial', 'ซีเรียล', 'SN', 'รหัส', 'barcode');
+        const phoneIdx   = findKeyIdx('เบอร์', 'phone', 'tel', 'เบอร์โทร');
+
+        if (productIdx === null && modelIdx === null && snIdx === null) {
+          const displayHeaders = headers.filter(h => h.trim() && !h.includes('__EMPTY'));
+          setParseError(
+            `⚠️ คำเตือน: ไม่พบคอลัมน์ที่รู้จักเลย\nคอลัมน์ที่พบในไฟล์: ${displayHeaders.join(', ') || 'ไม่พบหัวคอลัมน์'}\n\n(ระบบข้ามการอ่านคอลัมน์เหล่านี้ และสร้างแถวว่างเพื่อให้คุณกรอกข้อมูลเองตามจำนวนแถวในไฟล์)`
+          );
+        }
+
+        const rows = validDataRows.map((row, idx) => {
+          const rawProduct = productIdx !== null ? String(row[productIdx] ?? '').trim() : '';
+          const rawModel   = modelIdx !== null   ? String(row[modelIdx]   ?? '').trim() : '';
+          const rawSn      = snIdx !== null      ? String(row[snIdx]      ?? '').trim() : '';
+          const rawPhone   = phoneIdx !== null   ? String(row[phoneIdx]   ?? '').trim() : '';
 
           const matchedProduct = matchProduct(rawProduct);
           const matchedModel   = matchedProduct ? matchModel(matchedProduct, rawModel) : null;
           const meta = buildRowMeta(rawProduct, rawModel, rawSn, matchedProduct, matchedModel);
 
           return {
-            _rowNum: idx + 2,
+            _rowNum: (headerRowIndex !== -1 ? headerRowIndex + 2 : 1) + idx,
             _id: `excel-${idx}-${Date.now()}`,
             rawProduct, rawModel, rawSn, rawPhone,
             matchedProduct, matchedModel,
