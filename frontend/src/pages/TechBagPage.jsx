@@ -4,6 +4,7 @@ import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function TechBagPage() {
   const { user } = useAuth();
@@ -232,6 +233,7 @@ export default function TechBagPage() {
           </div>
           
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <NotificationBell />
             {/* Admin User Selector (Desktop) */}
             {isAdmin && (

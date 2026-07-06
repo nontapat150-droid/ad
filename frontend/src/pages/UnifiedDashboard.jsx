@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
 
@@ -102,6 +103,7 @@ export default function UnifiedDashboard() {
             รีเฟรช
           </button>
 
+          <ThemeToggle />
           <NotificationBell />
         </header>
 

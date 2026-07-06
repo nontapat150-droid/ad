@@ -4,6 +4,7 @@ import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 import { thaiDateTime } from '../utils/thaiDate';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
@@ -349,7 +350,8 @@ export default function EntryFeePage() {
               <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">ระบบบันทึกค่าแรกเข้า</h1>
             </div>
           </div>
-          <NotificationBell />
+          <ThemeToggle />
+            <NotificationBell />
         </header>
 
         {/* ── Tabs ───────────────────────────────────────── */}

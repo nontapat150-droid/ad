@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 import axios from '../api/axios';
 import { getImageUrl } from '../utils/imageUtils';
 
@@ -71,7 +72,8 @@ export default function CustomersPage() {
               <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">ข้อมูลลูกค้าและประวัติงาน</h1>
             </div>
           </div>
-          <NotificationBell />
+          <ThemeToggle />
+            <NotificationBell />
         </header>
 
         {/* ── Main Content ────────────────────────────────── */}

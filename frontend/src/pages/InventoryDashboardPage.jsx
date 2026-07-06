@@ -5,6 +5,7 @@ import InventoryReceivePage from './InventoryReceivePage';
 import InventoryDispatchPage from './InventoryDispatchPage';
 import InventoryHistoryPage from './InventoryHistoryPage';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function InventoryDashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -29,6 +30,7 @@ export default function InventoryDashboardPage() {
                 <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">จัดการสต๊อกสินค้าและอะไหล่</p>
               </div>
             </div>
+            <ThemeToggle />
             <NotificationBell />
           </div>
         </header>

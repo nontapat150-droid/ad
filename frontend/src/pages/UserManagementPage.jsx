@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import TeamManagementModal from '../components/TeamManagementModal';
 import NotificationBell from '../components/NotificationBell';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function UserManagementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -137,6 +138,7 @@ export default function UserManagementPage() {
                 <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">เพิ่ม แก้ไข ลบบัญชี และตั้งค่าเวลาเข้างาน</p>
               </div>
             </div>
+            <ThemeToggle />
             <NotificationBell />
           </div>
         </header>
