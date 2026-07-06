@@ -18,6 +18,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   const [fileName, setFileName] = useState('');
   const [parseError, setParseError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
+  const [allowAutoCreate, setAllowAutoCreate] = useState(false);
   const fileInputRef = useRef(null);
 
   const resetModal = () => {
@@ -47,20 +48,20 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   }, []);
 
   // Build validation for a row (only empty names are errors; unmatched = will auto-create)
-  const buildRowMeta = (rawProduct, rawModel, rawSn, matchedProduct, matchedModel) => {
+  const buildRowMeta = (rawProduct, rawModel, rawSn, matchedProduct, matchedModel, currentAllowAutoCreate = allowAutoCreate) => {
     const isNewProduct = !matchedProduct && !!rawProduct.trim();
     const isNewModel   = !!matchedProduct && !matchedModel && !!rawModel.trim();
-    const willAutoCreate = false; // ปิดการสร้างใหม่อัตโนมัติในหน้า Excel Import ตามที่ผู้ใช้ต้องการ
+    const willAutoCreate = currentAllowAutoCreate && (isNewProduct || isNewModel);
 
     // Infer has_sn for NEW products from whether SN column has data
     const inferredHasSn = matchedProduct ? matchedProduct.has_sn : !!rawSn.trim();
 
     const errors = [];
     if (!rawProduct.trim()) errors.push('ไม่มีชื่อสินค้า');
-    else if (!matchedProduct) errors.push('ไม่พบชื่อสินค้านี้ในระบบ');
+    else if (!matchedProduct && !willAutoCreate) errors.push('ไม่พบชื่อสินค้านี้ในระบบ');
 
     if (!rawModel.trim()) errors.push('ไม่มีชื่อโมเดล');
-    else if (matchedProduct && !matchedModel) errors.push('ไม่พบชื่อโมเดลนี้ในระบบ');
+    else if (matchedProduct && !matchedModel && !willAutoCreate) errors.push('ไม่พบชื่อโมเดลนี้ในระบบ');
 
     // SN required only when existing product.has_sn=true
     if (matchedProduct?.has_sn && !rawSn.trim()) errors.push('ไม่มี SN (สินค้านี้ต้องการ SN)');
@@ -242,6 +243,15 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
     setImportRows(prev => prev.filter(r => r._id !== id));
   };
 
+  // Re-evaluate rows when allowAutoCreate changes
+  useEffect(() => {
+    setImportRows(prev => prev.map(row => {
+      const meta = buildRowMeta(row.product_name, row.model_name, row.sn, row.matchedProduct, row.matchedModel, allowAutoCreate);
+      return { ...row, ...meta };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowAutoCreate]);
+
   const validRows  = importRows.filter(r => r.errors.length === 0);
   const errorRows  = importRows.filter(r => r.errors.length > 0);
   const newRows    = validRows.filter(r => r.willAutoCreate);
@@ -403,6 +413,23 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
                 <p className="text-xs text-slate-500">sn, serial, SN, รหัส, barcode</p>
               </div>
             </div>
+          </div>
+
+          {/* Settings Options */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <p className="font-bold text-[#042C53]">อนุญาตให้สร้างใหม่ในระบบอัตโนมัติ</p>
+              <p className="text-xs text-slate-500 mt-1">หากไม่พบชื่อสินค้าหรือโมเดลในระบบ จะสร้างให้ใหม่ตอนนำเข้า (แทนที่จะแสดงเป็นข้อผิดพลาด)</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={allowAutoCreate}
+                onChange={(e) => setAllowAutoCreate(e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#185FA5]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#185FA5]"></div>
+            </label>
           </div>
 
           {/* Parse Error */}
