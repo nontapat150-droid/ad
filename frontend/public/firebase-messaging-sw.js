@@ -33,6 +33,11 @@ messaging.onBackgroundMessage((payload) => {
     ]
   };
 
+  if (payload.notification?.icon) {
+    notificationOptions.icon = payload.notification.icon;
+    notificationOptions.badge = payload.notification.icon;
+  }
+
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 

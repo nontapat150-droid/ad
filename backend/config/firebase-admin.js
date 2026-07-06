@@ -27,11 +27,25 @@ try {
 }
 
 // ── Send Push Notification to a single FCM token ────────────
+async function getFavicon() {
+  try {
+    const [rows] = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'website_favicon'");
+    if (rows.length > 0 && rows[0].setting_value) {
+      return rows[0].setting_value;
+    }
+  } catch (err) {
+    console.error('Error fetching favicon:', err);
+  }
+  return null;
+}
+
 async function sendPushNotification(fcmToken, title, body, data = {}) {
   if (!firebaseInitialized) {
     console.warn('Firebase not initialized — skipping push notification');
     return { success: false, error: 'Firebase not initialized' };
   }
+
+  const iconUrl = await getFavicon();
 
   try {
     const message = {
@@ -48,6 +62,7 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         notification: {
           vibrate: [200, 100, 200],
           requireInteraction: false,
+          ...(iconUrl && { icon: iconUrl, badge: iconUrl }),
         },
       },
     };

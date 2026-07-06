@@ -1,6 +1,18 @@
 const db = require('../config/db');
 const { getMessaging } = require('firebase-admin/messaging');
 
+async function getFavicon(pool) {
+  try {
+    const [rows] = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'website_favicon'");
+    if (rows.length > 0 && rows[0].setting_value) {
+      return rows[0].setting_value;
+    }
+  } catch (err) {
+    console.error('Error fetching favicon:', err);
+  }
+  return null;
+}
+
 /**
  * Ensures the event_messages table exists and is seeded with standard events
  */
@@ -114,16 +126,27 @@ async function sendEventNotification(eventKey, variables = {}, targetUserId = nu
 
     if (tokens.length > 0) {
       const fcmTokens = tokens.map(t => t.fcm_token);
-      try {
-        await getMessaging().sendEachForMulticast({
-          tokens: fcmTokens,
-          notification: {
-            title: 'ข้อความอัตโนมัติ ⚡',
-            body: messageText
-          },
-        });
-      } catch (pushErr) {
-        console.error('[EventNotifier] FCM push error:', pushErr.message);
+      
+      if (fcmTokens.length > 0) {
+        const iconUrl = await getFavicon(db);
+        
+        try {
+          await getMessaging().sendEachForMulticast({
+            tokens: fcmTokens,
+            notification: {
+              title: 'ข้อความอัตโนมัติ ⚡',
+              body: messageText
+            },
+            webpush: {
+              notification: {
+                ...(iconUrl && { icon: iconUrl, badge: iconUrl }),
+              }
+            }
+          });
+          console.log(`[EventNotifier] Sent FCM push to ${fcmTokens.length} devices for event ${eventKey}`);
+        } catch (pushErr) {
+          console.error('[EventNotifier] FCM push error:', pushErr.message);
+        }
       }
     }
   } catch (err) {
