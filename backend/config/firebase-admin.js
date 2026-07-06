@@ -29,9 +29,17 @@ try {
 // ── Send Push Notification to a single FCM token ────────────
 async function getFavicon() {
   try {
-    const [rows] = await pool.query("SELECT setting_value FROM system_settings WHERE setting_key = 'website_favicon'");
-    if (rows.length > 0 && rows[0].setting_value) {
-      return rows[0].setting_value;
+    const [rows] = await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('website_favicon', 'website_logo')");
+    let favicon = null;
+    let logo = null;
+    for (const row of rows) {
+      if (row.setting_key === 'website_favicon' && row.setting_value) favicon = row.setting_value;
+      if (row.setting_key === 'website_logo' && row.setting_value) logo = row.setting_value;
+    }
+    const iconPath = favicon || logo;
+    if (iconPath) {
+      const baseUrl = process.env.API_URL || (process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN + '/api' : 'https://bonusais.com/api');
+      return iconPath.startsWith('http') ? iconPath : `${baseUrl}${iconPath}`;
     }
   } catch (err) {
     console.error('Error fetching favicon:', err);
