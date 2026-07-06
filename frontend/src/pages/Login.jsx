@@ -7,7 +7,7 @@ import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
 
 export default function Login() {
-  const [form, setForm] = useState({ username: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '', rememberMe: false });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -47,7 +47,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const loggedInUser = await login(form.username, form.password);
+      const loggedInUser = await login(form.username, form.password, form.rememberMe);
       setSuccess(true);
 
       Swal.fire({
@@ -350,6 +350,8 @@ export default function Login() {
               <label className="flex items-center gap-2 text-[#6B7280] cursor-pointer select-none">
                 <input
                   type="checkbox"
+                  checked={form.rememberMe}
+                  onChange={(e) => setForm({ ...form, rememberMe: e.target.checked })}
                   className="w-4 h-4 rounded border-[#D1D5DB] text-[#A3E635] focus:ring-[#A3E635]/40 accent-[#A3E635]"
                 />
                 <span>จดจำฉัน</span>

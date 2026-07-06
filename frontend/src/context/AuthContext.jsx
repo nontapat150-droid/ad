@@ -7,10 +7,11 @@ export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session from localStorage on mount
+  // Restore session from localStorage or sessionStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('bou_user');
-    const token  = localStorage.getItem('bou_token');
+    const stored = localStorage.getItem('bou_user') || sessionStorage.getItem('bou_user');
+    const token  = localStorage.getItem('bou_token') || sessionStorage.getItem('bou_token');
+    
     if (stored && stored !== 'undefined' && token) {
       try {
         setUser(JSON.parse(stored));
@@ -18,15 +19,29 @@ export function AuthProvider({ children }) {
         console.error('Error parsing user data:', error);
         localStorage.removeItem('bou_user');
         localStorage.removeItem('bou_token');
+        sessionStorage.removeItem('bou_user');
+        sessionStorage.removeItem('bou_token');
       }
     }
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username, password, rememberMe = false) => {
     const { data } = await api.post('/auth/login', { username, password });
-    localStorage.setItem('bou_token', data.token);
-    localStorage.setItem('bou_user', JSON.stringify(data.user));
+    
+    const storage = rememberMe ? localStorage : sessionStorage;
+    
+    // Clear other storage to prevent conflicts
+    if (rememberMe) {
+      sessionStorage.removeItem('bou_token');
+      sessionStorage.removeItem('bou_user');
+    } else {
+      localStorage.removeItem('bou_token');
+      localStorage.removeItem('bou_user');
+    }
+
+    storage.setItem('bou_token', data.token);
+    storage.setItem('bou_user', JSON.stringify(data.user));
     setUser(data.user);
     return data.user;
   };
@@ -34,13 +49,20 @@ export function AuthProvider({ children }) {
   const logout = () => {
     localStorage.removeItem('bou_token');
     localStorage.removeItem('bou_user');
+    sessionStorage.removeItem('bou_token');
+    sessionStorage.removeItem('bou_user');
     setUser(null);
   };
 
   const updateUser = (newProps) => {
     const updatedUser = { ...user, ...newProps };
     setUser(updatedUser);
-    localStorage.setItem('bou_user', JSON.stringify(updatedUser));
+    
+    if (localStorage.getItem('bou_token')) {
+      localStorage.setItem('bou_user', JSON.stringify(updatedUser));
+    } else if (sessionStorage.getItem('bou_token')) {
+      sessionStorage.setItem('bou_user', JSON.stringify(updatedUser));
+    }
   };
 
   const hasRole = (roles) => {
