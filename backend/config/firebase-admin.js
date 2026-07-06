@@ -70,7 +70,7 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         notification: {
           vibrate: [200, 100, 200],
           requireInteraction: false,
-          ...(iconUrl && { icon: iconUrl, badge: iconUrl }),
+          ...(iconUrl && { icon: iconUrl }),
         },
       },
     };
