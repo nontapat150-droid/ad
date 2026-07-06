@@ -8,7 +8,7 @@ const api = axios.create({
 
 // ── Request interceptor: inject JWT ────────────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('bou_token');
+  const token = localStorage.getItem('bou_token') || sessionStorage.getItem('bou_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -20,6 +20,8 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('bou_token');
       localStorage.removeItem('bou_user');
+      sessionStorage.removeItem('bou_token');
+      sessionStorage.removeItem('bou_user');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
