@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useBranding } from '../context/BrandingContext';
+import { getImageUrl } from '../utils/imageUtils';
 
 export default function SystemSettingsPage() {
   const navigate = useNavigate();
@@ -108,7 +109,7 @@ export default function SystemSettingsPage() {
             <p className="text-xs text-slate-500 mt-1">โลโก้นี้จะนำไปแสดงที่ Sidebar, หน้า Check-in และหน้า Login</p>
             {branding?.website_logo && !brandingForm.logoFile && (
               <div className="mt-2 p-2 bg-white rounded-lg border border-slate-100 inline-block shadow-sm">
-                <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${branding.website_logo}`} alt="Current Logo" className="h-12 object-contain" />
+                <img src={getImageUrl(branding.website_logo, 'branding')} alt="Current Logo" className="h-12 object-contain" />
               </div>
             )}
             {brandingForm.logoFile && (
@@ -127,7 +128,7 @@ export default function SystemSettingsPage() {
             <p className="text-xs text-slate-500 mt-1">โลโก้ขนาดเล็กสำหรับแสดงบนแท็บของเบราว์เซอร์ แนะนำให้เป็นรูปจัตุรัส</p>
             {branding?.website_favicon && !brandingForm.faviconFile && (
               <div className="mt-2 p-2 bg-white rounded-lg border border-slate-100 inline-block shadow-sm">
-                <img src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || ''}${branding.website_favicon}`} alt="Current Favicon" className="h-8 object-contain" />
+                <img src={getImageUrl(branding.website_favicon, 'branding')} alt="Current Favicon" className="h-8 object-contain" />
               </div>
             )}
             {brandingForm.faviconFile && (

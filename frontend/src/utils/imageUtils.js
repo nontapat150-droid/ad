@@ -20,6 +20,7 @@ export const getImageUrl = (img, defaultFolder = 'misc') => {
   else if (filename.startsWith('checkins_')) folder = 'checkins/';
   else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
   else if (filename.startsWith('oil_receipts_')) folder = 'oil_receipts/';
+  else if (filename.startsWith('branding_')) folder = 'branding/';
   
   let baseUrl = import.meta.env.VITE_API_URL || api.defaults.baseURL || '';
   if (baseUrl.endsWith('/')) {
@@ -48,6 +49,7 @@ export const getPossibleImageUrls = (img, defaultFolder = 'misc') => {
   else if (filename.startsWith('checkins_')) folder = 'checkins/';
   else if (filename.startsWith('checkouts_')) folder = 'checkouts/';
   else if (filename.startsWith('oil_receipts_')) folder = 'oil_receipts/';
+  else if (filename.startsWith('branding_')) folder = 'branding/';
   
   let baseUrl = import.meta.env.VITE_API_URL || api.defaults.baseURL || '';
   if (baseUrl.endsWith('/')) {
