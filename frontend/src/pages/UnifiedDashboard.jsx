@@ -7,6 +7,7 @@ import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
+import ManualModal from '../components/ManualModal';
 
 import SuperAdminSection from '../components/dashboards/SuperAdminSection';
 import AdminSection from '../components/dashboards/AdminSection';
@@ -25,6 +26,7 @@ export default function UnifiedDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const { branding } = useBranding();
 
@@ -101,6 +103,16 @@ export default function UnifiedDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             รีเฟรช
+          </button>
+
+          <button
+            onClick={() => setShowManualModal(true)}
+            className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-slate-800 font-semibold bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 px-3 py-1.5 rounded-lg border border-brand-200 dark:border-brand-800 transition-all"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            คู่มือ
           </button>
 
           <ThemeToggle />
@@ -182,6 +194,13 @@ export default function UnifiedDashboard() {
           </div>
         </main>
       </div>
+
+      <ManualModal 
+        isOpen={showManualModal} 
+        onClose={() => setShowManualModal(false)} 
+        userRoles={userRoles} 
+        pageName="dashboard" 
+      />
     </div>
   );
 }
