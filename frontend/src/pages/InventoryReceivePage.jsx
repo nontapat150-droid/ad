@@ -1197,6 +1197,7 @@ export default function InventoryReceivePage() {
 
     setLoading(true);
     let successCount = 0, failCount = 0;
+    let lastErrorMsg = '';
 
     for (const item of stagedItems) {
       try {
@@ -1211,6 +1212,7 @@ export default function InventoryReceivePage() {
         successCount++;
       } catch (err) {
         console.error('Error receiving item', item, err);
+        lastErrorMsg = err.response?.data?.error || err.message || 'Unknown error';
         failCount++;
       }
     }
@@ -1220,7 +1222,7 @@ export default function InventoryReceivePage() {
       Swal.fire({ icon: 'success', title: 'สำเร็จ', text: `นำเข้าสินค้าทั้งหมด ${successCount} รายการเรียบร้อยแล้ว` });
       setStagedItems([]);
     } else {
-      Swal.fire({ icon: 'warning', title: 'สำเร็จบางส่วน', text: `นำเข้าสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ (อาจเกิดจาก SN ซ้ำ)` });
+      Swal.fire({ icon: 'warning', title: 'สำเร็จบางส่วน', text: `นำเข้าสำเร็จ ${successCount} รายการ, ล้มเหลว ${failCount} รายการ (สาเหตุล่าสุด: ${lastErrorMsg})` });
       setStagedItems([]);
     }
   };

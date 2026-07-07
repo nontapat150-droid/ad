@@ -177,6 +177,7 @@ async function runStartupDbTasks() {
     { label: 'inventory_products id', sql: 'ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
     { label: 'inventory_models id', sql: 'ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
     { label: 'inventory_items id', sql: 'ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
+    { label: 'inventory_items phone_number', sql: 'ALTER TABLE inventory_items ADD COLUMN phone_number VARCHAR(50) NULL', ignoreError: true },
     { label: 'inventory_logs id', sql: 'ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
     { label: 'job_logs id', sql: 'ALTER TABLE job_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
     { label: 'job_completion_images id', sql: 'ALTER TABLE job_completion_images MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
