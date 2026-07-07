@@ -128,7 +128,14 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         }
 
         // กรองแถวที่ว่างเปล่าออกไปเลย
-        const validDataRows = dataRows.filter(row => row.some(cell => String(cell).trim() !== ''));
+        let validDataRows = dataRows.filter(row => row.some(cell => String(cell).trim() !== ''));
+
+        // Requirement: Detect columns C (index 2) and D (index 3). Skip row if there is data.
+        validDataRows = validDataRows.filter(row => {
+          const cHasData = row[2] !== undefined && String(row[2]).trim() !== '';
+          const dHasData = row[3] !== undefined && String(row[3]).trim() !== '';
+          return !(cHasData || dHasData);
+        });
 
         const findKeyIdx = (...candidates) => {
           const idx = headers.findIndex(h => candidates.some(c => h.trim().toLowerCase().includes(c.toLowerCase())));
@@ -150,9 +157,12 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         let globalProduct = '';
         let globalModel = '';
 
-        if ((productIdx === null || modelIdx === null) && validDataRows.length > 0) {
+        const needsGlobalProduct = productIdx === null;
+        const needsGlobalModel = modelIdx === null && productIdx === null;
+
+        if ((needsGlobalProduct || needsGlobalModel) && validDataRows.length > 0) {
           const htmlInputs = [];
-          if (productIdx === null) {
+          if (needsGlobalProduct) {
             htmlInputs.push(`
               <div style="margin-bottom: 12px; text-align: left;">
                 <label style="font-weight: bold; font-size: 14px; color: #042C53;">ชื่อสินค้า (ใช้กับทุกแถวในไฟล์)</label>
@@ -160,7 +170,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
               </div>
             `);
           }
-          if (modelIdx === null) {
+          if (needsGlobalModel) {
             htmlInputs.push(`
               <div style="margin-bottom: 12px; text-align: left;">
                 <label style="font-weight: bold; font-size: 14px; color: #042C53;">โมเดล (ใช้กับทุกแถวในไฟล์)</label>
@@ -173,7 +183,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
             title: 'กำหนดข้อมูลเริ่มต้น',
             html: `
               <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
-                ไม่พบคอลัมน์ ${[productIdx === null ? 'ชื่อสินค้า' : null, modelIdx === null ? 'โมเดล' : null].filter(Boolean).join(' และ ')} ในไฟล์<br>คุณสามารถกำหนดค่าเริ่มต้นที่จะใช้กับทุกแถวได้เลย (หรือเว้นว่างไว้เพื่อไปกรอกเองทีหลัง)
+                ไม่พบคอลัมน์ ${[needsGlobalProduct ? 'ชื่อสินค้า' : null, needsGlobalModel ? 'โมเดล' : null].filter(Boolean).join(' และ ')} ในไฟล์<br>คุณสามารถกำหนดค่าเริ่มต้นที่จะใช้กับทุกแถวได้เลย (หรือเว้นว่างไว้เพื่อไปกรอกเองทีหลัง)
               </p>
               ${htmlInputs.join('')}
             `,
@@ -182,8 +192,8 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
             allowOutsideClick: false,
             preConfirm: () => {
               return {
-                product: productIdx === null ? document.getElementById('swal-global-product').value.trim() : '',
-                model: modelIdx === null ? document.getElementById('swal-global-model').value.trim() : ''
+                product: needsGlobalProduct ? document.getElementById('swal-global-product').value.trim() : '',
+                model: needsGlobalModel ? document.getElementById('swal-global-model').value.trim() : ''
               };
             }
           });
@@ -199,6 +209,17 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
           let rawModel   = modelIdx !== null   ? String(row[modelIdx]   ?? '').trim() : '';
           const rawSn      = snIdx !== null      ? String(row[snIdx]      ?? '').trim() : '';
           const rawPhone   = phoneIdx !== null   ? String(row[phoneIdx]   ?? '').trim() : '';
+
+          // Split product into product and model if model column doesn't exist
+          if (modelIdx === null && productIdx !== null && rawProduct) {
+            const spaceIdx = rawProduct.indexOf(' ');
+            if (spaceIdx !== -1) {
+              rawModel = rawProduct.substring(spaceIdx + 1).trim();
+              rawProduct = rawProduct.substring(0, spaceIdx).trim();
+            } else {
+              rawModel = rawProduct; // Fallback if no space
+            }
+          }
 
           if (!rawProduct && globalProduct) rawProduct = globalProduct;
           if (!rawModel && globalModel) rawModel = globalModel;
