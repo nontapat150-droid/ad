@@ -114,6 +114,40 @@ export default function ManualModal({ isOpen, onClose, userRoles = [], pageName 
     );
   };
 
+  // Content for TechBag Page
+  const renderTechBagManual = () => {
+    if (isSuperAdmin || isAdmin) {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <p><strong>สวัสดี {isSuperAdmin ? 'Super Admin' : 'Admin'},</strong> หน้านี้คือระบบจัดการกระเป๋าช่าง</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>เลือกช่าง:</strong> ใช้ช่องค้นหาด้านบนเพื่อสลับดูข้อมูลกระเป๋าของช่างแต่ละคน</li>
+            <li><strong>การจัดการสินค้า:</strong> สามารถแก้ไขจำนวนสินค้าในกระเป๋า หรือนำสินค้าออกจากกระเป๋าช่างได้โดยตรง</li>
+            <li><strong>ประวัติการรับ/โอน:</strong> ตรวจสอบว่าช่างได้รับของเมื่อไหร่ ยืมหรือให้ใครยืมไปบ้าง</li>
+            <li><strong>การลบประวัติ:</strong> ในฐานะแอดมิน คุณสามารถลบประวัติการรับ/โอนที่ผิดพลาดได้จากแท็บประวัติ</li>
+          </ul>
+        </div>
+      );
+    }
+    if (isTech || isMaTech) {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <p><strong>สวัสดีทีมช่าง,</strong> หน้านี้คือกระเป๋าสินค้าของคุณ</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>สินค้าในกระเป๋า:</strong> แสดงรายการอุปกรณ์และสินค้าที่คุณเบิกมาทั้งหมด พร้อมจำนวนคงเหลือ</li>
+            <li><strong>ให้ยืม/โอนของ:</strong> หากเพื่อนช่างต้องการอุปกรณ์ คุณสามารถกด "ให้ยืม" ระบุชื่อและจำนวน ระบบจะโอนของจากกระเป๋าคุณไปยังกระเป๋าเพื่อนทันที</li>
+            <li><strong>ประวัติ:</strong> ตรวจสอบประวัติได้ว่าคุณรับอะไรมาบ้าง และจ่ายอะไรออกไปบ้าง</li>
+          </ul>
+        </div>
+      );
+    }
+    return (
+      <div className="text-sm text-slate-500">
+        คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลในหน้านี้
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-slide-up">
@@ -144,9 +178,10 @@ export default function ManualModal({ isOpen, onClose, userRoles = [], pageName 
         <div className="p-6 md:p-8 max-h-[60vh] overflow-y-auto">
           {pageName === 'dashboard' && renderDashboardManual()}
           {pageName === 'dispatch' && renderDispatchManual()}
+          {pageName === 'techbag' && renderTechBagManual()}
           
           {/* Future expansion for other pages */}
-          {pageName !== 'dashboard' && pageName !== 'dispatch' && (
+          {pageName !== 'dashboard' && pageName !== 'dispatch' && pageName !== 'techbag' && (
              <div className="text-sm text-slate-500 text-center py-8">
                กำลังจัดทำคู่มือสำหรับหน้านี้...
              </div>

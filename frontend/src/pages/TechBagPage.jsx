@@ -5,11 +5,13 @@ import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
+import ManualModal from '../components/ManualModal';
 
 export default function TechBagPage() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   
   // Roles
   const userRoles = user?.roles || [user?.role || ''];
@@ -232,7 +234,16 @@ export default function TechBagPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setShowManualModal(true)}
+              className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-slate-800 font-semibold bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl border border-brand-200 transition-all ml-auto"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="hidden sm:inline font-bold">คู่มือ</span>
+            </button>
             <ThemeToggle />
             <NotificationBell />
             {/* Admin User Selector (Desktop) */}
@@ -516,6 +527,13 @@ export default function TechBagPage() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
+
+      <ManualModal 
+        isOpen={showManualModal} 
+        onClose={() => setShowManualModal(false)} 
+        userRoles={userRoles} 
+        pageName="techbag" 
+      />
     </div>
   );
 }
