@@ -676,7 +676,7 @@ router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 router.get('/stock/:model_id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, sn, quantity, created_at 
+      `SELECT id, sn, phone_number, quantity, created_at 
        FROM inventory_items 
        WHERE model_id = ? AND status = 'in_stock'
        ORDER BY created_at DESC`
