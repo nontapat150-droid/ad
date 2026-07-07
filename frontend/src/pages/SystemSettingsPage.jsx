@@ -12,14 +12,16 @@ export default function SystemSettingsPage() {
   const [brandingForm, setBrandingForm] = useState({
     website_name: '',
     logoFile: null,
-    faviconFile: null
+    faviconFile: null,
+    firebase_web_config: ''
   });
 
   useEffect(() => {
     if (branding) {
       setBrandingForm(prev => ({
         ...prev,
-        website_name: branding.website_name || ''
+        website_name: branding.website_name || '',
+        firebase_web_config: branding.firebase_web_config || ''
       }));
     }
   }, [branding]);
@@ -38,6 +40,21 @@ export default function SystemSettingsPage() {
     try {
       const formData = new FormData();
       formData.append('website_name', brandingForm.website_name);
+      
+      let configValue = brandingForm.firebase_web_config;
+      if (configValue) {
+        try {
+          // Format the JSON nicely before sending
+          const parsed = JSON.parse(configValue);
+          configValue = JSON.stringify(parsed, null, 2);
+          formData.append('firebase_web_config', configValue);
+        } catch (e) {
+          return Swal.fire('เกิดข้อผิดพลาด', 'Firebase Config ต้องเป็นรูปแบบ JSON ที่ถูกต้องเท่านั้น', 'error');
+        }
+      } else {
+        formData.append('firebase_web_config', '');
+      }
+
       if (brandingForm.logoFile) {
         formData.append('logo', brandingForm.logoFile);
       }
@@ -134,6 +151,17 @@ export default function SystemSettingsPage() {
             {brandingForm.faviconFile && (
               <div className="mt-2 text-sm text-brand-600 font-medium">ไฟล์ที่เลือก: {brandingForm.faviconFile.name}</div>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Firebase Web Configuration (JSON)</label>
+            <textarea 
+              value={brandingForm.firebase_web_config}
+              onChange={(e) => setBrandingForm({ ...brandingForm, firebase_web_config: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-slate-700 bg-slate-50 font-mono text-sm h-48"
+              placeholder={'{\n  "apiKey": "...",\n  "authDomain": "...",\n  "projectId": "...",\n  "storageBucket": "...",\n  "messagingSenderId": "...",\n  "appId": "...",\n  "measurementId": "...",\n  "vapidKey": "..."\n}'}
+            />
+            <p className="text-xs text-slate-500 mt-1">คัดลอกและวาง JSON Configuration จาก Firebase Console รวมถึง vapidKey เพื่อใช้สำหรับการแจ้งเตือน</p>
           </div>
 
           <div className="pt-4 border-t border-slate-200">

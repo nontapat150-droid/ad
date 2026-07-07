@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 
 // ── Firebase Configuration ──────────────────────────────────
-const firebaseConfig = {
+const firebaseConfig = window.FIREBASE_CONFIG || {
   apiKey: "AIzaSyDPrfWpTT1P51w5VguDMgNWXsUFcHSOXK4",
   authDomain: "notification-35907.firebaseapp.com",
   projectId: "notification-35907",
@@ -12,7 +12,7 @@ const firebaseConfig = {
   measurementId: "G-CQJ710ZM01"
 };
 
-const VAPID_KEY = 'BIwdBYoZYhw3qu3rKCge84TffrgAEkP1iEAltSAdtxegiQVZqmRWBbudvOMjJVG1fnJnYl5a4Z2LpYz5I1P6fSA';
+const VAPID_KEY = window.FIREBASE_CONFIG?.vapidKey || 'BIwdBYoZYhw3qu3rKCge84TffrgAEkP1iEAltSAdtxegiQVZqmRWBbudvOMjJVG1fnJnYl5a4Z2LpYz5I1P6fSA';
 
 // ── Initialize Firebase ─────────────────────────────────────
 const app = initializeApp(firebaseConfig);
