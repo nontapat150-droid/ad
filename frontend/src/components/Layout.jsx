@@ -98,7 +98,13 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
                   try {
                     const res = await api.post('/fcm/test-send');
                     if (res.data.success) {
-                      console.log('Test notification sent!');
+                      Swal.fire({
+                        title: 'สำเร็จ!',
+                        text: res.data.message || 'ส่งแจ้งเตือนทดสอบแล้ว',
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                      });
                     } else {
                       alert(res.data.message || 'ส่งไม่สำเร็จ');
                     }
