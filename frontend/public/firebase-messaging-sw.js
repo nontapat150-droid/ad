@@ -17,9 +17,20 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Let Firebase handle background messages natively.
-// We DO NOT define messaging.onBackgroundMessage() here.
-// This ensures mobile browsers reliably show the system notification
-// using the 'notification' and 'webpush' payload from the backend.
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  
+  // Extract title and body from the data payload
+  const title = payload.data?.title || payload.notification?.title || 'การแจ้งเตือนใหม่';
+  const options = {
+    body: payload.data?.body || payload.notification?.body || '',
+    icon: '/favicon.svg', // Static icon to prevent background crash on Android
+    requireInteraction: true, // Keep notification on screen until interacted with
+    vibrate: [200, 100, 200],
+    data: payload.data || {}
+  };
+  
+  return self.registration.showNotification(title, options);
+});
 
 
