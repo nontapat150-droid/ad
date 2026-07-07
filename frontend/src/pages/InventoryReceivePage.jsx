@@ -212,12 +212,33 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
 
           // Split product into product and model if model column doesn't exist
           if (modelIdx === null && productIdx !== null && rawProduct) {
-            const spaceIdx = rawProduct.indexOf(' ');
-            if (spaceIdx !== -1) {
-              rawModel = rawProduct.substring(spaceIdx + 1).trim();
-              rawProduct = rawProduct.substring(0, spaceIdx).trim();
+            if (rawProduct.includes(' - ')) {
+              const parts = rawProduct.split(' - ');
+              rawProduct = parts[0].trim();
+              rawModel = parts.slice(1).join(' - ').trim();
+            } else if (rawProduct.includes('(') && rawProduct.includes(')')) {
+              const startIdx = rawProduct.lastIndexOf('(');
+              const endIdx = rawProduct.lastIndexOf(')');
+              if (startIdx < endIdx) {
+                rawModel = rawProduct.substring(startIdx + 1, endIdx).trim();
+                rawProduct = rawProduct.substring(0, startIdx).trim();
+              } else {
+                const spaceIdx = rawProduct.indexOf(' ');
+                if (spaceIdx !== -1) {
+                  rawModel = rawProduct.substring(spaceIdx + 1).trim();
+                  rawProduct = rawProduct.substring(0, spaceIdx).trim();
+                } else {
+                  rawModel = rawProduct;
+                }
+              }
             } else {
-              rawModel = rawProduct; // Fallback if no space
+              const spaceIdx = rawProduct.indexOf(' ');
+              if (spaceIdx !== -1) {
+                rawModel = rawProduct.substring(spaceIdx + 1).trim();
+                rawProduct = rawProduct.substring(0, spaceIdx).trim();
+              } else {
+                rawModel = rawProduct; // Fallback if no space
+              }
             }
           }
 
@@ -251,19 +272,33 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
   };
 
   const updateRow = (id, field, value) => {
-    setImportRows(prev => prev.map(row => {
-      if (row._id !== id) return row;
-      const updated = { ...row, [field]: value };
+    setImportRows(prev => {
+      const targetRow = prev.find(r => r._id === id);
+      if (!targetRow) return prev;
 
-      const mp = field === 'product_name' ? matchProduct(value) : row.matchedProduct;
-      const mm = field === 'model_name'
-        ? matchModel(mp, value)
-        : (field === 'product_name' ? null : row.matchedModel);
+      return prev.map(row => {
+        // Bulk update model_name for rows with the same product_name
+        if (field === 'model_name' && row.product_name === targetRow.product_name && targetRow.product_name.trim() !== '') {
+          const updated = { ...row, [field]: value };
+          const mm = matchModel(row.matchedProduct, value);
+          const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, row.matchedProduct, mm);
+          return { ...updated, matchedModel: mm, ...meta };
+        }
 
-      const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, mp, mm);
+        // Normal update for a specific row
+        if (row._id !== id) return row;
+        const updated = { ...row, [field]: value };
 
-      return { ...updated, matchedProduct: mp, matchedModel: mm, ...meta };
-    }));
+        const mp = field === 'product_name' ? matchProduct(value) : row.matchedProduct;
+        const mm = field === 'model_name'
+          ? matchModel(mp, value)
+          : (field === 'product_name' ? null : row.matchedModel);
+
+        const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, mp, mm);
+
+        return { ...updated, matchedProduct: mp, matchedModel: mm, ...meta };
+      });
+    });
   };
 
   const removeRow = (id) => {
