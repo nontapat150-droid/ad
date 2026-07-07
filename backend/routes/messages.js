@@ -26,7 +26,7 @@ router.get('/users', auth, async (req, res) => {
 router.get('/unread-count', auth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = FALSE AND (is_automated = FALSE OR (is_automated = TRUE AND created_at >= NOW() - INTERVAL 1 DAY))`,
+      `SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND is_read = FALSE AND DATE(created_at) = DATE(NOW())`,
       [req.user.id]
     );
     res.json({ count: rows[0].count });
@@ -43,7 +43,7 @@ router.get('/inbox', auth, async (req, res) => {
       `SELECT m.*, COALESCE(u.full_name, 'ระบบแจ้งเตือน') AS sender_name, COALESCE(u.role, 'system') AS sender_role 
        FROM messages m
        LEFT JOIN users u ON m.sender_id = u.id
-       WHERE m.receiver_id = ? AND (m.is_automated = FALSE OR (m.is_automated = TRUE AND m.created_at >= NOW() - INTERVAL 1 DAY))
+       WHERE m.receiver_id = ? AND DATE(m.created_at) = DATE(NOW())
        ORDER BY m.created_at DESC`,
       [req.user.id]
     );
@@ -61,7 +61,7 @@ router.get('/sent', auth, async (req, res) => {
       `SELECT m.*, COALESCE(u.full_name, 'ระบบแจ้งเตือน') AS receiver_name, COALESCE(u.role, 'system') AS receiver_role 
        FROM messages m
        LEFT JOIN users u ON m.receiver_id = u.id
-       WHERE m.sender_id = ? AND (m.is_automated = FALSE OR (m.is_automated = TRUE AND m.created_at >= NOW() - INTERVAL 1 DAY))
+       WHERE m.sender_id = ? AND DATE(m.created_at) = DATE(NOW())
        ORDER BY m.created_at DESC`,
       [req.user.id]
     );
