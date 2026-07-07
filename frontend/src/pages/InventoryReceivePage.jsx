@@ -1287,8 +1287,14 @@ export default function InventoryReceivePage() {
 
         // ── Build staging item ──────────────────────────────────────
         const hasSn = product.has_sn;
-        // Keep full SN string — do NOT strip non-digit chars (SN may contain letters like ZTEGDD20ADB9)
         const cleanSn = row.sn.trim();
+
+        // If the product requires an SN, but this row doesn't have one, it's invalid
+        if (hasSn && !cleanSn) {
+          skipCount++;
+          continue;
+        }
+
         const cleanPhone = row.phone_number ? row.phone_number.trim() : '';
         newItems.push({
           id: crypto.randomUUID(),

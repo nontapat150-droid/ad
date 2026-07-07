@@ -154,7 +154,7 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
     // Get product info
     const [[model]] = await conn.query(
-      'SELECT m.*, p.has_sn, p.prefix FROM inventory_models m JOIN inventory_products p ON m.product_id = p.id WHERE m.id = ?',
+      'SELECT m.*, p.has_sn FROM inventory_models m JOIN inventory_products p ON m.product_id = p.id WHERE m.id = ?',
       [model_id]
     );
 
