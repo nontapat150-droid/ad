@@ -38,15 +38,22 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
   try {
     const message = {
       token: fcmToken,
+      notification: {
+        title: title || 'การแจ้งเตือนใหม่',
+        body: body || ''
+      },
       data: {
-        title: title || 'แจ้งเตือนใหม่',
+        title: title || 'การแจ้งเตือนใหม่',
         body: body || '',
         ...Object.fromEntries(
           Object.entries(data).map(([k, v]) => [k, String(v)])
         )
       },
       webpush: {
-        headers: { Urgency: 'high' }
+        headers: { Urgency: 'high' },
+        notification: {
+          vibrate: [200, 100, 200]
+        }
       },
       android: {
         priority: 'high',
