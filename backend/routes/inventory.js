@@ -672,5 +672,26 @@ router.post('/check-sn-duplicates', auth, requireRole(ADMIN_ROLES), async (req, 
   }
 });
 
+// ── DELETE /api/inventory/clear ──
+// Super admin clear all inventory items and logs
+router.delete('/clear', auth, requireRole(['super_admin', 'admin']), async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    await conn.query('TRUNCATE TABLE inventory_logs');
+    await conn.query('TRUNCATE TABLE inventory_items');
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+    await conn.commit();
+    res.json({ message: 'ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Clear DB Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 module.exports = router;
 
