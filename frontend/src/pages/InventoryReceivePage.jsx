@@ -130,17 +130,20 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         // กรองแถวที่ว่างเปล่าออกไปเลย
         let validDataRows = dataRows.filter(row => row.some(cell => String(cell).trim() !== ''));
 
-        // Requirement: Detect columns C (index 2) and D (index 3). Skip row if there is data.
-        validDataRows = validDataRows.filter(row => {
-          const cHasData = row[2] !== undefined && String(row[2]).trim() !== '';
-          const dHasData = row[3] !== undefined && String(row[3]).trim() !== '';
-          return !(cHasData || dHasData);
-        });
-
         const findKeyIdx = (...candidates) => {
           const idx = headers.findIndex(h => candidates.some(c => h.trim().toLowerCase().includes(c.toLowerCase())));
           return idx !== -1 ? idx : null;
         };
+
+        const dispatchDateIdx = findKeyIdx('วันที่เบิก');
+        const teamIdx = findKeyIdx('ทีม');
+
+        // Requirement: Detect specific columns ("วันที่เบิก", "ทีม"). Skip row if there is data in either of them.
+        validDataRows = validDataRows.filter(row => {
+          const hasDispatchDate = dispatchDateIdx !== null && row[dispatchDateIdx] !== undefined && String(row[dispatchDateIdx]).trim() !== '';
+          const hasTeam = teamIdx !== null && row[teamIdx] !== undefined && String(row[teamIdx]).trim() !== '';
+          return !(hasDispatchDate || hasTeam);
+        });
 
         const productIdx = findKeyIdx('product', 'สินค้า', 'ชื่อสินค้า', 'Product');
         const modelIdx   = findKeyIdx('model', 'โมเดล', 'รุ่น', 'Model');
