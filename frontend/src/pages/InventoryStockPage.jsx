@@ -278,6 +278,55 @@ export default function InventoryStockPage() {
     }
   };
 
+  // ── แก้ไขชื่อสินค้า / รวมสินค้า ──
+  const handleRenameProduct = async (product) => {
+    const result = await Swal.fire({
+      title: 'เปลี่ยนชื่อสินค้า / รวมสินค้า',
+      html: `
+        <div style="text-align:left;font-size:14px;">
+          <p style="font-weight:700;color:#042C53;margin-bottom:8px;">ชื่อสินค้าปัจจุบัน:</p>
+          <p style="background:#F3F4F6;padding:10px;border-radius:8px;margin-bottom:16px;">${product.product_name}</p>
+          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:8px;">ชื่อสินค้าใหม่:</label>
+          <input id="swal-rename-input" class="swal2-input" value="${product.product_name}" style="width:100%;margin:0;font-size:16px;" />
+          <p style="color:#6B7280;font-size:12px;margin-top:12px;line-height:1.4;">
+            <b>หมายเหตุ:</b> หากชื่อที่ตั้งใหม่ตรงกับสินค้าอื่นที่มีอยู่ในระบบ ระบบจะรวมข้อมูล (Merge) ไอเท็มและโมเดลทั้งหมดเข้าไปอยู่ในสินค้านั้นให้โดยอัตโนมัติ (ต้องเป็นสินค้าประเภทเดียวกัน)
+          </p>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#185FA5',
+      customClass: { popup: 'rounded-3xl' },
+      preConfirm: () => {
+        const val = document.getElementById('swal-rename-input').value.trim();
+        if (!val) {
+          Swal.showValidationMessage('กรุณาระบุชื่อสินค้า');
+          return false;
+        }
+        if (val === product.product_name) {
+          Swal.showValidationMessage('ชื่อสินค้ายังเหมือนเดิม');
+          return false;
+        }
+        return val;
+      }
+    });
+
+    if (result.isConfirmed && result.value) {
+      setLoading(true);
+      try {
+        const response = await axios.put(`/inventory/products/${product.product_id}/rename`, {
+          new_name: result.value
+        });
+        Swal.fire({ icon: 'success', title: 'สำเร็จ', text: response.data.message, timer: 2000, showConfirmButton: false });
+        fetchStock();
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถเปลี่ยนชื่อสินค้าได้' });
+        setLoading(false);
+      }
+    }
+  };
+
   const handleClearSystem = async () => {
     const confirm = await Swal.fire({
       title: 'ล้างข้อมูลคลังสินค้า?',
@@ -396,8 +445,11 @@ export default function InventoryStockPage() {
                       <div className="w-10 h-10 rounded-xl bg-white border border-[#E5E7EB] flex items-center justify-center shrink-0 group-hover:border-[#A3E635] group-hover:shadow-sm transition-all">
                         <span className="text-lg">📦</span>
                       </div>
-                      <div>
+                      <div className="flex items-center gap-2">
                         <p className="font-black text-[#1F2937] text-base">{item.product_name}</p>
+                        <button onClick={() => handleRenameProduct(item)} className="text-[#9CA3AF] hover:text-[#A3E635] transition-colors" title="แก้ไขชื่อสินค้า">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        </button>
                       </div>
                     </div>
                   </td>

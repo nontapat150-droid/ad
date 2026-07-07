@@ -87,6 +87,82 @@ router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
     console.error('Update product error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
   }
+});// ── PUT /api/inventory/products/:id/rename ──
+// Rename a product and merge if the new name exists
+router.put('/products/:id/rename', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const sourceProductId = req.params.id;
+  const { new_name } = req.body;
+  if (!new_name || new_name.trim() === '') {
+    return res.status(400).json({ error: 'กรุณาระบุชื่อสินค้าใหม่' });
+  }
+
+  const newNameStr = new_name.trim();
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Check if source product exists
+    const [[sourceProduct]] = await conn.query('SELECT * FROM inventory_products WHERE id = ? FOR UPDATE', [sourceProductId]);
+    if (!sourceProduct) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้าต้นทาง' });
+    }
+
+    if (sourceProduct.name.toLowerCase() === newNameStr.toLowerCase()) {
+      // Just fix casing if it's the exact same name but different case
+      await conn.query('UPDATE inventory_products SET name = ? WHERE id = ?', [newNameStr, sourceProductId]);
+      await conn.commit();
+      return res.json({ message: 'เปลี่ยนชื่อสินค้าเรียบร้อยแล้ว' });
+    }
+
+    // 2. Check if new name already exists
+    const [[targetProduct]] = await conn.query('SELECT * FROM inventory_products WHERE name = ?', [newNameStr]);
+
+    if (!targetProduct) {
+      // CASE 1: No duplicate name, just rename
+      await conn.query('UPDATE inventory_products SET name = ? WHERE id = ?', [newNameStr, sourceProductId]);
+      await conn.commit();
+      return res.json({ message: 'เปลี่ยนชื่อสินค้าเรียบร้อยแล้ว' });
+    }
+
+    // CASE 2: Duplicate name exists, must merge
+    if (sourceProduct.has_sn !== targetProduct.has_sn) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'ไม่สามารถรวมสินค้าได้เนื่องจากประเภท (การเก็บ Serial Number) ไม่ตรงกัน' });
+    }
+
+    // Process models of the source product
+    const [sourceModels] = await conn.query('SELECT * FROM inventory_models WHERE product_id = ?', [sourceProductId]);
+    const [targetModels] = await conn.query('SELECT * FROM inventory_models WHERE product_id = ?', [targetProduct.id]);
+
+    for (const sModel of sourceModels) {
+      // Find if a model with same name exists in target product
+      const matchingTModel = targetModels.find(tm => tm.model_name.toLowerCase() === sModel.model_name.toLowerCase());
+
+      if (matchingTModel) {
+        // Merge items: update inventory_items to point to matchingTModel.id instead of sModel.id
+        await conn.query('UPDATE inventory_items SET model_id = ? WHERE model_id = ?', [matchingTModel.id, sModel.id]);
+        // Delete source model
+        await conn.query('DELETE FROM inventory_models WHERE id = ?', [sModel.id]);
+      } else {
+        // Move model to target product
+        await conn.query('UPDATE inventory_models SET product_id = ? WHERE id = ?', [targetProduct.id, sModel.id]);
+      }
+    }
+
+    // Finally delete source product
+    await conn.query('DELETE FROM inventory_products WHERE id = ?', [sourceProductId]);
+
+    await conn.commit();
+    res.json({ message: 'รวมข้อมูลสินค้าเข้ากับชื่อที่มีอยู่แล้วเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Rename Product Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
 });
 
 // ── POST /api/inventory/models ──
