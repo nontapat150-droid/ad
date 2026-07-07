@@ -79,6 +79,41 @@ export default function ManualModal({ isOpen, onClose, userRoles = [], pageName 
     );
   };
 
+  // Content for Dispatch Page
+  const renderDispatchManual = () => {
+    if (isSuperAdmin || isAdmin) {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <p><strong>สวัสดี {isSuperAdmin ? 'Super Admin' : 'Admin'},</strong> หน้านี้คือศูนย์กลางการควบคุมและแจกจ่ายงานให้กับทีมช่าง</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>แท็บต่างๆ:</strong> แยกงานตามประเภท (Office, MA, แผนที่) เพื่อความสะดวกในการจัดการ</li>
+            <li><strong>การแจกจ่ายงาน:</strong> คุณสามารถใช้ "แจกจ่ายอัตโนมัติ" หรือเลือกงานหลายๆ รายการแล้วเลือกช่างเพื่อจ่ายงานทีละมากๆ ได้ (Bulk Assign)</li>
+            <li><strong>มุมมองแผนที่:</strong> แท็บ "แผนที่" ช่วยให้คุณเห็นตำแหน่งของงานทั้งหมดที่ค้างอยู่ และเส้นทางการเดินรถของช่างในแต่ละทีม</li>
+            <li><strong>การนำเข้า Excel:</strong> สามารถเพิ่มงานทีละมากๆ ได้ด้วยปุ่ม "นำเข้า Excel" มุมขวาบน</li>
+          </ul>
+        </div>
+      );
+    }
+    if (isTech || isMaTech) {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+          <p><strong>สวัสดีทีมช่าง,</strong> หน้านี้จะแสดงแผนที่และคิวงานทั้งหมดของคุณ</p>
+          <ul className="list-disc pl-5 space-y-2">
+            <li><strong>เรียงคิวจากตำแหน่งปัจจุบัน:</strong> กดปุ่มเพื่อเรียงลำดับงานตามระยะทางที่ใกล้ที่สุดจากจุดที่คุณอยู่</li>
+            <li><strong>การรับงาน:</strong> เมื่อถึงหน้างาน ให้กด <em>ถึงแล้ว</em> เพื่อบันทึกเวลา และเมื่อเสร็จให้กด <em>จบงาน</em></li>
+            <li><strong>แผนที่:</strong> คุณสามารถดูเส้นทางการเดินรถของงานคุณได้ในแท็บ "แผนที่"</li>
+            <li><strong>รายละเอียด:</strong> กด "รายละเอียด / อัปเดต" บนตัวงาน เพื่อดูข้อมูลเพิ่มเติมหรือกรอกแบบฟอร์มปิดงาน</li>
+          </ul>
+        </div>
+      );
+    }
+    return (
+      <div className="text-sm text-slate-500">
+        คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลในหน้านี้
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-slide-up">
@@ -108,9 +143,10 @@ export default function ManualModal({ isOpen, onClose, userRoles = [], pageName 
         {/* Content */}
         <div className="p-6 md:p-8 max-h-[60vh] overflow-y-auto">
           {pageName === 'dashboard' && renderDashboardManual()}
+          {pageName === 'dispatch' && renderDispatchManual()}
           
           {/* Future expansion for other pages */}
-          {pageName !== 'dashboard' && (
+          {pageName !== 'dashboard' && pageName !== 'dispatch' && (
              <div className="text-sm text-slate-500 text-center py-8">
                กำลังจัดทำคู่มือสำหรับหน้านี้...
              </div>
