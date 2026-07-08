@@ -688,6 +688,13 @@ router.get('/my-bag', auth, async (req, res) => {
           [item_id, userId, quantity, note]
         );
 
+        // Also insert into job_used_inventory to display reliably in customer page
+        await conn.query(
+          `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [job_id, item_id, 'TechBag', invItem.sn || '-', invItem.product_name, invItem.model_name || '-', quantity, userId]
+        );
+
         // Build summary for the job's install_device field
         const equipmentName = invItem.sn 
           ? `${invItem.product_name} ${invItem.model_name} (SN: ${invItem.sn})` 
