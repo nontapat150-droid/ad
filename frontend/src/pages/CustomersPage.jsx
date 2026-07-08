@@ -218,7 +218,7 @@ export default function CustomersPage() {
                             ))}
                           </div>
                         )}
-                        {customerData.soa_device ? (
+                        {customerData.soa_device && (
                           <>
                             <InfoRow label="อุปกรณ์ปิด SOA" value={customerData.soa_device} />
                             {customerData.sn_onu && customerData.sn_onu !== '-' && <InfoRow label="SN ONU" value={customerData.sn_onu} />}
@@ -233,20 +233,26 @@ export default function CustomersPage() {
                             {customerData.ref_id_3bb && customerData.ref_id_3bb !== '-' && <InfoRow label="Ref ID 3BB" value={customerData.ref_id_3bb} />}
                             {customerData.sc_blue && customerData.sc_blue !== '-' && <InfoRow label="ตัวต่อscสีฟ้า" value={customerData.sc_blue} />}
                           </>
-                        ) : customerData.install_device && (customerData.install_device.includes('\n') || customerData.install_device.includes('|')) ? (
-                          customerData.install_device.split(/[\n|]/).map((line, idx) => {
-                            if (!line.trim()) return null;
-                            const colonIdx = line.indexOf(':');
-                            if (colonIdx !== -1) {
-                              const label = line.substring(0, colonIdx).trim();
-                              const value = line.substring(colonIdx + 1).trim();
-                              return <InfoRow key={`device-${idx}`} label={label} value={value} />;
-                            }
-                            return <InfoRow key={`device-${idx}`} label={`อุปกรณ์ ${idx+1}`} value={line.trim()} />;
-                          })
-                        ) : (
-                          <InfoRow label="อุปกรณ์ที่ติดตั้ง" value={customerData.install_device} />
                         )}
+                        {customerData.install_device && (customerData.install_device.includes('\n') || customerData.install_device.includes('|') || customerData.install_device.includes(',')) ? (
+                          <>
+                            <div className="pt-2 border-t border-[#E5E7EB]">
+                              <p className="text-xs font-bold text-[#65a30d] mb-2">อุปกรณ์ที่ติดตั้งเพิ่มเติม</p>
+                              {customerData.install_device.split(/[\n|,]/).map((line, idx) => {
+                                if (!line.trim()) return null;
+                                const colonIdx = line.indexOf(':');
+                                if (colonIdx !== -1) {
+                                  const label = line.substring(0, colonIdx).trim();
+                                  const value = line.substring(colonIdx + 1).trim();
+                                  return <InfoRow key={`device-${idx}`} label={label} value={value} />;
+                                }
+                                return <InfoRow key={`device-${idx}`} label={`อุปกรณ์ ${idx+1}`} value={line.trim()} />;
+                              })}
+                            </div>
+                          </>
+                        ) : customerData.install_device ? (
+                          <InfoRow label="อุปกรณ์ที่ติดตั้ง" value={customerData.install_device} />
+                        ) : null}
                         <InfoRow label="ประเภทงาน" value={customerData.task_type} />
                         <InfoRow label="Product Owner" value={customerData.product_owner} />
                         <InfoRow label="Order Type" value={customerData.order_type} />
