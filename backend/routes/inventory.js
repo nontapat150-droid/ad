@@ -647,7 +647,7 @@ router.get('/my-bag', auth, async (req, res) => {
   
         // Verify item is in user's bag and dispatched
         const [[invItem]] = await conn.query(
-          `SELECT ii.*, p.name AS product_name 
+          `SELECT ii.*, p.name AS product_name, m.model_name 
            FROM inventory_items ii 
            JOIN inventory_models m ON ii.model_id = m.id 
            JOIN inventory_products p ON m.product_id = p.id 
@@ -690,8 +690,8 @@ router.get('/my-bag', auth, async (req, res) => {
 
         // Build summary for the job's install_device field
         const equipmentName = invItem.sn 
-          ? `${invItem.product_name} (SN: ${invItem.sn})` 
-          : `${invItem.product_name} จำนวน ${quantity} ชิ้น`;
+          ? `${invItem.product_name} ${invItem.model_name} (SN: ${invItem.sn})` 
+          : `${invItem.product_name} ${invItem.model_name} จำนวน ${quantity} ชิ้น`;
         usedItemsSummary.push(equipmentName);
       }
   
