@@ -827,6 +827,14 @@ export default function InventoryStockPage() {
           })}
         </div>
       )}
+      <CategoryManagementModal 
+        isOpen={isCategoryModalOpen} 
+        onClose={() => setIsCategoryModalOpen(false)} 
+        onCategoryUpdated={() => {
+          fetchCategories();
+          fetchStock();
+        }}
+      />
     </div>
   );
 }
