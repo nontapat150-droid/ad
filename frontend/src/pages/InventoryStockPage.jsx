@@ -325,43 +325,45 @@ export default function InventoryStockPage() {
           <p style="font-weight:900;font-size:1rem;color:#1F2937;margin-bottom:16px;">📦 ${product.product_name}</p>
           
           <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หมวดหมู่สินค้า (Category)</label>
-          <input id="swal-edit-category" list="edit-category-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.category || ''}" placeholder="หมวดหมู่..." />
+          <input id="swal-edit-category" list="edit-category-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.category || ''}" placeholder="ระบุหมวดหมู่..." />
           <datalist id="edit-category-options">${categoryOptionsHtml}</datalist>
+
+          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">รูปภาพสินค้า (ไม่บังคับ)</label>
+          <input type="file" id="swal-edit-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;background:#f9fafb;margin-bottom:16px;" />
 
           ${!product.has_sn ? `
             <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
-            <input id="swal-edit-unit" list="unit-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.unit || 'ชิ้น'}" placeholder="พิมพ์หรือเลือกหน่วยนับ..." />
+            <input id="swal-edit-unit" list="unit-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.unit || 'ชิ้น'}" placeholder="ตัวเลือกเช่น ชิ้น, กล่อง, เมตร..." />
             <datalist id="unit-options">
               <option value="ชิ้น"></option>
-              <option value="ตัว"></option>
               <option value="กล่อง"></option>
-              <option value="อัน"></option>
-              <option value="เมตร"></option>
               <option value="ม้วน"></option>
+              <option value="เส้น"></option>
+              <option value="เมตร"></option>
+              <option value="แพ็ค"></option>
+              <option value="อัน"></option>
               <option value="ชุด"></option>
-              <option value="แผ่น"></option>
             </datalist>
           ` : `
-            <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
+            <p style="color:#6B7280;margin-bottom:12px;">สินค้า SN จะมีหน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
           `}
           <div style="display:flex;gap:12px;margin-bottom:6px;">
             <div style="flex:1;">
-              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">จำนวนย่อยต่อ 1 กลุ่ม</label>
+              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">จำนวนชิ้นต่อ 1 ลัง/แพ็ค</label>
               <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
             </div>
             <div style="flex:1;">
-              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">คำเรียกกลุ่ม (เช่น ลัง, ม้วน)</label>
-              <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, ม้วน..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
+              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">ชื่อเรียกแพ็คเกจใหญ่</label>
+              <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, แพ็ค..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
               <datalist id="crate-unit-options">
                 <option value="ลัง"></option>
-                <option value="ม้วน"></option>
-                <option value="กล่อง"></option>
                 <option value="แพ็ค"></option>
-                <option value="โหล"></option>
+                <option value="ม้วน"></option>
+                <option value="ขด"></option>
+                <option value="กล่อง"></option>
               </datalist>
             </div>
           </div>
-          <p style="color:#9CA3AF;font-size:12px;margin-top:6px;font-weight:500;">(เว้นว่างจำนวนย่อย หากไม่ต้องการจัดกลุ่ม)</p>
         </div>
       `,
       confirmButtonText: 'บันทึก',
@@ -370,34 +372,54 @@ export default function InventoryStockPage() {
       cancelButtonText: 'ยกเลิก',
       cancelButtonColor: '#9CA3AF',
       customClass: { popup: 'rounded-3xl' },
-      preConfirm: () => {
+      preConfirm: async () => {
         const unitEl = document.getElementById('swal-edit-unit');
+        const imgFile = document.getElementById('swal-edit-image')?.files[0];
+        
+        let imageUrl = product.image_url;
+        if (imgFile) {
+          const formData = new FormData();
+          formData.append('image', imgFile);
+          try {
+            const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            imageUrl = uploadRes.data.image_url;
+          } catch (err) {
+            Swal.showValidationMessage('อัปโหลดรูปภาพไม่สำเร็จ');
+            return false;
+          }
+        }
+        
         return {
           unit: unitEl ? unitEl.value : product.unit,
           ppc: document.getElementById('swal-edit-ppc').value,
           crate_unit: document.getElementById('swal-edit-crate-unit').value,
-          category: document.getElementById('swal-edit-category').value
+          category: document.getElementById('swal-edit-category').value,
+          image_url: imageUrl
         };
       }
     });
 
     if (result.isConfirmed && result.value) {
+      setLoading(true);
       try {
         await axios.put(`/inventory/products/${product.product_id}`, {
           unit: result.value.unit,
           pieces_per_crate: result.value.ppc,
           crate_unit: result.value.crate_unit,
-          category: result.value.category
+          category: result.value.category,
+          image_url: result.value.image_url
         });
-        Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1000, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'บันทึกข้อมูลเรียบร้อย', timer: 1000, showConfirmButton: false });
         fetchStock();
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถบันทึกได้' });
+      } finally {
+        setLoading(false);
       }
     }
   };
 
-  // ── แก้ไขชื่อสินค้า / รวมสินค้า ──
+// ── แก้ไขชื่อสินค้า / รวมสินค้า ──
   const handleRenameProduct = async (product) => {
     const result = await Swal.fire({
       title: 'เปลี่ยนชื่อสินค้า / รวมสินค้า',
