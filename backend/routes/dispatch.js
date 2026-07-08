@@ -946,7 +946,22 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
            FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
           [jobData.id]
         );
-        jobData.used_devices = usedRows;
+        if (usedRows.length > 0) {
+          jobData.used_devices = usedRows;
+        } else {
+          // Fallback for legacy data: fetch from inventory_logs using note
+          const [logRows] = await pool.query(
+            `SELECT 'TechBag' AS device_role, i.sn, p.name AS product_name, m.model_name, l.quantity, l.created_at AS used_at
+             FROM inventory_logs l
+             JOIN inventory_items i ON l.item_id = i.id
+             JOIN inventory_models m ON i.model_id = m.id
+             JOIN inventory_products p ON m.product_id = p.id
+             WHERE l.action = 'used' AND l.note LIKE ?
+             ORDER BY l.id ASC`,
+            [`%${jobData.access_no}%`]
+          );
+          jobData.used_devices = logRows;
+        }
       } catch (e) {
         if (!e.message.includes("doesn't exist")) throw e;
         jobData.used_devices = [];
