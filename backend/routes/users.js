@@ -77,6 +77,25 @@ router.delete('/teams/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   }
 });
 
+// ── PUT /api/users/teams/:id — Update team name ───────────────
+router.put('/teams/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const teamId = req.params.id;
+  const { team_name } = req.body;
+  if (!team_name || team_name.trim() === '') {
+    return res.status(400).json({ error: 'team_name is required' });
+  }
+  try {
+    await pool.query('UPDATE teams SET team_name = ? WHERE id = ?', [team_name.trim(), teamId]);
+    res.json({ message: 'Team updated successfully' });
+  } catch (err) {
+    console.error('Update team error:', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Team name already exists' });
+    }
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  }
+});
+
 // ── POST /api/users — Create user ──────────────────────────
 router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { username, password, full_name, role = 'technician', status = 'approved', team_id, extra_roles = [], allow_late_time = '08:30:00' } = req.body;
