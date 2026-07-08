@@ -163,19 +163,23 @@ router.get('/jobs', auth, async (req, res) => {
       where.push(`j.id IN (SELECT job_id FROM job_logs WHERE status='postponed')`);
     }
 
-    // Non-admin: restrict to own team only
+    // Non-admin: restrict to own team only or own assignments
     if (!isAdmin) {
-      if (!req.user.team_id) return res.json([]);
-      where.push('j.team_id = ?');
-      params.push(req.user.team_id);
+      if (!req.user.team_id) {
+        where.push('j.field_engineer_id = ?');
+        params.push(req.user.id);
+      } else {
+        where.push('(j.team_id = ? OR j.field_engineer_id = ?)');
+        params.push(req.user.team_id, req.user.id);
+      }
     } else if (team_id) {
       where.push('j.team_id = ?');
       params.push(team_id);
     }
 
     if (user_id) {
-      where.push('j.field_engineer_id = ?');
-      params.push(user_id);
+      where.push('(j.team_id = (SELECT team_id FROM users WHERE id = ?) OR j.field_engineer_id = ?)');
+      params.push(user_id, user_id);
     }
 
     if (status) { where.push('j.status = ?'); params.push(status); }
