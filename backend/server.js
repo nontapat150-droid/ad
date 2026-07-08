@@ -81,6 +81,7 @@ apiRouter.use('/announcements', announcementsRouter);
 apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
 apiRouter.use('/migrate', migrateRouter);
+apiRouter.use('/upload', require('./routes/upload'));
 apiRouter.use('/fcm', fcmRouter);
 apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
 
@@ -108,6 +109,8 @@ pool.query(`
 pool.query('ALTER TABLE issue_reports MODIFY id INT AUTO_INCREMENT').catch(e => { /* ignore if fails */ });
 pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(e => { /* ignore if exists */ });
 pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
+pool.query('ALTER TABLE inventory_products ADD COLUMN image_url TEXT DEFAULT NULL').catch(e => {});
+pool.query('CREATE TABLE IF NOT EXISTS inventory_category_metadata (category_name VARCHAR(100) PRIMARY KEY, image_url TEXT)').catch(e => {});
 
 // ── Auto-fix inventory tables: ensure id is AUTO_INCREMENT ──────────────────
 pool.query(`ALTER TABLE users ADD COLUMN last_active DATETIME NULL`).catch(e => console.log('users last_active fix:', e.message));

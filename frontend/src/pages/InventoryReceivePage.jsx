@@ -893,8 +893,9 @@ export default function InventoryReceivePage() {
     let piecesPerCrate = null;
     let crateUnit = 'ลัง';
     let category = null;
+    let imageUrl = null;
 
-    const categoryOptionsHtml = categories.map(c => `<option value="${c}"></option>`).join('');
+    const categoryOptionsHtml = categories.map(c => `<option value="${c.name}"></option>`).join('');
 
     if (!hasSn) {
       // ไม่มี SN → ถามหน่วยนับ + จำนวนต่อลัง + หมวดหมู่

@@ -276,4 +276,27 @@ router.get('/migrate-category', async (req, res) => {
   }
 });
 
+// ─── One-time migration: add image_url and category metadata ─────────────────
+router.get('/migrate-images', async (req, res) => {
+  const results = [];
+  try {
+    try {
+      await pool.query(`ALTER TABLE inventory_products ADD COLUMN image_url TEXT DEFAULT NULL`);
+      results.push('✅ inventory_products.image_url added');
+    } catch(e) { results.push('inventory_products.image_url: ' + e.message); }
+
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS inventory_category_metadata (
+        category_name VARCHAR(100) PRIMARY KEY,
+        image_url TEXT
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+      results.push('✅ inventory_category_metadata table created');
+    } catch(e) { results.push('inventory_category_metadata: ' + e.message); }
+
+    res.json({ success: true, results });
+  } catch(err) {
+    res.status(500).json({ error: err.message, results });
+  }
+});
+
 module.exports = router;

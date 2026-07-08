@@ -225,7 +225,7 @@ export default function InventoryStockPage() {
 
   // ── แก้ไขหน่วยนับ / จำนวนต่อลัง ──
   const handleEditUnitSettings = async (product) => {
-    const categoryOptionsHtml = categories.map(c => `<option value="${c}"></option>`).join('');
+    const categoryOptionsHtml = categories.map(c => `<option value="${c.name}"></option>`).join('');
 
     const result = await Swal.fire({
       title: `ตั้งค่าสินค้า / หมวดหมู่`,
@@ -428,7 +428,7 @@ export default function InventoryStockPage() {
             >
               <option value="">ทุกหมวดหมู่</option>
               {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat.name} value={cat.name}>{cat.name}</option>
               ))}
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#9CA3AF]">
@@ -488,33 +488,82 @@ export default function InventoryStockPage() {
             const items = groupedByCategory[cat];
             const isExpanded = expandedCategories[cat] || (searchQuery.trim().length > 0);
             
+            // ค้นหา metadata ของหมวดหมู่นี้
+            const catMeta = categories.find(c => c.name === cat) || {};
+            
             return (
               <div key={cat} className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden">
                 {/* Category Header */}
-                <button 
-                  type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-[#F9FAFB] transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-sm">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
+                <div className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-[#F9FAFB] transition-colors border-b border-[#E5E7EB]">
+                  <div 
+                    className="flex items-center gap-3 flex-1 cursor-pointer"
+                    onClick={() => toggleCategory(cat)}
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-sm overflow-hidden shrink-0">
+                      {catMeta.image_url ? (
+                        <img src={`${import.meta.env.VITE_API_URL || ''}${catMeta.image_url}`} alt={cat} className="w-full h-full object-cover" />
+                      ) : (
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      )}
                     </div>
                     <div>
-                      <h3 className="font-black text-[#1F2937] text-base">{cat}</h3>
-                      <p className="text-xs font-bold text-[#6B7280] mt-0.5">
+                      <h3 className="font-black text-[#1F2937] text-lg">{cat}</h3>
+                      <p className="text-sm font-bold text-[#6B7280] mt-0.5">
                         {items.length} รายการ (รวม {items.reduce((sum, item) => sum + item.models.length, 0)} โมเดล)
                       </p>
                     </div>
                   </div>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-[#F3F4F6] text-[#4B5563] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
+                  
+                  <div className="flex items-center gap-2">
+                    {/* ปุ่มอัปโหลดรูปหมวดหมู่ */}
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (cat === 'อื่นๆ (ไม่มีหมวดหมู่)') {
+                          Swal.fire('ไม่สามารถเปลี่ยนรูปภาพได้', 'หมวดหมู่นี้เป็นหมวดหมู่เริ่มต้น', 'info');
+                          return;
+                        }
+                        const { value: file } = await Swal.fire({
+                          title: `เปลี่ยนรูปภาพหมวดหมู่: ${cat}`,
+                          input: 'file',
+                          inputAttributes: { accept: 'image/*' },
+                          showCancelButton: true,
+                          confirmButtonText: 'อัปโหลด',
+                          cancelButtonText: 'ยกเลิก'
+                        });
+                        if (file) {
+                          setLoading(true);
+                          const formData = new FormData();
+                          formData.append('image', file);
+                          try {
+                            const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                            await axios.put(`/inventory/categories/${encodeURIComponent(cat)}/image`, { image_url: uploadRes.data.image_url });
+                            Swal.fire({ icon: 'success', title: 'เปลี่ยนรูปภาพสำเร็จ', timer: 1500, showConfirmButton: false });
+                            fetchStock();
+                            fetchCategories();
+                          } catch (err) {
+                            Swal.fire({ icon: 'error', title: 'อัปโหลดไม่สำเร็จ', text: err.message });
+                          } finally {
+                            setLoading(false);
+                          }
+                        }
+                      }}
+                      className="p-2 rounded-xl text-indigo-500 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-100"
+                      title="เปลี่ยนรูปภาพหมวดหมู่"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    </button>
+                    
+                    <button onClick={() => toggleCategory(cat)} className={`w-10 h-10 rounded-full flex items-center justify-center bg-[#F3F4F6] text-[#4B5563] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
                   </div>
-                </button>
+                </div>
                 
                 {/* Category Items */}
                 {isExpanded && (
@@ -537,8 +586,12 @@ export default function InventoryStockPage() {
                 >
                   <td className="p-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white border border-[#E5E7EB] flex items-center justify-center shrink-0 group-hover:border-[#A3E635] group-hover:shadow-sm transition-all">
-                        <span className="text-lg">📦</span>
+                      <div className="w-12 h-12 rounded-xl bg-white border border-[#E5E7EB] flex items-center justify-center shrink-0 overflow-hidden group-hover:border-[#A3E635] group-hover:shadow-sm transition-all">
+                        {item.image_url ? (
+                          <img src={`${import.meta.env.VITE_API_URL || ''}${item.image_url}`} alt={item.product_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-2xl">📦</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="flex flex-col">
