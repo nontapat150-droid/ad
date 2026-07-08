@@ -8,6 +8,7 @@ export default function InventoryStockPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   useEffect(() => {
     fetchStock();
@@ -389,6 +390,22 @@ export default function InventoryStockPage() {
     }
   };
 
+  const groupedByCategory = filteredStock.reduce((acc, item) => {
+    const cat = item.category || 'อื่นๆ (ไม่มีหมวดหมู่)';
+    if (!acc[cat]) {
+      acc[cat] = [];
+    }
+    acc[cat].push(item);
+    return acc;
+  }, {});
+
+  const toggleCategory = (cat) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [cat]: !prev[cat]
+    }));
+  };
+
   return (
     <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-[#E5E7EB] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#F9FAFB]">
@@ -466,20 +483,55 @@ export default function InventoryStockPage() {
           <p className="text-lg font-black text-[#6B7280]">ไม่พบสินค้าที่ค้นหา</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#F9FAFB] text-[#6B7280]">
-              <tr>
-                <th className="p-5 font-black uppercase tracking-wider border-b border-[#E5E7EB]">สินค้า (Product)</th>
-                <th className="p-5 font-black uppercase tracking-wider border-b border-[#E5E7EB]">โมเดล (Model)</th>
-                <th className="p-5 font-black uppercase tracking-wider border-b border-[#E5E7EB]">ประเภทการเก็บ</th>
-                <th className="p-5 font-black uppercase tracking-wider text-right border-b border-[#E5E7EB]">จำนวนคงเหลือ</th>
-                <th className="p-5 font-black uppercase tracking-wider text-center border-b border-[#E5E7EB]">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E5E7EB]">
-              {filteredStock.map((item, index) => (
-                <tr 
+        <div className="flex flex-col gap-4 p-4 sm:p-6 bg-[#F9FAFB]">
+          {Object.keys(groupedByCategory).sort().map(cat => {
+            const items = groupedByCategory[cat];
+            const isExpanded = expandedCategories[cat] || (searchQuery.trim().length > 0);
+            
+            return (
+              <div key={cat} className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+                {/* Category Header */}
+                <button 
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-[#F9FAFB] transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shadow-sm">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-black text-[#1F2937] text-base">{cat}</h3>
+                      <p className="text-xs font-bold text-[#6B7280] mt-0.5">
+                        {items.length} รายการ (รวม {items.reduce((sum, item) => sum + item.models.length, 0)} โมเดล)
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-[#F3F4F6] text-[#4B5563] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+                
+                {/* Category Items */}
+                {isExpanded && (
+                  <div className="border-t border-[#E5E7EB] overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-[#F9FAFB] text-[#6B7280]">
+                        <tr>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">สินค้า (Product)</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">โมเดล (Model)</th>
+                          <th className="p-4 font-black uppercase tracking-wider border-b border-[#E5E7EB]">ประเภทการเก็บ</th>
+                          <th className="p-4 font-black uppercase tracking-wider text-right border-b border-[#E5E7EB]">จำนวนคงเหลือ</th>
+                          <th className="p-4 font-black uppercase tracking-wider text-center border-b border-[#E5E7EB]">จัดการ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E5E7EB]">
+                        {items.map((item, index) => (
+                          <tr 
                   key={`product-${item.product_id}`} 
                   className="hover:bg-[#F9FAFB] transition-colors group"
                 >
@@ -571,9 +623,14 @@ export default function InventoryStockPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
