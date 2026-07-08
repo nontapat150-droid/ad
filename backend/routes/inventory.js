@@ -225,18 +225,31 @@ router.post('/models', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
-// ── PUT /api/inventory/models/:id/image ──
-router.put('/models/:id/image', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+// ── PUT /api/inventory/models/:id ──
+router.put('/models/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const modelId = req.params.id;
-  const { image_url } = req.body;
+  const { model_name, image_url } = req.body;
   try {
+    const updates = [];
+    const params = [];
+    if (model_name !== undefined) {
+      updates.push('model_name = ?');
+      params.push(model_name);
+    }
+    if (image_url !== undefined) {
+      updates.push('image_url = ?');
+      params.push(image_url);
+    }
+    if (updates.length === 0) return res.json({ message: 'No changes' });
+
+    params.push(modelId);
     await pool.query(
-      `UPDATE inventory_models SET image_url = ? WHERE id = ?`,
-      [image_url || null, modelId]
+      `UPDATE inventory_models SET ${updates.join(', ')} WHERE id = ?`,
+      params
     );
-    res.json({ message: 'Model image updated' });
+    res.json({ message: 'Model updated' });
   } catch (err) {
-    console.error('Update model image error:', err);
+    console.error('Update model error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
