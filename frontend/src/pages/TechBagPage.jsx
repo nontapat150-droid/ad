@@ -470,6 +470,7 @@ export default function TechBagPage() {
                                   <td className="px-5 py-3.5">
                                     <div className="font-bold text-[#1F2937]">{log.product_name}</div>
                                     <div className="text-[11px] text-[#9CA3AF]">SN: {log.sn}</div>
+                                    {log.note && <div className="text-xs text-brand-600 mt-1 font-semibold">{log.note}</div>}
                                   </td>
                                   <td className="px-5 py-3.5 font-bold text-[#1F2937] text-center">{log.quantity}</td>
                                   <td className="px-5 py-3.5 text-xs text-[#6B7280]">{log.from_user_name || '-'}</td>
@@ -518,6 +519,7 @@ export default function TechBagPage() {
                               <div className="mb-3">
                                 <p className="font-bold text-[#1F2937] leading-tight">{log.product_name}</p>
                                 <p className="text-xs text-[#9CA3AF] mt-0.5 break-all">SN: {log.sn}</p>
+                                {log.note && <p className="text-xs text-brand-600 mt-1 font-semibold break-words">{log.note}</p>}
                               </div>
 
                               <div className="flex flex-wrap items-center justify-between gap-2 bg-[#F9FAFB] rounded-lg p-3 border border-[#E5E7EB]">

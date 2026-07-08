@@ -614,7 +614,7 @@ router.get('/my-bag', auth, async (req, res) => {
     }
   });
 
-  // 🛠️ POST /api/inventory/use-equipment 🛠️🌟
+  // 🛠️ POST /api/inventory/use-equipment 🛠️
   // Use equipment from tech bag and mark a NON job as completed
   router.post('/use-equipment', auth, async (req, res) => {
     const { job_id, items } = req.body;
@@ -628,9 +628,9 @@ router.get('/my-bag', auth, async (req, res) => {
     try {
       await conn.beginTransaction();
   
-      // 1. Verify job exists and belongs to the user's team (and starts with NON)
+      // 1. Verify job exists
       const [[job]] = await conn.query(
-        'SELECT id, access_no, status FROM jobs WHERE id = ?', 
+        'SELECT id, access_no, status, customer, install_device FROM jobs WHERE id = ?', 
         [job_id]
       );
       if (!job) {
@@ -638,6 +638,8 @@ router.get('/my-bag', auth, async (req, res) => {
         return res.status(404).json({ error: 'ไม่พบงานที่เลือก' });
       }
       
+      let usedItemsSummary = [];
+
       // 2. Process each item
       for (const reqItem of items) {
         const { item_id, quantity } = reqItem;
@@ -645,13 +647,17 @@ router.get('/my-bag', auth, async (req, res) => {
   
         // Verify item is in user's bag and dispatched
         const [[invItem]] = await conn.query(
-          'SELECT * FROM inventory_items WHERE id = ? AND owner_id = ? AND status = "dispatched"',
+          `SELECT ii.*, p.name AS product_name 
+           FROM inventory_items ii 
+           JOIN inventory_models m ON ii.model_id = m.id 
+           JOIN inventory_products p ON m.product_id = p.id 
+           WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = "dispatched"`,
           [item_id, userId]
         );
   
         if (!invItem) {
           await conn.rollback();
-          return res.status(400).json({ error: `ไม่พบอุปกรณ์รหัส ${item_id} ในกระเป๋า หรืออุปกรณ์ถูกใช้งานไปแล้ว` });
+          return res.status(400).json({ error: `ไม่พบอุปกรณ์ ID: ${item_id} ในกระเป๋าหรืออุปกรณ์ไม่ได้ถูกเบิก` });
         }
   
         if (invItem.quantity < quantity) {
@@ -671,22 +677,45 @@ router.get('/my-bag', auth, async (req, res) => {
             'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
             [quantity, item_id]
           );
-          // Insert a new record for the "used" portion (optional, based on design)
           // We will just deduct quantity and log it.
         }
   
-        // Log the usage
+        // Log the usage with customer name
+        const customerText = job.customer ? ` (ลูกค้า: ${job.customer})` : '';
+        const note = `ใช้งานกับงาน ${job.access_no}${customerText}`;
         await conn.query(
           'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
-          [item_id, userId, quantity, `ใช้งานกับงาน ${job.access_no}`]
+          [item_id, userId, quantity, note]
         );
+
+        // Build summary for the job's install_device field
+        const equipmentName = invItem.sn 
+          ? `${invItem.product_name} (SN: ${invItem.sn})` 
+          : `${invItem.product_name} จำนวน ${quantity} ชิ้น`;
+        usedItemsSummary.push(equipmentName);
       }
   
-      // 3. Update job status to completed if it's not already
+      // 3. Update job status to completed if it's not already, and append equipment to install_device
+      const newEquipmentText = usedItemsSummary.join(', ');
+      const updatedInstallDevice = job.install_device 
+        ? `${job.install_device}, ${newEquipmentText}` 
+        : newEquipmentText;
+
       if (job.status !== 'completed') {
         await conn.query(
-          'UPDATE jobs SET status = "completed" WHERE id = ?',
-          [job_id]
+          `UPDATE jobs SET 
+            status = "completed", 
+            install_device = ?,
+            finish_time = IFNULL(finish_time, NOW()),
+            completed_at = IFNULL(completed_at, NOW()),
+            completed_by = IFNULL(completed_by, ?)
+           WHERE id = ?`,
+          [updatedInstallDevice, userId, job_id]
+        );
+      } else {
+        await conn.query(
+          'UPDATE jobs SET install_device = ? WHERE id = ?',
+          [updatedInstallDevice, job_id]
         );
       }
   
@@ -713,7 +742,7 @@ router.get('/my-history', auth, async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT il.id, il.action, il.quantity, il.created_at,
+      `SELECT il.id, il.action, il.quantity, il.created_at, il.note,
               ii.sn, pm.model_name, p.name AS product_name,
               u_from.full_name AS from_user_name,
               u_to.full_name AS to_user_name
@@ -816,7 +845,7 @@ router.post('/transfer', auth, async (req, res) => {
 router.get('/history', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT il.id, il.action, il.quantity, il.created_at,
+      `SELECT il.id, il.action, il.quantity, il.created_at, il.note,
               ii.sn, ii.status AS item_status,
               pm.model_name, p.name AS product_name,
               u_from.full_name AS from_user_name,

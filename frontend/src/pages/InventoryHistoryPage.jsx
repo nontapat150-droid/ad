@@ -122,6 +122,7 @@ export default function InventoryHistoryPage() {
                   <td className="p-5">
                     <div className="font-black text-[#1F2937] text-base">{log.product_name}</div>
                     <div className="text-xs font-bold text-[#6B7280] mt-0.5">{log.model_name}</div>
+                    {log.note && <div className="text-xs text-brand-600 mt-1 font-semibold">{log.note}</div>}
                   </td>
                   <td className="p-5 font-mono font-bold text-[#1F2937]">
                     {log.sn}
