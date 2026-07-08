@@ -13,6 +13,100 @@ import ImageWithFallback from '../components/common/ImageWithFallback';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
 // Tooltip shared between line and bar charts
+function OverallPercentageSummary({ vehicles }) {
+  if (!vehicles || vehicles.length === 0) return null;
+
+  const totalCost = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_cost) || 0), 0);
+  const totalDistance = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_distance) || 0), 0);
+  const totalLiters = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_liters) || 0), 0);
+
+  if (totalCost === 0 && totalDistance === 0 && totalLiters === 0) return null;
+
+  return (
+    <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 mb-6 animate-fade-in-up">
+      <div className="mb-5 border-b border-[#F3F4F6] pb-5">
+        <h3 className="font-extrabold text-[#1F2937] text-lg mb-4 flex items-center gap-2">
+          <span className="bg-indigo-100 p-1.5 rounded-lg text-indigo-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+          </span>
+          สรุปภาพรวมทั้งหมด (100%)
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100/50">
+            <p className="text-sm font-bold text-emerald-600 mb-1">ยอดเงินที่ใช้เติมทั้งหมด</p>
+            <p className="text-2xl font-black text-emerald-700">฿{totalCost.toLocaleString()}</p>
+          </div>
+          <div className="bg-sky-50 rounded-2xl p-4 border border-sky-100/50">
+            <p className="text-sm font-bold text-sky-600 mb-1">ระยะทางวิ่งรวม</p>
+            <p className="text-2xl font-black text-sky-700">{totalDistance.toLocaleString()} กม.</p>
+          </div>
+          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100/50">
+            <p className="text-sm font-bold text-amber-600 mb-1">ลิตรที่เติมทั้งเดือนรวม</p>
+            <p className="text-2xl font-black text-amber-700">{totalLiters.toFixed(2)} L</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="font-bold text-[#4B5563] text-[13px] mb-3 uppercase tracking-wider">สัดส่วนแต่ละคันจากยอดรวมทั้งหมด</h4>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] text-[#6B7280] text-xs uppercase tracking-wider">
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB] rounded-tl-xl">ทะเบียนรถ</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB]">ยอดเงิน (%)</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB]">ระยะทาง (%)</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB] rounded-tr-xl">ลิตร (%)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3F4F6]">
+              {vehicles.map((v) => {
+                const cost = parseFloat(v.total_cost) || 0;
+                const dist = parseFloat(v.total_distance) || 0;
+                const liters = parseFloat(v.total_liters) || 0;
+                
+                const costPct = totalCost > 0 ? ((cost / totalCost) * 100).toFixed(1) : '0.0';
+                const distPct = totalDistance > 0 ? ((dist / totalDistance) * 100).toFixed(1) : '0.0';
+                const literPct = totalLiters > 0 ? ((liters / totalLiters) * 100).toFixed(1) : '0.0';
+
+                return (
+                  <tr key={v.license_plate} className="hover:bg-[#F9FAFB] transition-colors">
+                    <td className="py-3 px-3 font-black text-[#1F2937]">{v.license_plate}</td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[13px] font-black text-[#374151] w-12">{costPct}%</span>
+                        <div className="flex-1 h-2 bg-emerald-100 rounded-full max-w-[120px]">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${costPct}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[13px] font-black text-[#374151] w-12">{distPct}%</span>
+                        <div className="flex-1 h-2 bg-sky-100 rounded-full max-w-[120px]">
+                          <div className="h-full bg-sky-500 rounded-full" style={{ width: `${distPct}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[13px] font-black text-[#374151] w-12">{literPct}%</span>
+                        <div className="flex-1 h-2 bg-amber-100 rounded-full max-w-[120px]">
+                          <div className="h-full bg-amber-500 rounded-full" style={{ width: `${literPct}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChartTooltip({ active, payload, label, period }) {
   if (!active || !payload || !payload.length) return null;
   const sorted = [...payload].filter(p => p.value != null && p.value !== 0).sort((a, b) => b.value - a.value);
@@ -1110,7 +1204,10 @@ export default function OilDashboardPage() {
         ) : (
           <div className="flex flex-col gap-6 stagger-children">
 
-            {/* Quick Stats Grid */}
+              {/* Overall Percentage Summary */}
+              <OverallPercentageSummary vehicles={analytics.byVehicle} />
+
+              {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
               <StatCard
                 title="ยอดเงินรวม (เดือนนี้)"
