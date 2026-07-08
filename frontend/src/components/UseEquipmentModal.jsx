@@ -91,9 +91,8 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
       });
 
       if (res.status === 200) {
-        alert('บันทึกการใช้งานอุปกรณ์และปิดงานสำเร็จ!');
+        setStep(3);
         onUsageComplete();
-        onClose();
       }
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
@@ -113,10 +112,10 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
             <h3 className="text-xl font-black text-slate-800">
-              {step === 1 ? 'เลือกอุปกรณ์ที่ต้องการใช้งาน' : 'เลือกงานที่ต้องการใช้งาน'}
+              {step === 1 ? 'เลือกอุปกรณ์ที่ต้องการใช้งาน' : step === 2 ? 'เลือกงานที่ต้องการใช้งาน' : 'ดำเนินการสำเร็จ'}
             </h3>
             <p className="text-sm font-medium text-slate-500 mt-1">
-              {step === 1 ? 'เลือกอุปกรณ์จากกระเป๋าช่างของคุณ' : 'ผูกอุปกรณ์เข้ากับงานเพื่อดำเนินการปิดงานทันที'}
+              {step === 1 ? 'เลือกอุปกรณ์จากกระเป๋าช่างของคุณ' : step === 2 ? 'ผูกอุปกรณ์เข้ากับงานเพื่อดำเนินการปิดงานทันที' : 'ระบบได้บันทึกข้อมูลเรียบร้อยแล้ว'}
             </p>
           </div>
           <button 
@@ -236,10 +235,28 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
               )}
             </div>
           )}
+          {step === 3 && (
+            <div className="py-12 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
+              <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+                <svg className="w-12 h-12 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-3xl font-black text-slate-800 mb-3">สำเร็จเรียบร้อย!</h3>
+              <p className="text-slate-500 font-medium text-lg">บันทึกการใช้งานอุปกรณ์และปิดงานเสร็จสมบูรณ์</p>
+              <button 
+                onClick={onClose}
+                className="mt-8 px-10 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-emerald-500/30 text-lg"
+              >
+                เสร็จสิ้น
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between rounded-b-3xl">
+        {step !== 3 && (
+          <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between rounded-b-3xl">
           {step === 1 ? (
             <div className="flex-1" />
           ) : (
@@ -278,7 +295,8 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
               ยืนยันการใช้งานและปิดงาน
             </button>
           )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
