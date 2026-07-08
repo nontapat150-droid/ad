@@ -563,6 +563,7 @@ export default function TechBagPage() {
         bagItems={bagItems}
         onUsageComplete={() => fetchBag()}
         initialSelectedItem={preSelectedItem}
+        selectedUserId={selectedUserId}
       />
     </div>
   );

@@ -147,7 +147,7 @@ function buildInstallDeviceString(installParts, manualParts) {
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
   try {
-    const { status, date, team_id, type } = req.query;
+    const { status, date, team_id, type, user_id } = req.query;
     const userRoles = req.user.roles || [req.user.role];
     const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
 
@@ -171,6 +171,11 @@ router.get('/jobs', auth, async (req, res) => {
     } else if (team_id) {
       where.push('j.team_id = ?');
       params.push(team_id);
+    }
+
+    if (user_id) {
+      where.push('j.field_engineer_id = ?');
+      params.push(user_id);
     }
 
     if (status) { where.push('j.status = ?'); params.push(status); }

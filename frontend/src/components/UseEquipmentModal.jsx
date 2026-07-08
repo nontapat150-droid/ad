@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api/axios';
 
-export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageComplete, initialSelectedItem }) {
+export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageComplete, initialSelectedItem, selectedUserId }) {
   const [step, setStep] = useState(1);
   const [selectedItems, setSelectedItems] = useState({});
   const [jobs, setJobs] = useState([]);
@@ -51,7 +51,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get('/dispatch/jobs');
+      const res = await axios.get(`/dispatch/jobs${selectedUserId ? `?user_id=${selectedUserId}` : ''}`);
       const data = res.data;
       // Filter only NON jobs that are not completed
       const nonJobs = data.filter(j => j.access_no && j.access_no.startsWith('NON') && j.status !== 'completed');
