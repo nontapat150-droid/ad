@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api/axios';
 
-export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageComplete }) {
+export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageComplete, initialSelectedItem }) {
   const [step, setStep] = useState(1);
   const [selectedItems, setSelectedItems] = useState({});
   const [jobs, setJobs] = useState([]);
@@ -13,11 +13,17 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
   useEffect(() => {
     if (isOpen) {
       setStep(1);
-      setSelectedItems({});
+      if (initialSelectedItem) {
+        setSelectedItems({
+          [initialSelectedItem.id]: { ...initialSelectedItem, useQty: initialSelectedItem.has_sn ? 1 : 1 }
+        });
+      } else {
+        setSelectedItems({});
+      }
       setSelectedJobId(null);
       setSearchJob('');
     }
-  }, [isOpen]);
+  }, [isOpen, initialSelectedItem]);
 
   const handleToggleItem = (item) => {
     setSelectedItems(prev => {

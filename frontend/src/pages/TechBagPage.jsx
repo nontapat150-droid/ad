@@ -14,6 +14,7 @@ export default function TechBagPage() {
   const [loading, setLoading] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
   const [showUseEquipmentModal, setShowUseEquipmentModal] = useState(false);
+  const [preSelectedItem, setPreSelectedItem] = useState(null);
   
   // Roles
   const userRoles = user?.roles || [user?.role || ''];
@@ -238,6 +239,15 @@ export default function TechBagPage() {
           
           <div className="flex items-center gap-2 sm:gap-3">
             <button
+              onClick={() => { setPreSelectedItem(null); setShowUseEquipmentModal(true); }}
+              className="flex items-center gap-1.5 text-xs text-white font-semibold bg-emerald-600 hover:bg-emerald-700 px-3 py-2 rounded-xl border border-emerald-700 transition-all shadow-sm ml-auto"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+              <span className="hidden sm:inline font-bold">ใช้งานอุปกรณ์</span>
+            </button>
+            <button
               onClick={() => setShowManualModal(true)}
               className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-slate-800 font-semibold bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-xl border border-brand-200 transition-all ml-auto"
             >
@@ -396,6 +406,17 @@ export default function TechBagPage() {
                                   </button>
                                 </>
                               )}
+                              {/* Use Button */}
+                              <button 
+                                onClick={() => { setPreSelectedItem(item); setShowUseEquipmentModal(true); }}
+                                className="font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 text-sm flex items-center gap-1.5 text-[#042C53] border border-[#042C53]/30 hover:border-[#042C53]"
+                                style={{ background: 'rgba(4,44,83,0.1)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(4,44,83,0.15)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(4,44,83,0.1)'; }}
+                              >
+                                <svg className="w-4 h-4 text-[#042C53]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                ใช้งาน
+                              </button>
                               {/* Transfer Button */}
                               <button 
                                 onClick={() => handleTransfer(item)}
@@ -535,6 +556,13 @@ export default function TechBagPage() {
         onClose={() => setShowManualModal(false)} 
         userRoles={userRoles} 
         pageName="techbag" 
+      />
+      <UseEquipmentModal
+        isOpen={showUseEquipmentModal}
+        onClose={() => setShowUseEquipmentModal(false)}
+        bagItems={bagItems}
+        onUsageComplete={() => fetchBag()}
+        initialSelectedItem={preSelectedItem}
       />
     </div>
   );
