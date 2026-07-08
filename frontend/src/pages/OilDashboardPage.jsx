@@ -1376,13 +1376,6 @@ export default function OilDashboardPage() {
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm">📋</div>
                   ประวัติการเติมน้ำมันล่าสุด
                 </h3>
-                <button
-                  onClick={() => setShowSummaryModal(true)}
-                  className="bg-[#185FA5] hover:bg-[#124b82] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  สรุปข้อมูล
-                </button>
               </div>
               <div className="overflow-auto max-h-[600px] w-full pb-2 relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
