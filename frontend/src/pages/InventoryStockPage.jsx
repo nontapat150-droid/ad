@@ -46,19 +46,21 @@ export default function InventoryStockPage() {
         pieces_per_crate: item.pieces_per_crate || null,
         crate_unit: item.crate_unit || 'ลัง',
         category: item.category || null,
-        total_quantity: 0,
-        item_count: 0,
-        models: []
+          image_url: item.image_url || null,
+          total_quantity: 0,
+          item_count: 0,
+          models: []
       };
     }
     acc[item.product_id].total_quantity += parseFloat(item.total_quantity || 0);
     acc[item.product_id].item_count += parseInt(item.item_count || 0);
     acc[item.product_id].models.push({
-      model_id: item.model_id,
-      model_name: item.model_name,
-      total_quantity: item.total_quantity,
-      item_count: item.item_count
-    });
+        model_id: item.model_id,
+        model_name: item.model_name,
+        total_quantity: item.total_quantity,
+        item_count: item.item_count,
+        model_image_url: item.model_image_url || null
+      });
     return acc;
   }, {}));
 
