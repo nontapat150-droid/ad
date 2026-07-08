@@ -111,6 +111,7 @@ pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(
 pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
 pool.query('ALTER TABLE inventory_products ADD COLUMN image_url TEXT DEFAULT NULL').catch(e => {});
 pool.query('CREATE TABLE IF NOT EXISTS inventory_category_metadata (category_name VARCHAR(100) PRIMARY KEY, image_url TEXT)').catch(e => {});
+pool.query('ALTER TABLE inventory_models ADD COLUMN image_url TEXT DEFAULT NULL').catch(e => {});
 
 // ── Auto-fix inventory tables: ensure id is AUTO_INCREMENT ──────────────────
 pool.query(`ALTER TABLE users ADD COLUMN last_active DATETIME NULL`).catch(e => console.log('users last_active fix:', e.message));

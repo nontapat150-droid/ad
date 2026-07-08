@@ -210,17 +210,33 @@ router.put('/products/:id/rename', auth, requireRole(ADMIN_ROLES), async (req, r
 
 // ── POST /api/inventory/models ──
 router.post('/models', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { product_id, model_name } = req.body;
+  const { product_id, model_name, image_url } = req.body;
   if (!product_id || !model_name) return res.status(400).json({ error: 'Missing required fields' });
 
   try {
     const [result] = await pool.query(
-      'INSERT INTO inventory_models (product_id, model_name) VALUES (?, ?)',
-      [product_id, model_name]
+      'INSERT INTO inventory_models (product_id, model_name, image_url) VALUES (?, ?, ?)',
+      [product_id, model_name, image_url || null]
     );
     res.json({ message: 'Model created', id: result.insertId });
   } catch (err) {
     console.error('Add model error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── PUT /api/inventory/models/:id/image ──
+router.put('/models/:id/image', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const modelId = req.params.id;
+  const { image_url } = req.body;
+  try {
+    await pool.query(
+      `UPDATE inventory_models SET image_url = ? WHERE id = ?`,
+      [image_url || null, modelId]
+    );
+    res.json({ message: 'Model image updated' });
+  } catch (err) {
+    console.error('Update model image error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
@@ -697,7 +713,7 @@ router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const [rows] = await pool.query(
       `SELECT p.id AS product_id, p.name AS product_name, p.has_sn,
               p.unit, p.pieces_per_crate, p.crate_unit, p.category, p.image_url,
-              m.id AS model_id, m.model_name,
+              m.id AS model_id, m.model_name, m.image_url AS model_image_url,
               COUNT(ii.id) AS item_count,
               SUM(ii.quantity) AS total_quantity
        FROM inventory_items ii

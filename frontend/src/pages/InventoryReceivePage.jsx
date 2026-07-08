@@ -1036,19 +1036,50 @@ export default function InventoryReceivePage() {
 
   const handleAddNewModel = async () => {
     if (!selectedProductId || !modelSearchInput.trim()) return;
+    
+    // Ask for image first
+    const { value: file } = await Swal.fire({
+      title: '?????????????????????? (?????????)',
+      html: 
+        <div style="text-align:left;font-size:14px;">
+          <p style="margin-bottom:12px;color:#1F2937;font-weight:bold;">?????: ${modelSearchInput}</p>
+          <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;background:#f9fafb;" />
+        </div>
+      ,
+      showCancelButton: true,
+      confirmButtonText: '??????',
+      cancelButtonText: '???? (?????????)',
+      confirmButtonColor: '#185FA5',
+      preConfirm: async () => {
+        const imgFile = document.getElementById('swal-model-image')?.files[0];
+        if (imgFile) {
+          const formData = new FormData();
+          formData.append('image', imgFile);
+          try {
+            const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return uploadRes.data.image_url;
+          } catch (err) {
+            Swal.showValidationMessage('??????????????????????');
+            return false;
+          }
+        }
+        return null;
+      }
+    });
+
     setLoading(true);
     try {
-      await axios.post('/inventory/models', { product_id: selectedProductId, model_name: modelSearchInput });
+      await axios.post('/inventory/models', { product_id: selectedProductId, model_name: modelSearchInput, image_url: file || null });
       const res = await axios.get('/inventory/products');
       setProducts(res.data);
       const updatedProduct = res.data.find(p => p.id === parseInt(selectedProductId));
       const newModel = updatedProduct?.models?.find(m => m.model_name === modelSearchInput);
       if (newModel) {
         setSelectedModelId(newModel.id);
-        Swal.fire({ icon: 'success', title: 'เพิ่มโมเดลแล้ว', timer: 1000, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: '????????????????????', timer: 1000, showConfirmButton: false });
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถเพิ่มโมเดลได้' });
+      Swal.fire({ icon: 'error', title: '??????????????', text: err.response?.data?.error || '??????????????????????' });
     } finally {
       setLoading(false);
     }
@@ -1689,3 +1720,4 @@ export default function InventoryReceivePage() {
     </>
   );
 }
+

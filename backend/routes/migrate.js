@@ -293,6 +293,11 @@ router.get('/migrate-images', async (req, res) => {
       results.push('✅ inventory_category_metadata table created');
     } catch(e) { results.push('inventory_category_metadata: ' + e.message); }
 
+    try {
+      await pool.query(`ALTER TABLE inventory_models ADD COLUMN image_url TEXT DEFAULT NULL`);
+      results.push('✅ inventory_models.image_url added');
+    } catch(e) { results.push('inventory_models.image_url: ' + e.message); }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });
