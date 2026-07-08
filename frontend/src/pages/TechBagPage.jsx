@@ -6,12 +6,14 @@ import { useAuth } from '../context/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import ManualModal from '../components/ManualModal';
+import UseEquipmentModal from '../components/UseEquipmentModal';
 
 export default function TechBagPage() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showUseEquipmentModal, setShowUseEquipmentModal] = useState(false);
   
   // Roles
   const userRoles = user?.roles || [user?.role || ''];

@@ -585,6 +585,93 @@ router.get('/my-bag', auth, async (req, res) => {
   }
 });
 
+  // 🌟 POST /api/inventory/use-equipment 🌟
+  // Use equipment from tech bag and mark a NON job as completed
+  router.post('/use-equipment', auth, async (req, res) => {
+    const { job_id, items } = req.body;
+    const userId = req.user.id;
+    
+    if (!job_id || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
+    }
+  
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+  
+      // 1. Verify job exists and belongs to the user's team (and starts with NON)
+      const [[job]] = await conn.query(
+        'SELECT id, access_no, status FROM jobs WHERE id = ?', 
+        [job_id]
+      );
+      if (!job) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'ไม่พบงานที่เลือก' });
+      }
+      
+      // 2. Process each item
+      for (const reqItem of items) {
+        const { item_id, quantity } = reqItem;
+        if (!item_id || !quantity || quantity <= 0) continue;
+  
+        // Verify item is in user's bag and dispatched
+        const [[invItem]] = await conn.query(
+          'SELECT * FROM inventory_items WHERE id = ? AND owner_id = ? AND status = "dispatched"',
+          [item_id, userId]
+        );
+  
+        if (!invItem) {
+          await conn.rollback();
+          return res.status(400).json({ error: `ไม่พบอุปกรณ์รหัส ${item_id} ในกระเป๋า หรืออุปกรณ์ถูกใช้งานไปแล้ว` });
+        }
+  
+        if (invItem.quantity < quantity) {
+          await conn.rollback();
+          return res.status(400).json({ error: `จำนวนอุปกรณ์ ${item_id} ไม่เพียงพอ` });
+        }
+  
+        // If full quantity is used
+        if (invItem.quantity === quantity) {
+          await conn.query(
+            'UPDATE inventory_items SET status = "used" WHERE id = ?',
+            [item_id]
+          );
+        } else {
+          // Partial quantity used (No SN items)
+          await conn.query(
+            'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
+            [quantity, item_id]
+          );
+          // Insert a new record for the "used" portion (optional, based on design)
+          // We will just deduct quantity and log it.
+        }
+  
+        // Log the usage
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
+          [item_id, userId, quantity, `ใช้งานกับงาน ${job.access_no}`]
+        );
+      }
+  
+      // 3. Update job status to completed if it's not already
+      if (job.status !== 'completed') {
+        await conn.query(
+          'UPDATE jobs SET status = "completed" WHERE id = ?',
+          [job_id]
+        );
+      }
+  
+      await conn.commit();
+      res.json({ message: 'ใช้งานอุปกรณ์และบันทึกงานเสร็จสิ้น' });
+    } catch (err) {
+      await conn.rollback();
+      console.error('Use Equipment Error:', err);
+      res.status(500).json({ error: 'เกิดข้อผิดพลาดในการใช้งานอุปกรณ์' });
+    } finally {
+      conn.release();
+    }
+  });
+
 // ── GET /api/inventory/my-history ──
 router.get('/my-history', auth, async (req, res) => {
   const targetUserId = req.query.user_id || req.user.id;
