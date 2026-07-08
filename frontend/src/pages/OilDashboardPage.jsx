@@ -71,27 +71,36 @@ function OverallPercentageSummary({ vehicles }) {
 
                 return (
                   <tr key={v.license_plate} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="py-3 px-3 font-black text-[#1F2937]">{v.license_plate}</td>
+                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">{v.license_plate}</td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-[13px] font-black text-[#374151] w-12">{costPct}%</span>
-                        <div className="flex-1 h-2 bg-emerald-100 rounded-full max-w-[120px]">
+                      <div className="flex flex-col justify-center w-full max-w-[140px]">
+                        <div className="flex justify-between items-end mb-1">
+                          <span className="text-[13px] font-black text-[#374151]">{costPct}%</span>
+                          <span className="text-[11px] font-semibold text-[#6B7280]">฿{cost.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full h-2 bg-emerald-100 rounded-full">
                           <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${costPct}%` }} />
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-[13px] font-black text-[#374151] w-12">{distPct}%</span>
-                        <div className="flex-1 h-2 bg-sky-100 rounded-full max-w-[120px]">
+                      <div className="flex flex-col justify-center w-full max-w-[140px]">
+                        <div className="flex justify-between items-end mb-1">
+                          <span className="text-[13px] font-black text-[#374151]">{distPct}%</span>
+                          <span className="text-[11px] font-semibold text-[#6B7280]">{dist.toLocaleString()} กม.</span>
+                        </div>
+                        <div className="w-full h-2 bg-sky-100 rounded-full">
                           <div className="h-full bg-sky-500 rounded-full" style={{ width: `${distPct}%` }} />
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-[13px] font-black text-[#374151] w-12">{literPct}%</span>
-                        <div className="flex-1 h-2 bg-amber-100 rounded-full max-w-[120px]">
+                      <div className="flex flex-col justify-center w-full max-w-[140px]">
+                        <div className="flex justify-between items-end mb-1">
+                          <span className="text-[13px] font-black text-[#374151]">{literPct}%</span>
+                          <span className="text-[11px] font-semibold text-[#6B7280]">{liters.toFixed(2)} L</span>
+                        </div>
+                        <div className="w-full h-2 bg-amber-100 rounded-full">
                           <div className="h-full bg-amber-500 rounded-full" style={{ width: `${literPct}%` }} />
                         </div>
                       </div>
