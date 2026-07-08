@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import CategoryManagementModal from '../components/CategoryManagementModal';
 
 export default function InventoryStockPage() {
   const [loading, setLoading] = useState(false);
@@ -9,6 +10,7 @@ export default function InventoryStockPage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({});
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   useEffect(() => {
     fetchStock();
@@ -542,7 +544,24 @@ export default function InventoryStockPage() {
         </div>
         
         <div className="flex gap-3 w-full sm:w-auto">
-          <div className="relative">
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="px-4 py-2.5 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm whitespace-nowrap hidden sm:flex items-center gap-2"
+              title="จัดการหมวดหมู่"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+              จัดการหมวดหมู่
+            </button>
+            {/* Mobile icon-only button */}
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="px-3 py-2.5 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm sm:hidden flex items-center justify-center"
+              title="จัดการหมวดหมู่"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+            </button>
+
+            <div className="relative">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
