@@ -6,10 +6,22 @@ export default function InventoryStockPage() {
   const [loading, setLoading] = useState(false);
   const [stock, setStock] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   useEffect(() => {
     fetchStock();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('/inventory/categories');
+      setCategories(res.data);
+    } catch (err) {
+      console.error('Failed to load categories', err);
+    }
+  };
 
   const fetchStock = async () => {
     setLoading(true);
@@ -32,6 +44,7 @@ export default function InventoryStockPage() {
         unit: item.unit || 'ชิ้น',
         pieces_per_crate: item.pieces_per_crate || null,
         crate_unit: item.crate_unit || 'ลัง',
+        category: item.category || null,
         total_quantity: 0,
         item_count: 0,
         models: []
@@ -49,6 +62,12 @@ export default function InventoryStockPage() {
   }, {}));
 
   const filteredStock = groupedStock.filter(p => {
+    // Filter by category first
+    if (selectedCategory && p.category !== selectedCategory) {
+      return false;
+    }
+    
+    // Then filter by search query
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     const matchProduct = p.product_name && p.product_name.toLowerCase().includes(query);
@@ -205,12 +224,18 @@ export default function InventoryStockPage() {
 
   // ── แก้ไขหน่วยนับ / จำนวนต่อลัง ──
   const handleEditUnitSettings = async (product) => {
+    const categoryOptionsHtml = categories.map(c => `<option value="${c}"></option>`).join('');
 
     const result = await Swal.fire({
-      title: `ตั้งค่าหน่วยนับ / ลัง`,
+      title: `ตั้งค่าสินค้า / หมวดหมู่`,
       html: `
         <div style="text-align:left;font-size:14px;">
           <p style="font-weight:900;font-size:1rem;color:#1F2937;margin-bottom:16px;">📦 ${product.product_name}</p>
+          
+          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หมวดหมู่สินค้า (Category)</label>
+          <input id="swal-edit-category" list="edit-category-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.category || ''}" placeholder="หมวดหมู่..." />
+          <datalist id="edit-category-options">${categoryOptionsHtml}</datalist>
+
           ${!product.has_sn ? `
             <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
             <input id="swal-edit-unit" list="unit-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.unit || 'ชิ้น'}" placeholder="พิมพ์หรือเลือกหน่วยนับ..." />
@@ -258,7 +283,8 @@ export default function InventoryStockPage() {
         return {
           unit: unitEl ? unitEl.value : product.unit,
           ppc: document.getElementById('swal-edit-ppc').value,
-          crate_unit: document.getElementById('swal-edit-crate-unit').value
+          crate_unit: document.getElementById('swal-edit-crate-unit').value,
+          category: document.getElementById('swal-edit-category').value
         };
       }
     });
@@ -268,7 +294,8 @@ export default function InventoryStockPage() {
         await axios.put(`/inventory/products/${product.product_id}`, {
           unit: result.value.unit,
           pieces_per_crate: result.value.ppc,
-          crate_unit: result.value.crate_unit
+          crate_unit: result.value.crate_unit,
+          category: result.value.category
         });
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1000, showConfirmButton: false });
         fetchStock();
@@ -376,6 +403,22 @@ export default function InventoryStockPage() {
         </div>
         
         <div className="flex gap-3 w-full sm:w-auto">
+          <div className="relative">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full sm:w-40 px-4 py-2.5 border border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] text-sm font-bold bg-white transition-all shadow-sm appearance-none"
+            >
+              <option value="">ทุกหมวดหมู่</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#9CA3AF]">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+          
           <div className="relative flex-1 sm:w-64">
             <input 
               type="text"
@@ -446,7 +489,10 @@ export default function InventoryStockPage() {
                         <span className="text-lg">📦</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="font-black text-[#1F2937] text-base">{item.product_name}</p>
+                        <div className="flex flex-col">
+                          <p className="font-black text-[#1F2937] text-base">{item.product_name}</p>
+                          {item.category && <span className="text-[10px] font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded inline-block w-max mt-0.5">{item.category}</span>}
+                        </div>
                         <button onClick={() => handleRenameProduct(item)} className="text-[#9CA3AF] hover:text-[#A3E635] transition-colors" title="แก้ไขชื่อสินค้า">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </button>

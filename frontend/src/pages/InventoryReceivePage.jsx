@@ -789,6 +789,7 @@ export default function InventoryReceivePage() {
   const [isAutoGenerate, setIsAutoGenerate] = useState(true);
   const [generateCount, setGenerateCount] = useState(1);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [categories, setCategories] = useState([]);
   
   // Staging State
   const [stagedItems, setStagedItems] = useState([]);
@@ -805,6 +806,7 @@ export default function InventoryReceivePage() {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -821,6 +823,15 @@ export default function InventoryReceivePage() {
     } catch (err) {
       console.error('Failed to load products', err);
       return [];
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('/inventory/categories');
+      setCategories(res.data);
+    } catch (err) {
+      console.error('Failed to load categories', err);
     }
   };
 
@@ -881,13 +892,20 @@ export default function InventoryReceivePage() {
     let unit = 'ชิ้น';
     let piecesPerCrate = null;
     let crateUnit = 'ลัง';
+    let category = null;
+
+    const categoryOptionsHtml = categories.map(c => `<option value="${c}"></option>`).join('');
 
     if (!hasSn) {
-      // ไม่มี SN → ถามหน่วยนับ + จำนวนต่อลัง
+      // ไม่มี SN → ถามหน่วยนับ + จำนวนต่อลัง + หมวดหมู่
       const unitResult = await Swal.fire({
-        title: 'ตั้งค่าหน่วยนับ',
+        title: 'ตั้งค่าสินค้า',
         html: `
           <div style="text-align:left;font-size:14px;">
+            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หมวดหมู่สินค้า (Category)</label>
+            <input id="swal-category" list="category-options" class="swal2-input" placeholder="หมวดหมู่..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;margin-bottom:12px;" />
+            <datalist id="category-options">${categoryOptionsHtml}</datalist>
+
             <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
             <input id="swal-unit" list="unit-options" class="swal2-input" placeholder="พิมพ์หรือเลือกหน่วยนับ..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" value="ชิ้น" />
             <datalist id="unit-options">
@@ -929,7 +947,8 @@ export default function InventoryReceivePage() {
           return {
             unit: document.getElementById('swal-unit').value,
             ppc: document.getElementById('swal-ppc').value,
-            crate_unit: document.getElementById('swal-crate-unit').value
+            crate_unit: document.getElementById('swal-crate-unit').value,
+            category: document.getElementById('swal-category').value
           };
         }
       });
@@ -938,13 +957,18 @@ export default function InventoryReceivePage() {
         unit = unitResult.value.unit || 'ชิ้น';
         piecesPerCrate = unitResult.value.ppc ? parseInt(unitResult.value.ppc) : null;
         crateUnit = unitResult.value.crate_unit || 'ลัง';
+        category = unitResult.value.category || null;
       }
     } else {
       // มี SN → หน่วยเป็นชิ้นเสมอ แต่กำหนดลังได้ (optional)
       const crateResult = await Swal.fire({
-        title: 'ตั้งค่าจำนวนต่อลัง',
+        title: 'ตั้งค่าสินค้า',
         html: `
           <div style="text-align:left;font-size:14px;">
+            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หมวดหมู่สินค้า (Category)</label>
+            <input id="swal-category" list="category-options" class="swal2-input" placeholder="หมวดหมู่..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;margin-bottom:12px;" />
+            <datalist id="category-options">${categoryOptionsHtml}</datalist>
+
             <p style="color:#6B7280;margin-bottom:12px;">สินค้ามี SN → หน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
             <div style="display:flex;gap:12px;margin-bottom:6px;">
               <div style="flex:1;">
@@ -967,7 +991,8 @@ export default function InventoryReceivePage() {
         preConfirm: () => {
           return {
             ppc: document.getElementById('swal-ppc').value,
-            crate_unit: document.getElementById('swal-crate-unit').value
+            crate_unit: document.getElementById('swal-crate-unit').value,
+            category: document.getElementById('swal-category').value
           };
         }
       });
@@ -975,6 +1000,7 @@ export default function InventoryReceivePage() {
       if (crateResult.isConfirmed && crateResult.value) {
         piecesPerCrate = crateResult.value.ppc ? parseInt(crateResult.value.ppc) : null;
         crateUnit = crateResult.value.crate_unit || 'ลัง';
+        category = crateResult.value.category || null;
       }
     }
 
@@ -985,7 +1011,8 @@ export default function InventoryReceivePage() {
         has_sn: hasSn,
         unit,
         pieces_per_crate: piecesPerCrate,
-        crate_unit: crateUnit
+        crate_unit: crateUnit,
+        category: category
       });
       const res = await axios.get('/inventory/products');
       setProducts(res.data);

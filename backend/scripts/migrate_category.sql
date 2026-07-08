@@ -1,0 +1,1 @@
+ALTER TABLE inventory_products ADD COLUMN category VARCHAR(100) DEFAULT NULL;

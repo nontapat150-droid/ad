@@ -28,9 +28,20 @@ router.get('/products', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/inventory/categories ──
+router.get('/categories', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT DISTINCT category FROM inventory_products WHERE category IS NOT NULL AND category != "" ORDER BY category ASC');
+    res.json(rows.map(r => r.category));
+  } catch (err) {
+    console.error('Get categories error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
 // ── POST /api/inventory/products ──
 router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { name, has_sn, unit, pieces_per_crate, crate_unit } = req.body;
+  const { name, has_sn, unit, pieces_per_crate, crate_unit, category } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Product name is required' });
@@ -40,8 +51,8 @@ router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const ppc = (pieces_per_crate && parseInt(pieces_per_crate) > 0) ? parseInt(pieces_per_crate) : null;
     const cu = crate_unit || 'ลัง';
     const [result] = await pool.query(
-      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate, crate_unit) VALUES (?, ?, ?, ?, ?)',
-      [name, has_sn ? 1 : 0, unit || 'ชิ้น', ppc, cu]
+      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate, crate_unit, category) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, has_sn ? 1 : 0, unit || 'ชิ้น', ppc, cu, category || null]
     );
     res.json({ message: 'Product created', id: result.insertId });
   } catch (err) {
@@ -52,10 +63,10 @@ router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── PUT /api/inventory/products/:id — Update unit / pieces_per_crate ──
 router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { unit, pieces_per_crate, crate_unit } = req.body;
+  const { unit, pieces_per_crate, crate_unit, category } = req.body;
   const productId = req.params.id;
 
-  if (!unit && pieces_per_crate === undefined && crate_unit === undefined) {
+  if (!unit && pieces_per_crate === undefined && crate_unit === undefined && category === undefined) {
     return res.status(400).json({ error: 'Nothing to update' });
   }
 
@@ -74,6 +85,10 @@ router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
     if (crate_unit !== undefined) {
       updates.push('crate_unit = ?');
       values.push(crate_unit || 'ลัง');
+    }
+    if (category !== undefined) {
+      updates.push('category = ?');
+      values.push(category || null);
     }
 
     if (updates.length === 0) {
@@ -653,7 +668,7 @@ router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT p.id AS product_id, p.name AS product_name, p.has_sn,
-              p.unit, p.pieces_per_crate, p.crate_unit,
+              p.unit, p.pieces_per_crate, p.crate_unit, p.category,
               m.id AS model_id, m.model_name,
               COUNT(ii.id) AS item_count,
               SUM(ii.quantity) AS total_quantity

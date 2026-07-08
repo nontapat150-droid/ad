@@ -261,4 +261,19 @@ router.get('/backfill-customers', async (req, res) => {
   }
 });
 
+// ─── One-time migration: add category to inventory_products ─────────────────
+router.get('/migrate-category', async (req, res) => {
+  const results = [];
+  try {
+    try {
+      await pool.query(`ALTER TABLE inventory_products ADD COLUMN category VARCHAR(100) DEFAULT NULL`);
+      results.push('✅ inventory_products.category added');
+    } catch(e) { results.push('inventory_products.category: ' + e.message); }
+
+    res.json({ success: true, results });
+  } catch(err) {
+    res.status(500).json({ error: err.message, results });
+  }
+});
+
 module.exports = router;
