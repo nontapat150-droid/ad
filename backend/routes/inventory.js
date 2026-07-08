@@ -585,9 +585,9 @@ router.get('/my-bag', auth, async (req, res) => {
   }
 });
 
-  // 💼 GET /api/inventory/non-jobs 💼
-  // Get NON jobs assigned to the user (team or field_engineer_id)
-  router.get('/non-jobs', auth, async (req, res) => {
+  // 💼 GET /api/inventory/active-jobs 💼
+  // Get jobs assigned to the user (team or field_engineer_id)
+  router.get('/active-jobs', auth, async (req, res) => {
     try {
       const targetUserId = req.query.user_id || req.user.id;
       // Get the target user's team
@@ -597,20 +597,19 @@ router.get('/my-bag', auth, async (req, res) => {
       let query = `
         SELECT j.id, j.access_no, j.status, j.customer, j.address, j.created_at
         FROM jobs j
-        WHERE j.access_no LIKE 'NON%' AND j.status != 'completed'
+        WHERE j.status != 'completed'
       `;
       let params = [];
 
-      // Only filter by assigned user if they are not an admin trying to fetch ALL
-      // Actually, since the frontend explicitly requested a specific user's bag, we ALWAYS filter by the targetUserId
+      // Filter by the targetUserId
       query += ` AND (j.field_engineer_id = ? OR j.team_id = ?)`;
-      params.push(targetUserId, teamId || -1); // use -1 if teamId is null so it won't match randomly
+      params.push(targetUserId, teamId || -1);
 
       query += ` ORDER BY j.created_at DESC`;
       const [jobs] = await pool.query(query, params);
       res.json(jobs);
     } catch (err) {
-      console.error('Failed to get non-jobs:', err);
+      console.error('Failed to get active-jobs:', err);
       res.status(500).json({ error: 'Server error' });
     }
   });

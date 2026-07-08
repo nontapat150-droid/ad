@@ -51,10 +51,10 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get(`/inventory/non-jobs${selectedUserId ? `?user_id=${selectedUserId}` : ''}`);
+      const res = await axios.get(`/inventory/active-jobs${selectedUserId ? `?user_id=${selectedUserId}` : ''}`);
       const data = res.data;
-      // Filter only NON jobs that are not completed (already done by backend but good to be safe)
-      const nonJobs = data.filter(j => j.access_no && j.access_no.startsWith('NON') && j.status !== 'completed');
+      // Filter only jobs that are not completed (already done by backend but good to be safe)
+      const nonJobs = data.filter(j => j.status !== 'completed');
       setJobs(nonJobs);
     } catch (err) {
       console.error('Failed to fetch jobs', err);
@@ -74,7 +74,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
 
   const handleSubmit = async () => {
     if (!selectedJobId) {
-      alert('กรุณาเลือกงาน (NON) ที่ต้องการใช้อุปกรณ์');
+      alert('กรุณาเลือกงานที่ต้องการใช้ เพื่อดำเนินการปิดงาน');
       return;
     }
 
@@ -113,7 +113,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
             <h3 className="text-xl font-black text-slate-800">
-              {step === 1 ? 'เลือกอุปกรณ์ที่ต้องการใช้งาน' : 'เลือกงานที่ต้องการใช้ (NON)'}
+              {step === 1 ? 'เลือกอุปกรณ์ที่ต้องการใช้งาน' : 'เลือกงานที่ต้องการใช้งาน'}
             </h3>
             <p className="text-sm font-medium text-slate-500 mt-1">
               {step === 1 ? 'เลือกอุปกรณ์จากกระเป๋าช่างของคุณ' : 'ผูกอุปกรณ์เข้ากับงานเพื่อดำเนินการปิดงานทันที'}
@@ -194,7 +194,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
             <div className="space-y-4">
               <input
                 type="text"
-                placeholder="ค้นหาชื่องาน หรือ เลข NON..."
+                placeholder="ค้นหาชื่องาน หรือ เลขที่งาน..."
                 value={searchJob}
                 onChange={e => setSearchJob(e.target.value)}
                 className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 outline-none transition-all font-medium text-sm"
@@ -206,7 +206,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
                 </div>
               ) : jobs.length === 0 ? (
                 <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="text-slate-500 font-bold">ไม่พบงาน NON ที่สามารถใช้งานได้</p>
+                  <p className="text-slate-500 font-bold">ไม่พบงานที่สามารถใช้งานได้</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300">
