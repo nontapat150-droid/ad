@@ -212,7 +212,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-300">
                   {jobs.filter(j => 
                     (j.access_no || '').toLowerCase().includes(searchJob.toLowerCase()) || 
-                    (j.customer_name || '').toLowerCase().includes(searchJob.toLowerCase())
+                    (j.customer || '').toLowerCase().includes(searchJob.toLowerCase())
                   ).map(job => (
                     <div 
                       key={job.id}
@@ -223,7 +223,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
                     >
                       <div>
                         <div className="font-black text-slate-800 text-base">{job.access_no}</div>
-                        <div className="text-sm font-semibold text-slate-600 mt-0.5">{job.customer_name || 'ไม่ระบุชื่อลูกค้า'}</div>
+                        <div className="text-sm font-semibold text-slate-600 mt-0.5">{job.customer || 'ไม่ระบุชื่อลูกค้า'}</div>
                       </div>
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                         selectedJobId === job.id ? 'border-brand-500 bg-brand-500' : 'border-slate-300'
