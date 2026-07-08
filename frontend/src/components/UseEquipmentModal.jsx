@@ -51,9 +51,9 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
   const fetchJobs = async () => {
     try {
       setIsLoading(true);
-      const res = await axios.get(`/dispatch/jobs${selectedUserId ? `?user_id=${selectedUserId}` : ''}`);
+      const res = await axios.get(`/inventory/non-jobs${selectedUserId ? `?user_id=${selectedUserId}` : ''}`);
       const data = res.data;
-      // Filter only NON jobs that are not completed
+      // Filter only NON jobs that are not completed (already done by backend but good to be safe)
       const nonJobs = data.filter(j => j.access_no && j.access_no.startsWith('NON') && j.status !== 'completed');
       setJobs(nonJobs);
     } catch (err) {
