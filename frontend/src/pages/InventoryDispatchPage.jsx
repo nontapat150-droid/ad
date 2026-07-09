@@ -235,12 +235,22 @@ function StockSelectionModal({ isOpen, onClose, onSelect }) {
   const [selectedModel, setSelectedModel] = useState(null);
   const [modelItems, setModelItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCats, setExpandedCats] = useState({});
+  const searchRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
       setSelectedModel(null);
-      axios.get('/inventory/stock').then(res => setStock(res.data)).finally(() => setLoading(false));
+      setSearchQuery('');
+      setExpandedCats({});
+      axios.get('/inventory/stock').then(res => {
+        setStock(res.data);
+        // Auto-expand first category
+        const cats = [...new Set(res.data.map(m => m.category || 'อื่นๆ'))];
+        if (cats.length > 0) setExpandedCats({ [cats[0]]: true });
+      }).finally(() => setLoading(false));
     }
   }, [isOpen]);
 
@@ -267,55 +277,263 @@ function StockSelectionModal({ isOpen, onClose, onSelect }) {
 
   if (!isOpen) return null;
 
+  // Group stock by category
+  const filteredStock = searchQuery.trim()
+    ? stock.filter(m =>
+        m.product_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.model_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.category?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : stock;
+
+  const grouped = filteredStock.reduce((acc, m) => {
+    const cat = m.category || 'อื่นๆ (ไม่มีหมวดหมู่)';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(m);
+    return acc;
+  }, {});
+
+  const apiBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+
+  const toggleCat = (cat) => setExpandedCats(prev => ({ ...prev, [cat]: !prev[cat] }));
+
+  // Category color palette
+  const CAT_COLORS = [
+    { accent: '#185FA5', light: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' },
+    { accent: '#7C3AED', light: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' },
+    { accent: '#059669', light: '#ECFDF5', border: '#A7F3D0', text: '#047857' },
+    { accent: '#D97706', light: '#FFFBEB', border: '#FDE68A', text: '#B45309' },
+    { accent: '#DC2626', light: '#FEF2F2', border: '#FECACA', text: '#B91C1C' },
+    { accent: '#0891B2', light: '#ECFEFF', border: '#A5F3FC', text: '#0E7490' },
+  ];
+  const catColorMap = {};
+  Object.keys(grouped).forEach((cat, i) => {
+    catColorMap[cat] = CAT_COLORS[i % CAT_COLORS.length];
+  });
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#1F2937]/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" style={{ animation: 'dropdownIn 0.25s ease-out' }}>
-        <div className="p-5 border-b border-[#E5E7EB] flex justify-between items-center bg-[#F9FAFB]">
-          <h2 className="text-xl font-black text-[#1F2937]">
-            {selectedModel ? `📦 ${selectedModel.product_name} - ${selectedModel.model_name}` : '🛒 เลือกสินค้าจากคลัง'}
-          </h2>
-          <button onClick={() => selectedModel ? setSelectedModel(null) : onClose()} className="p-2 text-gray-500 hover:bg-gray-200 rounded-xl font-bold transition">
-            {selectedModel ? '← ย้อนกลับ' : '✕ ปิด'}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#1F2937]/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden" style={{ animation: 'dropdownIn 0.25s ease-out' }}>
+
+        {/* ── Header ── */}
+        <div className="shrink-0 bg-gradient-to-r from-[#042C53] to-[#185FA5] px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {selectedModel ? (
+              <button
+                type="button"
+                onClick={() => setSelectedModel(null)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+            )}
+            <div>
+              {selectedModel ? (
+                <>
+                  <p className="text-xs text-white/60 font-semibold">เลือกรายการเบิก</p>
+                  <p className="text-white font-black text-sm leading-tight">{selectedModel.product_name} · {selectedModel.model_name}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-white/60 font-semibold">ระบบนำออกสินค้า</p>
+                  <p className="text-white font-black">เลือกสินค้าจากคลัง</p>
+                </>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5">
-          {loading ? <div className="text-center py-10 font-bold text-[#9CA3AF]">กำลังโหลด...</div> : 
-           selectedModel ? (
-             itemsLoading ? <div className="text-center py-10 font-bold text-[#9CA3AF]">กำลังโหลดรายการ...</div> :
-             <div className="space-y-3">
-               {modelItems.length === 0 ? <div className="text-center py-10 font-bold text-[#9CA3AF]">ไม่มีสินค้านี้ในคลัง</div> :
-                modelItems.map(item => (
-                  <button key={item.id} onClick={() => handleAddItem(item, selectedModel)} className="w-full text-left p-4 border-2 border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:bg-[#F0FDF4] transition-all flex justify-between items-center group shadow-sm hover:shadow-md">
-                    <div>
-                      <p className="font-mono font-black text-[#1F2937] text-lg">{item.sn}</p>
-                      <p className="text-sm font-bold text-[#6B7280] mt-1">สต็อกคงเหลือ: <span className="text-[#185FA5]">{parseFloat(item.quantity).toLocaleString()} {selectedModel.unit || 'ชิ้น'}</span></p>
+
+        {/* ── Search bar (only on stock list) ── */}
+        {!selectedModel && (
+          <div className="shrink-0 px-4 py-3 border-b border-[#F3F4F6] bg-[#FAFAFA]">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                ref={searchRef}
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาสินค้า, โมเดล, หรือหมวดหมู่..."
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-[#E5E7EB] rounded-xl text-sm text-[#1F2937] font-bold focus:outline-none focus:border-[#185FA5] focus:ring-2 focus:ring-[#185FA5]/15 transition-all"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#1F2937]">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Content ── */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <svg className="animate-spin h-8 w-8 text-[#185FA5]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm font-bold text-[#9CA3AF]">กำลังโหลดข้อมูลคลัง...</span>
+            </div>
+          ) : selectedModel ? (
+            /* ── Item List ── */
+            <div className="p-4">
+              {itemsLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <svg className="animate-spin h-8 w-8 text-[#185FA5]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-sm font-bold text-[#9CA3AF]">กำลังโหลดรายการ...</span>
+                </div>
+              ) : modelItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-[#9CA3AF]">
+                  <svg className="w-12 h-12 mb-3 text-[#E5E7EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  <p className="font-bold">ไม่มีสินค้านี้ในคลัง</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                    {modelItems.length} รายการที่พร้อมเบิก
+                  </p>
+                  {modelItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleAddItem(item, selectedModel)}
+                      className="w-full text-left p-4 bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:bg-[#F0FDF4] transition-all flex justify-between items-center group shadow-sm hover:shadow-md active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-[#E5E7EB] flex items-center justify-center shrink-0 group-hover:border-[#A3E635] transition-colors">
+                          <svg className="w-5 h-5 text-[#9CA3AF] group-hover:text-[#16A34A]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                        </div>
+                        <div>
+                          <p className="font-mono font-black text-[#1F2937] text-base">{selectedModel.has_sn ? item.sn : `ล็อต: ${item.sn}`}</p>
+                          <p className="text-xs font-bold text-[#6B7280] mt-0.5">
+                            คงเหลือ: <span className="text-[#185FA5]">{parseFloat(item.quantity).toLocaleString()} {selectedModel.unit || 'ชิ้น'}</span>
+                            {item.created_at && <span className="ml-2 text-[#9CA3AF]">· {new Date(item.created_at).toLocaleDateString('th-TH')}</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="bg-[#E5E7EB] group-hover:bg-[#A3E635] text-[#4B5563] group-hover:text-[#1F2937] px-4 py-2 text-xs font-black rounded-xl transition-all shrink-0 ml-2">
+                        เลือกเบิก
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ── Category + Product List ── */
+            <div className="p-4 space-y-3">
+              {Object.keys(grouped).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-[#9CA3AF]">
+                  <svg className="w-12 h-12 mb-3 text-[#E5E7EB]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  <p className="font-bold">{searchQuery ? 'ไม่พบสินค้าที่ค้นหา' : 'ไม่มีสินค้าในคลัง'}</p>
+                </div>
+              ) : (
+                Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b, 'th')).map(([cat, items]) => {
+                  const cc = catColorMap[cat];
+                  const isOpen = searchQuery.trim() || expandedCats[cat];
+                  const totalItems = items.reduce((s, m) => s + (m.item_count || 0), 0);
+                  return (
+                    <div key={cat} className="rounded-2xl border overflow-hidden" style={{ borderColor: cc.border }}>
+                      {/* Category header */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(cat)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                        style={{ background: cc.light }}
+                      >
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: cc.accent }}>
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-sm truncate" style={{ color: cc.text }}>{cat}</p>
+                          <p className="text-xs font-semibold" style={{ color: cc.text, opacity: 0.7 }}>
+                            {items.length} โมเดล · {totalItems} รายการในคลัง
+                          </p>
+                        </div>
+                        <svg
+                          className="w-4 h-4 shrink-0 transition-transform duration-300"
+                          style={{ color: cc.text, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {/* Products in category */}
+                      {isOpen && (
+                        <div className="bg-white divide-y divide-[#F3F4F6]">
+                          {items.map(m => (
+                            <button
+                              key={m.model_id}
+                              onClick={() => handleSelectModel(m)}
+                              className="w-full text-left px-4 py-3.5 hover:bg-[#F9FAFB] transition-colors flex items-center gap-3 group"
+                            >
+                              {/* Product image or icon */}
+                              <div className="w-11 h-11 rounded-xl bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center shrink-0 overflow-hidden group-hover:border-[#A3E635] transition-colors">
+                                {m.model_image_url ? (
+                                  <img src={`${apiBase}${m.model_image_url}`} alt={m.model_name} className="w-full h-full object-cover" />
+                                ) : m.image_url ? (
+                                  <img src={`${apiBase}${m.image_url}`} alt={m.product_name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-lg">📦</span>
+                                )}
+                              </div>
+                              {/* Name */}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-[#1F2937] text-sm truncate group-hover:text-[#185FA5] transition-colors">{m.product_name}</p>
+                                <p className="text-xs font-semibold text-[#9CA3AF] truncate mt-0.5">{m.model_name}</p>
+                              </div>
+                              {/* Stock badge + arrow */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="bg-[#F0FDF4] text-[#16A34A] border border-[#BBF7D0] px-2.5 py-1 text-xs font-black rounded-lg">
+                                  {m.item_count} รายการ
+                                </span>
+                                <svg className="w-4 h-4 text-[#D1D5DB] group-hover:text-[#185FA5] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <span className="bg-[#E5E7EB] group-hover:bg-[#A3E635] text-[#1F2937] px-4 py-2 text-sm font-black rounded-xl transition-colors">
-                      เลือกเบิก
-                    </span>
-                  </button>
-                ))
-               }
-             </div>
-           ) : (
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               {stock.map(m => (
-                 <button key={m.model_id} onClick={() => handleSelectModel(m)} className="text-left p-4 bg-white border-2 border-[#E5E7EB] rounded-2xl hover:border-[#A3E635] hover:shadow-md transition-all group">
-                   <p className="font-black text-[#1F2937] text-base truncate group-hover:text-[#185FA5] transition-colors">{m.product_name}</p>
-                   <p className="text-sm font-bold text-[#6B7280] truncate mt-0.5">{m.model_name}</p>
-                   <div className="mt-3 flex gap-2">
-                     <span className="bg-[#F0FDF4] text-[#16A34A] border border-[#16A34A]/20 px-2.5 py-1 text-xs font-black rounded-lg">ในคลัง {m.item_count} รายการ</span>
-                     {m.total_quantity > m.item_count && (
-                       <span className="bg-blue-50 text-blue-600 border border-blue-200 px-2.5 py-1 text-xs font-black rounded-lg">รวม {parseFloat(m.total_quantity).toLocaleString()} {m.unit || 'ชิ้น'}</span>
-                     )}
-                   </div>
-                 </button>
-               ))}
-               {stock.length === 0 && <div className="col-span-full text-center py-10 font-bold text-[#9CA3AF]">ไม่มีสินค้าในคลัง</div>}
-             </div>
-           )
-          }
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
+
+        {/* ── Footer ── */}
+        {!selectedModel && !loading && stock.length > 0 && (
+          <div className="shrink-0 px-5 py-3 border-t border-[#F3F4F6] bg-[#FAFAFA] flex items-center justify-between">
+            <p className="text-xs font-bold text-[#9CA3AF]">
+              {filteredStock.length} โมเดล · {Object.keys(grouped).length} หมวดหมู่
+            </p>
+            <p className="text-xs font-semibold text-[#9CA3AF]">คลิกที่โมเดลเพื่อดูรายการ</p>
+          </div>
+        )}
       </div>
     </div>
   );
