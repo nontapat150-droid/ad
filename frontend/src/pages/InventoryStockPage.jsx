@@ -107,7 +107,23 @@ export default function InventoryStockPage() {
         html: `
           <div style="text-align: left; padding: 5px;">
             <p style="margin-bottom: 4px; font-weight: 900; font-size: 1.15rem; color: #1F2937;">${product.product_name}</p>
-            <p style="margin-bottom: 20px; color: #6B7280; font-size: 0.95rem; font-weight: bold; display: inline-block; background: #F3F4F6; padding: 4px 10px; border-radius: 8px; border: 1px solid #E5E7EB;">โมเดล: ${model.model_name}</p>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom: 20px;">
+              <p style="color: #6B7280; font-size: 0.95rem; font-weight: bold; display: inline-block; background: #F3F4F6; padding: 4px 10px; border-radius: 8px; border: 1px solid #E5E7EB; margin: 0;">โมเดล: ${model.model_name}</p>
+              <button 
+                type="button" 
+                class="edit-single-model-btn" 
+                data-model-id="${model.model_id}"
+                data-model-name="${model.model_name}"
+                data-model-image="${model.model_image_url || ''}"
+                style="background-color: #EEF2FF; color: #4F46E5; border: 1px solid #E0E7FF; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 4px 8px; transition: all 0.2s;"
+                onmouseover="this.style.backgroundColor='#E0E7FF';"
+                onmouseout="this.style.backgroundColor='#EEF2FF';"
+                title="แก้ไขโมเดล"
+              >
+                <svg style="width: 16px; height: 16px; margin-right: 4px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                <span style="font-size: 12px; font-weight: bold;">แก้ไข</span>
+              </button>
+            </div>
             <div style="max-height: 380px; overflow-y: auto; text-align: left; padding-right: 5px;">
               ${snItems.length > 0 ? snHtml : '<div style="text-align:center; padding: 30px; color:#9CA3AF; font-weight: bold; background: #F9FAFB; border-radius: 12px; border: 1px dashed #E5E7EB;">ไม่มีข้อมูลในสต๊อก</div>'}
             </div>
@@ -119,6 +135,18 @@ export default function InventoryStockPage() {
         customClass: { popup: 'rounded-3xl' },
         didOpen: () => {
           const popup = Swal.getPopup();
+          
+          const editBtn = popup.querySelector('.edit-single-model-btn');
+          if (editBtn) {
+            editBtn.addEventListener('click', async () => {
+              const modelId = editBtn.getAttribute('data-model-id');
+              const modelName = editBtn.getAttribute('data-model-name');
+              const modelImage = editBtn.getAttribute('data-model-image');
+              Swal.close();
+              await handleEditModel(product, modelId, modelName, modelImage);
+            });
+          }
+
           const btns = popup.querySelectorAll('.del-sn-btn');
           btns.forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -177,6 +205,75 @@ export default function InventoryStockPage() {
         fetchStock();
       } catch (err) {
         Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถลบข้อมูลได้' });
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleEditModel = async (product, modelId, modelName, modelImage) => {
+    const productOptionsHtml = groupedStock
+      .filter(p => p.has_sn === product.has_sn)
+      .map(p => `<option value="${p.product_id}" ${p.product_id == product.product_id ? 'selected' : ''}>${p.product_name}</option>`)
+      .join('');
+    
+    const { value: formValues } = await Swal.fire({
+      title: `แก้ไขโมเดล: ${modelName}`,
+      html: `
+        <div style="text-align:left;font-size:14px;">
+          <label style="font-weight:bold;margin-bottom:6px;display:block;">ชื่อโมเดล</label>
+          <input id="swal-model-name" class="swal2-input" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;" value="${modelName}" />
+          
+          <label style="font-weight:bold;margin-bottom:6px;display:block;">ย้ายไปสินค้าอื่น (ต้องเป็นประเภทเดียวกัน)</label>
+          <select id="swal-product-id" class="swal2-select" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;">
+            ${productOptionsHtml}
+          </select>
+
+          <label style="font-weight:bold;margin-bottom:6px;display:block;">เปลี่ยนรูปภาพโมเดล (ไม่บังคับ)</label>
+          <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;background:#f9fafb;" />
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      preConfirm: async () => {
+        const newName = document.getElementById('swal-model-name').value;
+        const newProductId = document.getElementById('swal-product-id').value;
+        const imgFile = document.getElementById('swal-model-image')?.files[0];
+        
+        if (!newName.trim()) {
+          Swal.showValidationMessage('กรุณากรอกชื่อโมเดล');
+          return false;
+        }
+        
+        let imageUrl = undefined;
+        if (imgFile) {
+          const formData = new FormData();
+          formData.append('image', imgFile);
+          try {
+            const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            imageUrl = uploadRes.data.image_url;
+          } catch (err) {
+            Swal.showValidationMessage('อัปโหลดรูปภาพไม่สำเร็จ');
+            return false;
+          }
+        }
+        return { newName, newProductId, imageUrl };
+      }
+    });
+    
+    if (formValues) {
+      setLoading(true);
+      try {
+        await axios.put(`/inventory/models/${modelId}`, { 
+          model_name: formValues.newName,
+          product_id: formValues.newProductId,
+          image_url: formValues.imageUrl 
+        });
+        Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
+        fetchStock();
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถแก้ไขได้', text: err.response?.data?.error || err.message });
+      } finally {
         setLoading(false);
       }
     }
@@ -261,73 +358,7 @@ export default function InventoryStockPage() {
               const modelImage = btn.getAttribute('data-model-image');
               
               Swal.close();
-              
-              const productOptionsHtml = groupedStock
-                .filter(p => p.has_sn === product.has_sn)
-                .map(p => `<option value="${p.product_id}" ${p.product_id == product.product_id ? 'selected' : ''}>${p.product_name}</option>`)
-                .join('');
-              
-              const { value: formValues } = await Swal.fire({
-                title: `แก้ไขโมเดล: ${modelName}`,
-                html: `
-                  <div style="text-align:left;font-size:14px;">
-                    <label style="font-weight:bold;margin-bottom:6px;display:block;">ชื่อโมเดล</label>
-                    <input id="swal-model-name" class="swal2-input" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;" value="${modelName}" />
-                    
-                    <label style="font-weight:bold;margin-bottom:6px;display:block;">ย้ายไปสินค้าอื่น (ต้องเป็นประเภทเดียวกัน)</label>
-                    <select id="swal-product-id" class="swal2-select" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;">
-                      ${productOptionsHtml}
-                    </select>
-
-                    <label style="font-weight:bold;margin-bottom:6px;display:block;">เปลี่ยนรูปภาพโมเดล (ไม่บังคับ)</label>
-                    <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;background:#f9fafb;" />
-                  </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'บันทึก',
-                cancelButtonText: 'ยกเลิก',
-                preConfirm: async () => {
-                  const newName = document.getElementById('swal-model-name').value;
-                  const newProductId = document.getElementById('swal-product-id').value;
-                  const imgFile = document.getElementById('swal-model-image')?.files[0];
-                  
-                  if (!newName.trim()) {
-                    Swal.showValidationMessage('กรุณากรอกชื่อโมเดล');
-                    return false;
-                  }
-                  
-                  let imageUrl = undefined;
-                  if (imgFile) {
-                    const formData = new FormData();
-                    formData.append('image', imgFile);
-                    try {
-                      const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-                      imageUrl = uploadRes.data.image_url;
-                    } catch (err) {
-                      Swal.showValidationMessage('อัปโหลดรูปภาพไม่สำเร็จ');
-                      return false;
-                    }
-                  }
-                  return { newName, newProductId, imageUrl };
-                }
-              });
-              
-              if (formValues) {
-                setLoading(true);
-                try {
-                  await axios.put(`/inventory/models/${modelId}`, { 
-                    model_name: formValues.newName,
-                    product_id: formValues.newProductId,
-                    image_url: formValues.imageUrl 
-                  });
-                  Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
-                  fetchStock();
-                } catch (err) {
-                  Swal.fire({ icon: 'error', title: 'ไม่สามารถแก้ไขได้', text: err.response?.data?.error || err.message });
-                } finally {
-                  setLoading(false);
-                }
-              }
+              await handleEditModel(product, modelId, modelName, modelImage);
             });
           });
         }
