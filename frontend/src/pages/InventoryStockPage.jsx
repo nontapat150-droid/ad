@@ -372,20 +372,33 @@ export default function InventoryStockPage() {
   const handleEditUnitSettings = async (product) => {
     const categoryOptionsHtml = categories.map(c => `<option value="${c.name}"></option>`).join('');
 
+    const categorySelectHtml = `
+      <option value="">-- ระบุหมวดหมู่... --</option>
+      ${categories.map(c => `<option value="${c.name}" ${product.category === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+      <option value="${product.category || ''}" ${!categories.find(c => c.category === product.category) && product.category ? 'selected' : ''} hidden>${product.category || ''}</option>
+    `;
+
     const result = await Swal.fire({
       title: `ตั้งค่าสินค้า / หมวดหมู่`,
       html: `
         <style>
-          .swal-inv-label { font-size:12px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:6px; }
-          .swal-inv-input { width:100%; padding:10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; transition:border-color 0.2s; }
+          .swal-inv-label { font-size:11px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:6px; }
+          .swal-inv-input { width:100%; padding:10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
           .swal-inv-input:focus { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,0.12); }
+          .swal-inv-select-wrap { position:relative; }
+          .swal-inv-select { width:100%; padding:10px 38px 10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; appearance:none; -webkit-appearance:none; cursor:pointer; transition:border-color 0.2s,box-shadow 0.2s; }
+          .swal-inv-select:focus { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,0.12); }
+          .swal-inv-select-icon { position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:#9CA3AF; }
           .swal-inv-section { background:#F9FAFB; border:1px solid #E5E7EB; border-radius:14px; padding:16px; margin-bottom:12px; }
           .swal-inv-grid { display:flex; gap:12px; }
           .swal-inv-grid > div { flex:1; }
-          .swal-inv-badge { display:inline-flex; align-items:center; gap:6px; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; margin-bottom:12px; }
-          .swal-inv-sn-note { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:10px 14px; color:#166534; font-size:13px; font-weight:600; margin-bottom:0; display:flex; align-items:center; gap:8px; }
-          .swal-inv-file { width:100%; padding:8px 14px; border:1.5px dashed #CBD5E1; border-radius:10px; font-size:13px; color:#6B7280; background:#F8FAFC; box-sizing:border-box; cursor:pointer; }
-          .swal-inv-file:hover { border-color:#185FA5; background:#EFF6FF; }
+          .swal-inv-sn-note { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:10px 14px; color:#166534; font-size:13px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+          .swal-inv-upload-btn { display:flex; align-items:center; gap:10px; padding:10px 16px; border:1.5px dashed #CBD5E1; border-radius:10px; background:#F8FAFC; cursor:pointer; transition:all 0.2s; width:100%; box-sizing:border-box; }
+          .swal-inv-upload-btn:hover { border-color:#185FA5; background:#EFF6FF; }
+          .swal-inv-upload-btn:hover .upload-icon { color:#185FA5; }
+          .upload-icon { color:#9CA3AF; transition:color 0.2s; flex-shrink:0; }
+          .upload-filename { font-size:13px; font-weight:600; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .upload-filename.selected { color:#185FA5; }
         </style>
         <div style="text-align:left;">
           
@@ -401,31 +414,38 @@ export default function InventoryStockPage() {
           <!-- Category -->
           <div class="swal-inv-section">
             <label class="swal-inv-label">🏷️ หมวดหมู่สินค้า (Category)</label>
-            <input id="swal-edit-category" list="edit-category-options" class="swal-inv-input" value="${product.category || ''}" placeholder="ระบุหมวดหมู่..." />
-            <datalist id="edit-category-options">${categoryOptionsHtml}</datalist>
+            <div class="swal-inv-select-wrap">
+              <select id="swal-edit-category" class="swal-inv-select">
+                ${categorySelectHtml}
+              </select>
+              <svg class="swal-inv-select-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+            </div>
           </div>
 
           <!-- Product image -->
           <div class="swal-inv-section">
             <label class="swal-inv-label">🖼️ รูปภาพสินค้า (ไม่บังคับ)</label>
-            <input type="file" id="swal-edit-image" accept="image/*" class="swal-inv-file" />
+            <input type="file" id="swal-edit-image" accept="image/*" style="display:none;" />
+            <button type="button" id="swal-upload-btn" class="swal-inv-upload-btn" onclick="document.getElementById('swal-edit-image').click()">
+              <svg class="upload-icon" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span class="upload-filename" id="swal-filename-label">คลิกเพื่อเลือกรูปภาพ...</span>
+            </button>
           </div>
 
           <!-- Unit settings -->
           <div class="swal-inv-section">
             <label class="swal-inv-label">📐 หน่วยนับ &amp; บรรจุภัณฑ์</label>
             ${!product.has_sn ? `
-              <input id="swal-edit-unit" list="unit-options" class="swal-inv-input" value="${product.unit || 'ชิ้น'}" placeholder="เช่น ชิ้น, กล่อง, เมตร..." style="margin-bottom:12px;" />
-              <datalist id="unit-options">
-                <option value="ชิ้น"></option><option value="กล่อง"></option><option value="ม้วน"></option>
-                <option value="เส้น"></option><option value="เมตร"></option><option value="แพ็ค"></option>
-                <option value="อัน"></option><option value="ชุด"></option>
-              </datalist>
+              <div class="swal-inv-select-wrap" style="margin-bottom:12px;">
+                <select id="swal-edit-unit" class="swal-inv-select">
+                  ${['ชิ้น','กล่อง','ม้วน','เส้น','เมตร','แพ็ค','อัน','ชุด'].map(u => `<option value="${u}" ${(product.unit||'ชิ้น')===u?'selected':''}>${u}</option>`).join('')}
+                </select>
+                <svg class="swal-inv-select-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+              </div>
             ` : `
               <div class="swal-inv-sn-note">
                 <span>✅</span> สินค้ามี Serial Number → หน่วยเป็น <strong style="margin-left:4px;">"ชิ้น"</strong> เสมอ
               </div>
-              <div style="height:12px;"></div>
             `}
             <div class="swal-inv-grid">
               <div>
@@ -434,11 +454,12 @@ export default function InventoryStockPage() {
               </div>
               <div>
                 <label class="swal-inv-label">ชื่อเรียกแพ็คเกจใหญ่</label>
-                <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, แพ็ค..." class="swal-inv-input" />
-                <datalist id="crate-unit-options">
-                  <option value="ลัง"></option><option value="แพ็ค"></option><option value="ม้วน"></option>
-                  <option value="ขด"></option><option value="กล่อง"></option>
-                </datalist>
+                <div class="swal-inv-select-wrap">
+                  <select id="swal-edit-crate-unit" class="swal-inv-select">
+                    ${['ลัง','แพ็ค','ม้วน','ขด','กล่อง'].map(u => `<option value="${u}" ${(product.crate_unit||'ลัง')===u?'selected':''}>${u}</option>`).join('')}
+                  </select>
+                  <svg class="swal-inv-select-icon" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+                </div>
               </div>
             </div>
           </div>
@@ -450,8 +471,24 @@ export default function InventoryStockPage() {
       showCancelButton: true,
       cancelButtonText: 'ยกเลิก',
       cancelButtonColor: '#9CA3AF',
-      customClass: { popup: 'rounded-3xl', confirmButton: 'swal2-confirm-btn', cancelButton: 'swal2-cancel-btn' },
+      customClass: { popup: 'rounded-3xl' },
       width: '520px',
+      didOpen: () => {
+        const fileInput = document.getElementById('swal-edit-image');
+        const filenameLabel = document.getElementById('swal-filename-label');
+        if (fileInput && filenameLabel) {
+          fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (file) {
+              filenameLabel.textContent = file.name;
+              filenameLabel.classList.add('selected');
+            } else {
+              filenameLabel.textContent = 'คลิกเพื่อเลือกรูปภาพ...';
+              filenameLabel.classList.remove('selected');
+            }
+          });
+        }
+      },
       preConfirm: async () => {
         const unitEl = document.getElementById('swal-edit-unit');
         const imgFile = document.getElementById('swal-edit-image')?.files[0];
