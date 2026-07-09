@@ -2,18 +2,13 @@ const pool = require('./backend/config/db');
 
 async function test() {
   try {
-    const [cols] = await pool.query('SHOW COLUMNS FROM inventory_products');
-    console.log('Columns in inventory_products:');
-    console.table(cols);
+    const [models] = await pool.query('SELECT id, product_id, model_name, image_url FROM inventory_models WHERE image_url IS NOT NULL ORDER BY id DESC LIMIT 5');
+    console.log('Models with image_url:');
+    console.table(models);
     
-    // Try inserting
-    try {
-      const [res] = await pool.query('INSERT INTO inventory_products (name, has_sn, prefix) VALUES (?, ?, ?)', ['TEST_PRODUCT', true, null]);
-      console.log('Insert success:', res.insertId);
-      await pool.query('DELETE FROM inventory_products WHERE id = ?', [res.insertId]);
-    } catch(e) {
-      console.error('Insert error:', e.message);
-    }
+    const [products] = await pool.query('SELECT id, name, image_url FROM inventory_products WHERE image_url IS NOT NULL ORDER BY id DESC LIMIT 5');
+    console.log('Products with image_url:');
+    console.table(products);
 
   } catch(err) {
     console.error('Error:', err);

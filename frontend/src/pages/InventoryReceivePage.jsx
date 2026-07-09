@@ -101,7 +101,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         // ค้นหาแถวที่มีโอกาสเป็น Header มากที่สุด (จาก 10 แถวแรก)
         let headerRowIndex = -1;
         let bestScore = 0;
-        const keywords = ['product', 'สินค้า', 'ชื่อสินค้า', 'model', 'โมเดล', 'รุ่น', 'sn', 'serial', 'ซีเรียล', 'รหัส', 'barcode', 'เบอร์', 'phone', 'tel', 'เบอร์โทร', 'ทีม'];
+        const keywords = ['product', 'สินค้า', 'ชื่อสินค้า', 'model', 'โมเดล', 'รุ่น', 'sn', 'serial', 'ซีเรียล', 'รหัส', 'barcode', 'เบอร์', 'phone', 'tel', 'เบอร์โทร'];
 
         for (let i = 0; i < Math.min(10, rawData.length); i++) {
           const rowArr = rawData[i].map(String);
@@ -247,10 +247,6 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
 
           if (!rawProduct && globalProduct) rawProduct = globalProduct;
           if (!rawModel && globalModel) rawModel = globalModel;
-
-          if (!rawModel && rawProduct) {
-            rawModel = rawProduct;
-          }
 
           const matchedProduct = matchProduct(rawProduct);
           const matchedModel   = matchedProduct ? matchModel(matchedProduct, rawModel) : null;
@@ -1043,16 +1039,16 @@ export default function InventoryReceivePage() {
     
     // Ask for image first
     const { value: file } = await Swal.fire({
-      title: '?????????????????????? (?????????)',
-      html: 
+      title: 'เพิ่มโมเดลใหม่\n(พร้อมรูปภาพ)',
+      html: `
         <div style="text-align:left;font-size:14px;">
-          <p style="margin-bottom:12px;color:#1F2937;font-weight:bold;">?????: ${modelSearchInput}</p>
+          <p style="margin-bottom:12px;color:#1F2937;font-weight:bold;">โมเดล: ${modelSearchInput}</p>
           <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;background:#f9fafb;" />
         </div>
-      ,
+      `,
       showCancelButton: true,
-      confirmButtonText: '??????',
-      cancelButtonText: '???? (?????????)',
+      confirmButtonText: 'ยืนยัน',
+      cancelButtonText: 'ยกเลิก',
       confirmButtonColor: '#185FA5',
       preConfirm: async () => {
         const imgFile = document.getElementById('swal-model-image')?.files[0];
@@ -1063,7 +1059,7 @@ export default function InventoryReceivePage() {
             const uploadRes = await axios.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             return uploadRes.data.image_url;
           } catch (err) {
-            Swal.showValidationMessage('??????????????????????');
+            Swal.showValidationMessage('กรุณาเลือกไฟล์ภาพก่อน');
             return false;
           }
         }
@@ -1080,10 +1076,10 @@ export default function InventoryReceivePage() {
       const newModel = updatedProduct?.models?.find(m => m.model_name === modelSearchInput);
       if (newModel) {
         setSelectedModelId(newModel.id);
-        Swal.fire({ icon: 'success', title: '????????????????????', timer: 1000, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'เพิ่มโมเดลแล้ว', timer: 1000, showConfirmButton: false });
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: '??????????????', text: err.response?.data?.error || '??????????????????????' });
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถเพิ่มโมเดลได้' });
     } finally {
       setLoading(false);
     }
