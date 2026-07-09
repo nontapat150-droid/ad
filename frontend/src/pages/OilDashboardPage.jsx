@@ -13,7 +13,7 @@ import ImageWithFallback from '../components/common/ImageWithFallback';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
 // Tooltip shared between line and bar charts
-function OverallPercentageSummary({ vehicles }) {
+function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
   if (!vehicles || vehicles.length === 0) return null;
 
   const totalCost = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_cost) || 0), 0);
@@ -22,6 +22,17 @@ function OverallPercentageSummary({ vehicles }) {
 
   if (totalCost === 0 && totalDistance === 0 && totalLiters === 0) return null;
 
+  let headerText = 'สรุปภาพรวมทั้งหมด (100%)';
+  if (selectedTeams && selectedTeams.length > 0 && teams && teams.length > 0) {
+    const selectedTeamNames = selectedTeams.map(id => {
+      const t = teams.find(team => team.id === id);
+      return t ? t.team_name : '';
+    }).filter(Boolean).join(', ');
+    if (selectedTeamNames) {
+      headerText = `สรุปภาพรวมของทีม ${selectedTeamNames}`;
+    }
+  }
+
   return (
     <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 mb-6 animate-fade-in-up">
       <div className="mb-5 border-b border-[#F3F4F6] pb-5">
@@ -29,7 +40,7 @@ function OverallPercentageSummary({ vehicles }) {
           <span className="bg-indigo-100 p-1.5 rounded-lg text-indigo-600">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
           </span>
-          สรุปภาพรวมทั้งหมด (100%)
+          {headerText}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100/50">
@@ -1214,7 +1225,7 @@ export default function OilDashboardPage() {
           <div className="flex flex-col gap-6 stagger-children">
 
               {/* Overall Percentage Summary */}
-              <OverallPercentageSummary vehicles={analytics.byVehicle} />
+              <OverallPercentageSummary vehicles={analytics.byVehicle} selectedTeams={selectedTeams} teams={teams} />
 
               {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
