@@ -101,7 +101,7 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
         // ค้นหาแถวที่มีโอกาสเป็น Header มากที่สุด (จาก 10 แถวแรก)
         let headerRowIndex = -1;
         let bestScore = 0;
-        const keywords = ['product', 'สินค้า', 'ชื่อสินค้า', 'model', 'โมเดล', 'รุ่น', 'sn', 'serial', 'ซีเรียล', 'รหัส', 'barcode', 'เบอร์', 'phone', 'tel', 'เบอร์โทร'];
+        const keywords = ['product', 'สินค้า', 'ชื่อสินค้า', 'model', 'โมเดล', 'รุ่น', 'sn', 'serial', 'ซีเรียล', 'รหัส', 'barcode', 'เบอร์', 'phone', 'tel', 'เบอร์โทร', 'ทีม'];
 
         for (let i = 0; i < Math.min(10, rawData.length); i++) {
           const rowArr = rawData[i].map(String);
@@ -247,6 +247,10 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
 
           if (!rawProduct && globalProduct) rawProduct = globalProduct;
           if (!rawModel && globalModel) rawModel = globalModel;
+
+          if (!rawModel && rawProduct) {
+            rawModel = rawProduct;
+          }
 
           const matchedProduct = matchProduct(rawProduct);
           const matchedModel   = matchedProduct ? matchModel(matchedProduct, rawModel) : null;
