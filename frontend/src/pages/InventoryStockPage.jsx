@@ -217,34 +217,88 @@ export default function InventoryStockPage() {
       .join('');
     
     const { value: formValues } = await Swal.fire({
-      title: `แก้ไขโมเดล: ${modelName}`,
+      title: '',
       html: `
-        <div style="text-align:left;font-size:14px;">
-          <label style="font-weight:bold;margin-bottom:6px;display:block;">ชื่อโมเดล</label>
-          <input id="swal-model-name" class="swal2-input" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;" value="${modelName}" />
-          
-          <label style="font-weight:bold;margin-bottom:6px;display:block;">ย้ายไปสินค้าอื่น (ต้องเป็นประเภทเดียวกัน)</label>
-          <select id="swal-product-id" class="swal2-select" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;">
-            ${productOptionsHtml}
-          </select>
-
-          <label style="font-weight:bold;margin-bottom:6px;display:block;">เปลี่ยนรูปภาพโมเดล (ไม่บังคับ)</label>
-          <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;background:#f9fafb;" />
+        <style>
+          .em-label { font-size:11px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:6px; }
+          .em-input { width:100%; padding:10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; transition:border-color 0.2s,box-shadow 0.2s; }
+          .em-input:focus { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,0.12); }
+          .em-select-wrap { position:relative; }
+          .em-select { width:100%; padding:10px 38px 10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; appearance:none; -webkit-appearance:none; cursor:pointer; transition:border-color 0.2s,box-shadow 0.2s; }
+          .em-select:focus { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,0.12); }
+          .em-select-icon { position:absolute; right:12px; top:50%; transform:translateY(-50%); pointer-events:none; color:#9CA3AF; }
+          .em-section { background:#F9FAFB; border:1px solid #E5E7EB; border-radius:14px; padding:16px; margin-bottom:12px; }
+          .em-upload-btn { display:flex; align-items:center; gap:10px; padding:10px 16px; border:1.5px dashed #CBD5E1; border-radius:10px; background:#F8FAFC; cursor:pointer; transition:all 0.2s; width:100%; box-sizing:border-box; }
+          .em-upload-btn:hover { border-color:#185FA5; background:#EFF6FF; }
+          .em-upload-btn:hover .em-upload-icon { color:#185FA5; }
+          .em-upload-icon { color:#9CA3AF; transition:color 0.2s; flex-shrink:0; }
+          .em-filename { font-size:13px; font-weight:600; color:#6B7280; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .em-filename.selected { color:#185FA5; }
+          .em-note { background:#FFF7ED; border:1px solid #FED7AA; border-radius:10px; padding:10px 14px; color:#92400E; font-size:12px; font-weight:600; display:flex; align-items:flex-start; gap:8px; margin-top:10px; }
+        </style>
+        <div style="text-align:left;">
+          <div style="display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#042C53 0%,#185FA5 100%);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+            <span style="font-size:1.4rem;">✏️</span>
+            <div>
+              <p style="font-size:11px;color:rgba(255,255,255,0.7);font-weight:600;margin:0;">กำลังแก้ไขโมเดล</p>
+              <p style="font-size:15px;color:#fff;font-weight:900;margin:0;">${modelName}</p>
+            </div>
+          </div>
+          <div class="em-section">
+            <label class="em-label">✏️ ชื่อโมเดล</label>
+            <input id="swal-model-name" class="em-input" value="${modelName}" placeholder="กรอกชื่อโมเดล..." />
+          </div>
+          <div class="em-section">
+            <label class="em-label">📦 ย้ายไปสินค้าอื่น (ต้องเป็นประเภทเดียวกัน)</label>
+            <div class="em-select-wrap">
+              <select id="swal-product-id" class="em-select">
+                ${productOptionsHtml}
+              </select>
+              <svg class="em-select-icon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="em-note">
+              <span>⚠️</span>
+              <span>การย้ายโมเดลจะย้ายสินค้าทั้งหมดในโมเดลนี้ไปยังสินค้าที่เลือก</span>
+            </div>
+          </div>
+          <div class="em-section" style="margin-bottom:0;">
+            <label class="em-label">🖼️ เปลี่ยนรูปภาพโมเดล (ไม่บังคับ)</label>
+            <input type="file" id="swal-model-image" accept="image/*" style="display:none;" />
+            <button type="button" class="em-upload-btn" onclick="document.getElementById('swal-model-image').click()">
+              <svg class="em-upload-icon" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span class="em-filename" id="em-filename-label">${modelImage ? 'มีรูปภาพอยู่แล้ว (คลิกเพื่อเปลี่ยน)' : 'คลิกเพื่อเลือกรูปภาพ...'}</span>
+            </button>
+          </div>
         </div>
       `,
+      confirmButtonText: '💾 บันทึก',
+      confirmButtonColor: '#185FA5',
       showCancelButton: true,
-      confirmButtonText: 'บันทึก',
       cancelButtonText: 'ยกเลิก',
+      cancelButtonColor: '#9CA3AF',
+      customClass: { popup: 'rounded-3xl' },
+      width: '500px',
+      didOpen: () => {
+        const fileInput = document.getElementById('swal-model-image');
+        const filenameLabel = document.getElementById('em-filename-label');
+        if (fileInput && filenameLabel) {
+          fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (file) {
+              filenameLabel.textContent = file.name;
+              filenameLabel.classList.add('selected');
+            }
+          });
+        }
+      },
       preConfirm: async () => {
         const newName = document.getElementById('swal-model-name').value;
         const newProductId = document.getElementById('swal-product-id').value;
         const imgFile = document.getElementById('swal-model-image')?.files[0];
-        
         if (!newName.trim()) {
           Swal.showValidationMessage('กรุณากรอกชื่อโมเดล');
           return false;
         }
-        
         let imageUrl = undefined;
         if (imgFile) {
           const formData = new FormData();
