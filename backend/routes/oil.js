@@ -649,6 +649,7 @@ router.get('/vehicle-summary', auth, async (req, res) => {
     const [vehicles] = await pool.query(`
       SELECT 
         r.license_plate,
+        MAX(t.team_name) AS team_name,
         COUNT(*) AS refuel_count,
         COALESCE(SUM(r.total_price), 0) AS total_cost,
         COALESCE(SUM(r.liters), 0) AS total_liters,
@@ -660,6 +661,7 @@ router.get('/vehicle-summary', auth, async (req, res) => {
         MAX(r.date_recorded) AS last_refuel
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
+      LEFT JOIN teams t ON t.id = u.team_id
       ${whereClause}
       GROUP BY r.license_plate
       ORDER BY total_cost DESC
