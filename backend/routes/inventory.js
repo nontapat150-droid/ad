@@ -297,8 +297,35 @@ router.post('/models', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ── PUT /api/inventory/models/:id ──
 router.put('/models/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const modelId = req.params.id;
-  const { model_name, image_url } = req.body;
+  const { model_name, image_url, product_id } = req.body;
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
+    if (product_id !== undefined) {
+      // Get current model and its product
+      const [[currentModel]] = await conn.query('SELECT m.*, p.has_sn FROM inventory_models m JOIN inventory_products p ON m.product_id = p.id WHERE m.id = ?', [modelId]);
+      if (!currentModel) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Model not found' });
+      }
+
+      // Check if moving to a different product
+      if (currentModel.product_id != product_id) {
+        // Get target product
+        const [[targetProduct]] = await conn.query('SELECT * FROM inventory_products WHERE id = ?', [product_id]);
+        if (!targetProduct) {
+          await conn.rollback();
+          return res.status(404).json({ error: 'Target product not found' });
+        }
+
+        if (currentModel.has_sn !== targetProduct.has_sn) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'ไม่สามารถย้ายโมเดลไปยังสินค้าที่มีประเภท (การเก็บ Serial Number) แตกต่างกันได้' });
+        }
+      }
+    }
+
     const updates = [];
     const params = [];
     if (model_name !== undefined) {
@@ -309,17 +336,27 @@ router.put('/models/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       updates.push('image_url = ?');
       params.push(image_url);
     }
-    if (updates.length === 0) return res.json({ message: 'No changes' });
+    if (product_id !== undefined) {
+      updates.push('product_id = ?');
+      params.push(product_id);
+    }
+    
+    if (updates.length === 0) {
+      await conn.rollback();
+      return res.json({ message: 'No changes' });
+    }
 
     params.push(modelId);
-    await pool.query(
-      `UPDATE inventory_models SET ${updates.join(', ')} WHERE id = ?`,
-      params
-    );
+    await conn.query(`UPDATE inventory_models SET ${updates.join(', ')} WHERE id = ?`, params);
+    
+    await conn.commit();
     res.json({ message: 'Model updated' });
   } catch (err) {
+    await conn.rollback();
     console.error('Update model error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
+  } finally {
+    conn.release();
   }
 });
 

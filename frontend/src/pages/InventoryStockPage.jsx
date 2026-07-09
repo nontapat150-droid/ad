@@ -262,6 +262,11 @@ export default function InventoryStockPage() {
               
               Swal.close();
               
+              const productOptionsHtml = groupedStock
+                .filter(p => p.has_sn === product.has_sn)
+                .map(p => `<option value="${p.product_id}" ${p.product_id == product.product_id ? 'selected' : ''}>${p.product_name}</option>`)
+                .join('');
+              
               const { value: formValues } = await Swal.fire({
                 title: `แก้ไขโมเดล: ${modelName}`,
                 html: `
@@ -269,6 +274,11 @@ export default function InventoryStockPage() {
                     <label style="font-weight:bold;margin-bottom:6px;display:block;">ชื่อโมเดล</label>
                     <input id="swal-model-name" class="swal2-input" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;" value="${modelName}" />
                     
+                    <label style="font-weight:bold;margin-bottom:6px;display:block;">ย้ายไปสินค้าอื่น (ต้องเป็นประเภทเดียวกัน)</label>
+                    <select id="swal-product-id" class="swal2-select" style="margin-top:0;margin-bottom:16px;width:100%;box-sizing:border-box;">
+                      ${productOptionsHtml}
+                    </select>
+
                     <label style="font-weight:bold;margin-bottom:6px;display:block;">เปลี่ยนรูปภาพโมเดล (ไม่บังคับ)</label>
                     <input type="file" id="swal-model-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;background:#f9fafb;" />
                   </div>
@@ -278,6 +288,7 @@ export default function InventoryStockPage() {
                 cancelButtonText: 'ยกเลิก',
                 preConfirm: async () => {
                   const newName = document.getElementById('swal-model-name').value;
+                  const newProductId = document.getElementById('swal-product-id').value;
                   const imgFile = document.getElementById('swal-model-image')?.files[0];
                   
                   if (!newName.trim()) {
@@ -297,7 +308,7 @@ export default function InventoryStockPage() {
                       return false;
                     }
                   }
-                  return { newName, imageUrl };
+                  return { newName, newProductId, imageUrl };
                 }
               });
               
@@ -305,13 +316,14 @@ export default function InventoryStockPage() {
                 setLoading(true);
                 try {
                   await axios.put(`/inventory/models/${modelId}`, { 
-                    model_name: formValues.newName, 
+                    model_name: formValues.newName,
+                    product_id: formValues.newProductId,
                     image_url: formValues.imageUrl 
                   });
                   Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
                   fetchStock();
                 } catch (err) {
-                  Swal.fire({ icon: 'error', title: 'ไม่สามารถแก้ไขได้', text: err.message });
+                  Swal.fire({ icon: 'error', title: 'ไม่สามารถแก้ไขได้', text: err.response?.data?.error || err.message });
                 } finally {
                   setLoading(false);
                 }
