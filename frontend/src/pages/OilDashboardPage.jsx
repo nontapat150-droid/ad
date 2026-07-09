@@ -83,7 +83,7 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
 
                 return (
                   <tr key={v.license_plate} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">{v.license_plate}</td>
+                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">{v.team_name && v.team_name !== 'ไม่ระบุทีม' ? v.team_name : v.license_plate}</td>
                     <td className="py-3 px-3">
                       <div className="flex flex-col justify-center w-full max-w-[140px]">
                         <div className="flex justify-between items-end mb-1">
@@ -1283,7 +1283,7 @@ export default function OilDashboardPage() {
               
               // Prepare comparison data (totals per vehicle) for bar chart
               const vehicleCompareData = vehicles.map((v, i) => ({
-                name: v.license_plate,
+                name: v.team_name && v.team_name !== 'ไม่ระบุทีม' ? v.team_name : v.license_plate,
                 cost: Math.round(parseFloat(v.total_cost || 0)),
                 liters: parseFloat(parseFloat(v.total_liters || 0).toFixed(1)),
                 distance: Math.round(parseFloat(v.total_distance || 0)),
