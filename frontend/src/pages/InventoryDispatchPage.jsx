@@ -812,16 +812,16 @@ export default function InventoryDispatchPage() {
                                 <>
                                   <input 
                                     type="number" 
-                                    min="0.1" 
-                                    step="0.1"
-                                    max={(item.db_quantity || item.quantity) / ppc}
+                                    min="1" 
+                                    step="1"
+                                    max={Math.floor((item.db_quantity || item.quantity) / ppc)}
                                     value={item.inputCrates || ''}
                                     onChange={(e) => {
                                       let val = e.target.value;
                                       if (val !== '') {
-                                        let numVal = parseFloat(val);
-                                        if (numVal < 0) numVal = 0;
-                                        const maxCrates = (item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity)) / ppc;
+                                        let numVal = Math.round(parseFloat(val));
+                                        if (numVal < 1) numVal = 1;
+                                        const maxCrates = Math.floor((item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity)) / ppc);
                                         if (numVal > maxCrates) numVal = maxCrates;
                                         val = numVal;
                                       }
@@ -840,16 +840,16 @@ export default function InventoryDispatchPage() {
                                 <>
                                   <input 
                                     type="number" 
-                                    min="0.1" 
-                                    step="0.1" 
-                                    max={item.db_quantity || item.quantity}
+                                    min="1" 
+                                    step="1" 
+                                    max={Math.floor(item.db_quantity || item.quantity)}
                                     value={item.quantity}
                                     onChange={(e) => {
                                       let val = e.target.value;
                                       if (val !== '') {
-                                        let numVal = parseFloat(val);
-                                        if (numVal < 0) numVal = 0;
-                                        const maxVal = item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity);
+                                        let numVal = Math.round(parseFloat(val));
+                                        if (numVal < 1) numVal = 1;
+                                        const maxVal = Math.floor(item.db_quantity ? parseFloat(item.db_quantity) : parseFloat(item.quantity));
                                         if (numVal > maxVal) numVal = maxVal;
                                         val = numVal;
                                       }
@@ -869,12 +869,12 @@ export default function InventoryDispatchPage() {
 
                             {item.dispatchMode === 'crate' && ppc && (
                               <span className="text-xs font-black text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200 mt-2">
-                                = {parseFloat(item.quantity || 0).toLocaleString()} {itemUnit}
+                                = {Math.round(parseFloat(item.quantity || 0)).toLocaleString()} {itemUnit}
                               </span>
                             )}
 
                             <span className="text-xs font-bold text-slate-400 mt-1 mr-1">
-                              (มีในคลังสูงสุด {parseFloat(item.db_quantity || item.quantity).toLocaleString()} {itemUnit})
+                              (มีในคลังสูงสุด {Math.floor(parseFloat(item.db_quantity || item.quantity)).toLocaleString()} {itemUnit})
                             </span>
                           </div>
                         )}
