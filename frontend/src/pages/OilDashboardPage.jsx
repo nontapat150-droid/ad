@@ -25,11 +25,12 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
   let headerText = 'สรุปภาพรวมทั้งหมด (100%)';
   if (selectedTeams && selectedTeams.length > 0 && teams && teams.length > 0) {
     const selectedTeamNames = selectedTeams.map(id => {
-      const t = teams.find(team => team.id === id);
+      const t = teams.find(team => String(team.id) === String(id));
       return t ? t.team_name : '';
     }).filter(Boolean).join(', ');
+    
     if (selectedTeamNames) {
-      headerText = `สรุปภาพรวมของทีม ${selectedTeamNames}`;
+      headerText = `สรุปภาพรวม - ${selectedTeamNames}`;
     }
   }
 
