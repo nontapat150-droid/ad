@@ -83,7 +83,13 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
 
                 return (
                   <tr key={v.license_plate} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">{v.team_name && v.team_name !== 'ไม่ระบุทีม' ? v.team_name : v.license_plate}</td>
+                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">
+                      {(() => {
+                        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') return v.team_name;
+                        const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
+                        return fallbackTeam ? fallbackTeam.team_name : v.license_plate;
+                      })()}
+                    </td>
                     <td className="py-3 px-3">
                       <div className="flex flex-col justify-center w-full max-w-[140px]">
                         <div className="flex justify-between items-end mb-1">
@@ -179,7 +185,7 @@ function aggregateTrend(dailyTrend, period, vehicles, dataKey, totalKey) {
   return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, CustomTooltip, efficiency }) {
+function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, CustomTooltip, efficiency, teams }) {
   const [activeTab, setActiveTab] = useState('cost');
   const [period, setPeriod]       = useState('daily'); // 'daily' | 'monthly' | 'yearly'
 
@@ -213,13 +219,27 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
   // Render bar series per vehicle (or single)
   const renderSeries = () => {
     if (vehicleCount <= 1) {
+      let singleName = vehicles[0]?.license_plate || tab.label;
+      if (vehicles[0]) {
+        const v = vehicles[0];
+        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') {
+          singleName = v.team_name;
+        } else if (teams && teams.length > 0) {
+          const fallbackTeam = teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
+          if (fallbackTeam) singleName = fallbackTeam.team_name;
+        }
+      }
       return (
-        <Bar name={vehicles[0]?.license_plate || tab.label} dataKey={totalKey}
+        <Bar name={singleName} dataKey={totalKey}
           fill={COLORS[0]} radius={[4, 4, 0, 0]} maxBarSize={40} />
       );
     }
     return vehicles.map((v, i) => (
-      <Bar key={v.license_plate} name={v.license_plate}
+      <Bar key={v.license_plate} name={(() => {
+        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') return v.team_name;
+        const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
+        return fallbackTeam ? fallbackTeam.team_name : v.license_plate;
+      })()}
         dataKey={`${v.license_plate}_${dataKey}`}
         fill={COLORS[i % COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={28} />
     ));
@@ -247,7 +267,14 @@ function ChartSection({ dailyTrend, vehicles, vehicleCompareData, tabs, COLORS, 
                 </span>
               </h3>
               <p className="text-[11px] text-[#9CA3AF] font-medium mt-0.5">
-                {vehicleCount === 0 ? 'ไม่มีข้อมูล' : vehicleCount === 1 ? vehicles[0]?.license_plate : `เปรียบเทียบ ${vehicleCount} คัน`}
+                {vehicleCount === 0 ? 'ไม่มีข้อมูล' : vehicleCount === 1 ? (
+                  (() => {
+                    const v = vehicles[0];
+                    if (v?.team_name && v.team_name !== 'ไม่ระบุทีม') return v.team_name;
+                    const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v?.license_plate));
+                    return fallbackTeam ? fallbackTeam.team_name : v?.license_plate;
+                  })()
+                ) : `เปรียบเทียบ ${vehicleCount} คัน`}
               </p>
             </div>
           </div>
