@@ -375,57 +375,83 @@ export default function InventoryStockPage() {
     const result = await Swal.fire({
       title: `ตั้งค่าสินค้า / หมวดหมู่`,
       html: `
-        <div style="text-align:left;font-size:14px;">
-          <p style="font-weight:900;font-size:1rem;color:#1F2937;margin-bottom:16px;">📦 ${product.product_name}</p>
+        <style>
+          .swal-inv-label { font-size:12px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:6px; }
+          .swal-inv-input { width:100%; padding:10px 14px; border:1.5px solid #E5E7EB; border-radius:10px; font-size:14px; font-weight:600; color:#1F2937; background:#fff; box-sizing:border-box; outline:none; transition:border-color 0.2s; }
+          .swal-inv-input:focus { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,0.12); }
+          .swal-inv-section { background:#F9FAFB; border:1px solid #E5E7EB; border-radius:14px; padding:16px; margin-bottom:12px; }
+          .swal-inv-grid { display:flex; gap:12px; }
+          .swal-inv-grid > div { flex:1; }
+          .swal-inv-badge { display:inline-flex; align-items:center; gap:6px; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; margin-bottom:12px; }
+          .swal-inv-sn-note { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:10px; padding:10px 14px; color:#166534; font-size:13px; font-weight:600; margin-bottom:0; display:flex; align-items:center; gap:8px; }
+          .swal-inv-file { width:100%; padding:8px 14px; border:1.5px dashed #CBD5E1; border-radius:10px; font-size:13px; color:#6B7280; background:#F8FAFC; box-sizing:border-box; cursor:pointer; }
+          .swal-inv-file:hover { border-color:#185FA5; background:#EFF6FF; }
+        </style>
+        <div style="text-align:left;">
           
-          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หมวดหมู่สินค้า (Category)</label>
-          <input id="swal-edit-category" list="edit-category-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.category || ''}" placeholder="ระบุหมวดหมู่..." />
-          <datalist id="edit-category-options">${categoryOptionsHtml}</datalist>
-
-          <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">รูปภาพสินค้า (ไม่บังคับ)</label>
-          <input type="file" id="swal-edit-image" accept="image/*" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;background:#f9fafb;margin-bottom:16px;" />
-
-          ${!product.has_sn ? `
-            <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">หน่วยนับสินค้า</label>
-            <input id="swal-edit-unit" list="unit-options" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin-bottom:16px;" value="${product.unit || 'ชิ้น'}" placeholder="ตัวเลือกเช่น ชิ้น, กล่อง, เมตร..." />
-            <datalist id="unit-options">
-              <option value="ชิ้น"></option>
-              <option value="กล่อง"></option>
-              <option value="ม้วน"></option>
-              <option value="เส้น"></option>
-              <option value="เมตร"></option>
-              <option value="แพ็ค"></option>
-              <option value="อัน"></option>
-              <option value="ชุด"></option>
-            </datalist>
-          ` : `
-            <p style="color:#6B7280;margin-bottom:12px;">สินค้า SN จะมีหน่วยเป็น <b>"ชิ้น"</b> เสมอ</p>
-          `}
-          <div style="display:flex;gap:12px;margin-bottom:6px;">
-            <div style="flex:1;">
-              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">จำนวนชิ้นต่อ 1 ลัง/แพ็ค</label>
-              <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
-            </div>
-            <div style="flex:1;">
-              <label style="font-weight:700;color:#042C53;display:block;margin-bottom:6px;">ชื่อเรียกแพ็คเกจใหญ่</label>
-              <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, แพ็ค..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:12px;font-size:14px;font-weight:600;margin:0;" />
-              <datalist id="crate-unit-options">
-                <option value="ลัง"></option>
-                <option value="แพ็ค"></option>
-                <option value="ม้วน"></option>
-                <option value="ขด"></option>
-                <option value="กล่อง"></option>
-              </datalist>
+          <!-- Product name header -->
+          <div style="display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#042C53 0%,#185FA5 100%);border-radius:12px;padding:14px 16px;margin-bottom:16px;">
+            <span style="font-size:1.4rem;">📦</span>
+            <div>
+              <p style="font-size:11px;color:rgba(255,255,255,0.7);font-weight:600;margin:0;">กำลังแก้ไขสินค้า</p>
+              <p style="font-size:15px;color:#fff;font-weight:900;margin:0;">${product.product_name}</p>
             </div>
           </div>
+
+          <!-- Category -->
+          <div class="swal-inv-section">
+            <label class="swal-inv-label">🏷️ หมวดหมู่สินค้า (Category)</label>
+            <input id="swal-edit-category" list="edit-category-options" class="swal-inv-input" value="${product.category || ''}" placeholder="ระบุหมวดหมู่..." />
+            <datalist id="edit-category-options">${categoryOptionsHtml}</datalist>
+          </div>
+
+          <!-- Product image -->
+          <div class="swal-inv-section">
+            <label class="swal-inv-label">🖼️ รูปภาพสินค้า (ไม่บังคับ)</label>
+            <input type="file" id="swal-edit-image" accept="image/*" class="swal-inv-file" />
+          </div>
+
+          <!-- Unit settings -->
+          <div class="swal-inv-section">
+            <label class="swal-inv-label">📐 หน่วยนับ &amp; บรรจุภัณฑ์</label>
+            ${!product.has_sn ? `
+              <input id="swal-edit-unit" list="unit-options" class="swal-inv-input" value="${product.unit || 'ชิ้น'}" placeholder="เช่น ชิ้น, กล่อง, เมตร..." style="margin-bottom:12px;" />
+              <datalist id="unit-options">
+                <option value="ชิ้น"></option><option value="กล่อง"></option><option value="ม้วน"></option>
+                <option value="เส้น"></option><option value="เมตร"></option><option value="แพ็ค"></option>
+                <option value="อัน"></option><option value="ชุด"></option>
+              </datalist>
+            ` : `
+              <div class="swal-inv-sn-note">
+                <span>✅</span> สินค้ามี Serial Number → หน่วยเป็น <strong style="margin-left:4px;">"ชิ้น"</strong> เสมอ
+              </div>
+              <div style="height:12px;"></div>
+            `}
+            <div class="swal-inv-grid">
+              <div>
+                <label class="swal-inv-label">จำนวนชิ้นต่อ 1 ลัง/แพ็ค</label>
+                <input id="swal-edit-ppc" type="number" min="1" value="${product.pieces_per_crate || ''}" placeholder="เช่น 12" class="swal-inv-input" />
+              </div>
+              <div>
+                <label class="swal-inv-label">ชื่อเรียกแพ็คเกจใหญ่</label>
+                <input id="swal-edit-crate-unit" type="text" list="crate-unit-options" value="${product.crate_unit || 'ลัง'}" placeholder="ลัง, แพ็ค..." class="swal-inv-input" />
+                <datalist id="crate-unit-options">
+                  <option value="ลัง"></option><option value="แพ็ค"></option><option value="ม้วน"></option>
+                  <option value="ขด"></option><option value="กล่อง"></option>
+                </datalist>
+              </div>
+            </div>
+          </div>
+
         </div>
       `,
-      confirmButtonText: 'บันทึก',
+      confirmButtonText: '💾 บันทึก',
       confirmButtonColor: '#185FA5',
       showCancelButton: true,
       cancelButtonText: 'ยกเลิก',
       cancelButtonColor: '#9CA3AF',
-      customClass: { popup: 'rounded-3xl' },
+      customClass: { popup: 'rounded-3xl', confirmButton: 'swal2-confirm-btn', cancelButton: 'swal2-cancel-btn' },
+      width: '520px',
       preConfirm: async () => {
         const unitEl = document.getElementById('swal-edit-unit');
         const imgFile = document.getElementById('swal-edit-image')?.files[0];

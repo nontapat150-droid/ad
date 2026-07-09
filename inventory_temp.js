@@ -1,0 +1,1035 @@
+﻿const express = require('express');
+const pool    = require('../config/db');
+const { auth, requireRole } = require('../middleware/auth');
+
+const router = express.Router();
+const ADMIN_ROLES = ['super_admin', 'admin'];
+
+// ==========================================
+// PHASE 1: ADMIN - PRODUCTS & MODELS
+// ==========================================
+
+// ── GET /api/inventory/products ──
+router.get('/products', auth, async (req, res) => {
+  try {
+    const [products] = await pool.query('SELECT * FROM inventory_products ORDER BY name ASC');
+    const [models] = await pool.query('SELECT * FROM inventory_models ORDER BY model_name ASC');
+    
+    // Attach models to products
+    const productsWithModels = products.map(p => ({
+      ...p,
+      models: models.filter(m => m.product_id === p.id)
+    }));
+
+    res.json(productsWithModels);
+  } catch (err) {
+    console.error('Get products error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── GET /api/inventory/categories ──
+router.get('/categories', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT category_name AS name, image_url 
+      FROM inventory_category_metadata
+      UNION
+      SELECT DISTINCT category AS name, NULL AS image_url
+      FROM inventory_products 
+      WHERE category IS NOT NULL AND category != ""
+        AND category NOT IN (SELECT category_name FROM inventory_category_metadata)
+      ORDER BY name ASC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('Get categories error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+router.post('/categories', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Category name is required' });
+  try {
+    await pool.query(
+      `INSERT INTO inventory_category_metadata (category_name) VALUES (?)`,
+      [name.trim()]
+    );
+    res.json({ message: 'Category created' });
+  } catch (err) {
+    console.error('Create category error:', err);
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'หมวดหมู่นี้มีอยู่แล้ว' });
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+router.put('/categories/:name', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const oldName = req.params.name;
+  const { new_name } = req.body;
+  if (!new_name || !new_name.trim()) return res.status(400).json({ error: 'New name is required' });
+  
+  try {
+    await pool.query('START TRANSACTION');
+    // Update metadata
+    await pool.query(
+      `UPDATE inventory_category_metadata SET category_name = ? WHERE category_name = ?`,
+      [new_name.trim(), oldName]
+    );
+    // Update products
+    await pool.query(
+      `UPDATE inventory_products SET category = ? WHERE category = ?`,
+      [new_name.trim(), oldName]
+    );
+    await pool.query('COMMIT');
+    res.json({ message: 'Category renamed successfully' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Rename category error:', err);
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'ชื่อหมวดหมู่ใหม่ซ้ำกับที่มีอยู่แล้ว' });
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+router.delete('/categories/:name', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const categoryName = req.params.name;
+  try {
+    await pool.query('START TRANSACTION');
+    // Delete metadata
+    await pool.query(
+      `DELETE FROM inventory_category_metadata WHERE category_name = ?`,
+      [categoryName]
+    );
+    // Remove from products
+    await pool.query(
+      `UPDATE inventory_products SET category = NULL WHERE category = ?`,
+      [categoryName]
+    );
+    await pool.query('COMMIT');
+    res.json({ message: 'Category deleted' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error('Delete category error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── PUT /api/inventory/categories/:name/image ──
+router.put('/categories/:name/image', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const categoryName = req.params.name;
+  const { image_url } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO inventory_category_metadata (category_name, image_url) 
+       VALUES (?, ?) 
+       ON DUPLICATE KEY UPDATE image_url = VALUES(image_url)`,
+      [categoryName, image_url]
+    );
+    res.json({ message: 'Category image updated' });
+  } catch (err) {
+    console.error('Update category image error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── POST /api/inventory/products ──
+router.post('/products', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { name, has_sn, unit, pieces_per_crate, crate_unit, category, image_url } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Product name is required' });
+  }
+
+  try {
+    const ppc = (pieces_per_crate && parseInt(pieces_per_crate) > 0) ? parseInt(pieces_per_crate) : null;
+    const cu = crate_unit || 'ลัง';
+    const [result] = await pool.query(
+      'INSERT INTO inventory_products (name, has_sn, unit, pieces_per_crate, crate_unit, category, image_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, has_sn ? 1 : 0, unit || 'ชิ้น', ppc, cu, category || null, image_url || null]
+    );
+    res.json({ message: 'Product created', id: result.insertId });
+  } catch (err) {
+    console.error('Add product error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── PUT /api/inventory/products/:id — Update unit / pieces_per_crate / category / image_url ──
+router.put('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { unit, pieces_per_crate, crate_unit, category, image_url } = req.body;
+  const productId = req.params.id;
+
+  if (!unit && pieces_per_crate === undefined && crate_unit === undefined && category === undefined && image_url === undefined) {
+    return res.status(400).json({ error: 'Nothing to update' });
+  }
+
+  try {
+    const updates = [];
+    const values = [];
+
+    if (unit) {
+      updates.push('unit = ?');
+      values.push(unit);
+    }
+    if (pieces_per_crate !== undefined) {
+      updates.push('pieces_per_crate = ?');
+      values.push(pieces_per_crate ? parseInt(pieces_per_crate) : null);
+    }
+    if (crate_unit !== undefined) {
+      updates.push('crate_unit = ?');
+      values.push(crate_unit || 'ลัง');
+    }
+    if (category !== undefined) {
+      updates.push('category = ?');
+      values.push(category || null);
+    }
+    if (image_url !== undefined) {
+      updates.push('image_url = ?');
+      values.push(image_url || null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(productId);
+    await pool.query(`UPDATE inventory_products SET ${updates.join(', ')} WHERE id = ?`, values);
+    res.json({ message: 'Product updated' });
+  } catch (err) {
+    console.error('Update product error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});// ── PUT /api/inventory/products/:id/rename ──
+// Rename a product and merge if the new name exists
+router.put('/products/:id/rename', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const sourceProductId = req.params.id;
+  const { new_name } = req.body;
+  if (!new_name || new_name.trim() === '') {
+    return res.status(400).json({ error: 'กรุณาระบุชื่อสินค้าใหม่' });
+  }
+
+  const newNameStr = new_name.trim();
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Check if source product exists
+    const [[sourceProduct]] = await conn.query('SELECT * FROM inventory_products WHERE id = ? FOR UPDATE', [sourceProductId]);
+    if (!sourceProduct) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้าต้นทาง' });
+    }
+
+    if (sourceProduct.name.toLowerCase() === newNameStr.toLowerCase()) {
+      // Just fix casing if it's the exact same name but different case
+      await conn.query('UPDATE inventory_products SET name = ? WHERE id = ?', [newNameStr, sourceProductId]);
+      await conn.commit();
+      return res.json({ message: 'เปลี่ยนชื่อสินค้าเรียบร้อยแล้ว' });
+    }
+
+    // 2. Check if new name already exists
+    const [[targetProduct]] = await conn.query('SELECT * FROM inventory_products WHERE name = ?', [newNameStr]);
+
+    if (!targetProduct) {
+      // CASE 1: No duplicate name, just rename
+      await conn.query('UPDATE inventory_products SET name = ? WHERE id = ?', [newNameStr, sourceProductId]);
+      await conn.commit();
+      return res.json({ message: 'เปลี่ยนชื่อสินค้าเรียบร้อยแล้ว' });
+    }
+
+    // CASE 2: Duplicate name exists, must merge
+    if (sourceProduct.has_sn !== targetProduct.has_sn) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'ไม่สามารถรวมสินค้าได้เนื่องจากประเภท (การเก็บ Serial Number) ไม่ตรงกัน' });
+    }
+
+    // Process models of the source product
+    const [sourceModels] = await conn.query('SELECT * FROM inventory_models WHERE product_id = ?', [sourceProductId]);
+    const [targetModels] = await conn.query('SELECT * FROM inventory_models WHERE product_id = ?', [targetProduct.id]);
+
+    for (const sModel of sourceModels) {
+      // Find if a model with same name exists in target product
+      const matchingTModel = targetModels.find(tm => tm.model_name.toLowerCase() === sModel.model_name.toLowerCase());
+
+      if (matchingTModel) {
+        // Merge items: update inventory_items to point to matchingTModel.id instead of sModel.id
+        await conn.query('UPDATE inventory_items SET model_id = ? WHERE model_id = ?', [matchingTModel.id, sModel.id]);
+        // Delete source model
+        await conn.query('DELETE FROM inventory_models WHERE id = ?', [sModel.id]);
+      } else {
+        // Move model to target product
+        await conn.query('UPDATE inventory_models SET product_id = ? WHERE id = ?', [targetProduct.id, sModel.id]);
+      }
+    }
+
+    // Finally delete source product
+    await conn.query('DELETE FROM inventory_products WHERE id = ?', [sourceProductId]);
+
+    await conn.commit();
+    res.json({ message: 'รวมข้อมูลสินค้าเข้ากับชื่อที่มีอยู่แล้วเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Rename Product Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── POST /api/inventory/models ──
+router.post('/models', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { product_id, model_name, image_url } = req.body;
+  if (!product_id || !model_name) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO inventory_models (product_id, model_name, image_url) VALUES (?, ?, ?)',
+      [product_id, model_name, image_url || null]
+    );
+    res.json({ message: 'Model created', id: result.insertId });
+  } catch (err) {
+    console.error('Add model error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── PUT /api/inventory/models/:id ──
+router.put('/models/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const modelId = req.params.id;
+  const { model_name, image_url } = req.body;
+  try {
+    const updates = [];
+    const params = [];
+    if (model_name !== undefined) {
+      updates.push('model_name = ?');
+      params.push(model_name);
+    }
+    if (image_url !== undefined) {
+      updates.push('image_url = ?');
+      params.push(image_url);
+    }
+    if (updates.length === 0) return res.json({ message: 'No changes' });
+
+    params.push(modelId);
+    await pool.query(
+      `UPDATE inventory_models SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+    res.json({ message: 'Model updated' });
+  } catch (err) {
+    console.error('Update model error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// ── DELETE /api/inventory/products/:id ──
+router.delete('/products/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const productId = req.params.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Forcefully delete all logs associated with items of this product
+    await conn.query(`
+      DELETE il FROM inventory_logs il
+      JOIN inventory_items ii ON il.item_id = ii.id
+      JOIN inventory_models im ON ii.model_id = im.id
+      WHERE im.product_id = ?
+    `, [productId]);
+
+    // Forcefully delete all items of this product
+    await conn.query(`
+      DELETE ii FROM inventory_items ii
+      JOIN inventory_models im ON ii.model_id = im.id
+      WHERE im.product_id = ?
+    `, [productId]);
+
+    // Delete models and product
+    await conn.query('DELETE FROM inventory_models WHERE product_id = ?', [productId]);
+    await conn.query('DELETE FROM inventory_products WHERE id = ?', [productId]);
+
+    await conn.commit();
+    res.json({ message: 'ลบสินค้าและโมเดลเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Delete Product Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── POST /api/inventory/receive ──
+router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { model_id, sn, phone_number, quantity = 1, is_auto_generate, generate_count = 1 } = req.body;
+  if (!model_id) return res.status(400).json({ error: 'model_id is required' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Get product info
+    const [[model]] = await conn.query(
+      'SELECT m.*, p.has_sn FROM inventory_models m JOIN inventory_products p ON m.product_id = p.id WHERE m.id = ?',
+      [model_id]
+    );
+
+    if (!model) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Model not found' });
+    }
+
+    const adminId = req.user.id;
+    let itemsAdded = 0;
+
+    if (model.has_sn) {
+      // SN Mode: SN must be provided
+      if (!sn) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'SN is required for this product' });
+      }
+      
+      const [result] = await conn.query(
+        'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+        [model_id, sn, phone_number || null, 1.00]
+      );
+      
+      await conn.query(
+        'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',
+        [result.insertId, adminId, 1.00]
+      );
+      itemsAdded = 1;
+
+    } else {
+      // No-SN Mode
+      if (is_auto_generate) {
+        const prefix = model.prefix || 'ITEM';
+        for (let i = 0; i < generate_count; i++) {
+          // Generate unique code using timestamp and random number
+          const uniqueCode = `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          const [result] = await conn.query(
+            'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+            [model_id, uniqueCode, phone_number || null, quantity] // For No-SN, we allow specifying bulk quantity (e.g. 100 meters)
+          );
+          await conn.query(
+            'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',
+            [result.insertId, adminId, quantity]
+          );
+          itemsAdded++;
+        }
+      } else {
+        // Manual code provided for No-SN bulk item
+        if (!sn) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'Code/SN is required' });
+        }
+        const [result] = await conn.query(
+          'INSERT INTO inventory_items (model_id, sn, phone_number, quantity, status) VALUES (?, ?, ?, ?, "in_stock")',
+          [model_id, sn, phone_number || null, quantity]
+        );
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity) VALUES (?, ?, "receive", ?)',
+          [result.insertId, adminId, quantity]
+        );
+        itemsAdded = 1;
+      }
+    }
+
+    await conn.commit();
+    res.json({ message: `Successfully received ${itemsAdded} item(s) into stock.` });
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'This SN / Code already exists in the system.' });
+    }
+    console.error('Receive inventory error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ==========================================
+// PHASE 2: DISPATCH TO TECHNICIANS
+// ==========================================
+
+// ── GET /api/inventory/search-sn/:sn ──
+router.get('/search-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit, p.pieces_per_crate, p.crate_unit
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.sn = ? AND ii.status = 'in_stock'`,
+      [req.params.sn]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'ไม่พบสินค้านี้ หรือสินค้าไม่ได้อยู่ในสถานะ In Stock' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /api/inventory/dispatch ──
+router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { items, target_user_id } = req.body;
+  if (!items || !items.length || !target_user_id) {
+    return res.status(400).json({ error: 'Missing required data (items or target_user_id)' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Fetch user team
+    const [[user]] = await conn.query('SELECT team_id FROM users WHERE id = ?', [target_user_id]);
+    const team_id = user ? user.team_id : null;
+
+    const adminId = req.user.id;
+    let dispatchedCount = 0;
+
+    for (const item of items) {
+      // item = { id: ..., quantity_to_dispatch: ... }
+      // For SN items, quantity is 1. For No-SN, it could be <= item.quantity in DB.
+      // But for simplicity in Phase 2, we assume we dispatch the whole item row.
+      // Wait, if it's wire, the admin might want to dispatch only a part of it? 
+      // The requirement: "เมื่อกดยืนยันระบบจะขึ้นหน้าต่างลอยคล้ายบิลใบเสร็จ และมี ดรอปดาวให้เลือกว่าจะเบิกให้คนไหน"
+      // If we just transfer the whole row:
+      
+      const [[dbItem]] = await conn.query('SELECT model_id, sn, quantity FROM inventory_items WHERE id = ? AND status = "in_stock" FOR UPDATE', [item.id]);
+      if (!dbItem) continue; // Skip if not found or not in_stock
+
+      let dispatchQty = parseFloat(item.quantity_to_dispatch);
+      if (isNaN(dispatchQty) || dispatchQty <= 0 || dispatchQty > parseFloat(dbItem.quantity)) {
+        dispatchQty = parseFloat(dbItem.quantity);
+      }
+
+      if (dispatchQty < parseFloat(dbItem.quantity)) {
+        // Split the item
+        await conn.query('UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?', [dispatchQty, item.id]);
+        
+        const [insertRes] = await conn.query(
+          `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at) VALUES (?, ?, ?, 'dispatched', ?, ?, NOW())`,
+          [dbItem.model_id, dbItem.sn, dispatchQty, target_user_id, team_id]
+        );
+        
+        await conn.query('INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
+          [insertRes.insertId, adminId, target_user_id, dispatchQty]
+        );
+      } else {
+        // Dispatch the whole item
+        await conn.query(
+          `UPDATE inventory_items 
+           SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
+           WHERE id = ?`,
+          [target_user_id, team_id, item.id]
+        );
+
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
+          [item.id, adminId, target_user_id, dispatchQty]
+        );
+      }
+      dispatchedCount++;
+    }
+
+    await conn.commit();
+    res.json({ message: `Successfully dispatched ${dispatchedCount} items to technician.` });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Dispatch Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ==========================================
+// PHASE 3: TECH BAG & TRANSFERS
+// ==========================================
+
+// ── GET /api/inventory/my-bag ──
+router.get('/my-bag', auth, async (req, res) => {
+  const targetUserId = req.query.user_id || req.user.id;
+
+  // Non-admins can only see their own bag
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
+  if (!isAdmin && parseInt(targetUserId) !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    const [items] = await pool.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.owner_id = ? 
+         AND ii.status = 'dispatched' 
+         AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+       ORDER BY ii.dispatched_at DESC`,
+      [targetUserId]
+    );
+
+    res.json(items);
+  } catch (err) {
+    console.error('My Bag Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+  // 💼 GET /api/inventory/active-jobs 💼
+  // Get jobs assigned to the user (team or field_engineer_id)
+  router.get('/active-jobs', auth, async (req, res) => {
+    try {
+      const targetUserId = req.query.user_id || req.user.id;
+      // Get the target user's team
+      const [[userRow]] = await pool.query('SELECT team_id FROM users WHERE id = ?', [targetUserId]);
+      const teamId = userRow ? userRow.team_id : null;
+
+      let query = `
+        SELECT j.id, j.access_no, j.status, j.customer, j.address, j.created_at
+        FROM jobs j
+        WHERE j.status != 'completed'
+      `;
+      let params = [];
+
+      // Filter by the targetUserId
+      query += ` AND (j.field_engineer_id = ? OR j.team_id = ?)`;
+      params.push(targetUserId, teamId || -1);
+
+      query += ` ORDER BY j.created_at DESC`;
+      const [jobs] = await pool.query(query, params);
+      res.json(jobs);
+    } catch (err) {
+      console.error('Failed to get active-jobs:', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  });
+
+  // 🛠️ POST /api/inventory/use-equipment 🛠️
+  // Use equipment from tech bag and mark a NON job as completed
+  router.post('/use-equipment', auth, async (req, res) => {
+    const { job_id, items } = req.body;
+    const userId = req.user.id;
+    
+    if (!job_id || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
+    }
+  
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+  
+      // 1. Verify job exists
+      const [[job]] = await conn.query(
+        'SELECT id, access_no, status, customer, install_device FROM jobs WHERE id = ?', 
+        [job_id]
+      );
+      if (!job) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'ไม่พบงานที่เลือก' });
+      }
+      
+      let usedItemsSummary = [];
+
+      // 2. Process each item
+      for (const reqItem of items) {
+        const { item_id, quantity } = reqItem;
+        if (!item_id || !quantity || quantity <= 0) continue;
+  
+        // Verify item is in user's bag and dispatched
+        const [[invItem]] = await conn.query(
+          `SELECT ii.*, p.name AS product_name 
+           FROM inventory_items ii 
+           JOIN inventory_models m ON ii.model_id = m.id 
+           JOIN inventory_products p ON m.product_id = p.id 
+           WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = "dispatched"`,
+          [item_id, userId]
+        );
+  
+        if (!invItem) {
+          await conn.rollback();
+          return res.status(400).json({ error: `ไม่พบอุปกรณ์ ID: ${item_id} ในกระเป๋าหรืออุปกรณ์ไม่ได้ถูกเบิก` });
+        }
+  
+        if (invItem.quantity < quantity) {
+          await conn.rollback();
+          return res.status(400).json({ error: `จำนวนอุปกรณ์ ${item_id} ไม่เพียงพอ` });
+        }
+  
+        // If full quantity is used
+        if (invItem.quantity === quantity) {
+          await conn.query(
+            'UPDATE inventory_items SET status = "used" WHERE id = ?',
+            [item_id]
+          );
+        } else {
+          // Partial quantity used (No SN items)
+          await conn.query(
+            'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
+            [quantity, item_id]
+          );
+          // We will just deduct quantity and log it.
+        }
+  
+        // Log the usage
+        await conn.query(
+          'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
+          [item_id, userId, quantity, `ใช้งานกับงาน ${job.access_no}`]
+        );
+      }
+  
+      // 3. Update job status to completed if it's not already
+      if (job.status !== 'completed') {
+        await conn.query(
+          'UPDATE jobs SET status = "completed" WHERE id = ?',
+          [job_id]
+        );
+      }
+  
+      await conn.commit();
+      res.json({ message: 'ใช้งานอุปกรณ์และบันทึกงานเสร็จสิ้น' });
+    } catch (err) {
+      await conn.rollback();
+      console.error('Use Equipment Error:', err);
+      res.status(500).json({ error: 'เกิดข้อผิดพลาดในการใช้งานอุปกรณ์' });
+    } finally {
+      conn.release();
+    }
+  });
+
+// ── GET /api/inventory/my-history ──
+router.get('/my-history', auth, async (req, res) => {
+  const targetUserId = req.query.user_id || req.user.id;
+  
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
+  if (!isAdmin && parseInt(targetUserId) !== req.user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT il.id, il.action, il.quantity, il.created_at,
+              ii.sn, pm.model_name, p.name AS product_name,
+              u_from.full_name AS from_user_name,
+              u_to.full_name AS to_user_name
+       FROM inventory_logs il
+       JOIN inventory_items ii ON ii.id = il.item_id
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u_from ON u_from.id = il.from_user_id
+       LEFT JOIN users u_to ON u_to.id = il.to_user_id
+       WHERE il.from_user_id = ? OR il.to_user_id = ?
+       ORDER BY il.created_at DESC
+       LIMIT 100`,
+      [targetUserId, targetUserId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('My History Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /api/inventory/transfer ──
+router.post('/transfer', auth, async (req, res) => {
+  const { item_id, target_user_id, transfer_quantity } = req.body;
+  const currentUserId = req.user.id;
+  
+  if (!item_id || !target_user_id || !transfer_quantity) {
+    return res.status(400).json({ error: 'Missing required data' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Validate item belongs to current user and has enough quantity
+    const [[item]] = await conn.query(
+      `SELECT * FROM inventory_items 
+       WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
+      [item_id, currentUserId]
+    );
+
+    if (!item) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้าในกระเป๋าของคุณ หรือสินค้าหมดอายุแล้ว' });
+    }
+
+    const tQty = parseFloat(transfer_quantity);
+    const iQty = parseFloat(item.quantity);
+
+    if (tQty <= 0 || tQty > iQty) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'จำนวนที่ต้องการโอนไม่ถูกต้อง' });
+    }
+
+    // 2. Target user's team
+    const [[targetUser]] = await conn.query('SELECT team_id FROM users WHERE id = ?', [target_user_id]);
+    const targetTeamId = targetUser ? targetUser.team_id : null;
+
+    if (tQty === iQty) {
+      // Transfer whole item
+      await conn.query(
+        `UPDATE inventory_items SET owner_id = ?, team_id = ? WHERE id = ?`,
+        [target_user_id, targetTeamId, item.id]
+      );
+    } else {
+      // Split item
+      // Update original item
+      const newQty = iQty - tQty;
+      await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
+
+      // Create new item for target user (clone SN by appending a split marker, or if bulk without SN just use the same code with a split suffix)
+      // Actually, if it's bulk (wire), SN might just be the generic code. Let's append an ID or timestamp to ensure uniqueness.
+      const newSn = `${item.sn}-SPLIT-${Date.now().toString().slice(-4)}`;
+      
+      await conn.query(
+        `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at)
+         VALUES (?, ?, ?, 'dispatched', ?, ?, NOW(), ?)`,
+        [item.model_id, newSn, tQty, target_user_id, targetTeamId, item.expires_at]
+      );
+    }
+
+    // Log the transfer
+    await conn.query(
+      'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "transfer", ?)',
+      [item.id, currentUserId, target_user_id, tQty]
+    );
+
+    await conn.commit();
+    res.json({ message: 'Transfer successful' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Transfer Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── GET /api/inventory/history ──
+router.get('/history', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT il.id, il.action, il.quantity, il.created_at,
+              ii.sn, ii.status AS item_status,
+              pm.model_name, p.name AS product_name,
+              u_from.full_name AS from_user_name,
+              u_to.full_name AS to_user_name
+       FROM inventory_logs il
+       JOIN inventory_items ii ON ii.id = il.item_id
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u_from ON u_from.id = il.from_user_id
+       LEFT JOIN users u_to ON u_to.id = il.to_user_id
+       ORDER BY il.created_at DESC
+       LIMIT 500`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('History Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /api/inventory/items/tech/:id ──
+// Admin edit tech bag item quantity
+router.put('/items/tech/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const itemId = req.params.id;
+  const { quantity } = req.body;
+  if (!quantity || isNaN(quantity) || quantity <= 0) {
+    return res.status(400).json({ error: 'จำนวนต้องมากกว่า 0' });
+  }
+  
+  try {
+    await pool.query('UPDATE inventory_items SET quantity = ? WHERE id = ? AND status = "dispatched"', [quantity, itemId]);
+    res.json({ message: 'อัปเดตจำนวนสินค้าสำเร็จ' });
+  } catch (err) {
+    console.error('Update Tech Bag Item Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── DELETE /api/inventory/items/tech/:id ──
+// Admin delete tech bag item (mark as used or lost)
+router.delete('/items/tech/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const itemId = req.params.id;
+  const adminId = req.user.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[item]] = await conn.query('SELECT * FROM inventory_items WHERE id = ? AND status = "dispatched"', [itemId]);
+    if (!item) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้านี้ในกระเป๋าช่าง' });
+    }
+
+    await conn.query('UPDATE inventory_items SET status = "used" WHERE id = ?', [itemId]);
+    // Optional: Log it in generic logs or consumable logs? We use inventory_logs
+    await conn.query(
+      'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, "ถูกลบ/ปรับยอดโดยผู้ดูแลระบบ")',
+      [itemId, adminId, item.quantity]
+    );
+
+    await conn.commit();
+    res.json({ message: 'นำสินค้าออกจากกระเป๋าช่างเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Delete Tech Bag Item Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── DELETE /api/inventory/logs/:id ──
+// Admin delete history log
+router.delete('/logs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const logId = req.params.id;
+  try {
+    const [result] = await pool.query('DELETE FROM inventory_logs WHERE id = ?', [logId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'ไม่พบประวัติรายการนี้' });
+    }
+    res.json({ message: 'ลบประวัติรายการสำเร็จ' });
+  } catch (err) {
+    console.error('Delete History Log Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/inventory/stock ──
+// Get current stock overview (items in_stock) grouped by product and model
+router.get('/stock', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT p.id AS product_id, p.name AS product_name, p.has_sn,
+              p.unit, p.pieces_per_crate, p.crate_unit, p.category, p.image_url,
+              m.id AS model_id, m.model_name, m.image_url AS model_image_url,
+              COUNT(ii.id) AS item_count,
+              SUM(ii.quantity) AS total_quantity
+       FROM inventory_items ii
+       JOIN inventory_models m ON m.id = ii.model_id
+       JOIN inventory_products p ON p.id = m.product_id
+       WHERE ii.status = 'in_stock'
+       GROUP BY p.id, m.id
+       ORDER BY p.name, m.model_name`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Stock Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/inventory/stock/:model_id ──
+// Get individual SN items for a specific model currently in stock
+router.get('/stock/:model_id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, sn, phone_number, quantity, created_at 
+       FROM inventory_items 
+       WHERE model_id = ? AND status = 'in_stock'
+       ORDER BY created_at DESC`
+      , [req.params.model_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Stock Detail Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── DELETE /api/inventory/items/:id ──
+// Delete a specific SN item from stock
+router.delete('/items/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const itemId = req.params.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Ensure it's in stock
+    const [[item]] = await conn.query('SELECT * FROM inventory_items WHERE id = ?', [itemId]);
+    if (!item) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้านี้ในระบบ' });
+    }
+    if (item.status !== 'in_stock') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'ไม่สามารถลบได้เนื่องจากสินค้าไม่ได้อยู่ในคลัง (อาจถูกเบิกไปแล้ว)' });
+    }
+
+    // Delete logs and item
+    await conn.query('DELETE FROM inventory_logs WHERE item_id = ?', [itemId]);
+    await conn.query('DELETE FROM inventory_items WHERE id = ?', [itemId]);
+
+    await conn.commit();
+    res.json({ message: 'ลบสินค้ารายการนี้ออกจากระบบเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Delete Item Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── POST /api/inventory/check-sn-duplicates ──
+// Check which SNs from a provided list already exist in the system
+router.post('/check-sn-duplicates', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { sns } = req.body;
+  if (!sns || !Array.isArray(sns) || sns.length === 0) {
+    return res.json({ duplicates: [] });
+  }
+
+  try {
+    const placeholders = sns.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT ii.sn, pm.model_name, p.name AS product_name
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.sn IN (${placeholders})`,
+      sns
+    );
+    res.json({ duplicates: rows });
+  } catch (err) {
+    console.error('Check SN duplicates error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── DELETE /api/inventory/clear ──
+// Super admin clear all inventory items and logs
+router.delete('/clear', auth, requireRole(['super_admin', 'admin']), async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+    await conn.query('TRUNCATE TABLE inventory_logs');
+    await conn.query('TRUNCATE TABLE inventory_items');
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+    await conn.commit();
+    res.json({ message: 'ล้างข้อมูลสต๊อกทั้งหมดเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Clear DB Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+module.exports = router;
+
