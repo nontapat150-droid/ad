@@ -32,7 +32,7 @@ router.get('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 router.get('/teams', auth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT t.*, COUNT(u.id) AS member_count
+      `SELECT t.*, COUNT(u.id) AS member_count, GROUP_CONCAT(DISTINCT u.role) as team_roles
        FROM teams t
        LEFT JOIN users u ON u.team_id = t.id
        GROUP BY t.id ORDER BY t.team_name`

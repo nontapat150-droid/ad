@@ -12,7 +12,7 @@ import { getImageUrl } from '../utils/imageUtils';
 import ImageWithFallback from '../components/common/ImageWithFallback';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
-export function TeamNameBadge({ defaultName }) {
+export function TeamNameBadge({ defaultName, teamRoles }) {
   let rawName = defaultName || '';
   let role = null;
   let roleColor = '';
@@ -39,6 +39,24 @@ export function TeamNameBadge({ defaultName }) {
     }
     displayName = displayName.replace(/[\(\)\[\]\-]/g, '').trim();
   }
+  
+  if (!role && teamRoles) {
+    const rolesLower = teamRoles.toLowerCase();
+    if (rolesLower.includes('office_technician')) {
+      role = 'ช่าง Office';
+      roleColor = 'bg-purple-100 text-purple-700 border-purple-200';
+    } else if (rolesLower.includes('ma_technician')) {
+      role = 'ช่าง MA';
+      roleColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    } else if (rolesLower.includes('technician')) {
+      role = 'ช่างติดตั้ง';
+      roleColor = 'bg-blue-100 text-blue-700 border-blue-200';
+    } else if (rolesLower.includes('sale')) {
+      role = 'Sales';
+      roleColor = 'bg-pink-100 text-pink-700 border-pink-200';
+    }
+  }
+
   if (!displayName) displayName = rawName;
 
   return (
@@ -127,13 +145,22 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
                     <td className="py-4 px-3 align-top min-w-[150px]">
                       {(() => {
                         let rawName = v.license_plate;
-                        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') {
+                        let teamRoles = '';
+                        
+                        // Find the team from `teams` array to get `team_roles`
+                        const fallbackTeam = teams && teams.find(t => 
+                          (t.team_name && t.team_name.includes(v.license_plate)) || 
+                          (v.team_name && t.team_name === v.team_name)
+                        );
+                        
+                        if (fallbackTeam) {
+                          rawName = fallbackTeam.team_name;
+                          teamRoles = fallbackTeam.team_roles;
+                        } else if (v.team_name && v.team_name !== 'ไม่ระบุทีม') {
                           rawName = v.team_name;
-                        } else {
-                          const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
-                          if (fallbackTeam) rawName = fallbackTeam.team_name;
                         }
-                        return <TeamNameBadge defaultName={rawName} />;
+                        
+                        return <TeamNameBadge defaultName={rawName} teamRoles={teamRoles} />;
                       })()}
                     </td>
                     <td className="py-3 px-3">
