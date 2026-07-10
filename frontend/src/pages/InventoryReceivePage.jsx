@@ -1158,7 +1158,7 @@ export default function InventoryReceivePage() {
     let itemsToAdd = [];
 
     if (selectedProduct.has_sn) {
-      const currentInputValue = autoSn !== null ? autoSn : (snInputRef.current?.value.replace(/\D/g, '') || sn);
+      const currentInputValue = autoSn !== null ? autoSn : (snInputRef.current?.value.replace(/[^A-Za-z0-9-]/g, '') || sn);
       const cleanSn = currentInputValue.trim();
       if (!cleanSn) return;
       if (cleanSn.length < 12) {
@@ -1203,8 +1203,8 @@ export default function InventoryReceivePage() {
     // We remove whitespace and special symbols just in case, but keep letters/numbers.
     const value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     setSn(value);
-    if (inputType === 'scan' && value.length >= 8) {
-        // Auto-add might be tricky if lengths vary, but we keep the logic or just let them press Enter
+    if (inputType === 'scan' && value.length >= 12) {
+        handleAddToStaging(null, value);
     }
   };
 
@@ -1494,7 +1494,25 @@ export default function InventoryReceivePage() {
                   {selectedProduct.has_sn ? (
                     <div className="space-y-6">
                       <div className="flex flex-col gap-4">
-                        <label className="block text-sm font-semibold text-[#042C53]">สแกนบาร์โค้ด หรือ พิมพ์รหัส SN (กด Enter)</label>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <label className="block text-sm font-semibold text-[#042C53]">สแกนบาร์โค้ด หรือ พิมพ์รหัส SN (กด Enter)</label>
+                          <div className="flex bg-[#F3F4F6] p-1 rounded-lg self-start sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => { setInputType('scan'); snInputRef.current?.focus(); }}
+                              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${inputType === 'scan' ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280] hover:text-[#374151]'}`}
+                            >
+                              โหมดสแกน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setInputType('type'); snInputRef.current?.focus(); }}
+                              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${inputType === 'type' ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280] hover:text-[#374151]'}`}
+                            >
+                              โหมดพิมพ์
+                            </button>
+                          </div>
+                        </div>
                         <div className="flex gap-2">
                           <input ref={snInputRef} type="text" value={sn} onChange={handleSnChange} onKeyDown={handleSnKeyDown}
                             placeholder="สแกน หรือ พิมพ์รหัส SN..."
