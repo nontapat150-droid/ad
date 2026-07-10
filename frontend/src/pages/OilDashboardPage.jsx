@@ -12,6 +12,47 @@ import { getImageUrl } from '../utils/imageUtils';
 import ImageWithFallback from '../components/common/ImageWithFallback';
 
 // ── Chart Section ─────────────────────────────────────────────────────────
+export function TeamNameBadge({ defaultName }) {
+  let rawName = defaultName || '';
+  let role = null;
+  let roleColor = '';
+  let displayName = rawName;
+
+  if (displayName) {
+    const lowerName = displayName.toLowerCase();
+    if (lowerName.includes('ช่างoffice') || lowerName.includes('ช่าง office')) {
+      role = 'ช่าง Office';
+      roleColor = 'bg-purple-100 text-purple-700 border-purple-200';
+      displayName = displayName.replace(/ช่าง\s*office/i, '').trim();
+    } else if (lowerName.includes('ช่างma') || lowerName.includes('ช่าง ma') || lowerName.includes(' ma')) {
+      role = 'ช่าง MA';
+      roleColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      displayName = displayName.replace(/ช่าง\s*ma/i, '').replace(/\bma\b/i, '').trim();
+    } else if (lowerName.includes('ช่าง')) {
+      role = 'ช่างติดตั้ง';
+      roleColor = 'bg-blue-100 text-blue-700 border-blue-200';
+      displayName = displayName.replace(/ช่าง(ติดตั้ง)?/i, '').trim();
+    } else if (lowerName.includes('sale') || lowerName.includes('เซล')) {
+      role = 'Sales';
+      roleColor = 'bg-pink-100 text-pink-700 border-pink-200';
+      displayName = displayName.replace(/sale|เซลล์?|ฝ่ายขาย/i, '').trim();
+    }
+    displayName = displayName.replace(/[\(\)\[\]\-]/g, '').trim();
+  }
+  if (!displayName) displayName = rawName;
+
+  return (
+    <div className="flex items-center flex-wrap gap-1.5">
+      <span className="font-black text-[#1F2937]">{displayName}</span>
+      {role && (
+        <span className={`px-2 py-0.5 text-[10.5px] font-bold rounded-md border ${roleColor} whitespace-nowrap shadow-sm`}>
+          {role}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Tooltip shared between line and bar charts
 function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
   if (!vehicles || vehicles.length === 0) return null;
@@ -83,11 +124,16 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
 
                 return (
                   <tr key={v.license_plate} className="hover:bg-[#F9FAFB] transition-colors">
-                    <td className="py-4 px-3 font-black text-[#1F2937] align-top">
+                    <td className="py-4 px-3 align-top min-w-[150px]">
                       {(() => {
-                        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') return v.team_name;
-                        const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
-                        return fallbackTeam ? fallbackTeam.team_name : v.license_plate;
+                        let rawName = v.license_plate;
+                        if (v.team_name && v.team_name !== 'ไม่ระบุทีม') {
+                          rawName = v.team_name;
+                        } else {
+                          const fallbackTeam = teams && teams.find(t => t.team_name && t.team_name.includes(v.license_plate));
+                          if (fallbackTeam) rawName = fallbackTeam.team_name;
+                        }
+                        return <TeamNameBadge defaultName={rawName} />;
                       })()}
                     </td>
                     <td className="py-3 px-3">
