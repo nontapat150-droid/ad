@@ -50,7 +50,21 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   }, [record]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+      // Auto-update license plate when tech changes
+      if (name === 'tech_id') {
+        const selectedUser = usersList.find(u => u.id.toString() === value);
+        if (selectedUser && selectedUser.team_name) {
+          newData.license_plate = selectedUser.team_name;
+        }
+      }
+      
+      return newData;
+    });
   };
 
   const handleRemoveExistingImage = (img) => {
