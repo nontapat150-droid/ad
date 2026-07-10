@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -159,6 +160,17 @@ router.post(
       }
 
       await conn.commit();
+
+      // 🔔 Notify admins about new oil record
+      const fillerName = req.user.full_name || req.user.username || 'ผู้ใช้';
+      notifyAdmins(
+        pool,
+        '⛽ บันทึกน้ำมันใหม่',
+        `${fillerName} เติมน้ำมัน ${license_plate || ''} จำนวน ${liters}L ราคา ${parseFloat(total_price).toLocaleString()} บาท`,
+        { type: 'oil_add', license_plate: license_plate || '' },
+        req.user.id
+      );
+
       res.status(201).json({ message: 'Oil record saved', id: result.insertId });
     } catch (err) {
       await conn.rollback();
@@ -177,9 +189,22 @@ router.delete('/records/:id', auth, requireRole(ADMIN_ROLES), async (req, res) =
   try {
     await conn.beginTransaction();
     // Delete associated images first
+    const [oldRec] = await conn.query('SELECT license_plate FROM oil_records WHERE id = ?', [recordId]);
+    const plateDel = oldRec.length > 0 ? oldRec[0].license_plate : '';
     await conn.query('DELETE FROM oil_images WHERE record_id = ?', [recordId]);
     await conn.query('DELETE FROM oil_records WHERE id = ?', [recordId]);
     await conn.commit();
+
+    // 🔔 Notify admins about deleted record
+    const deleterName = req.user.full_name || req.user.username || 'แอดมิน';
+    notifyAdmins(
+      pool,
+      '🗑️ ลบรายการน้ำมัน',
+      `${deleterName} ลบรายการน้ำมัน #${recordId}${plateDel ? ` (ทะเบียน: ${plateDel})` : ''}`,
+      { type: 'oil_delete', record_id: String(recordId) },
+      req.user.id
+    );
+
     res.json({ message: 'Oil record deleted successfully' });
   } catch (err) {
     await conn.rollback();
@@ -537,6 +562,17 @@ router.put(
       }
 
       await conn.commit();
+
+      // 🔔 Notify admins about edited oil record
+      const editorName = req.user.full_name || req.user.username || 'แอดมิน';
+      notifyAdmins(
+        pool,
+        '✏️ แก้ไขรายการน้ำมัน',
+        `${editorName} แก้ไขรายการ #${recordId} ทะเบียน: ${license_plate || old[0].license_plate}`,
+        { type: 'oil_edit', record_id: String(recordId) },
+        req.user.id
+      );
+
       res.json({ message: 'Updated successfully' });
     } catch (err) {
       await conn.rollback();

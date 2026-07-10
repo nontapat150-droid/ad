@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const bcrypt  = require('bcryptjs');
 const { auth, requireRole } = require('../middleware/auth');
+const { notifyAdmins, notifyUser } = require('../utils/notifyAdmins');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -124,6 +125,17 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
+
+    // 🔔 Notify admins about new user
+    const creatorName = req.user.full_name || req.user.username || 'แอดมิน';
+    notifyAdmins(
+      pool,
+      '👤 สร้างผู้ใช้ใหม่',
+      `${creatorName} เพิ่มผู้ใช้ใหม่: ${full_name} (${role})`,
+      { type: 'user_created', user_id: String(userId) },
+      req.user.id
+    );
+
     res.status(201).json({ message: 'User created', id: userId });
   } catch (err) {
     await conn.rollback();
@@ -198,6 +210,37 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
+
+    // 🔔 Notify the user if their status was changed (approved/rejected)
+    const adminName = req.user.full_name || req.user.username || 'แอดมิน';
+    if (status === 'approved') {
+      notifyUser(
+        pool,
+        parseInt(userId),
+        '✅ บัญชีของคุณอนุมัติแล้ว',
+        `${adminName} อนุมัติการเข้าใช้งานของคุณแล้ว`,
+        { type: 'user_approved' },
+        req.user.id
+      );
+    } else if (status === 'rejected') {
+      notifyUser(
+        pool,
+        parseInt(userId),
+        '❌ บัญชีถูกปฏิเสธ',
+        `${adminName} ไม่อนุมัติบัญชีของคุณ`,
+        { type: 'user_rejected' },
+        req.user.id
+      );
+    }
+    // Notify all admins
+    notifyAdmins(
+      pool,
+      '✏️ อัปเดตข้อมูลผู้ใช้',
+      `${adminName} อัปเดตข้อมูล ${full_name} (สถานะ: ${status})`,
+      { type: 'user_updated', user_id: String(userId) },
+      req.user.id
+    );
+
     res.json({ message: 'User updated successfully' });
   } catch (err) {
     await conn.rollback();

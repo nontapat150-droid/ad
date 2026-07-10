@@ -4,6 +4,7 @@ const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
+const { notifyAdmins } = require('../utils/notifyAdmins');
 
 const router = express.Router();
 
@@ -545,12 +546,32 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         status || 'pending', remark || null, seq || null, map_link || null, team_id || null
       ]
     );
-    const conn = await pool.getConnection();
+    const conn2 = await pool.getConnection();
     try {
-      await safeSyncCustomer(conn, result.insertId);
+      await safeSyncCustomer(conn2, result.insertId);
     } finally {
-      conn.release();
+      conn2.release();
     }
+
+    // 🔔 Notify team + admins about new job
+    const creatorName = req.user.full_name || req.user.username || 'แอดมิน';
+    const jobSummary = `${access_no} - ${customer || 'ไม่ระบุชื่อลูกค้า'}`;
+    if (team_id) {
+      notifyTeamMembers(
+        team_id,
+        '📋 งานใหม่เข้าสู่ทีม',
+        `${jobSummary}`,
+        { type: 'new_job', job_id: String(result.insertId) }
+      );
+    }
+    notifyAdmins(
+      pool,
+      '📋 งานใหม่ถูกสร้าง',
+      `${creatorName} เพิ่มงานใหม่: ${jobSummary}`,
+      { type: 'new_job', job_id: String(result.insertId) },
+      req.user.id
+    );
+
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -743,7 +764,19 @@ router.put('/jobs/reorder-by-location', auth, async (req, res) => {
 router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { team_id } = req.body;
   try {
+    const [[job]] = await pool.query('SELECT access_no, customer FROM jobs WHERE id = ?', [req.params.id]);
     await pool.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [team_id, req.params.id]);
+
+    // 🔔 Notify the team that received the job
+    if (team_id && job) {
+      notifyTeamMembers(
+        team_id,
+        '📌 มอบหมายงานใหม่',
+        `${job.access_no} - ${job.customer || ''} ถูกมอบหมายให้ทีมของคุณแล้ว`,
+        { type: 'job_assigned', job_id: String(req.params.id) }
+      );
+    }
+
     res.json({ message: 'Team assigned' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
