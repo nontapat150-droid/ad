@@ -650,6 +650,7 @@ router.get('/vehicle-summary', auth, async (req, res) => {
       SELECT 
         r.license_plate,
         MAX(t.team_name) AS team_name,
+        MAX(u.team_id) AS main_team_id,
         COUNT(*) AS refuel_count,
         COALESCE(SUM(r.total_price), 0) AS total_cost,
         COALESCE(SUM(r.liters), 0) AS total_liters,

@@ -149,7 +149,8 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
                         
                         // Find the team from `teams` array to get `team_roles`
                         const fallbackTeam = teams && teams.find(t => 
-                          (t.team_name && t.team_name.includes(v.license_plate)) || 
+                          (v.main_team_id && t.id === v.main_team_id) ||
+                          (v.main_team_id && t.id === v.main_team_id) || (t.team_name && t.team_name.includes(v.license_plate)) || 
                           (v.team_name && t.team_name === v.team_name)
                         );
                         
