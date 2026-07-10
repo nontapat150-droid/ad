@@ -1,7 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
-const { notifyAdmins, notifyUser } = require('../utils/notifyAdmins');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -475,17 +474,6 @@ router.post('/receive', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
-
-    // 🔔 Notify admins about inventory receive
-    const adminName = req.user.full_name || req.user.username || 'แอดมิน';
-    notifyAdmins(
-      pool,
-      '📦 นำเข้าสินค้าใหม่',
-      `${adminName} นำเข้า ${model.model_name} จำนวน ${itemsAdded} รายการเข้าคลัง`,
-      { type: 'inventory_receive', model_id: String(model_id) },
-      req.user.id
-    );
-
     res.json({ message: `Successfully received ${itemsAdded} item(s) into stock.` });
   } catch (err) {
     await conn.rollback();
@@ -589,31 +577,6 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
-
-    // 🔔 Notify the recipient + admins about dispatch
-    const adminName = req.user.full_name || req.user.username || 'แอดมิน';
-    const [[recipientUser]] = await pool.query('SELECT full_name FROM users WHERE id = ?', [target_user_id]);
-    const recipientName = recipientUser?.full_name || `ผู้ใช้ #${target_user_id}`;
-
-    // Notify the recipient directly
-    notifyUser(
-      pool,
-      target_user_id,
-      '🎒 ได้รับอุปกรณ์ใหม่',
-      `${adminName} เบิกอุปกรณ์ ${dispatchedCount} รายการให้คุณแล้ว`,
-      { type: 'inventory_dispatch' },
-      req.user.id
-    );
-
-    // Notify admins
-    notifyAdmins(
-      pool,
-      '📤 เบิกจ่ายอุปกรณ์',
-      `${adminName} เบิกอุปกรณ์ ${dispatchedCount} รายการ ให้ ${recipientName}`,
-      { type: 'inventory_dispatch', target_user_id: String(target_user_id) },
-      req.user.id
-    );
-
     res.json({ message: `Successfully dispatched ${dispatchedCount} items to technician.` });
   } catch (err) {
     await conn.rollback();
