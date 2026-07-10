@@ -121,7 +121,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
   const baseGroups = MENU_GROUPS.map(group => ({
     ...group,
     items: group.items.filter(item => {
-      if (isAdminOnly && ['oil', 'oil_history', 'entry_fee', 'bag'].includes(item.key)) return false;
+      if (isAdminOnly && ['oil', 'oil_history', 'entry_fee'].includes(item.key)) return false;
       return true;
     })
   })).filter(group => group.items.length > 0);
