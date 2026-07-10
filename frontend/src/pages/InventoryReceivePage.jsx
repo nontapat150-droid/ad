@@ -1199,9 +1199,13 @@ export default function InventoryReceivePage() {
   };
 
   const handleSnChange = (e) => {
-    const value = e.target.value.replace(/\D/g, '');
+    // Allow alphanumeric and dash characters (uppercase for consistency, or keep as is)
+    // We remove whitespace and special symbols just in case, but keep letters/numbers.
+    const value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     setSn(value);
-    if (inputType === 'scan' && value.length === 12) handleAddToStaging(null, value);
+    if (inputType === 'scan' && value.length >= 8) {
+        // Auto-add might be tricky if lengths vary, but we keep the logic or just let them press Enter
+    }
   };
 
   const handleSnKeyDown = (e) => {
