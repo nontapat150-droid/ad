@@ -93,6 +93,44 @@ function OverallPercentageSummary({ vehicles, selectedTeams, teams }) {
     }
   }
 
+  return (
+    <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 mb-6 animate-fade-in-up">
+      <div className="mb-5 border-b border-[#F3F4F6] pb-5">
+        <h3 className="font-extrabold text-[#1F2937] text-lg mb-4 flex items-center gap-2">
+          <span className="bg-indigo-100 p-1.5 rounded-lg text-indigo-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+          </span>
+          {headerText}
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100/50">
+            <p className="text-sm font-bold text-emerald-600 mb-1">ยอดเงินที่ใช้เติมทั้งหมด</p>
+            <p className="text-2xl font-black text-emerald-700">฿{totalCost.toLocaleString()}</p>
+          </div>
+          <div className="bg-sky-50 rounded-2xl p-4 border border-sky-100/50">
+            <p className="text-sm font-bold text-sky-600 mb-1">ระยะทางวิ่งรวม</p>
+            <p className="text-2xl font-black text-sky-700">{totalDistance.toLocaleString()} กม.</p>
+          </div>
+          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100/50">
+            <p className="text-sm font-bold text-amber-600 mb-1">ลิตรที่เติมทั้งเดือนรวม</p>
+            <p className="text-2xl font-black text-amber-700">{totalLiters.toFixed(2)} L</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h4 className="font-bold text-[#4B5563] text-[13px] mb-3 uppercase tracking-wider">สัดส่วนแต่ละคันจากยอดรวมทั้งหมด</h4>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] text-[#6B7280] text-xs uppercase tracking-wider">
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB] rounded-tl-xl">ทะเบียนรถ</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB]">ยอดเงิน (%)</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB]">ระยะทาง (%)</th>
+                <th className="py-2.5 px-3 font-bold bg-[#F9FAFB] rounded-tr-xl">ลิตร (%)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#F3F4F6]">
               {vehicles.map((v) => {
                 const cost = parseFloat(v.total_cost) || 0;
                 const dist = parseFloat(v.total_distance) || 0;
