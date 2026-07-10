@@ -353,24 +353,28 @@ router.get('/analytics', auth, async (req, res) => {
 
   try {
     const [byVehicle] = await pool.query(`
-      SELECT r.license_plate, 
+      SELECT COALESCE(t.team_name, r.license_plate) as license_plate, 
              SUM(r.liters) as total_liters, 
              SUM(r.total_price) as total_cost,
              SUM(r.distance) as total_distance,
              MAX(u.team_id) as main_team_id
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
+      LEFT JOIN teams t ON t.id = u.team_id
       ${whereClause}
-      GROUP BY r.license_plate
+      GROUP BY COALESCE(t.team_name, r.license_plate)
       ORDER BY total_cost DESC
     `, params);
 
     const [rawDaily] = await pool.query(`
-      SELECT DATE_FORMAT(date_recorded, '%Y-%m-%d') as date, r.license_plate, SUM(liters) as total_liters, SUM(total_price) as total_cost, SUM(distance) as total_distance
+      SELECT DATE_FORMAT(r.date_recorded, '%Y-%m-%d') as date, 
+             COALESCE(MAX(t.team_name), r.license_plate) as license_plate, 
+             SUM(r.liters) as total_liters, SUM(r.total_price) as total_cost, SUM(r.distance) as total_distance
       FROM oil_records r
       LEFT JOIN users u ON u.id = r.tech_id
+      LEFT JOIN teams t ON t.id = u.team_id
       ${whereClause}
-      GROUP BY date, r.license_plate
+      GROUP BY date, COALESCE(t.team_name, r.license_plate)
       ORDER BY date ASC
     `, params);
 
