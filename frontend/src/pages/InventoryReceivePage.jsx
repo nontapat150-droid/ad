@@ -774,11 +774,22 @@ export default function InventoryReceivePage() {
   const [modelSearchInput, setModelSearchInput] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedModelId, setSelectedModelId] = useState('');
+  // Dropdown open state
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const productInputRef = useRef(null);
+  const modelInputRef = useRef(null);
   
   // Product Details
   const selectedProduct = products.find(p => p.id === parseInt(selectedProductId));
   const availableModels = selectedProduct?.models || [];
   const selectedModel = availableModels.find(m => m.id === parseInt(selectedModelId));
+
+  // All models (flat list for model-first search)
+  const allModels = products.flatMap(p => (p.models || []).map(m => ({ ...m, productId: p.id, productName: p.name })));
+  const filteredModelsGlobal = modelSearchInput.trim()
+    ? allModels.filter(m => m.model_name.toLowerCase().includes(modelSearchInput.toLowerCase()) || m.productName.toLowerCase().includes(modelSearchInput.toLowerCase()))
+    : (selectedProduct ? availableModels.map(m => ({ ...m, productId: selectedProduct.id, productName: selectedProduct.name })) : allModels);
   
   // Form State
   const [inputType, setInputType] = useState('scan');
@@ -1413,10 +1424,13 @@ export default function InventoryReceivePage() {
       <div className="pb-24">
         <div className="space-y-6">
 
-              {/* Step 1: Select Product & Model */}
+              {/* Step 1: Select Product & Model - Redesigned */}
               <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
                 <div className="flex justify-between items-center mb-6 border-b border-[#E5E7EB] pb-4">
-                  <h2 className="text-xl font-black text-[#1F2937]">1. เลือกสินค้าที่จะนำเข้า</h2>
+                  <div>
+                    <h2 className="text-xl font-black text-[#1F2937]">1. เลือกสินค้าที่จะนำเข้า</h2>
+                    <p className="text-sm text-[#6B7280] mt-1 font-medium">ค้นหาจากชื่อสินค้า หรือโมเดล — เลือกอันใดก็จะเติมอีกอันให้อัตโนมัติ</p>
+                  </div>
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
@@ -1429,58 +1443,296 @@ export default function InventoryReceivePage() {
                       </svg>
                       Import Excel
                     </button>
-
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-[#042C53] mb-2">ค้นหาสินค้า (พิมพ์ชื่อ)</label>
-                    <div className="flex gap-2">
-                      <input
-                        list="product-list"
-                        value={productSearchInput}
-                        onChange={handleProductSearch}
-                        placeholder="พิมพ์เพื่อค้นหาสินค้า..."
-                        className="flex-1 min-w-0 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-[#042C53] font-medium bg-white"
-                      />
-                      <datalist id="product-list">
-                        {products.map(p => <option key={p.id} value={p.name} />)}
-                      </datalist>
-                      {!selectedProductId && productSearchInput.trim() && (
-                        <button type="button" onClick={handleAddNewProduct}
-                          className="bg-[#185FA5] hover:bg-[#0C447C] text-white px-4 py-3 rounded-xl font-bold whitespace-nowrap transition-colors shrink-0 shadow-sm">
-                          + เพิ่มใหม่
-                        </button>
-                      )}
-                      <button type="button" onClick={handleDeleteProductClick}
-                        className="bg-white hover:bg-red-50 text-red-500 px-4 py-3 rounded-xl border border-slate-300 hover:border-red-200 transition-colors shrink-0 flex items-center justify-center shadow-sm gap-2 font-bold"
-                        title="ลบสินค้าออกจากระบบ">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        ลบสินค้า
-                      </button>
+                {/* Selected badge display */}
+                {(selectedProductId && selectedModelId) && (
+                  <div className="flex items-center gap-3 mb-5 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                    <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center shrink-0">
+                      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-emerald-800">{selectedProduct?.name}</p>
+                      <p className="text-xs font-semibold text-emerald-600 truncate">โมเดล: {selectedModel?.model_name} {selectedProduct?.has_sn ? '· มี SN' : `· ไม่มี SN (${selectedProduct?.unit})`}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setProductSearchInput(''); setModelSearchInput(''); setSelectedProductId(''); setSelectedModelId(''); }}
+                      className="text-emerald-600 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50 shrink-0"
+                      title="ล้างการเลือก"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                   </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* ── Product Search Dropdown ── */}
                   <div>
-                    <label className="block text-sm font-semibold text-[#042C53] mb-2">โมเดล (Model)</label>
-                    <div className="flex gap-2">
+                    <label className="block text-sm font-bold text-[#042C53] mb-2 flex items-center gap-1.5">
+                      <span className="w-5 h-5 bg-blue-100 text-blue-700 rounded-md flex items-center justify-center text-xs font-black">1</span>
+                      ชื่อสินค้า
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                      </div>
                       <input
-                        list="model-list"
-                        value={modelSearchInput}
-                        onChange={handleModelSearch}
-                        disabled={!selectedProductId}
-                        placeholder={selectedProductId ? "พิมพ์เพื่อค้นหาหรือเพิ่มโมเดล..." : "กรุณาเลือกสินค้าก่อน"}
-                        className="flex-1 min-w-0 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none text-[#042C53] font-medium bg-white disabled:opacity-50 disabled:bg-slate-50"
+                        ref={productInputRef}
+                        type="text"
+                        value={productSearchInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProductSearchInput(val);
+                          setProductDropdownOpen(true);
+                          const found = products.find(p => p.name.toLowerCase() === val.toLowerCase());
+                          if (found) {
+                            setSelectedProductId(found.id);
+                            if (found.models?.length > 0) {
+                              setModelSearchInput(found.models[0].model_name);
+                              setSelectedModelId(found.models[0].id);
+                            } else {
+                              setModelSearchInput('');
+                              setSelectedModelId('');
+                            }
+                          } else {
+                            setSelectedProductId('');
+                            setSelectedModelId('');
+                            setModelSearchInput('');
+                          }
+                        }}
+                        onFocus={() => setProductDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setProductDropdownOpen(false), 200)}
+                        placeholder="พิมพ์ชื่อสินค้า..."
+                        className={`w-full pl-10 pr-10 py-3.5 border-2 rounded-2xl outline-none font-semibold text-[#1F2937] transition-all ${
+                          selectedProductId
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                            : 'border-[#E5E7EB] bg-white focus:border-[#185FA5] focus:ring-4 focus:ring-blue-100'
+                        }`}
                       />
-                      <datalist id="model-list">
-                        {availableModels.map(m => <option key={m.id} value={m.model_name} />)}
-                      </datalist>
-                      {selectedProductId && !selectedModelId && modelSearchInput.trim() && (
-                        <button type="button" onClick={handleAddNewModel}
-                          className="bg-[#185FA5] hover:bg-[#0C447C] text-white px-4 py-3 rounded-xl font-bold whitespace-nowrap transition-colors shrink-0 shadow-sm">
-                          + เพิ่มโมเดล
+                      {selectedProductId ? (
+                        <button
+                          type="button"
+                          onClick={() => { setProductSearchInput(''); setSelectedProductId(''); setModelSearchInput(''); setSelectedModelId(''); productInputRef.current?.focus(); }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-emerald-500 hover:text-red-500 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
+                      ) : (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
                       )}
+                      {/* Product Dropdown */}
+                      {productDropdownOpen && (() => {
+                        const filtered = products.filter(p =>
+                          !productSearchInput.trim() || p.name.toLowerCase().includes(productSearchInput.toLowerCase())
+                        );
+                        return (
+                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-[#E5E7EB] shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
+                            {filtered.length === 0 ? (
+                              <div className="px-4 py-8 text-center">
+                                <p className="text-sm font-bold text-[#6B7280] mb-3">ไม่พบสินค้า "{productSearchInput}"</p>
+                                <button
+                                  type="button"
+                                  onMouseDown={(e) => { e.preventDefault(); handleAddNewProduct(); }}
+                                  className="inline-flex items-center gap-2 bg-[#185FA5] text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors hover:bg-[#0C447C]"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                  เพิ่มสินค้าใหม่
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                {productSearchInput.trim() && !products.find(p => p.name.toLowerCase() === productSearchInput.toLowerCase()) && (
+                                  <div className="px-3 py-2 border-b border-[#F3F4F6]">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => { e.preventDefault(); handleAddNewProduct(); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-[#185FA5] hover:bg-blue-50 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                      เพิ่ม "{productSearchInput}" เป็นสินค้าใหม่
+                                    </button>
+                                  </div>
+                                )}
+                                {filtered.map(p => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setProductSearchInput(p.name);
+                                      setSelectedProductId(p.id);
+                                      setProductDropdownOpen(false);
+                                      if (p.models?.length > 0) {
+                                        setModelSearchInput(p.models[0].model_name);
+                                        setSelectedModelId(p.models[0].id);
+                                      } else {
+                                        setModelSearchInput('');
+                                        setSelectedModelId('');
+                                      }
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F9FAFB] transition-colors text-left border-b border-[#F9FAFB] last:border-0 ${
+                                      selectedProductId === p.id ? 'bg-blue-50' : ''
+                                    }`}
+                                  >
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm font-black ${
+                                      p.has_sn ? 'bg-purple-100 text-purple-700' : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {p.has_sn ? 'SN' : '📦'}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-[#1F2937] text-sm truncate">{p.name}</p>
+                                      <p className="text-xs text-[#6B7280] font-medium">
+                                        {p.models?.length || 0} โมเดล · {p.has_sn ? 'มี SN' : `ไม่มี SN (${p.unit})`}
+                                        {p.category ? ` · ${p.category}` : ''}
+                                      </p>
+                                    </div>
+                                    {selectedProductId === p.id && (
+                                      <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    )}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    {/* Delete product action */}
+                    {selectedProductId && (
+                      <button
+                        type="button"
+                        onClick={handleDeleteProductClick}
+                        className="mt-2 flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 font-semibold transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        ลบสินค้านี้ออกจากระบบ
+                      </button>
+                    )}
+                  </div>
+
+                  {/* ── Model Search Dropdown ── */}
+                  <div>
+                    <label className="block text-sm font-bold text-[#042C53] mb-2 flex items-center gap-1.5">
+                      <span className="w-5 h-5 bg-purple-100 text-purple-700 rounded-md flex items-center justify-center text-xs font-black">2</span>
+                      โมเดล (Model)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" /></svg>
+                      </div>
+                      <input
+                        ref={modelInputRef}
+                        type="text"
+                        value={modelSearchInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setModelSearchInput(val);
+                          setModelDropdownOpen(true);
+                          setSelectedModelId('');
+                        }}
+                        onFocus={() => setModelDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setModelDropdownOpen(false), 200)}
+                        placeholder={selectedProductId ? 'พิมพ์ชื่อโมเดล...' : 'ค้นหาโมเดล (จะเลือกสินค้าให้อัตโนมัติ)...'}
+                        className={`w-full pl-10 pr-10 py-3.5 border-2 rounded-2xl outline-none font-semibold text-[#1F2937] transition-all ${
+                          selectedModelId
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                            : 'border-[#E5E7EB] bg-white focus:border-[#7C3AED] focus:ring-4 focus:ring-purple-100'
+                        }`}
+                      />
+                      {selectedModelId ? (
+                        <button
+                          type="button"
+                          onClick={() => { setModelSearchInput(''); setSelectedModelId(''); modelInputRef.current?.focus(); }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-emerald-500 hover:text-red-500 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      ) : (
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                          <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                      )}
+                      {/* Model Dropdown */}
+                      {modelDropdownOpen && (() => {
+                        const filteredGlobal = modelSearchInput.trim()
+                          ? allModels.filter(m =>
+                              m.model_name.toLowerCase().includes(modelSearchInput.toLowerCase()) ||
+                              m.productName.toLowerCase().includes(modelSearchInput.toLowerCase())
+                            )
+                          : (selectedProduct
+                              ? availableModels.map(m => ({ ...m, productId: selectedProduct.id, productName: selectedProduct.name }))
+                              : allModels.slice(0, 60));
+                        return (
+                          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl border border-[#E5E7EB] shadow-2xl z-50 overflow-hidden max-h-72 overflow-y-auto">
+                            {filteredGlobal.length === 0 ? (
+                              <div className="px-4 py-8 text-center">
+                                <p className="text-sm font-bold text-[#6B7280] mb-3">ไม่พบโมเดล "{modelSearchInput}"</p>
+                                {selectedProductId && (
+                                  <button
+                                    type="button"
+                                    onMouseDown={(e) => { e.preventDefault(); handleAddNewModel(); }}
+                                    className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors hover:bg-purple-700"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                    เพิ่มโมเดลใหม่
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                {selectedProductId && modelSearchInput.trim() && !availableModels.find(m => m.model_name.toLowerCase() === modelSearchInput.toLowerCase()) && (
+                                  <div className="px-3 py-2 border-b border-[#F3F4F6]">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => { e.preventDefault(); handleAddNewModel(); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors"
+                                    >
+                                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                                      เพิ่ม "{modelSearchInput}" เป็นโมเดลใหม่
+                                    </button>
+                                  </div>
+                                )}
+                                {filteredGlobal.map(m => (
+                                  <button
+                                    key={`${m.productId}-${m.id}`}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      // Auto-fill product when selecting model
+                                      const parentProduct = products.find(p => p.id === m.productId);
+                                      if (parentProduct) {
+                                        setProductSearchInput(parentProduct.name);
+                                        setSelectedProductId(parentProduct.id);
+                                      }
+                                      setModelSearchInput(m.model_name);
+                                      setSelectedModelId(m.id);
+                                      setModelDropdownOpen(false);
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F9FAFB] transition-colors text-left border-b border-[#F9FAFB] last:border-0 ${
+                                      selectedModelId === m.id ? 'bg-purple-50' : ''
+                                    }`}
+                                  >
+                                    <div className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+                                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" /></svg>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-[#1F2937] text-sm truncate">{m.model_name}</p>
+                                      <p className="text-xs text-[#6B7280] font-medium truncate">สินค้า: {m.productName}</p>
+                                    </div>
+                                    {selectedModelId === m.id && (
+                                      <svg className="w-4 h-4 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                    )}
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
