@@ -95,38 +95,11 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
             </button>
             
             {!isCompleted && (
-              <>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onPostpone(job); }}
-                  className="flex-1 h-10 rounded-xl bg-purple-100 border border-purple-200 flex items-center justify-center gap-1.5 text-xs font-bold text-purple-700 hover:bg-purple-200 transition-colors active:scale-[0.98]">
-                  เลื่อนติดตั้ง
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onIncomplete(job); }}
-                  className="flex-1 h-10 rounded-xl bg-red-100 border border-red-200 flex items-center justify-center gap-1.5 text-xs font-bold text-red-700 hover:bg-red-200 transition-colors active:scale-[0.98]">
-                  ไม่สำเร็จ
-                </button>
-                {!job.set_off_time ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onSetOff(job); }}
-                    className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-blue-400 to-blue-600 border border-blue-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:shadow-blue-500/40 transition-all active:scale-[0.98]">
-                    🚀 ออกเดินทาง
-                  </button>
-                ) : !job.arrival_time ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onArrive(job); }}
-                    className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 border border-amber-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 transition-all active:scale-[0.98]">
-                    📍 ถึงหน้างาน
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onComplete(job); }}
-                    className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
-                    จบงาน
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                  </button>
-                )}
-              </>
+              <button
+                onClick={(e) => { e.stopPropagation(); onComplete(job); }}
+                className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
+                ✅ จบงาน
+              </button>
             )}
           </div>
         </div>

@@ -339,18 +339,7 @@ export default function CustomersPage() {
                         time={formatDate(customerData.plan_arrival_time)} 
                         desc="เวลานัดหมายกับลูกค้า"
                       />
-                      <TimelineItem 
-                        active={!!customerData.set_off_time}
-                        title="ออกเดินทาง (Set off)" 
-                        time={formatDate(customerData.set_off_time)} 
-                        desc="ช่างเริ่มเดินทางไปยังจุดหมาย"
-                      />
-                      <TimelineItem 
-                        active={!!customerData.arrival_time}
-                        title="ถึงหน้างาน (Arrival)" 
-                        time={formatDate(customerData.arrival_time)} 
-                        desc="ช่างเดินทางถึงจุดหมาย"
-                      />
+
                       <TimelineItem 
                         active={!!customerData.finish_time}
                         isLast

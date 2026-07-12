@@ -8,14 +8,25 @@ const { sendToUser } = require('../config/firebase-admin');
 const router = express.Router();
 
 // ── Push notification helper: send to all members of a team ──
-async function notifyTeamMembers(teamId, title, body, data = {}) {
+async function notifyTeamMembers(teamId, title, body, data = {}, senderId = null) {
   try {
     const [members] = await pool.query(
       'SELECT id FROM users WHERE team_id = ? AND status = ?',
       [teamId, 'approved']
     );
     for (const member of members) {
+      // 1. Send push notification
       sendToUser(member.id, title, body, data).catch(e => console.error('Push to team member failed:', e.message));
+      
+      // 2. Save to inbox (messages table)
+      try {
+        await pool.query(
+          `INSERT INTO messages (sender_id, receiver_id, title, body, type, related_id) VALUES (?, ?, ?, ?, ?, ?)`,
+          [senderId || 1, member.id, title, body, data.type || 'system', data.related_id || null]
+        );
+      } catch (dbErr) {
+        console.error('Failed to save message for user', member.id, dbErr);
+      }
     }
   } catch (e) {
     console.error('notifyTeamMembers error:', e.message);
@@ -551,6 +562,23 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     } finally {
       conn.release();
     }
+
+    if (team_id) {
+      const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
+      const teamName = team?.team_name || 'ทีม';
+      let firstJobTime = 'ไม่ได้ระบุเวลา';
+      if (formatted_time) {
+        firstJobTime = formatted_time.substring(11, 16) + ' น.';
+      }
+      notifyTeamMembers(
+        team_id,
+        '📋 มีงานใหม่เข้า!',
+        `${teamName} ได้รับมอบหมายงานใหม่ 1 งาน\nเวลาเข้างานแรก: ${firstJobTime}`,
+        { type: 'job_assigned', count: '1' },
+        req.user?.id
+      );
+    }
+
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -666,11 +694,33 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
     if (result.affectedRows > 0) {
       const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
       const teamName = team?.team_name || 'ทีม';
+      
+      // Get the earliest plan_arrival_time among the assigned jobs
+      const [earliestJob] = await pool.query(
+        `SELECT plan_arrival_time FROM ${table} WHERE id IN (${placeholders}) AND plan_arrival_time IS NOT NULL ORDER BY plan_arrival_time ASC LIMIT 1`, 
+        ids
+      );
+      
+      let firstJobTime = 'ไม่ได้ระบุเวลา';
+      if (earliestJob && earliestJob.length > 0 && earliestJob[0].plan_arrival_time) {
+        const timeVal = earliestJob[0].plan_arrival_time;
+        // If it's a Date object
+        if (timeVal instanceof Date) {
+          firstJobTime = timeVal.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
+        } else if (typeof timeVal === 'string') {
+          // If it's a string like "2026-07-12 10:30:00" or just "10:30:00"
+          const parts = timeVal.split(' ');
+          const timePart = parts.length > 1 ? parts[1] : parts[0];
+          firstJobTime = timePart.substring(0, 5) + ' น.';
+        }
+      }
+
       notifyTeamMembers(
         team_id,
-        '📋 มีงานใหม่!',
-        `${teamName} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน`,
-        { type: 'job_assigned', count: String(result.affectedRows) }
+        '📋 มีงานใหม่เข้า!',
+        `${teamName} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน\nเวลาเข้างานแรก: ${firstJobTime}`,
+        { type: 'job_assigned', count: String(result.affectedRows) },
+        req.user?.id
       );
     }
 

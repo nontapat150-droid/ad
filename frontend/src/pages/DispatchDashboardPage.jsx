@@ -116,25 +116,6 @@ export default function DispatchDashboardPage() {
     setSelectedJobIds([]);
   };
 
-  const handleSetOff = async (job) => {
-    try {
-      await axios.put(`/dispatch/jobs/${job.id}/set-off`);
-      fetchJobs();
-    } catch (err) {
-      console.error(err);
-      showNotification('ไม่สามารถบันทึกเวลาออกเดินทางได้', 'error');
-    }
-  };
-
-  const handleArrive = async (job) => {
-    try {
-      await axios.put(`/dispatch/jobs/${job.id}/arrive`);
-      fetchJobs();
-    } catch (err) {
-      console.error(err);
-      showNotification('ไม่สามารถบันทึกเวลาถึงหน้างานได้', 'error');
-    }
-  };
 
   const handleReorderByLocation = () => {
     if (!navigator.geolocation) {
@@ -586,16 +567,8 @@ export default function DispatchDashboardPage() {
                         <p className="text-xs text-[#6B7280] mb-3 line-clamp-2" title={job.address}><span className="font-semibold text-[#374151]">พิกัด:</span> {job.address || '-'}</p>
                         <div className="flex gap-2">
                            {(!isAdmin && job.status !== 'completed') ? (
-                             <div className="flex w-full gap-1">
-                               <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="flex-1 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg text-[10px] font-bold transition-colors border border-purple-200">เลื่อนติดตั้ง</button>
-                               <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="flex-1 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-[10px] font-bold transition-colors border border-red-200">ไม่สำเร็จ</button>
-                               {!job.set_off_time ? (
-                                 <button onClick={() => handleSetOff(job)} className="flex-[1.2] py-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg text-[10px] font-bold transition-colors shadow-sm">🚀เดินทาง</button>
-                               ) : !job.arrival_time ? (
-                                 <button onClick={() => handleArrive(job)} className="flex-[1.2] py-2 bg-amber-500 text-white hover:bg-amber-600 rounded-lg text-[10px] font-bold transition-colors shadow-sm">📍ถึงแล้ว</button>
-                               ) : (
-                                 <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="flex-[1.2] py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-[10px] font-bold transition-colors shadow-sm">✅จบงาน</button>
-                               )}
+                             <div className="flex w-full gap-1 mt-2">
+                               <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="flex-1 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold transition-colors shadow-sm">✅ จบงาน</button>
                              </div>
                            ) : (
                              <button onClick={() => setSelectedJob(job)}
@@ -719,15 +692,7 @@ export default function DispatchDashboardPage() {
                                   <div className="flex gap-1.5 justify-center">
                                     {(!isAdmin && job.status !== 'completed') ? (
                                       <>
-                                        <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="p-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-colors border border-purple-200" title="เลื่อนติดตั้ง"><span className="text-xs font-bold">เลื่อน</span></button>
-                                        <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="p-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors border border-red-200" title="ไม่สำเร็จ"><span className="text-xs font-bold">ไม่จบ</span></button>
-                                        {!job.set_off_time ? (
-                                          <button onClick={() => handleSetOff(job)} className="p-2 bg-blue-500 text-white hover:bg-blue-600 rounded-lg transition-colors shadow-sm" title="ออกเดินทาง"><span className="text-xs font-bold">เดินทาง</span></button>
-                                        ) : !job.arrival_time ? (
-                                          <button onClick={() => handleArrive(job)} className="p-2 bg-amber-500 text-white hover:bg-amber-600 rounded-lg transition-colors shadow-sm" title="ถึงหน้างาน"><span className="text-xs font-bold">ถึงแล้ว</span></button>
-                                        ) : (
-                                          <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="p-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-colors shadow-sm" title="จบงาน"><span className="text-xs font-bold">จบงาน</span></button>
-                                        )}
+                                        <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-colors shadow-sm w-full" title="จบงาน"><span className="text-xs font-bold">✅ จบงาน</span></button>
                                       </>
                                     ) : (
                                       <button onClick={() => setSelectedJob(job)}
@@ -894,3 +859,4 @@ export default function DispatchDashboardPage() {
     </div>
   );
 }
+

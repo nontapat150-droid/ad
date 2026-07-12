@@ -222,10 +222,6 @@ export default function TechDashboard() {
                       job={job} 
                       index={i} 
                       onComplete={setCompleting} 
-                      onIncomplete={setIncompleting} 
-                      onPostpone={setPostponing} 
-                      onSetOff={() => handleSetOff(job.id)}
-                      onArrive={() => handleArrive(job.id)}
                     />
                   ))
                 )}
