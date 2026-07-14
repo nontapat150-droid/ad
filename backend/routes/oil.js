@@ -8,8 +8,7 @@ const ADMIN_ROLES = ['super_admin', 'admin'];
 
 // ── Helper: Recalculate Oil Distance and Cost ──────────────────
 async function recalculateOilData(conn, targetPlate = null) {
-  let query = `SELECT id, license_plate, mileage, total_price, is_trip 
-               FROM oil_records`;
+  let query = `SELECT id, license_plate, mileage, total_price, is_trip, date_recorded FROM oil_records`;
   const queryParams = [];
   
   if (targetPlate) {
