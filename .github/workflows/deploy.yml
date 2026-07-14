@@ -80,6 +80,10 @@ jobs:
             "ftp://${{ secrets.FTP_SERVER }}/backend/node_modules.zip" \
             --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
 
+      - name: 🔍 Debug unzip.php
+        run: |
+          curl -sS "ftp://${{ secrets.FTP_SERVER }}/unzip.php" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+
       - name: 🚀 Trigger Server Unzip & Restart
         run: |
           curl -sS "https://bonusais.com/unzip.php?secret=bount_deploy_secret_2026"
