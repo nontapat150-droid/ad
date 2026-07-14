@@ -6,6 +6,67 @@ const { upload, setUpload } = require('../middleware/upload');
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
+// ── Helper: Recalculate Oil Distance and Cost ──────────────────
+async function recalculateOilData(conn, targetPlate = null) {
+  let query = `SELECT id, license_plate, mileage, total_price, is_trip 
+               FROM oil_records`;
+  const queryParams = [];
+  
+  if (targetPlate) {
+    query += ` WHERE REPLACE(LOWER(license_plate), ' ', '') = ?`;
+    queryParams.push(targetPlate.replace(/\s+/g, '').toLowerCase());
+  }
+  
+  query += ` ORDER BY REPLACE(LOWER(license_plate), ' ', '') ASC, date_recorded ASC, id ASC`;
+
+  const [records] = await conn.query(query, queryParams);
+  if (records.length === 0) return;
+
+  let lastMileageByPlate = {};
+  const batchValues = [];
+
+  for (const record of records) {
+    const plate = record.license_plate ? record.license_plate.replace(/\s+/g, '').toLowerCase() : 'unknown';
+    let distance = 0;
+    
+    const rawMileage = String(record.mileage || '').replace(/,/g, '');
+    const currentMileage = parseFloat(rawMileage) || 0;
+
+    if (record.is_trip) {
+      // Trip record: distance = 0, but still update last mileage so next record calculates correctly
+      distance = 0;
+      if (currentMileage > 0) {
+        lastMileageByPlate[plate] = currentMileage;
+      }
+    } else {
+      if (lastMileageByPlate[plate] !== undefined) {
+        distance = currentMileage - lastMileageByPlate[plate];
+        if (isNaN(distance) || distance < 0) distance = 0;
+      }
+      lastMileageByPlate[plate] = currentMileage;
+    }
+
+    const rawTotalPrice = String(record.total_price || '').replace(/,/g, '');
+    const totalPrice = parseFloat(rawTotalPrice) || 0;
+    const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
+    batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
+  }
+
+  const CHUNK_SIZE = 500;
+  for (let i = 0; i < batchValues.length; i += CHUNK_SIZE) {
+    const chunk = batchValues.slice(i, i + CHUNK_SIZE);
+    const cases_dist = chunk.map(v => `WHEN ${v[2]} THEN ${v[0]}`).join(' ');
+    const cases_bpk = chunk.map(v => `WHEN ${v[2]} THEN ${v[1]}`).join(' ');
+    const ids = chunk.map(v => v[2]).join(',');
+    await conn.query(
+      `UPDATE oil_records SET 
+         distance = CASE id ${cases_dist} END,
+         baht_per_km = CASE id ${cases_bpk} END
+       WHERE id IN (${ids})`
+    );
+  }
+}
+
 // ── Ensure indexes exist for performance ──────────────────────
 (async () => {
   try {
@@ -158,6 +219,9 @@ router.post(
         );
       }
 
+      // Auto-recalculate for this specific vehicle
+      await recalculateOilData(conn, license_plate);
+
       await conn.commit();
       res.status(201).json({ message: 'Oil record saved', id: result.insertId });
     } catch (err) {
@@ -176,9 +240,19 @@ router.delete('/records/:id', auth, requireRole(ADMIN_ROLES), async (req, res) =
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    
+    // Get license plate before deleting so we can recalculate
+    const [recordResult] = await conn.query('SELECT license_plate FROM oil_records WHERE id = ?', [recordId]);
+    const targetPlate = recordResult.length > 0 ? recordResult[0].license_plate : null;
+
     // Delete associated images first
     await conn.query('DELETE FROM oil_images WHERE record_id = ?', [recordId]);
     await conn.query('DELETE FROM oil_records WHERE id = ?', [recordId]);
+    
+    if (targetPlate) {
+      await recalculateOilData(conn, targetPlate);
+    }
+    
     await conn.commit();
     res.json({ message: 'Oil record deleted successfully' });
   } catch (err) {
@@ -201,60 +275,7 @@ router.post('/recalculate', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
-    // Get all records ordered by normalized license_plate and date_recorded
-    const [records] = await conn.query(
-      `SELECT id, license_plate, mileage, total_price, is_trip 
-       FROM oil_records 
-       ORDER BY REPLACE(LOWER(license_plate), ' ', '') ASC, date_recorded ASC, id ASC`
-    );
-
-    let lastMileageByPlate = {};
-    const batchValues = [];
-
-    for (const record of records) {
-      const plate = record.license_plate ? record.license_plate.replace(/\s+/g, '').toLowerCase() : 'unknown';
-      let distance = 0;
-      
-      const rawMileage = String(record.mileage || '').replace(/,/g, '');
-      const currentMileage = parseFloat(rawMileage) || 0;
-
-      if (record.is_trip) {
-        // Trip record: distance = 0, but still update last mileage so next record calculates correctly
-        distance = 0;
-        if (currentMileage > 0) {
-          lastMileageByPlate[plate] = currentMileage;
-        }
-      } else {
-        if (lastMileageByPlate[plate] !== undefined) {
-          distance = currentMileage - lastMileageByPlate[plate];
-          if (isNaN(distance) || distance < 0) distance = 0;
-        }
-        lastMileageByPlate[plate] = currentMileage;
-      }
-
-      const rawTotalPrice = String(record.total_price || '').replace(/,/g, '');
-      const totalPrice = parseFloat(rawTotalPrice) || 0;
-      const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
-      batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
-    }
-
-
-    // Batch update in chunks of 500 instead of one-by-one
-    const CHUNK_SIZE = 500;
-    for (let i = 0; i < batchValues.length; i += CHUNK_SIZE) {
-      const chunk = batchValues.slice(i, i + CHUNK_SIZE);
-      const cases_dist = chunk.map(v => `WHEN ${v[2]} THEN ${v[0]}`).join(' ');
-      const cases_bpk = chunk.map(v => `WHEN ${v[2]} THEN ${v[1]}`).join(' ');
-      const ids = chunk.map(v => v[2]).join(',');
-      await conn.query(
-        `UPDATE oil_records SET 
-           distance = CASE id ${cases_dist} END,
-           baht_per_km = CASE id ${cases_bpk} END
-         WHERE id IN (${ids})`
-      );
-    }
-
+    await recalculateOilData(conn);
     await conn.commit();
     res.json({ message: 'คำนวณใหม่สำเร็จ' });
   } catch (err) {
