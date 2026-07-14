@@ -69,6 +69,7 @@ jobs:
           exclude: |
             **/.env
             **/.ftp-deploy-sync-state.json
+            **/node_modules/
             **/node_modules/**
 
       - name: 🚀 Trigger Server Unzip & Restart
