@@ -215,7 +215,9 @@ router.post('/recalculate', auth, async (req, res) => {
     for (const record of records) {
       const plate = record.license_plate ? record.license_plate.replace(/\s+/g, '').toLowerCase() : 'unknown';
       let distance = 0;
-      const currentMileage = parseFloat(record.mileage) || 0;
+      
+      const rawMileage = String(record.mileage || '').replace(/,/g, '');
+      const currentMileage = parseFloat(rawMileage) || 0;
 
       if (record.is_trip) {
         distance = 0;
@@ -227,7 +229,8 @@ router.post('/recalculate', auth, async (req, res) => {
         lastMileageByPlate[plate] = currentMileage;
       }
 
-      const totalPrice = parseFloat(record.total_price) || 0;
+      const rawTotalPrice = String(record.total_price || '').replace(/,/g, '');
+      const totalPrice = parseFloat(rawTotalPrice) || 0;
       const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
       batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
     }
