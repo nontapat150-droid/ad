@@ -50,6 +50,13 @@ async function recalculateOilData(conn, targetPlate = null) {
     const totalPrice = parseFloat(rawTotalPrice) || 0;
     const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
     batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
+    
+    // Add debug logging
+    if (plate.includes('3605')) {
+      require('fs').appendFileSync('recalculate_debug.log', 
+        `ID: ${record.id} | Date: ${record.date_recorded} | Mileage: ${currentMileage} | Last: ${lastMileageByPlate[plate]} | Dist: ${distance}\n`
+      );
+    }
   }
 
   const CHUNK_SIZE = 500;
@@ -302,6 +309,21 @@ router.post('/recalculate', auth, async (req, res) => {
     res.status(500).json({ error: 'เกิดข้อผิดพลาดในการคำนวณใหม่' });
   } finally {
     conn.release();
+  }
+});
+
+// ── GET /api/oil/debug-log ──────────────────────────────
+router.get('/debug-log', (req, res) => {
+  try {
+    const fs = require('fs');
+    if (fs.existsSync('recalculate_debug.log')) {
+      const log = fs.readFileSync('recalculate_debug.log', 'utf8');
+      res.type('text/plain').send(log);
+    } else {
+      res.send('No log file found.');
+    }
+  } catch (err) {
+    res.status(500).send(err.message);
   }
 });
 
