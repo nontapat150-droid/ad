@@ -213,21 +213,23 @@ router.post('/recalculate', auth, async (req, res) => {
     const batchValues = [];
 
     for (const record of records) {
-      const plate = record.license_plate.replace(/\s+/g, '').toLowerCase();
+      const plate = record.license_plate ? record.license_plate.replace(/\s+/g, '').toLowerCase() : 'unknown';
       let distance = 0;
+      const currentMileage = parseFloat(record.mileage) || 0;
 
       if (record.is_trip) {
         distance = 0;
       } else {
         if (lastMileageByPlate[plate] !== undefined) {
-          distance = record.mileage - lastMileageByPlate[plate];
-          if (distance < 0) distance = 0;
+          distance = currentMileage - lastMileageByPlate[plate];
+          if (isNaN(distance) || distance < 0) distance = 0;
         }
-        lastMileageByPlate[plate] = record.mileage;
+        lastMileageByPlate[plate] = currentMileage;
       }
 
-      const bahtPerKm = distance > 0 ? (parseFloat(record.total_price) / distance).toFixed(2) : 0;
-      batchValues.push([distance, parseFloat(bahtPerKm), record.id]);
+      const totalPrice = parseFloat(record.total_price) || 0;
+      const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
+      batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
     }
 
     // Batch update in chunks of 500 instead of one-by-one

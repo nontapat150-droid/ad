@@ -609,7 +609,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         plan_arrival_date, plan_arrival_time, product, remark,
         order_no, customer_order_no, province, area_code, area_name,
         task_type, task_order, product_owner, order_type, service_note,
-        sla_status, region, map_link
+        sla_status, region, map_link, status, team_id
       } = job;
 
       if (!access_no) {
@@ -630,8 +630,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               order_no, customer_order_no, province, area_code, area_name,
               task_type, task_order, product_owner, order_type, service_note,
               sla_status, region, map_link,
-              status, create_user_role)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+              status, create_user_role, team_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             access_no, customer || null, phone || null, pkg || null, address || null,
             lat || null, lng || null, plan_arrival_date || null, formatted_time,
@@ -641,7 +641,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
             task_type || null, task_order || null, product_owner || null,
             order_type || null, service_note || null,
             sla_status || 'Normal', region || 'ROS', map_link || null,
-            req.user.role || null
+            status || 'pending', req.user.role || null, team_id || null
           ]
         );
         if (result.affectedRows > 0) {

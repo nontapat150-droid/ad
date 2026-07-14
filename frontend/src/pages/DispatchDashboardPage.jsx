@@ -5,6 +5,7 @@ import JobDispatchModal from '../components/JobDispatchModal';
 import AutoDispatchModal from '../components/AutoDispatchModal';
 import EditJobModal from '../components/EditJobModal';
 import ImportExcelModal from '../components/ImportExcelModal';
+import CustomImportExcelModal from '../components/CustomImportExcelModal';
 import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -44,6 +45,7 @@ export default function DispatchDashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isCustomImportModalOpen, setIsCustomImportModalOpen] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
   
   // States for technician action modals
@@ -337,6 +339,15 @@ export default function DispatchDashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
                   <span className="hidden sm:inline">นำเข้า Excel</span>
+                </button>
+                <button 
+                  onClick={() => setIsCustomImportModalOpen(true)}
+                  className="bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] border border-[#E5E7EB] px-3 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="hidden sm:inline">นำเข้า Custom</span>
                 </button>
                 <button 
                   onClick={() => setIsAutoModalOpen(true)}
@@ -796,6 +807,18 @@ export default function DispatchDashboardPage() {
         isOpen={actionType === 'postpone'}
         onClose={() => { setActionJob(null); setActionType(null); }}
         onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+      />
+
+      <ImportExcelModal 
+        isOpen={isImportModalOpen} 
+        onClose={() => setIsImportModalOpen(false)} 
+        onSuccess={handleActionComplete} 
+      />
+
+      <CustomImportExcelModal 
+        isOpen={isCustomImportModalOpen} 
+        onClose={() => setIsCustomImportModalOpen(false)} 
+        onSuccess={handleActionComplete} 
       />
 
       {/* ── Confirmation Modal ────────────────────────────── */}
