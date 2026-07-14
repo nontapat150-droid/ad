@@ -17,10 +17,21 @@ async function recalculateOilData(conn, targetPlate = null) {
     queryParams.push(targetPlate.replace(/\s+/g, '').toLowerCase());
   }
   
-  query += ` ORDER BY REPLACE(LOWER(license_plate), ' ', '') ASC, date_recorded ASC, id ASC`;
-
   const [records] = await conn.query(query, queryParams);
   if (records.length === 0) return;
+
+  // Sort in Node.js to ensure normalization matches exactly
+  records.sort((a, b) => {
+    const plateA = (a.license_plate || '').replace(/\s+/g, '').toLowerCase();
+    const plateB = (b.license_plate || '').replace(/\s+/g, '').toLowerCase();
+    if (plateA !== plateB) return plateA.localeCompare(plateB);
+    
+    const dateA = new Date(a.date_recorded || 0).getTime();
+    const dateB = new Date(b.date_recorded || 0).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    
+    return a.id - b.id;
+  });
 
   let lastMileageByPlate = {};
   const batchValues = [];
