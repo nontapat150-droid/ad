@@ -55,7 +55,7 @@ jobs:
           cd backend
           zip -q -r node_modules.zip node_modules
 
-      - name: 📂 Deploy Backend (Source + Zip)
+      - name: 📂 Deploy Backend Source Files
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -71,6 +71,14 @@ jobs:
             **/.ftp-deploy-sync-state.json
             **/node_modules/
             **/node_modules/**
+            **/node_modules.zip
+
+      - name: 📦 Upload node_modules.zip via FTP
+        run: |
+          curl --ftp-create-dirs \
+            -T backend/node_modules.zip \
+            "ftp://${{ secrets.FTP_SERVER }}/backend/node_modules.zip" \
+            --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
 
       - name: 🚀 Trigger Server Unzip & Restart
         run: |
