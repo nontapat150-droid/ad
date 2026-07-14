@@ -220,7 +220,11 @@ router.post('/recalculate', auth, async (req, res) => {
       const currentMileage = parseFloat(rawMileage) || 0;
 
       if (record.is_trip) {
+        // Trip record: distance = 0, but still update last mileage so next record calculates correctly
         distance = 0;
+        if (currentMileage > 0) {
+          lastMileageByPlate[plate] = currentMileage;
+        }
       } else {
         if (lastMileageByPlate[plate] !== undefined) {
           distance = currentMileage - lastMileageByPlate[plate];
@@ -234,6 +238,7 @@ router.post('/recalculate', auth, async (req, res) => {
       const bahtPerKm = distance > 0 ? (totalPrice / distance).toFixed(2) : 0;
       batchValues.push([distance, parseFloat(bahtPerKm) || 0, record.id]);
     }
+
 
     // Batch update in chunks of 500 instead of one-by-one
     const CHUNK_SIZE = 500;
