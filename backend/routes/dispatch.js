@@ -172,6 +172,8 @@ router.get('/jobs', auth, async (req, res) => {
 
     if (type === 'postponed') {
       where.push(`(j.status = 'postponed' OR j.id IN (SELECT job_id FROM job_logs WHERE status='postponed'))`);
+    } else if (type === 'failed') {
+      where.push(`j.status = 'failed'`);
     } else {
       // For normal tabs (office, ma), hide jobs that are postponed to a future date
       // Once the date arrives (<= CURDATE()), they will reappear.
