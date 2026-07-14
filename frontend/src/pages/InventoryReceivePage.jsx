@@ -278,24 +278,35 @@ function ExcelImportModal({ isOpen, onClose, products, onConfirm }) {
     setImportRows(prev => {
       const targetRow = prev.find(r => r._id === id);
       if (!targetRow) return prev;
+      
+      const oldProductName = targetRow.product_name;
 
       return prev.map(row => {
+        // Bulk update product_name for rows with the same old product_name
+        if (field === 'product_name' && row.product_name === oldProductName && oldProductName.trim() !== '') {
+          const updated = { ...row, [field]: value };
+          const mp = matchProduct(value);
+          const mm = matchModel(mp, row.model_name); // Re-evaluate model against new product
+          const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, mp, mm);
+          return { ...updated, matchedProduct: mp, matchedModel: mm, ...meta };
+        }
+
         // Bulk update model_name for rows with the same product_name
-        if (field === 'model_name' && row.product_name === targetRow.product_name && targetRow.product_name.trim() !== '') {
+        if (field === 'model_name' && row.product_name === oldProductName && oldProductName.trim() !== '') {
           const updated = { ...row, [field]: value };
           const mm = matchModel(row.matchedProduct, value);
           const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, row.matchedProduct, mm);
           return { ...updated, matchedModel: mm, ...meta };
         }
 
-        // Normal update for a specific row
+        // Normal update for a specific row (e.g. SN, phone_number)
         if (row._id !== id) return row;
         const updated = { ...row, [field]: value };
 
         const mp = field === 'product_name' ? matchProduct(value) : row.matchedProduct;
         const mm = field === 'model_name'
           ? matchModel(mp, value)
-          : (field === 'product_name' ? null : row.matchedModel);
+          : (field === 'product_name' ? matchModel(mp, row.model_name) : row.matchedModel);
 
         const meta = buildRowMeta(updated.product_name, updated.model_name, updated.sn, mp, mm);
 
