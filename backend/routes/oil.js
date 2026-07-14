@@ -21,9 +21,16 @@ async function recalculateOilData(conn, targetPlate = null) {
   if (records.length === 0) return;
 
   // Sort in Node.js to ensure normalization matches exactly
+  const normalizePlate = (plate) => {
+    if (!plate) return 'unknown';
+    let clean = plate.replace(/\s+/g, '').toLowerCase();
+    const match = clean.match(/^([0-9ก-ฮa-z]+?[0-9]+)/);
+    return match ? match[1] : clean;
+  };
+
   records.sort((a, b) => {
-    const plateA = (a.license_plate || '').replace(/\s+/g, '').toLowerCase();
-    const plateB = (b.license_plate || '').replace(/\s+/g, '').toLowerCase();
+    const plateA = normalizePlate(a.license_plate);
+    const plateB = normalizePlate(b.license_plate);
     if (plateA !== plateB) return plateA.localeCompare(plateB);
     
     let timeA = new Date(a.date_recorded || 0).getTime();
@@ -39,7 +46,7 @@ async function recalculateOilData(conn, targetPlate = null) {
   const batchValues = [];
 
   for (const record of records) {
-    const plate = record.license_plate ? record.license_plate.replace(/\s+/g, '').toLowerCase() : 'unknown';
+    const plate = normalizePlate(record.license_plate);
     let distance = 0;
     
     const rawMileage = String(record.mileage || '').replace(/,/g, '');
