@@ -82,7 +82,25 @@ async function recalculateOilData(conn, targetPlate = null) {
 })();
 
 // ── GET /api/oil/records — My oil records (tech) or all (admin) ─
+let lastRecalculateTime = 0;
+let isRecalculating = false;
+
 router.get('/records', auth, async (req, res) => {
+  // Auto-recalculate if it hasn't been done in the last 1 minute
+  if (!isRecalculating && Date.now() - lastRecalculateTime > 60000) {
+    isRecalculating = true;
+    try {
+      const conn = await pool.getConnection();
+      await recalculateOilData(conn);
+      conn.release();
+      lastRecalculateTime = Date.now();
+    } catch (err) {
+      console.error('Auto recalculate error:', err);
+    } finally {
+      isRecalculating = false;
+    }
+  }
+
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
   const { month, start_date, end_date, tech_id, team_ids, limit = 50 } = req.query;
