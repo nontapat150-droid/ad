@@ -26,11 +26,13 @@ async function recalculateOilData(conn, targetPlate = null) {
     const plateB = (b.license_plate || '').replace(/\s+/g, '').toLowerCase();
     if (plateA !== plateB) return plateA.localeCompare(plateB);
     
-    const dateA = new Date(a.date_recorded || 0).getTime();
-    const dateB = new Date(b.date_recorded || 0).getTime();
-    if (dateA !== dateB) return dateA - dateB;
+    let timeA = new Date(a.date_recorded || 0).getTime();
+    let timeB = new Date(b.date_recorded || 0).getTime();
+    if (isNaN(timeA)) timeA = 0;
+    if (isNaN(timeB)) timeB = 0;
+    if (timeA !== timeB) return timeA - timeB;
     
-    return a.id - b.id;
+    return (a.id || 0) - (b.id || 0);
   });
 
   let lastMileageByPlate = {};
@@ -43,7 +45,9 @@ async function recalculateOilData(conn, targetPlate = null) {
     const rawMileage = String(record.mileage || '').replace(/,/g, '');
     const currentMileage = parseFloat(rawMileage) || 0;
 
-    if (record.is_trip) {
+    const isTrip = record.is_trip === 1 || record.is_trip === '1' || record.is_trip === true || record.is_trip === 'true' || (Buffer.isBuffer(record.is_trip) && record.is_trip[0] === 1);
+
+    if (isTrip) {
       // Trip record: distance = 0, but still update last mileage so next record calculates correctly
       distance = 0;
       if (currentMileage > 0) {
