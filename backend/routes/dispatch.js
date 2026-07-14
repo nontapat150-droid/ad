@@ -172,6 +172,10 @@ router.get('/jobs', auth, async (req, res) => {
 
     if (type === 'postponed') {
       where.push(`j.id IN (SELECT job_id FROM job_logs WHERE status='postponed')`);
+    } else {
+      // For normal tabs (office, ma), hide jobs that are postponed to a future date
+      // Once the date arrives (<= CURDATE()), they will reappear.
+      where.push(`(j.status != 'postponed' OR j.plan_arrival_date <= CURDATE() OR j.plan_arrival_date IS NULL)`);
     }
 
     // Non-admin: restrict to own team only or own assignments
