@@ -131,8 +131,8 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
     return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   };
 
-  const findTeamId = (excelTeamName) => {
-    if (!excelTeamName) return null;
+  const findTeamInfo = (excelTeamName) => {
+    if (!excelTeamName) return { teamId: null, techName: '', teamName: '' };
     let searchName = String(excelTeamName).trim().toLowerCase();
     
     // เติมคำว่า 'ช่าง' ด้านหน้าเสมอ ถ้ายังไม่มี
@@ -140,25 +140,44 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
       searchName = 'ช่าง' + searchName;
     }
     
+    let matchedTeamId = null;
+    let matchedTechName = '';
+    let matchedTeamName = '';
+
     // 1. Try matching against Users (full_name)
     const exactUser = users.find(u => u.full_name && u.full_name.trim().toLowerCase() === searchName);
-    if (exactUser && exactUser.team_id) return exactUser.team_id;
-
-    const fuzzyUser = users.find(u => u.full_name && (
+    const fuzzyUser = !exactUser ? users.find(u => u.full_name && (
       u.full_name.toLowerCase().includes(searchName) || 
       searchName.includes(u.full_name.toLowerCase())
-    ));
-    if (fuzzyUser && fuzzyUser.team_id) return fuzzyUser.team_id;
+    )) : null;
 
-    // 2. Try matching against Teams (team_name) as fallback
-    const exactTeam = teams.find(t => t.team_name.trim().toLowerCase() === searchName);
-    if (exactTeam) return exactTeam.id;
+    const matchedUser = exactUser || fuzzyUser;
+
+    if (matchedUser && matchedUser.team_id) {
+      matchedTeamId = matchedUser.team_id;
+      matchedTechName = matchedUser.full_name;
+      const teamObj = teams.find(t => t.id === matchedTeamId);
+      if (teamObj) matchedTeamName = teamObj.team_name;
+    } else {
+      // 2. Try matching against Teams (team_name) as fallback
+      const exactTeam = teams.find(t => t.team_name.trim().toLowerCase() === searchName);
+      const fuzzyTeam = !exactTeam ? teams.find(t => 
+        t.team_name.toLowerCase().includes(searchName) || 
+        searchName.includes(t.team_name.toLowerCase())
+      ) : null;
+      
+      const matchedTeam = exactTeam || fuzzyTeam;
+      if (matchedTeam) {
+        matchedTeamId = matchedTeam.id;
+        matchedTeamName = matchedTeam.team_name;
+        const teamUsers = users.filter(u => u.team_id === matchedTeamId);
+        if (teamUsers.length > 0) {
+          matchedTechName = teamUsers.map(u => u.full_name).join(', ');
+        }
+      }
+    }
     
-    const fuzzyTeam = teams.find(t => 
-      t.team_name.toLowerCase().includes(searchName) || 
-      searchName.includes(t.team_name.toLowerCase())
-    );
-    return fuzzyTeam ? fuzzyTeam.id : null;
+    return { teamId: matchedTeamId, techName: matchedTechName, teamName: matchedTeamName };
   };
 
   const processSheet = (wb, sheetName) => {
@@ -231,8 +250,8 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
         finalStatus = 'completed';
       }
 
-      const techName = idxTech >= 0 ? String(row[idxTech] || '').trim() : '';
-      const teamId = findTeamId(techName);
+      const techNameExcel = idxTech >= 0 ? String(row[idxTech] || '').trim() : '';
+      const { teamId, techName: sysTechName, teamName: sysTeamName } = findTeamInfo(techNameExcel);
 
       parsedJobs.push({
         access_no: access_no,
@@ -246,7 +265,9 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
         plan_arrival_date: finalDate,
         status: finalStatus,
         team_id: teamId,
-        tech_name_excel: techName // For display in preview
+        tech_name_excel: techNameExcel, // For display in preview
+        sys_tech_name: sysTechName,
+        sys_team_name: sysTeamName
       });
     }
 
@@ -383,14 +404,20 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
                         </td>
                         <td className="px-3 py-2 truncate max-w-[100px]" title={job.area_name}>{job.area_name || '-'}</td>
                         <td className="px-3 py-2">
-                          <div className="text-xs text-gray-500">ไฟล์: {job.tech_name_excel || '-'}</div>
+                          <div className="text-xs text-gray-500 mb-1">ไฟล์: <span className="font-semibold text-gray-700">{job.tech_name_excel || '-'}</span></div>
                           {job.team_id ? (
-                            <span className="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-md">
-                              ตรงกับระบบ ✅
-                            </span>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-1.5 inline-block">
+                              <div className="flex items-center gap-1 text-xs font-bold text-green-700">
+                                <span>✅</span>
+                                {job.sys_tech_name || 'ไม่ระบุชื่อช่าง'}
+                              </div>
+                              <div className="text-[10px] text-green-600 mt-0.5 max-w-[120px] truncate" title={job.sys_team_name}>
+                                {job.sys_team_name}
+                              </div>
+                            </div>
                           ) : (
                             job.tech_name_excel && (
-                              <span className="inline-block px-2 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-md">
+                              <span className="inline-block px-2 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-md mt-1">
                                 ไม่พบทีม ❌
                               </span>
                             )
