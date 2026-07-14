@@ -11,11 +11,13 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
   const [selectedSheet, setSelectedSheet] = useState('');
   const [previewData, setPreviewData] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [users, setUsers] = useState([]);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
       fetchTeams();
+      fetchUsers();
     }
   }, [isOpen]);
 
@@ -25,6 +27,15 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
       setTeams(res.data || []);
     } catch (err) {
       console.error('Failed to fetch teams', err);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get('/users');
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch users', err);
     }
   };
 
@@ -129,16 +140,25 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
       searchName = 'ช่าง' + searchName;
     }
     
-    // Exact match first
-    const exactMatch = teams.find(t => t.team_name.trim().toLowerCase() === searchName);
-    if (exactMatch) return exactMatch.id;
+    // 1. Try matching against Users (full_name)
+    const exactUser = users.find(u => u.full_name && u.full_name.trim().toLowerCase() === searchName);
+    if (exactUser && exactUser.team_id) return exactUser.team_id;
+
+    const fuzzyUser = users.find(u => u.full_name && (
+      u.full_name.toLowerCase().includes(searchName) || 
+      searchName.includes(u.full_name.toLowerCase())
+    ));
+    if (fuzzyUser && fuzzyUser.team_id) return fuzzyUser.team_id;
+
+    // 2. Try matching against Teams (team_name) as fallback
+    const exactTeam = teams.find(t => t.team_name.trim().toLowerCase() === searchName);
+    if (exactTeam) return exactTeam.id;
     
-    // Fuzzy match (substring)
-    const fuzzyMatch = teams.find(t => 
+    const fuzzyTeam = teams.find(t => 
       t.team_name.toLowerCase().includes(searchName) || 
       searchName.includes(t.team_name.toLowerCase())
     );
-    return fuzzyMatch ? fuzzyMatch.id : null;
+    return fuzzyTeam ? fuzzyTeam.id : null;
   };
 
   const processSheet = (wb, sheetName) => {
