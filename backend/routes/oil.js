@@ -324,6 +324,20 @@ router.post('/recalculate', auth, async (req, res) => {
   }
 });
 
+// ── POST /api/oil/fix-8645 ──────────────────────────────
+router.post('/fix-8645', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const [result] = await conn.query("UPDATE oil_records SET license_plate = 'กบ 8645 วีออส' WHERE license_plate LIKE '%8645%'");
+    await conn.query('COMMIT');
+    await recalculateOilData(conn);
+    conn.release();
+    res.json({ success: true, updated: result.affectedRows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/oil/debug-log ──────────────────────────────
 router.get('/debug-log', (req, res) => {
   try {
