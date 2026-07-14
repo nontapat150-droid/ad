@@ -84,17 +84,19 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
   };
 
   const parseTime = (timeStr) => {
-    if (!timeStr) return '';
-    // if time is in decimal due to excel formatting, try to convert (rare for this format)
+    if (timeStr === undefined || timeStr === null || timeStr === '') return '';
+    // if time is in decimal due to excel formatting
     if (typeof timeStr === 'number') {
-      const totalMinutes = Math.round(timeStr * 24 * 60);
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      // Excel serial date: integer is days, fraction is time
+      const fraction = timeStr % 1;
+      const totalSeconds = Math.round(fraction * 24 * 60 * 60);
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
     }
     const str = String(timeStr).trim();
-    // simple validation for HH:mm or HH.mm
-    const timeMatch = str.match(/^(\d{1,2})[\.:](\d{2})/);
+    // simple validation for HH:mm, HH.mm, "10.30 น."
+    const timeMatch = str.match(/(\d{1,2})[\.:](\d{2})/);
     if (timeMatch) {
       return `${String(timeMatch[1]).padStart(2, '0')}:${timeMatch[2]}:00`;
     }
@@ -120,7 +122,12 @@ export default function CustomImportExcelModal({ isOpen, onClose, onSuccess }) {
 
   const findTeamId = (excelTeamName) => {
     if (!excelTeamName) return null;
-    const searchName = String(excelTeamName).trim().toLowerCase();
+    let searchName = String(excelTeamName).trim().toLowerCase();
+    
+    // เติมคำว่า 'ช่าง' ด้านหน้าเสมอ ถ้ายังไม่มี
+    if (!searchName.startsWith('ช่าง')) {
+      searchName = 'ช่าง' + searchName;
+    }
     
     // Exact match first
     const exactMatch = teams.find(t => t.team_name.trim().toLowerCase() === searchName);
