@@ -45,21 +45,11 @@ async function recalculateOilData(conn, targetPlate = null) {
     const rawMileage = String(record.mileage || '').replace(/,/g, '');
     const currentMileage = parseFloat(rawMileage) || 0;
 
-    const isTrip = record.is_trip === 1 || record.is_trip === '1' || record.is_trip === true || record.is_trip === 'true' || (Buffer.isBuffer(record.is_trip) && record.is_trip[0] === 1);
-
-    if (isTrip) {
-      // Trip record: distance = 0, but still update last mileage so next record calculates correctly
-      distance = 0;
-      if (currentMileage > 0) {
-        lastMileageByPlate[plate] = currentMileage;
-      }
-    } else {
-      if (lastMileageByPlate[plate] !== undefined) {
-        distance = currentMileage - lastMileageByPlate[plate];
-        if (isNaN(distance) || distance < 0) distance = 0;
-      }
-      lastMileageByPlate[plate] = currentMileage;
+    if (lastMileageByPlate[plate] !== undefined) {
+      distance = currentMileage - lastMileageByPlate[plate];
+      if (isNaN(distance) || distance < 0) distance = 0;
     }
+    lastMileageByPlate[plate] = currentMileage;
 
     const rawTotalPrice = String(record.total_price || '').replace(/,/g, '');
     const totalPrice = parseFloat(rawTotalPrice) || 0;
