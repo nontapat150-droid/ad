@@ -206,7 +206,8 @@ router.get('/jobs', auth, async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT j.*, j.id AS id, t.team_name,
-              u.full_name AS completed_by_name
+              u.full_name AS completed_by_name,
+              (SELECT GROUP_CONCAT(full_name SEPARATOR ', ') FROM users WHERE team_id = j.team_id) AS tech_names
        FROM ${table} j
        LEFT JOIN teams t ON t.id = j.team_id
        LEFT JOIN users u ON u.id = j.completed_by

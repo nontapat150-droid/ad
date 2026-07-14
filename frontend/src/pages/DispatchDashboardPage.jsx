@@ -678,9 +678,20 @@ export default function DispatchDashboardPage() {
                                 <td className="p-3.5 text-sm text-[#6B7280] leading-relaxed max-w-[300px] break-words">{job.address || '-'}</td>
                                 <td className="p-3.5 text-sm">
                                   {job.team_name ? (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#A3E635]/10 border border-[#A3E635]/25 text-[#374151] font-semibold text-xs whitespace-nowrap">
-                                      {job.team_name}
-                                    </span>
+                                    <div className="flex flex-col gap-1.5">
+                                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#A3E635]/10 border border-[#A3E635]/25 text-[#374151] font-semibold text-xs whitespace-nowrap w-fit">
+                                        {job.team_name}
+                                      </span>
+                                      {job.tech_names && (
+                                        <div className="flex flex-wrap items-center gap-1">
+                                          {job.tech_names.split(',').map((name, i) => (
+                                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-semibold border border-blue-100 whitespace-nowrap">
+                                              {name.trim()}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   ) : (
                                     <span className="text-red-500 font-medium text-xs bg-red-50 px-2.5 py-1 rounded-lg border border-red-100 whitespace-nowrap">ยังไม่ระบุ</span>
                                   )}
