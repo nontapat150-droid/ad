@@ -398,7 +398,7 @@ export default function DispatchDashboardPage() {
               return allowed.includes(tab);
             })
             .map(tab => {
-            const labels = { office: 'งาน Office', ma: 'งาน MA', map: 'แผนที่', failed: 'งานไม่จบ', postponed: 'ประวัติเลื่อนนัด' };
+            const labels = { office: 'งานติดตั้ง', ma: 'งาน MA', map: 'แผนที่', failed: 'งานไม่จบ', postponed: 'ประวัติเลื่อนนัด' };
             const isActive = activeTab === tab;
             return (
               <button 

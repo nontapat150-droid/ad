@@ -20,8 +20,8 @@ export function TeamNameBadge({ defaultName, teamRoles }) {
 
   if (displayName) {
     const lowerName = displayName.toLowerCase();
-    if (lowerName.includes('ช่างoffice') || lowerName.includes('ช่าง office')) {
-      role = 'ช่าง Office';
+    if (lowerName.includes('ช่างติดตั้ง') || lowerName.includes('ช่างติดตั้ง')) {
+      role = 'ช่างติดตั้ง';
       roleColor = 'bg-purple-100 text-purple-700 border-purple-200';
       displayName = displayName.replace(/ช่าง\s*office/i, '').trim();
     } else if (lowerName.includes('ช่างma') || lowerName.includes('ช่าง ma') || lowerName.includes(' ma')) {
@@ -43,7 +43,7 @@ export function TeamNameBadge({ defaultName, teamRoles }) {
   if (!role && teamRoles) {
     const rolesLower = teamRoles.toLowerCase();
     if (rolesLower.includes('office_technician')) {
-      role = 'ช่าง Office';
+      role = 'ช่างติดตั้ง';
       roleColor = 'bg-purple-100 text-purple-700 border-purple-200';
     } else if (rolesLower.includes('ma_technician')) {
       role = 'ช่าง MA';
@@ -1534,10 +1534,10 @@ export default function OilDashboardPage() {
                                 <span className="text-xs font-medium text-[#6B7280] bg-[#F3F4F6] px-2.5 py-0.5 rounded-md border border-[#E5E7EB]">
                                   {{
                                     sales: 'เซล',
-                                    technician: 'ช่าง Office',
+                                    technician: 'ช่างติดตั้ง',
                                     ma_technician: 'ช่าง MA',
-                                    office_technician: 'ช่าง Office',
-                                    contractor_office: 'รับเหมา Office',
+                                    office_technician: 'ช่างติดตั้ง',
+                                    contractor_office: 'รับเหมาติดตั้ง',
                                     contractor_ma: 'รับเหมา MA',
                                     admin: 'แอดมิน',
                                     super_admin: 'แอดมินสูงสุด'

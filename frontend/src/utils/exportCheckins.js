@@ -20,7 +20,7 @@ export const generateCheckinExcel = async (data, monthString) => {
     'general': 'ช่างทั่วไป',
     'ma': 'ทีม MA',
     'manager': 'ผู้จัดการ',
-    'contractor_office': 'รับเหมา Office',
+    'contractor_office': 'รับเหมาติดตั้ง',
     'contractor_ma': 'รับเหมา MA'
   };
 

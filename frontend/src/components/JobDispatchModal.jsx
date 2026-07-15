@@ -222,7 +222,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-[#042C53] mb-2">ช่างติดตั้ง (เฉพาะช่าง Office)</label>
+                  <label className="block text-sm font-bold text-[#042C53] mb-2">ช่างติดตั้ง (เฉพาะช่างติดตั้ง)</label>
                   <div className="relative">
                     <select 
                       name="field_engineer_id" 

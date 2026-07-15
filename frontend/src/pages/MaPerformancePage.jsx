@@ -10,8 +10,8 @@ const ROLE_CONFIG = {
   super_admin: { label: 'Super Admin', bg: 'bg-[#1F2937]',     text: 'text-white'        },
   admin:       { label: 'Admin',       bg: 'bg-[#A3E635]',     text: 'text-[#1F2937]'    },
   ma_technician: { label: 'ช่าง MA',    bg: 'bg-violet-100',    text: 'text-violet-700'   },
-  technician:  { label: 'ช่าง Office',   bg: 'bg-sky-100',       text: 'text-sky-700'       },
-  contractor_office: { label: 'รับเหมา Office', bg: 'bg-sky-100', text: 'text-sky-700' },
+  technician:  { label: 'ช่างติดตั้ง',   bg: 'bg-sky-100',       text: 'text-sky-700'       },
+  contractor_office: { label: 'รับเหมาติดตั้ง', bg: 'bg-sky-100', text: 'text-sky-700' },
   contractor_ma: { label: 'รับเหมา MA', bg: 'bg-violet-100', text: 'text-violet-700' },
   user:        { label: 'พนักงาน',     bg: 'bg-slate-100',     text: 'text-slate-600'     },
 };

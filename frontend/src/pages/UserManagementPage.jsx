@@ -101,9 +101,9 @@ export default function UserManagementPage() {
     const roles = {
       super_admin: { label: 'ผู้ดูแลระบบ', color: 'bg-purple-50 text-purple-600 border-purple-200' },
       admin: { label: 'แอดมิน', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
-      technician: { label: 'ช่าง Office', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+      technician: { label: 'ช่างติดตั้ง', color: 'bg-blue-50 text-blue-600 border-blue-200' },
       ma_technician: { label: 'ช่าง MA', color: 'bg-cyan-50 text-cyan-600 border-cyan-200' },
-      contractor_office: { label: 'รับเหมา Office', color: 'bg-sky-50 text-sky-600 border-sky-200' },
+      contractor_office: { label: 'รับเหมาติดตั้ง', color: 'bg-sky-50 text-sky-600 border-sky-200' },
       contractor_ma: { label: 'รับเหมา MA', color: 'bg-teal-50 text-teal-600 border-teal-200' },
       sales: { label: 'เซล', color: 'bg-amber-50 text-amber-600 border-amber-200' },
     };
@@ -284,7 +284,7 @@ export default function UserManagementPage() {
                     <ShadcnTimePicker value={lateTimes['late_time']} onChange={(v) => setLateTimes({...lateTimes, 'late_time': v})} placeholder="--:--" />
                   </div>
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
-                    <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่าง Office</label>
+                    <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่างติดตั้ง</label>
                     <ShadcnTimePicker value={lateTimes['late_time_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_technician': v})} placeholder="--:--" />
                   </div>
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
@@ -428,9 +428,9 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
             <div>
               <label className="block text-sm font-bold text-[#1F2937] mb-2">บทบาทหลัก (Role)</label>
               <select name="role" value={form.role} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
-                <option value="technician">ช่าง Office</option>
+                <option value="technician">ช่างติดตั้ง</option>
                 <option value="ma_technician">ช่าง MA</option>
-                <option value="contractor_office">รับเหมา Office</option>
+                <option value="contractor_office">รับเหมาติดตั้ง</option>
                 <option value="contractor_ma">รับเหมา MA</option>
                 <option value="admin">แอดมิน</option>
                 <option value="super_admin">ผู้ดูแลระบบสูงสุด</option>
@@ -488,9 +488,9 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
                         )}
                       </div>
                       <span className={`text-sm ${isChecked ? 'font-black text-[#1F2937]' : 'font-bold text-[#4B5563]'}`}>{
-                        r === 'technician' ? 'ช่าง Office' :
+                        r === 'technician' ? 'ช่างติดตั้ง' :
                         r === 'ma_technician' ? 'ช่าง MA' :
-                        r === 'contractor_office' ? 'รับเหมา Office' :
+                        r === 'contractor_office' ? 'รับเหมาติดตั้ง' :
                         r === 'contractor_ma' ? 'รับเหมา MA' :
                         r === 'admin' ? 'แอดมิน' :
                         r === 'super_admin' ? 'ผู้ดูแลระบบ' : 'เซล'

@@ -7,7 +7,7 @@ const ROLE_CONFIG = {
   super_admin:   { label: 'ผู้ดูแลระบบ',  bg: 'bg-[#1F2937]',     text: 'text-white'        },
   admin:         { label: 'แอดมิน',      bg: 'bg-[#A3E635]',     text: 'text-[#1F2937]'    },
   ma_technician: { label: 'ช่าง MA',      bg: 'bg-violet-100',    text: 'text-violet-700'   },
-  technician:    { label: 'ช่าง Office',  bg: 'bg-sky-100',       text: 'text-sky-700'      },
+  technician:    { label: 'ช่างติดตั้ง',  bg: 'bg-sky-100',       text: 'text-sky-700'      },
   sales:         { label: 'เซล',        bg: 'bg-pink-100',      text: 'text-pink-700'     },
   user:          { label: 'พนักงาน',     bg: 'bg-slate-100',     text: 'text-slate-600'    },
 };
@@ -118,7 +118,7 @@ export default function AdminSection() {
                 value={data?.summary?.unassignedToday || 0}
                 suffix="งาน" gradient="from-rose-500 to-pink-600" icon="⚠️" shadow="shadow-rose-500/20"
                 urgent={data?.summary?.unassignedToday > 0} />
-              <StatCard title="งาน Office วันนี้"
+              <StatCard title="งานติดตั้ง วันนี้"
                 value={data?.summary?.officeAssignedToday || 0}
                 suffix="งาน" gradient="from-[#374151] to-[#1F2937]" icon="🏢" shadow="shadow-slate-500/20" />
               <StatCard title="งาน MA วันนี้"
@@ -143,7 +143,7 @@ export default function AdminSection() {
                 onClick={() => navigate('/inventory')} gradient="from-[#374151] to-[#1F2937]" shadow="shadow-slate-500/25" />
               <ShortcutBtn icon="🛠️" label="จ่ายงาน MA" sublabel="มอบหมายงานช่าง"
                 onClick={() => navigate('/jobs?tab=ma')} gradient="from-[#65a30d] to-[#A3E635]" shadow="shadow-lime-500/25" />
-              <ShortcutBtn icon="🏢" label="จ่ายงาน Office" sublabel="มอบหมายงานออฟฟิศ"
+              <ShortcutBtn icon="🏢" label="จ่ายงานติดตั้ง" sublabel="มอบหมายงานออฟฟิศ"
                 onClick={() => navigate('/jobs?tab=office')} gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
             </div>
           </div>
