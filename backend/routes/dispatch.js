@@ -1704,7 +1704,10 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
     
     let timeText = new_time ? ` เวลา ${new_time} น.` : '';
-    const postponeReason = remark ? ` [เลื่อนนัด: ${remark}${timeText}]` : ` [เลื่อนนัด${timeText}]`;
+    const oldDateStr = job.plan_arrival_date 
+      ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      : 'ไม่ระบุวันที่';
+    const postponeReason = ` [เลื่อนจาก ${oldDateStr} เป็น ${new_date}${timeText}${remark ? ` สาเหตุ: ${remark}` : ''}]`;
     
     await conn.query(
       'UPDATE jobs SET status = \'pending\', plan_arrival_date = ?, remark = CONCAT(IFNULL(remark, \'\'), ?), team_id = NULL, seq = NULL WHERE id = ?', 

@@ -102,6 +102,20 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
             </span>
           </div>
 
+          {job.remark && job.remark.includes('[เลื่อนจาก') && (() => {
+            const matches = [...job.remark.matchAll(/\[(เลื่อนจาก[^\]]+)\]/g)];
+            if (matches.length > 0) {
+              const latestNotice = matches[matches.length - 1][1];
+              return (
+                <div className="flex items-center gap-1.5 mt-2.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm animate-pulse-slow">
+                  <span className="text-sm">⚠️</span> 
+                  <span className="truncate">{latestNotice}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           {/* Action Buttons always visible */}
           <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full mt-3 pt-3 border-t border-white/30">
             <button
