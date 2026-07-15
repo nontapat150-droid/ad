@@ -38,6 +38,12 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
   const { user, logout } = useAuth();
   const { branding } = useBranding();
   const sidebarRef = useRef(null);
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem('sidebar_collapsed') === 'true');
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', isCollapsed ? '80px' : '272px');
+    localStorage.setItem('sidebar_collapsed', isCollapsed);
+  }, [isCollapsed]);
+
   const navigate = useNavigate();
   const [expandedKeys, setExpandedKeys] = useState({ inventory: true });
   const [profileOpen, setProfileOpen] = useState(false);
@@ -185,7 +191,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       {/* ── Sidebar Panel ────────────────────────────────── */}
       <aside
         ref={sidebarRef}
-        className={`fixed top-0 left-0 bottom-0 z-50 w-[272px] flex flex-col transition-transform duration-300 ease-out md:translate-x-0 ${
+        className={`fixed top-0 left-0 bottom-0 z-50 w-[var(--sidebar-width)] flex flex-col transition-[width,transform] duration-300 ease-out md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
@@ -211,13 +217,23 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                   </svg>
                 </div>
               )}
-              <div>
+              <div className={`transition-all overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
                 <p className="text-white font-black text-base leading-tight">
                   {branding?.website_name || 'Bonus'}
                 </p>
                 <p className="text-[#A3E635] text-[10px] font-bold tracking-widest uppercase">AIS Platform</p>
               </div>
             </div>
+            
+            {/* Collapse btn (desktop only) */}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="hidden md:flex w-8 h-8 rounded-lg items-center justify-center text-[#9CA3AF] hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <svg className={`w-5 h-5 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
             {/* Close btn (mobile only) */}
             <button
               onClick={onClose}
@@ -246,7 +262,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                 />
               ) : initials}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className={`min-w-0 flex-1 transition-all overflow-hidden whitespace-nowrap ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100'}`}>
               <p className="text-white font-bold text-sm truncate leading-tight">
                 {user?.full_name || 'พนักงานช่าง'}
               </p>
@@ -270,7 +286,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
               </div>
             </div>
             {/* Online indicator */}
-            <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#A3E635]"
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 bg-[#A3E635] ${isCollapsed ? 'hidden' : ''}`}
               style={{ boxShadow: '0 0 8px rgba(163,230,53,0.6)' }} />
           </div>
         </div>
@@ -280,7 +296,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
           {dynamicMenuGroups.map((group) => (
             <div key={group.label}>
               {/* Group label */}
-              <p className="text-[10px] font-bold tracking-[0.18em] uppercase px-3 mb-2"
+              <p className={`text-[10px] font-bold tracking-[0.18em] uppercase px-3 mb-2 transition-opacity ${isCollapsed ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}
                 style={{ color: 'rgba(163,230,53,0.55)' }}>
                 {group.label}
               </p>
@@ -345,7 +361,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                         </div>
 
                         {/* Label */}
-                        <span className={`text-sm flex-1 transition-colors duration-200 ${
+                        <span className={`text-sm flex-1 transition-colors duration-200 whitespace-nowrap overflow-hidden ${isCollapsed ? 'hidden' : ''} ${
                           (isActive || isSubActive)
                             ? 'font-bold text-white'
                             : 'font-medium text-[#9CA3AF] group-hover:text-[#E5E7EB]'
@@ -354,6 +370,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                         </span>
 
                         {/* Arrow / expand */}
+                        <div className={isCollapsed ? 'hidden' : ''}>
                         {hasSub ? (
                           <svg className={`w-4 h-4 text-[#6B7280] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
                             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -364,10 +381,11 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                             <circle cx="4" cy="4" r="3" />
                           </svg>
                         ) : null}
+                        </div>
                       </button>
 
                       {/* Sub items */}
-                      {hasSub && isExpanded && (
+                      {hasSub && isExpanded && !isCollapsed && (
                         <div className="pl-[44px] pr-2 space-y-0.5 mt-0.5 animate-fade-in-up">
                           {item.subItems.map((sub) => {
                             const isChildActive = activeKey === sub.key;

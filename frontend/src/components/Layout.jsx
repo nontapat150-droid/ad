@@ -50,7 +50,7 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
       />
 
       {/* ── Main Area ───────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 main-content-transition md:ml-[280px]">
+      <div className="flex-1 flex flex-col min-w-0 main-content-transition md:ml-[var(--sidebar-width)] transition-[margin] duration-300 ease-out">
 
         {/* ── Top Header Bar ──────────────────────────────── */}
         <header className="sticky top-0 z-30 flex items-center gap-3 px-4 h-16 glass/80 border-b border-white/50 backdrop-blur-xl">

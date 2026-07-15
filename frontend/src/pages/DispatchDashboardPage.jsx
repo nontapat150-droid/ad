@@ -306,7 +306,7 @@ export default function DispatchDashboardPage() {
         activeKey="jobs" 
       />
 
-      <div className="flex-1 flex flex-col min-w-0 md:ml-[272px]">
+      <div className="flex-1 flex flex-col min-w-0 md:ml-[var(--sidebar-width)] transition-[margin] duration-300 ease-out">
         {/* ── Header ─────────────────────────────────────── */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3 bg-white border-b border-[#E5E7EB] shrink-0 gap-3"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
