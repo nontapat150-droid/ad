@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Swal from 'sweetalert2';
 
 const STATUS_MAP = {
   pending:    { label: 'รอดำเนินการ', color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' },
@@ -19,6 +20,20 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
       return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
       return '-';
+    }
+  };
+
+  const handleStatusClick = (e) => {
+    if (job.status === 'failed') {
+      e.stopPropagation();
+      Swal.fire({
+        title: 'สาเหตุที่ล้มเหลว',
+        text: job.fail_reason || job.remark || 'ไม่มีรายละเอียดระบุไว้',
+        icon: 'info',
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#185FA5',
+        customClass: { popup: 'rounded-3xl' }
+      });
     }
   };
 
@@ -65,7 +80,10 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>
               )}
-              <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${st.color} ${st.bg} ${st.border}`}>
+              <span 
+                onClick={job.status === 'failed' ? handleStatusClick : undefined}
+                className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${st.color} ${st.bg} ${st.border} ${job.status === 'failed' ? 'cursor-pointer hover:opacity-80' : ''}`}
+                title={job.status === 'failed' ? 'คลิกเพื่อดูสาเหตุ' : ''}>
                 {st.label}
               </span>
             </div>
@@ -95,11 +113,27 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
             </button>
             
             {!isCompleted && onComplete && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onComplete(job); }}
-                className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
-                ✅ จบงาน
-              </button>
+              <div className="flex-[2] flex gap-1.5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onComplete(job); }}
+                  className="flex-1 h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
+                  ✅ จบงาน
+                </button>
+                {onIncomplete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onIncomplete(job); }}
+                    className="flex-1 h-10 rounded-xl bg-gradient-to-r from-red-400 to-red-600 border border-red-500/20 flex items-center justify-center gap-1 text-xs font-bold text-white shadow-md shadow-red-500/20 hover:shadow-red-500/40 transition-all active:scale-[0.98]" title="ไม่จบงาน">
+                    ✕ ไม่จบ
+                  </button>
+                )}
+                {onPostpone && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onPostpone(job); }}
+                    className="flex-1 h-10 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 border border-amber-500/20 flex items-center justify-center gap-1 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 transition-all active:scale-[0.98]" title="เลื่อนงาน">
+                    📅 เลื่อน
+                  </button>
+                )}
+              </div>
             )}
             
             {isCompleted && onCancelCompletion && (

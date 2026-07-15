@@ -252,6 +252,21 @@ export default function DispatchDashboardPage() {
     }, true);
   };
 
+  const handleStatusClick = (job) => {
+    if (job.status === 'failed') {
+      import('sweetalert2').then(({ default: Swal }) => {
+        Swal.fire({
+          title: 'สาเหตุที่ล้มเหลว',
+          text: job.fail_reason || job.remark || 'ไม่มีรายละเอียดระบุไว้',
+          icon: 'info',
+          confirmButtonText: 'ปิด',
+          confirmButtonColor: '#185FA5',
+          customClass: { popup: 'rounded-3xl' }
+        });
+      });
+    }
+  };
+
   // Center map based on first valid job location, or default to Thailand
   const mapCenter = jobs.find(j => j.lat && j.lng) 
     ? [parseFloat(jobs.find(j => j.lat && j.lng).lat), parseFloat(jobs.find(j => j.lat && j.lng).lng)] 
@@ -579,12 +594,15 @@ export default function DispatchDashboardPage() {
                                 {isAdmin && job.team_name && <span className="text-[10px] text-[#9CA3AF]">{job.team_name}</span>}
                               </div>
                            </div>
-                           <span className={`text-[10px] px-2 py-1 rounded-md font-bold whitespace-nowrap ${
-                             job.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                             job.status === 'failed' ? 'bg-red-50 text-red-700' :
-                             job.status === 'postponed' ? 'bg-purple-50 text-purple-700' :
-                             'bg-amber-50 text-amber-700'
-                           }`}>
+                           <span 
+                             onClick={job.status === 'failed' ? () => handleStatusClick(job) : undefined}
+                             className={`text-[10px] px-2 py-1 rounded-md font-bold whitespace-nowrap ${
+                               job.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                               job.status === 'failed' ? 'bg-red-50 text-red-700 cursor-pointer hover:opacity-80' :
+                               job.status === 'postponed' ? 'bg-purple-50 text-purple-700' :
+                               'bg-amber-50 text-amber-700'
+                             }`}
+                             title={job.status === 'failed' ? 'คลิกเพื่อดูสาเหตุ' : ''}>
                              {job.status === 'completed' ? 'เสร็จสิ้น' : job.status === 'failed' ? 'ล้มเหลว' : job.status === 'postponed' ? 'เลื่อนนัด' : 'รอดำเนินการ'}
                            </span>
                         </div>
@@ -604,6 +622,9 @@ export default function DispatchDashboardPage() {
                                </button>
                                {(isAdmin && job.status === 'completed') && (
                                  <button onClick={() => handleCancelCompletion(job)} className="py-2 px-3 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-red-200 shadow-sm whitespace-nowrap" title="ยกเลิกการจบงาน">❌ ยกเลิกจบงาน</button>
+                               )}
+                               {(isAdmin && job.status === 'failed') && (
+                                 <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="py-2 px-3 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-amber-200 shadow-sm whitespace-nowrap" title="เปลี่ยนเป็นเลื่อนงาน">📅 เลื่อนงาน</button>
                                )}
                              </div>
                            )}
@@ -717,13 +738,16 @@ export default function DispatchDashboardPage() {
                                   )}
                                 </td>
                                 <td className="p-3.5 text-sm text-center">
-                                  <span className={`inline-flex items-center justify-center min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-bold border ${
-                                    job.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                    job.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                    job.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200' :
-                                    job.status === 'postponed' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                                    'bg-amber-50 text-amber-700 border-amber-200'
-                                  }`}>
+                                  <span 
+                                    onClick={job.status === 'failed' ? () => handleStatusClick(job) : undefined}
+                                    className={`inline-flex items-center justify-center min-w-[100px] px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                      job.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                      job.status === 'in_progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                      job.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200 cursor-pointer hover:opacity-80' :
+                                      job.status === 'postponed' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                      'bg-amber-50 text-amber-700 border-amber-200'
+                                    }`}
+                                    title={job.status === 'failed' ? 'คลิกเพื่อดูสาเหตุ' : ''}>
                                     {job.status === 'completed' ? 'เสร็จสิ้น' :
                                      job.status === 'in_progress' ? 'กำลังดำเนินการ' :
                                      job.status === 'failed' ? 'ล้มเหลว' : 
@@ -749,6 +773,12 @@ export default function DispatchDashboardPage() {
                                           <button onClick={() => handleCancelCompletion(job)}
                                             className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-200" title="ยกเลิกการจบงาน">
                                             <span className="text-xs font-bold">❌</span>
+                                          </button>
+                                        )}
+                                        {job.status === 'failed' && (
+                                          <button onClick={() => { setActionJob(job); setActionType('postpone'); }}
+                                            className="p-2 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg transition-colors border border-amber-200" title="เปลี่ยนเป็นเลื่อนงาน">
+                                            <span className="text-xs font-bold">📅</span>
                                           </button>
                                         )}
                                         <button onClick={() => handleDelete(job.id)}
