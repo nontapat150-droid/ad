@@ -703,6 +703,7 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
 export function PostponeJobModal({ isOpen, onClose, job, onSuccess }) {
   const [newDate, setNewDate] = useState('');
+  const [newTime, setNewTime] = useState('');
   const [remark, setRemark] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -717,7 +718,7 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess }) {
 
     try {
       setLoading(true);
-      await api.put(`/dispatch/jobs/${job.id}/postpone`, { new_date: newDate, remark });
+      await api.put(`/dispatch/jobs/${job.id}/postpone`, { new_date: newDate, new_time: newTime, remark });
       onSuccess();
       onClose();
     } catch (err) {
@@ -735,10 +736,17 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess }) {
           <span className="text-2xl">📅</span> เลื่อนนัด: {job.access_no}
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-semibold text-purple-900 mb-1">วันที่ต้องการเลื่อนนัด</label>
-            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-xl glass border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-purple-50" />
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-purple-900 mb-1">วันที่ต้องการเลื่อนนัด</label>
+              <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} required
+                className="w-full px-4 py-2.5 rounded-xl glass border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-purple-50" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-purple-900 mb-1">เวลา (ไม่บังคับ)</label>
+              <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl glass border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-purple-50" />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-semibold text-purple-900 mb-1">หมายเหตุ (ถ้ามี)</label>

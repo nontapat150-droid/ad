@@ -1695,19 +1695,37 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
 router.put('/jobs/:id/postpone', auth, async (req, res) => {
   const jobId = req.params.id;
   const techId = req.user.id;
-  const { new_date, remark } = req.body;
+  const { new_date, new_time, remark } = req.body;
   if (!new_date) return res.status(400).json({ error: 'New date is required' });
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
     if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
-    const postponeReason = remark ? ` [เลื่อนนัด: ${remark}]` : ' [เลื่อนนัด]';
+    
+    let timeText = new_time ? ` เวลา ${new_time} น.` : '';
+    const postponeReason = remark ? ` [เลื่อนนัด: ${remark}${timeText}]` : ` [เลื่อนนัด${timeText}]`;
+    
     await conn.query(
       'UPDATE jobs SET status = \'pending\', plan_arrival_date = ?, remark = CONCAT(IFNULL(remark, \'\'), ?), team_id = NULL, seq = NULL WHERE id = ?', 
       [new_date, postponeReason, jobId]
     );
-    await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'postponed\', ?)', [jobId, techId, `Postponed to ${new_date}. Reason: ${remark || ''}`]);
+
+    const logRemark = `Postponed to ${new_date}${timeText}. Reason: ${remark || ''}`;
+    try {
+      await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'postponed\', ?)', [jobId, techId, logRemark]);
+    } catch (e) {
+      if (e.message && e.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(
+          'INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, \'postponed\', ?)',
+          [(maxId || 0) + 1, jobId, techId, logRemark]
+        );
+      } else {
+        throw e;
+      }
+    }
+    
     await conn.commit();
 
     // 🔔 Push notification to admins when tech postpones a job
