@@ -6,7 +6,7 @@ const STATUS_MAP = {
   completed:  { label: 'เสร็จสิ้น',     color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
 };
 
-export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive }) {
+export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, onCancelCompletion, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive }) {
   const [expanded, setExpanded] = useState(false);
   const st = STATUS_MAP[job.status] || STATUS_MAP.pending;
   const isCompleted = job.status === 'completed';
@@ -94,11 +94,19 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
               นำทาง
             </button>
             
-            {!isCompleted && (
+            {!isCompleted && onComplete && (
               <button
                 onClick={(e) => { e.stopPropagation(); onComplete(job); }}
                 className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/40 transition-all active:scale-[0.98]">
                 ✅ จบงาน
+              </button>
+            )}
+            
+            {isCompleted && onCancelCompletion && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onCancelCompletion(job); }}
+                className="flex-[1.5] h-10 rounded-xl bg-gradient-to-r from-red-400 to-red-600 border border-red-500/20 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-md shadow-red-500/20 hover:shadow-red-500/40 transition-all active:scale-[0.98]">
+                ❌ ยกเลิกการจบงาน
               </button>
             )}
           </div>

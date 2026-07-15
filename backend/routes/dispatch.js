@@ -694,6 +694,140 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
   }
 });
 
+// ── PUT /api/dispatch/jobs/:id/cancel-completion — Admin cancels job completion ──
+router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const jobId = req.params.id;
+  const adminId = req.user.id;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน' });
+    }
+
+    if (job.status !== 'completed') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'งานนี้ยังไม่ได้จบงาน ไม่สามารถยกเลิกได้' });
+    }
+
+    // 1. Return inventory items
+    const [usedItems] = await conn.query('SELECT * FROM job_used_inventory WHERE job_id = ?', [jobId]);
+    for (const item of usedItems) {
+      if (item.device_role === 'NoSN') {
+        // No-SN item
+        await conn.query(
+          `UPDATE inventory_items SET quantity = quantity + ?, status = 'dispatched' WHERE id = ?`,
+          [item.quantity, item.inventory_item_id]
+        );
+      } else {
+        // SN item
+        await conn.query(
+          `UPDATE inventory_items SET status = 'dispatched', quantity = 1 WHERE id = ?`,
+          [item.inventory_item_id]
+        );
+      }
+      
+      // Log the return
+      const note = `ยกเลิกการจบงาน: คืนอุปกรณ์จากงาน ${job.access_no || jobId}`;
+      try {
+        await conn.query(
+          `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'cancel_used', ?, ?)`,
+          [item.inventory_item_id, adminId, item.quantity, note]
+        );
+      } catch (le) {
+        if (le.message.includes("Field 'id' doesn't have a default value")) {
+          const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+          await conn.query(
+            `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'cancel_used', ?, ?)`,
+            [(maxId||0)+1, item.inventory_item_id, adminId, item.quantity, note]
+          );
+        } else {
+          console.error(le);
+        }
+      }
+    }
+    await conn.query('DELETE FROM job_used_inventory WHERE job_id = ?', [jobId]);
+
+    // 2. Delete job completion images
+    await conn.query('DELETE FROM job_completion_images WHERE job_id = ?', [jobId]);
+
+    // 3. Delete entry fees related to this job
+    if (job.access_no && job.completed_by) {
+      await conn.query(
+        'DELETE FROM entry_fees WHERE access_no = ? AND created_by = ?',
+        [job.access_no, job.completed_by]
+      );
+      // Reset customer entry fee status if needed
+      try {
+        await conn.query(
+          `UPDATE customers SET entry_fee_status = NULL, entry_fee_date = NULL WHERE access_no = ?`,
+          [job.access_no]
+        );
+      } catch(e) {}
+    }
+
+    // 4. Decrement team oil cases
+    if (job.team_id && job.completed_at) {
+      try {
+        // If completed_at is Date object
+        const completedDate = typeof job.completed_at === 'string' ? new Date(job.completed_at) : job.completed_at;
+        const yearMonth = completedDate.toISOString().slice(0, 7);
+        await conn.query(
+          `UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1)
+           WHERE team_id = ? AND year_month = ?`,
+          [job.team_id, yearMonth]
+        );
+      } catch(e) {
+        console.error('Oil cases decrement error:', e.message);
+      }
+    }
+
+    // 5. Update job status back to in_progress
+    await conn.query(
+      `UPDATE jobs SET
+        status = 'in_progress',
+        finish_time = NULL,
+        completed_at = NULL,
+        completed_by = NULL,
+        install_device = NULL
+       WHERE id = ?`,
+      [jobId]
+    );
+
+    // 6. Add job log
+    try {
+      await conn.query(
+        `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'cancel_completion', 'Admin ยกเลิกการจบงานและคืนอุปกรณ์')`,
+        [jobId, adminId]
+      );
+    } catch (le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(
+          `INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, 'cancel_completion', 'Admin ยกเลิกการจบงานและคืนอุปกรณ์')`,
+          [(maxId || 0) + 1, jobId, adminId]
+        );
+      }
+    }
+
+    // 7. Sync customer
+    await safeSyncCustomer(conn, jobId);
+
+    await conn.commit();
+    res.json({ message: 'ยกเลิกการจบงานสำเร็จ อุปกรณ์ถูกคืนกลับเข้ากระเป๋าช่างเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Cancel completion error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /api/dispatch/jobs — Admin creates/imports job ────
 router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const {
