@@ -551,6 +551,7 @@ export default function InventoryDispatchPage() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
   const snInputRef = useRef(null);
+  const scanTimeoutRef = useRef(null);
 
   useEffect(() => {
     fetchUsers();
@@ -566,17 +567,18 @@ export default function InventoryDispatchPage() {
     }
   };
 
-  const handleSearchSn = async (e) => {
+  const handleSearchSn = async (e, overrideValue = null) => {
     if (e) e.preventDefault();
-    if (!snInput.trim()) return;
-    if (stagedItems.some(item => item.sn === snInput.trim())) {
+    const currentSn = (overrideValue !== null ? overrideValue : snInput).trim();
+    if (!currentSn) return;
+    if (stagedItems.some(item => item.sn === currentSn)) {
       Swal.fire({ icon: 'warning', title: 'สินค้านี้รอเบิกอยู่แล้ว', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
       setSnInput('');
       return;
     }
     setLoading(true);
     try {
-      const res = await axios.get(`/inventory/search-sn/${encodeURIComponent(snInput.trim())}`);
+      const res = await axios.get(`/inventory/search-sn/${encodeURIComponent(currentSn)}`);
       const fetchedItem = res.data;
       fetchedItem.db_quantity = fetchedItem.quantity; // Save original max quantity
       fetchedItem.dispatchMode = 'unit';
@@ -673,7 +675,14 @@ export default function InventoryDispatchPage() {
                   type="text"
                   value={snInput}
                   onChange={(e) => {
-                    setSnInput(e.target.value);
+                    const value = e.target.value;
+                    setSnInput(value);
+                    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+                    if (value) {
+                      scanTimeoutRef.current = setTimeout(() => {
+                        handleSearchSn(null, value);
+                      }, 750);
+                    }
                   }}
                   placeholder="สแกนบาร์โค้ด หรือ พิมพ์รหัส..."
                   className="w-full px-5 py-4 bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-2xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] font-black tracking-wide transition-all"

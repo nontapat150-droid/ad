@@ -817,6 +817,7 @@ export default function InventoryReceivePage() {
   const [stagedItems, setStagedItems] = useState([]);
   
   const snInputRef = useRef(null);
+  const scanTimeoutRef = useRef(null);
 
   const Toast = Swal.mixin({
     toast: true,
@@ -1221,14 +1222,26 @@ export default function InventoryReceivePage() {
   };
 
   const handleSnChange = (e) => {
-    // Allow alphanumeric and dash characters (uppercase for consistency, or keep as is)
-    // We remove whitespace and special symbols just in case, but keep letters/numbers.
+    // Allow alphanumeric and dash characters
     const value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     setSn(value);
+
+    if (inputType === 'scan') {
+      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+      if (value) {
+        scanTimeoutRef.current = setTimeout(() => {
+          handleAddToStaging(null, value);
+        }, 750);
+      }
+    }
   };
 
   const handleSnKeyDown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); handleAddToStaging(null, e.target.value.replace(/[^A-Za-z0-9-]/g, '')); }
+    if (e.key === 'Enter') { 
+      e.preventDefault(); 
+      if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+      handleAddToStaging(null, e.target.value.replace(/[^A-Za-z0-9-]/g, '')); 
+    }
   };
 
   const removeStagedItem = (id) => {
