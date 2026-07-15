@@ -289,6 +289,17 @@ export default function CustomersPage() {
                         {customerData.completed_by_name && (
                           <InfoRow label="ผู้ปิดงาน" value={customerData.completed_by_name} />
                         )}
+                        {/* งานไม่จบ - แสดงเหตุผล */}
+                        {customerData.latest_job_status === 'failed' && customerData.fail_reason && (
+                          <div className="pt-2 border-t border-red-100 mt-1">
+                            <p className="text-xs font-bold text-red-600 mb-1 flex items-center gap-1">
+                              ❌ งานไม่จบ — สาเหตุ:
+                            </p>
+                            <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 font-medium">
+                              {customerData.fail_reason}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

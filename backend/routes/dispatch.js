@@ -613,6 +613,87 @@ router.put(
   }
 );
 
+// ── PUT /api/dispatch/jobs/:id/incomplete — Tech marks job as failed ──
+router.put('/jobs/:id/incomplete', auth, async (req, res) => {
+  const jobId  = req.params.id;
+  const techId = req.user.id;
+  const { remark } = req.body;
+
+  if (!remark || !String(remark).trim()) {
+    return res.status(400).json({ error: 'กรุณาระบุสาเหตุที่ไม่จบงาน' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน' });
+    }
+
+    // อัปเดตสถานะงาน → failed
+    await conn.query(
+      `UPDATE jobs SET
+        status = 'failed',
+        finish_time = IFNULL(finish_time, NOW()),
+        fail_reason  = ?,
+        remark       = ?
+       WHERE id = ?`,
+      [remark.trim(), remark.trim(), jobId]
+    );
+
+    // บันทึก job_log
+    try {
+      await conn.query(
+        `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'failed', ?)`,
+        [jobId, techId, remark.trim()]
+      );
+    } catch (le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(
+          `INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, 'failed', ?)`,
+          [(maxId || 0) + 1, jobId, techId, remark.trim()]
+        );
+      } else throw le;
+    }
+
+    // Sync ไป customers table
+    await safeSyncCustomer(conn, jobId);
+
+    // อัปเดต customers.latest_job_status = 'failed' + บันทึก fail_reason
+    try {
+      await conn.query(
+        `UPDATE customers SET
+           latest_job_status = 'failed',
+           fail_reason = ?
+         WHERE access_no = ?`,
+        [remark.trim(), job.access_no]
+      );
+    } catch(ce) { /* ignore if columns don't exist */ }
+
+    await conn.commit();
+
+    // Push notification to admins
+    const techName = req.user.full_name || req.user.username || 'ช่าง';
+    notifyAdmins(
+      '❌ งานไม่จบ',
+      `${techName} รายงานงาน ${job.access_no || ''} ไม่สำเร็จ: ${remark.trim()}`,
+      { type: 'job_failed', job_id: String(jobId) }
+    );
+
+    res.json({ message: 'บันทึกงานไม่จบสำเร็จ' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Incomplete job error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /api/dispatch/jobs — Admin creates/imports job ────
 router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const {
@@ -1085,6 +1166,9 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
         region: jobData.region || customerRow.region,
         install_device: jobData.install_device || customerRow.install_device,
         customer_master_updated_at: customerRow.updated_at,
+        // งานไม่จบ
+        latest_job_status: customerRow.latest_job_status || jobData.status || null,
+        fail_reason: customerRow.fail_reason || jobData.fail_reason || null,
       });
     }
 

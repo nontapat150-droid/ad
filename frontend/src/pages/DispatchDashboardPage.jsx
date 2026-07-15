@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import AOS from 'aos';
 import Sidebar from '../components/Sidebar';
 import JobDispatchModal from '../components/JobDispatchModal';
@@ -582,6 +582,7 @@ export default function DispatchDashboardPage() {
                            {(!isAdmin && job.status !== 'completed') ? (
                              <div className="flex w-full gap-1 mt-2">
                                <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="flex-1 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg text-xs font-bold transition-colors shadow-sm">✅ จบงาน</button>
+                               <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="py-2 px-3 bg-red-500 text-white hover:bg-red-600 rounded-lg text-xs font-bold transition-colors shadow-sm whitespace-nowrap" title="ไม่จบงาน">✕ ไม่จบ</button>
                              </div>
                            ) : (
                              <button onClick={() => setSelectedJob(job)}
@@ -716,7 +717,8 @@ export default function DispatchDashboardPage() {
                                   <div className="flex gap-1.5 justify-center">
                                     {(!isAdmin && job.status !== 'completed') ? (
                                       <>
-                                        <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-colors shadow-sm w-full" title="จบงาน"><span className="text-xs font-bold">✅ จบงาน</span></button>
+                                        <button onClick={() => { setActionJob(job); setActionType('complete'); }} className="px-3 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-lg transition-colors shadow-sm" title="จบงาน"><span className="text-xs font-bold">✅ จบงาน</span></button>
+                                        <button onClick={() => { setActionJob(job); setActionType('incomplete'); }} className="px-3 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-colors shadow-sm" title="ไม่จบงาน"><span className="text-xs font-bold">✕ ไม่จบ</span></button>
                                       </>
                                     ) : (
                                       <button onClick={() => setSelectedJob(job)}

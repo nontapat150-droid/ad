@@ -237,6 +237,11 @@ router.get('/migrate-entry-fee', async (req, res) => {
       results.push('✅ messages.is_automated added');
     } catch(e) { results.push('messages.is_automated: ' + e.message); }
 
+    try {
+      await pool.query(`ALTER TABLE customers ADD COLUMN fail_reason TEXT NULL`);
+      results.push('✅ customers.fail_reason added');
+    } catch(e) { results.push('customers.fail_reason: ' + e.message); }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });
