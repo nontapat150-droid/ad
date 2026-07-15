@@ -828,6 +828,80 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
   }
 });
 
+// ── PUT /api/dispatch/jobs/:id/change-completed-team ────
+router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const jobId = req.params.id;
+  const { new_team_id } = req.body;
+  const adminId = req.user.id;
+
+  if (!new_team_id) return res.status(400).json({ error: 'กรุณาระบุทีมใหม่' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน' });
+    }
+    if (job.status !== 'completed') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'งานนี้ยังไม่เสร็จสิ้น' });
+    }
+
+    const oldTeamId = job.team_id;
+    if (oldTeamId === parseInt(new_team_id, 10)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'ทีมใหม่เหมือนกับทีมปัจจุบัน' });
+    }
+
+    // Find the month when it was completed
+    const [[jobLog]] = await conn.query(`SELECT created_at FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
+    const ym = jobLog ? new Date(jobLog.created_at).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
+
+    // Decrement old team
+    if (oldTeamId) {
+      await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND year_month = ?`, [oldTeamId, ym]);
+    }
+
+    // Increment new team
+    await conn.query(
+      `INSERT INTO team_oil_cases (team_id, year_month, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+      [new_team_id, ym]
+    );
+
+    // Update job
+    await conn.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [new_team_id, jobId]);
+
+    // Log the change
+    const remark = `Admin เปลี่ยนทีมที่จบงานจากเดิม ${oldTeamId || 'ไม่มี'} เป็น ${new_team_id}`;
+    try {
+      await conn.query(
+        `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'change_team', ?)`,
+        [jobId, adminId, remark]
+      );
+    } catch (le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_logs');
+        await conn.query(
+          `INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, 'change_team', ?)`,
+          [(maxId || 0) + 1, jobId, adminId, remark]
+        );
+      }
+    }
+
+    await conn.commit();
+    res.json({ message: 'เปลี่ยนทีมที่จบงานสำเร็จ ระบบปรับยอดผลงานเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Change team error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /api/dispatch/jobs — Admin creates/imports job ────
 router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const {

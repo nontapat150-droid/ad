@@ -252,6 +252,58 @@ export default function DispatchDashboardPage() {
     }, true);
   };
 
+  const handleChangeCompletedTeam = async (job) => {
+    try {
+      const res = await axios.get('/users/teams');
+      const teams = res.data;
+      const inputOptions = {};
+      teams.forEach(t => {
+        inputOptions[t.id] = t.team_name;
+      });
+
+      const { default: Swal } = await import('sweetalert2');
+      const { value: newTeamId } = await Swal.fire({
+        title: 'เปลี่ยนทีมที่จบงาน',
+        text: `ปัจจุบันทีม: ${job.team_name || 'ไม่ระบุ'}`,
+        input: 'select',
+        inputOptions,
+        inputPlaceholder: 'เลือกทีมใหม่...',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#185FA5',
+        customClass: { popup: 'rounded-3xl' },
+        inputValidator: (value) => {
+          if (!value) return 'กรุณาเลือกทีม'
+          if (value == job.team_id) return 'ทีมที่เลือกเหมือนกับทีมปัจจุบัน'
+        }
+      });
+
+      if (newTeamId) {
+        await axios.put(`/dispatch/jobs/${job.id}/change-completed-team`, { new_team_id: newTeamId });
+        fetchJobs();
+        Swal.fire({
+          title: 'สำเร็จ!',
+          text: 'เปลี่ยนทีมที่จบงานเรียบร้อยแล้ว',
+          icon: 'success',
+          confirmButtonColor: '#185FA5',
+          customClass: { popup: 'rounded-3xl' }
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      import('sweetalert2').then(({ default: Swal }) => {
+        Swal.fire({
+          title: 'เกิดข้อผิดพลาด',
+          text: err.response?.data?.error || 'ไม่สามารถเปลี่ยนทีมได้',
+          icon: 'error',
+          confirmButtonColor: '#EF4444',
+          customClass: { popup: 'rounded-3xl' }
+        });
+      });
+    }
+  };
+
   const handleStatusClick = (job) => {
     if (job.status === 'failed') {
       import('sweetalert2').then(({ default: Swal }) => {
@@ -621,7 +673,10 @@ export default function DispatchDashboardPage() {
                                  รายละเอียด / อัปเดต
                                </button>
                                {(isAdmin && job.status === 'completed') && (
-                                 <button onClick={() => handleCancelCompletion(job)} className="py-2 px-3 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-red-200 shadow-sm whitespace-nowrap" title="ยกเลิกการจบงาน">❌ ยกเลิกจบงาน</button>
+                                 <>
+                                   <button onClick={() => handleCancelCompletion(job)} className="py-2 px-3 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-red-200 shadow-sm whitespace-nowrap" title="ยกเลิกการจบงาน">❌ ยกเลิกจบงาน</button>
+                                   <button onClick={() => handleChangeCompletedTeam(job)} className="py-2 px-3 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-blue-200 shadow-sm whitespace-nowrap" title="เปลี่ยนทีมที่ปิดงาน">🔄 เปลี่ยนทีม</button>
+                                 </>
                                )}
                                {(isAdmin && job.status === 'failed') && (
                                  <button onClick={() => { setActionJob(job); setActionType('postpone'); }} className="py-2 px-3 bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-amber-200 shadow-sm whitespace-nowrap" title="เปลี่ยนเป็นเลื่อนงาน">📅 เลื่อนงาน</button>
@@ -770,10 +825,16 @@ export default function DispatchDashboardPage() {
                                     {isAdmin && (
                                       <>
                                         {job.status === 'completed' && (
-                                          <button onClick={() => handleCancelCompletion(job)}
-                                            className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-200" title="ยกเลิกการจบงาน">
-                                            <span className="text-xs font-bold">❌</span>
-                                          </button>
+                                          <>
+                                            <button onClick={() => handleCancelCompletion(job)}
+                                              className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-200" title="ยกเลิกการจบงาน">
+                                              <span className="text-xs font-bold">❌</span>
+                                            </button>
+                                            <button onClick={() => handleChangeCompletedTeam(job)}
+                                              className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-200" title="เปลี่ยนทีมที่ปิดงาน">
+                                              <span className="text-xs font-bold">🔄</span>
+                                            </button>
+                                          </>
                                         )}
                                         {job.status === 'failed' && (
                                           <button onClick={() => { setActionJob(job); setActionType('postpone'); }}
