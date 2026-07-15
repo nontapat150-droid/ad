@@ -587,7 +587,21 @@ router.put(
              ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
             [job.team_id, yearMonth]
           );
-        } catch(e) { console.error('Oil cases insert error:', e.message); }
+        } catch(e) {
+          if (e.message && e.message.includes("Field 'id' doesn't have a default value")) {
+            try {
+              const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
+              await conn.query(
+                `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+                [(maxId || 0) + 1, job.team_id, yearMonth]
+              );
+            } catch(e2) {
+              console.error('Oil cases insert error fallback:', e2.message);
+            }
+          } else {
+            console.error('Oil cases insert error:', e.message);
+          }
+        }
       }
 
       await safeSyncCustomer(conn, jobId);
@@ -866,10 +880,22 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
     }
 
     // Increment new team
-    await conn.query(
-      `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-      [new_team_id, ym]
-    );
+    try {
+      await conn.query(
+        `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+        [new_team_id, ym]
+      );
+    } catch (e) {
+      if (e.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
+        await conn.query(
+          `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+          [(maxId || 0) + 1, new_team_id, ym]
+        );
+      } else {
+        throw e;
+      }
+    }
 
     // Update job
     await conn.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [new_team_id, jobId]);
