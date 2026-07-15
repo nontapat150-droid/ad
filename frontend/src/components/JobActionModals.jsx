@@ -44,6 +44,124 @@ function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere
   );
 }
 
+// ── Sub-modal: เลือกอุปกรณ์ไม่มี SN (no-SN items) ──────────────────────────────
+function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnItems, setSelectedNoSnItems }) {
+  if (!isOpen) return null;
+
+  const handleToggle = (item) => {
+    setSelectedNoSnItems(prev => {
+      const next = { ...prev };
+      if (next[item.id]) {
+        delete next[item.id];
+      } else {
+        next[item.id] = { ...item, useQty: 1 };
+      }
+      return next;
+    });
+  };
+
+  const handleQtyChange = (itemId, qty, maxQty) => {
+    const val = Math.max(1, Math.min(parseInt(qty) || 1, maxQty));
+    setSelectedNoSnItems(prev => ({ ...prev, [itemId]: { ...prev[itemId], useQty: val } }));
+  };
+
+  const selectedCount = Object.keys(selectedNoSnItems).length;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in">
+      <div className="absolute inset-0 bg-[#042C53]/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-slate-200">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+              🔧 เลือกอุปกรณ์ติดตั้ง
+            </h3>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">สินค้าที่นับจำนวน (ไม่มี Serial Number)</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-5 overflow-y-auto flex-1 space-y-3">
+          {noSnItems.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-slate-500 font-bold text-sm">ไม่มีอุปกรณ์ประเภทนับจำนวนในกระเป๋า</p>
+              <p className="text-xs text-slate-400 mt-1">อุปกรณ์ที่แสดงคือสินค้าที่ไม่มี SN เช่น สาย, สลักปลั๊ก ฯลฯ</p>
+            </div>
+          ) : (
+            noSnItems.map(item => {
+              const isSelected = !!selectedNoSnItems[item.id];
+              return (
+                <div
+                  key={item.id}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                    isSelected ? 'border-blue-400 bg-blue-50/60 shadow-sm' : 'border-slate-200 hover:border-blue-200 hover:bg-blue-50/20'
+                  }`}
+                  onClick={() => handleToggle(item)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300'
+                    }`}>
+                      {isSelected && (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-sm">{item.product_name}</div>
+                      <div className="text-xs text-slate-500">
+                        รุ่น: {item.model_name || '-'} · คงเหลือ: <span className="font-bold text-slate-700">{item.quantity}</span> {item.unit || 'ชิ้น'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isSelected && (
+                    <div
+                      className="mt-3 sm:mt-0 flex items-center gap-2 sm:ml-4"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <label className="text-xs font-bold text-blue-700 whitespace-nowrap">จำนวนที่ใช้:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={item.quantity}
+                        value={selectedNoSnItems[item.id].useQty}
+                        onChange={e => handleQtyChange(item.id, e.target.value, item.quantity)}
+                        className="w-20 px-2 py-1.5 rounded-xl border-2 border-blue-300 focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 outline-none text-center font-bold text-sm"
+                      />
+                      <span className="text-xs font-semibold text-slate-500">/ {item.quantity}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+          <span className="text-sm font-bold text-slate-600">
+            เลือกแล้ว <span className="text-blue-600">{selectedCount}</span> รายการ
+          </span>
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-xl font-bold bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-sm text-sm"
+          >
+            ✅ ยืนยันการเลือก
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [images, setImages] = useState([]);
   const [remark, setRemark] = useState('');
@@ -66,6 +184,11 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [cableLength, setCableLength] = useState('');
   const [refId3bb, setRefId3bb] = useState('');
   const [scBlue, setScBlue] = useState('');
+
+  // No-SN Equipment (ใช้อุปกรณ์ติดตั้ง)
+  const [noSnItems, setNoSnItems] = useState([]);
+  const [selectedNoSnItems, setSelectedNoSnItems] = useState({});
+  const [showNoSnModal, setShowNoSnModal] = useState(false);
 
   // Entry Fee Fields
   const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none', 'slip', 'cash', 'backdate'
@@ -93,13 +216,21 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setImagePreviews([]);
       setEntryFeeSlipPreview(null);
 
+      setSelectedNoSnItems({});
+      setShowNoSnModal(false);
+
       setBagLoading(true);
       api.get('/inventory/my-bag')
         .then((res) => {
-          const snItems = (res.data || []).filter((item) => item.has_sn !== 0 && item.has_sn !== false);
+          const all = res.data || [];
+          // has_sn items → SN selector dropdowns
+          const snItems = all.filter((item) => item.has_sn !== 0 && item.has_sn !== false);
+          // no-SN items → use equipment popup
+          const noSn = all.filter((item) => item.has_sn === 0 || item.has_sn === false);
           setBagItems(snItems);
+          setNoSnItems(noSn);
         })
-        .catch(() => setBagItems([]))
+        .catch(() => { setBagItems([]); setNoSnItems([]); })
         .finally(() => setBagLoading(false));
     }
   }, [isOpen, job]);
@@ -192,6 +323,15 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           device_role: role,
         }));
 
+      // No-SN items selected from UseEquipment popup
+      const noSnPayload = Object.values(selectedNoSnItems).map(i => ({
+        item_id: i.id,
+        quantity: i.useQty,
+        product_name: i.product_name,
+        model_name: i.model_name || '',
+        unit: i.unit || 'ชิ้น',
+      }));
+
       const manualParts = [
         splitNo ? `Sp:${splitNo}` : null,
         portNo ? `Pt:${portNo}` : null,
@@ -201,10 +341,13 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         scBlue ? `SCฟ้า:${scBlue}` : null,
       ].filter(Boolean);
 
-      const deviceDetails = [...buildDeviceDetailsFromBag(), ...manualParts].join(' | ');
+      // Build no-SN summary into device details
+      const noSnParts = noSnPayload.map(i => `${i.product_name} ${i.model_name} x${i.quantity} ${i.unit}`.trim());
+      const deviceDetails = [...buildDeviceDetailsFromBag(), ...manualParts, ...noSnParts].join(' | ');
 
       formData.append('installDevice', deviceDetails);
       formData.append('usedInventory', JSON.stringify(usedInventory));
+      formData.append('noSnItems', JSON.stringify(noSnPayload));
       formData.append('splitNo', splitNo);
       formData.append('portNo', portNo);
       formData.append('l3Name', l3Name);
@@ -286,7 +429,43 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
             {/* Detailed Device Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
-              <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าช่าง)</h3>
+              <div className="md:col-span-2 flex items-center justify-between mb-1">
+                <h3 className="text-sm font-bold text-[#185FA5]">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าช่าง)</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowNoSnModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold transition-all shadow-sm"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                  </svg>
+                  ใช้อุปกรณ์ติดตั้ง
+                  {Object.keys(selectedNoSnItems).length > 0 && (
+                    <span className="ml-1 bg-white text-blue-600 rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-black">
+                      {Object.keys(selectedNoSnItems).length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Summary of selected no-SN items */}
+              {Object.keys(selectedNoSnItems).length > 0 && (
+                <div className="md:col-span-2 p-3 bg-blue-50 rounded-xl border border-blue-200 mb-1">
+                  <p className="text-xs font-bold text-blue-700 mb-1.5">🔧 อุปกรณ์ที่เลือก:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.values(selectedNoSnItems).map(item => (
+                      <span key={item.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-lg border border-blue-200 text-xs font-semibold text-blue-800">
+                        {item.product_name} {item.model_name} × {item.useQty} {item.unit || 'ชิ้น'}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNoSnItems(prev => { const n = {...prev}; delete n[item.id]; return n; })}
+                          className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors"
+                        >✕</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {bagLoading ? (
                 <p className="md:col-span-2 text-sm text-gray-500">กำลังโหลดกระเป๋าช่าง...</p>
               ) : bagItems.length === 0 ? (
@@ -442,6 +621,15 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           </form>
         </div>
       </div>
+
+      {/* No-SN Equipment Picker Sub-Modal */}
+      <NoSnEquipmentModal
+        isOpen={showNoSnModal}
+        onClose={() => setShowNoSnModal(false)}
+        noSnItems={noSnItems}
+        selectedNoSnItems={selectedNoSnItems}
+        setSelectedNoSnItems={setSelectedNoSnItems}
+      />
     </div>
   );
 }

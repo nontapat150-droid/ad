@@ -155,6 +155,91 @@ function buildInstallDeviceString(installParts, manualParts) {
   return tokens.join(' | ') || null;
 }
 
+// ─ parse noSnItems from body ─
+function parseNoSnItems(body) {
+  if (!body.noSnItems) return [];
+  try {
+    const parsed = typeof body.noSnItems === 'string' ? JSON.parse(body.noSnItems) : body.noSnItems;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// ─ process no-SN inventory items (deduct quantity, log, insert job_used_inventory) ─
+async function processNoSnItems(conn, { jobId, techId, accessNo, noSnItems }) {
+  const summaryParts = [];
+  for (const entry of noSnItems) {
+    const itemId = parseInt(entry.item_id, 10);
+    const qty    = parseInt(entry.quantity, 10);
+    if (!itemId || !qty || qty <= 0) continue;
+
+    const [[item]] = await conn.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.unit
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = 'dispatched'
+       FOR UPDATE`,
+      [itemId, techId]
+    );
+    if (!item) continue; // skip if not found (silent, user may have partial bag)
+
+    if (item.quantity < qty) {
+      throw new Error(`อุปกรณ์ ${item.product_name} ไม่เพียงพอ (คงเหลือ: ${item.quantity})`);
+    }
+
+    if (item.quantity === qty) {
+      // ใช้หมด → เปลี่ยนสถานะเป็น used
+      await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
+    } else {
+      // ใช้บางส่วน → หักจำนวน
+      await conn.query(`UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`, [qty, itemId]);
+    }
+
+    // บันทึก log
+    const note = `ติดตั้งให้ลูกค้า: ${accessNo || jobId}`;
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', ?, ?)`,
+        [itemId, techId, qty, note]
+      );
+    } catch(le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', ?, ?)`,
+          [(maxId||0)+1, itemId, techId, qty, note]
+        );
+      } else throw le;
+    }
+
+    // บันทึก job_used_inventory
+    const productName = entry.product_name || item.product_name;
+    const modelName   = entry.model_name   || item.model_name || '-';
+    try {
+      await conn.query(
+        `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+         VALUES (?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
+        [jobId, itemId, productName, modelName, qty, techId]
+      );
+    } catch(je) {
+      if (je.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM job_used_inventory');
+        await conn.query(
+          `INSERT INTO job_used_inventory (id, job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+           VALUES (?, ?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
+          [(maxId||0)+1, jobId, itemId, productName, modelName, qty, techId]
+        );
+      } else throw je;
+    }
+
+    const unit = entry.unit || item.unit || 'ชิ้น';
+    summaryParts.push(`${productName} ${modelName} x${qty} ${unit}`.trim());
+  }
+  return summaryParts;
+}
+
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
   try {
@@ -337,12 +422,21 @@ router.put(
         return res.status(409).json({ error: 'Job already completed' });
       }
 
-      // 2. Process tech-bag inventory usage
+      // 2. Process tech-bag inventory usage (SN items)
       const usedItems = parseUsedInventoryBody(req.body);
       let installPartsFromBag = [];
       if (usedItems.length > 0) {
         installPartsFromBag = await processUsedInventory(conn, {
           jobId, techId, accessNo: job.access_no, usedItems,
+        });
+      }
+
+      // 2b. Process no-SN items (quantity-based equipment)
+      const noSnItems = parseNoSnItems(req.body);
+      let noSnSummaryParts = [];
+      if (noSnItems.length > 0) {
+        noSnSummaryParts = await processNoSnItems(conn, {
+          jobId, techId, accessNo: job.access_no, noSnItems,
         });
       }
 
@@ -354,8 +448,10 @@ router.put(
         req.body.refId3bb ? `3BB:${req.body.refId3bb}` : null,
         req.body.scBlue ? `SCฟ้า:${req.body.scBlue}` : null,
       ];
+
+      // Merge installDevice: frontend may send a pre-built string (preferred) or we build it here
       const installDeviceStr = req.body.installDevice
-        || buildInstallDeviceString(installPartsFromBag, manualParts);
+        || buildInstallDeviceString(installPartsFromBag, [...manualParts, ...noSnSummaryParts]);
 
       // 3. Update job status
       await conn.query(

@@ -208,14 +208,32 @@ export default function CustomersPage() {
                         <InfoRow label="Service Note" value={customerData.service_note} />
                         {customerData.used_devices && customerData.used_devices.length > 0 && (
                           <div className="pt-2 border-t border-[#E5E7EB]">
-                            <p className="text-xs font-bold text-[#185FA5] mb-2">อุปกรณ์ที่ติดตั้ง (จากกระเป๋าช่าง)</p>
-                            {customerData.used_devices.map((d, idx) => (
-                              <InfoRow
-                                key={`used-${idx}`}
-                                label={d.device_role}
-                                value={`${d.product_name || ''} ${d.model_name || ''} — SN: ${d.sn || '-'}`.trim()}
-                              />
-                            ))}
+                            {/* SN items (มี Serial Number) */}
+                            {customerData.used_devices.filter(d => d.device_role !== 'NoSN').length > 0 && (
+                              <>
+                                <p className="text-xs font-bold text-[#185FA5] mb-2">อุปกรณ์ที่ติดตั้ง (มี SN)</p>
+                                {customerData.used_devices.filter(d => d.device_role !== 'NoSN').map((d, idx) => (
+                                  <InfoRow
+                                    key={`used-sn-${idx}`}
+                                    label={d.device_role}
+                                    value={`${d.product_name || ''} ${d.model_name || ''} — SN: ${d.sn || '-'}`.trim()}
+                                  />
+                                ))}
+                              </>
+                            )}
+                            {/* NoSN items (นับจำนวน ไม่มี SN) */}
+                            {customerData.used_devices.filter(d => d.device_role === 'NoSN').length > 0 && (
+                              <>
+                                <p className="text-xs font-bold text-blue-600 mb-2 mt-2">🔧 อุปกรณ์ติดตั้ง (นับจำนวน)</p>
+                                {customerData.used_devices.filter(d => d.device_role === 'NoSN').map((d, idx) => (
+                                  <InfoRow
+                                    key={`used-nosn-${idx}`}
+                                    label={`${d.product_name || ''} ${d.model_name || ''}`.trim()}
+                                    value={`จำนวน ${d.quantity || 1} ชิ้น`}
+                                  />
+                                ))}
+                              </>
+                            )}
                           </div>
                         )}
                         {customerData.soa_device && (
