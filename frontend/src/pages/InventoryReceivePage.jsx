@@ -1225,13 +1225,10 @@ export default function InventoryReceivePage() {
     // We remove whitespace and special symbols just in case, but keep letters/numbers.
     const value = e.target.value.replace(/[^A-Za-z0-9-]/g, '');
     setSn(value);
-    if (inputType === 'scan' && value.length >= 12) {
-        handleAddToStaging(null, value);
-    }
   };
 
   const handleSnKeyDown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); handleAddToStaging(); }
+    if (e.key === 'Enter') { e.preventDefault(); handleAddToStaging(null, e.target.value.replace(/[^A-Za-z0-9-]/g, '')); }
   };
 
   const removeStagedItem = (id) => {

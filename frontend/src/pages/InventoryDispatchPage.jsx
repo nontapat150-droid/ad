@@ -674,9 +674,6 @@ export default function InventoryDispatchPage() {
                   value={snInput}
                   onChange={(e) => {
                     setSnInput(e.target.value);
-                    if (e.target.value.length >= 12) {
-                      setTimeout(() => { if (snInputRef.current?.value.length >= 12) handleSearchSn(); }, 300);
-                    }
                   }}
                   placeholder="สแกนบาร์โค้ด หรือ พิมพ์รหัส..."
                   className="w-full px-5 py-4 bg-[#F9FAFB] border-2 border-[#E5E7EB] rounded-2xl focus:border-[#A3E635] focus:ring-4 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] font-black tracking-wide transition-all"
