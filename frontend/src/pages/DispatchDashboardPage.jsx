@@ -53,6 +53,7 @@ export default function DispatchDashboardPage() {
   const [actionType, setActionType] = useState(null);
 
   const [activeTab, setActiveTab] = useState(initialTab); // 'office' | 'ma' | 'map' | 'postponed'
+  const [filterDate, setFilterDate] = useState(''); // Default is show all
   const [selectedJobIds, setSelectedJobIds] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,13 +99,13 @@ export default function DispatchDashboardPage() {
 
   useEffect(() => {
     fetchJobs();
-    setSelectedJobIds([]); // Clear selection when tab changes
-  }, [activeTab]);
+    setSelectedJobIds([]); // Clear selection when tab or date changes
+  }, [activeTab, filterDate]);
 
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`/dispatch/jobs?type=${activeTab === 'map' ? 'office' : activeTab}`);
+      const res = await axios.get(`/dispatch/jobs?type=${activeTab === 'map' ? 'office' : activeTab}${filterDate ? `&date=${filterDate}` : ''}`);
       setJobs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch jobs', err);
@@ -499,6 +500,35 @@ export default function DispatchDashboardPage() {
               </button>
             )
           })}
+        </div>
+
+        {/* ── Filter Controls ──────────────────────────────── */}
+        <div className="bg-white border-b border-[#E5E7EB] px-4 py-2.5 flex flex-wrap items-center gap-3 shrink-0">
+          <label className="text-sm font-semibold text-[#374151] flex items-center gap-2">
+            <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            กรองตามวันที่:
+          </label>
+          <input 
+            type="date" 
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="border border-[#E5E7EB] rounded-lg px-3 py-1.5 text-sm text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-1 focus:ring-[#A3E635] transition-all bg-[#F9FAFB] hover:bg-white"
+          />
+          {filterDate && (
+            <button 
+              onClick={() => setFilterDate('')}
+              className="text-xs text-red-600 hover:text-white font-semibold px-3 py-1.5 bg-red-50 hover:bg-red-500 rounded-lg transition-colors shadow-sm"
+            >
+              ❌ ล้างตัวกรอง (แสดงทั้งหมด)
+            </button>
+          )}
+          {!filterDate && (
+            <span className="text-xs text-[#6B7280] font-medium bg-[#F3F4F6] px-3 py-1.5 rounded-lg border border-[#E5E7EB]">
+              แสดงทั้งหมด
+            </span>
+          )}
         </div>
 
         {/* ── Action Controls Toolbar (Admin) ─────────────── */}
