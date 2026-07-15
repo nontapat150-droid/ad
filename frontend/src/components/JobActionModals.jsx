@@ -300,11 +300,11 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (images.length === 0) {
-      alert('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูป (สูงสุด 20 รูป)');
+      alert('กรุณาอัปโหลดรูปภาพอย่างน้อย 1 รูป (สูงสุด 40 รูป)');
       return;
     }
-    if (images.length > 20) {
-      alert('อัปโหลดรูปภาพได้สูงสุด 20 รูป');
+    if (images.length > 40) {
+      alert('อัปโหลดรูปภาพได้สูงสุด 40 รูป');
       return;
     }
     if ((entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && !entryFeeSlip) {
@@ -596,19 +596,19 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
             {/* Images and Remark */}
             <div className="grid grid-cols-1 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
               <div>
-                <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐานปิดงาน <span className="text-red-500">*</span> (สูงสุด 20 รูป)</label>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐานปิดงาน <span className="text-red-500">*</span> (สูงสุด 40 รูป)</label>
                 <div className="relative mt-2 group cursor-pointer">
                   <input type="file" multiple accept="image/*" onChange={handleImagesChange}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                   <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-[#378ADD]/50 rounded-xl bg-white/50 hover:bg-[#378ADD]/5 hover:border-[#378ADD] transition-all">
                     <span className="text-4xl mb-2">🖼️</span>
                     <span className="text-sm font-semibold text-[#185FA5]">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวาง</span>
-                    <span className="text-xs text-gray-500 mt-1">สามารถเลือกได้สูงสุด 20 รูป</span>
+                    <span className="text-xs text-gray-500 mt-1">สามารถเลือกได้สูงสุด 40 รูป</span>
                   </div>
                 </div>
                 <div className="flex justify-between items-center mt-2">
                   <p className="text-xs text-gray-500">รองรับไฟล์รูปภาพเท่านั้น</p>
-                  <p className="text-xs text-[#185FA5] font-bold">{images.length}/20 รูป</p>
+                  <p className="text-xs text-[#185FA5] font-bold">{images.length}/40 รูป</p>
                 </div>
                 {imagePreviews.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3 p-2 bg-white/30 rounded-xl border border-white/50 max-h-40 overflow-y-auto">

@@ -396,7 +396,7 @@ router.put(
   '/jobs/:id/complete',
   auth,
   setUpload('job_evidence'),
-  upload.fields([{ name: 'images', maxCount: 20 }, { name: 'entryFeeSlip', maxCount: 1 }]),
+  upload.fields([{ name: 'images', maxCount: 40 }, { name: 'entryFeeSlip', maxCount: 1 }]),
   async (req, res) => {
     const jobId  = req.params.id;
     const techId = req.user.id;
