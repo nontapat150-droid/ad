@@ -14,7 +14,13 @@ export function AuthProvider({ children }) {
     
     if (stored && stored !== 'undefined' && token) {
       try {
-        setUser(JSON.parse(stored));
+        const parsedUser = JSON.parse(stored);
+        if (typeof parsedUser.roles === 'string') {
+          parsedUser.roles = parsedUser.roles.split(',').map(r => r.trim());
+        } else if (!parsedUser.roles) {
+          parsedUser.roles = [parsedUser.role || ''];
+        }
+        setUser(parsedUser);
       } catch (error) {
         console.error('Error parsing user data:', error);
         localStorage.removeItem('bou_user');
@@ -29,6 +35,13 @@ export function AuthProvider({ children }) {
   const login = async (username, password, rememberMe = false) => {
     const { data } = await api.post('/auth/login', { username, password });
     
+    const userToStore = { ...data.user };
+    if (typeof userToStore.roles === 'string') {
+      userToStore.roles = userToStore.roles.split(',').map(r => r.trim());
+    } else if (!userToStore.roles) {
+      userToStore.roles = [userToStore.role || ''];
+    }
+
     const storage = rememberMe ? localStorage : sessionStorage;
     
     // Clear other storage to prevent conflicts
@@ -41,9 +54,9 @@ export function AuthProvider({ children }) {
     }
 
     storage.setItem('bou_token', data.token);
-    storage.setItem('bou_user', JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
+    storage.setItem('bou_user', JSON.stringify(userToStore));
+    setUser(userToStore);
+    return userToStore;
   };
 
   const logout = () => {
