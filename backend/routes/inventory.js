@@ -622,6 +622,46 @@ router.get('/my-bag', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/inventory/contractor-summary ──
+router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    // 1. Fetch all contractors
+    const [contractors] = await pool.query(
+      `SELECT u.id, u.username, u.full_name, u.role, u.team_id, t.team_name,
+              GROUP_CONCAT(ur.role SEPARATOR ',') AS roles_csv
+       FROM users u
+       LEFT JOIN teams t ON t.id = u.team_id
+       LEFT JOIN user_roles ur ON ur.user_id = u.id
+       WHERE u.status = 'approved' 
+         AND (u.role IN ('contractor_office', 'contractor_ma') 
+              OR u.id IN (SELECT user_id FROM user_roles WHERE role IN ('contractor_office', 'contractor_ma')))
+       GROUP BY u.id`
+    );
+
+    // 2. Fetch inventory balances for these contractors
+    const contractorIds = contractors.map(c => c.id);
+    let inventoryBalances = [];
+    if (contractorIds.length > 0) {
+      const [items] = await pool.query(
+        `SELECT ii.owner_id, ii.status, pm.model_name, p.name AS product_name, COUNT(*) as count
+         FROM inventory_items ii
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         WHERE ii.owner_id IN (?) 
+           AND ii.status IN ('dispatched', 'used')
+         GROUP BY ii.owner_id, pm.model_name, p.name, ii.status`,
+        [contractorIds]
+      );
+      inventoryBalances = items;
+    }
+
+    res.json({ contractors, inventoryBalances });
+  } catch (err) {
+    console.error('Contractor Summary Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
   // 💼 GET /api/inventory/active-jobs 💼
   // Get jobs assigned to the user (team or field_engineer_id)
   router.get('/active-jobs', auth, async (req, res) => {

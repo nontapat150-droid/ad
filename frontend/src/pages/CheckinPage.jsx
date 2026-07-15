@@ -36,12 +36,12 @@ export default function CheckinPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
-  const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
+  const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician') || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
   const isSales = user?.role === 'sales' || user?.roles?.includes('sales');
 
   const userRolesList = user?.roles || (user?.role ? [user.role] : []);
-  const hasGeneral = userRolesList.includes('technician') || userRolesList.includes('office_technician');
-  const hasMA = userRolesList.includes('ma_technician');
+  const hasGeneral = userRolesList.includes('technician') || userRolesList.includes('office_technician') || userRolesList.includes('contractor_office');
+  const hasMA = userRolesList.includes('ma_technician') || userRolesList.includes('contractor_ma');
   const hasSales = userRolesList.includes('sales');
   
   const availableTabs = [];

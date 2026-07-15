@@ -21,6 +21,7 @@ import AisExpansionPage from './pages/AisExpansionPage';
 import ReportIssuePage from './pages/ReportIssuePage';
 import TechOilHistoryPage from './pages/TechOilHistoryPage';
 import SystemSettingsPage from './pages/SystemSettingsPage';
+import ContractorInventoryPage from './pages/ContractorInventoryPage';
 
 // ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -85,9 +86,9 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/jobs"
+        path="/dispatch-dashboard"
         element={
-          <ProtectedRoute allowedRoles={['technician', 'ma_technician', 'super_admin', 'admin']}>
+          <ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'super_admin', 'admin']}>
             <DispatchDashboardPage />
           </ProtectedRoute>
         }
@@ -95,7 +96,7 @@ function AppRoutes() {
       <Route
         path="/checkin"
         element={
-          <ProtectedRoute allowedRoles={['sales', 'admin', 'super_admin', 'technician', 'ma_technician']}>
+          <ProtectedRoute allowedRoles={['sales', 'admin', 'super_admin', 'technician', 'ma_technician', 'contractor_office', 'contractor_ma']}>
             <CheckinPage />
           </ProtectedRoute>
         }
@@ -125,14 +126,15 @@ function AppRoutes() {
         }
       />
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><InventoryDashboardPage /></ProtectedRoute>} />
-      <Route path="/bag" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'super_admin', 'admin']}><TechBagPage /></ProtectedRoute>} />
-      <Route path="/entry-fee" element={<ProtectedRoute allowedRoles={['technician', 'super_admin', 'admin']}><EntryFeePage /></ProtectedRoute>} />
+      <Route path="/bag" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'super_admin', 'admin']}><TechBagPage /></ProtectedRoute>} />
+      <Route path="/entry-fee" element={<ProtectedRoute allowedRoles={['technician', 'contractor_office', 'super_admin', 'admin']}><EntryFeePage /></ProtectedRoute>} />
       <Route path="/attendance-summary" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AttendanceSummaryPage /></ProtectedRoute>} />
       <Route path="/ma-performance" element={<ProtectedRoute allowedRoles={['super_admin']}><MaPerformancePage /></ProtectedRoute>} />
       <Route path="/announcements" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AnnouncementsPage /></ProtectedRoute>} />
-      <Route path="/ais-expansion" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'ma_technician', 'technician', 'sales']}><AisExpansionPage /></ProtectedRoute>} />
-      <Route path="/oil-history" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'sales', 'super_admin', 'admin']}><TechOilHistoryPage /></ProtectedRoute>} />
+      <Route path="/ais-expansion" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'ma_technician', 'technician', 'contractor_office', 'contractor_ma', 'sales']}><AisExpansionPage /></ProtectedRoute>} />
+      <Route path="/oil-history" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'sales', 'super_admin', 'admin']}><TechOilHistoryPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={['super_admin']}><SystemSettingsPage /></ProtectedRoute>} />
+      <Route path="/contractor-inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><ContractorInventoryPage /></ProtectedRoute>} />
       <Route path="/report" element={<ProtectedRoute><ReportIssuePage /></ProtectedRoute>} />
 
       {/* Default: redirect based on role */}

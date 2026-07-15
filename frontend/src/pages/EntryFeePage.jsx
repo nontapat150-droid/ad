@@ -132,7 +132,7 @@ const FEE_TYPE_LABELS = {
 
 export default function EntryFeePage() {
   const { user } = useAuth();
-  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician';
+  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician' || user?.role === 'contractor_office' || user?.roles?.includes('contractor_office');
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'history'

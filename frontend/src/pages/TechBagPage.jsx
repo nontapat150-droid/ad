@@ -654,6 +654,8 @@ const ROLE_CONFIG = {
   technician: { label: 'ช่าง', color: 'bg-[#A3E635] text-[#1F2937] border-[#84cc16] shadow-sm' },
   office_technician: { label: 'ช่าง Office', color: 'bg-[#A3E635] text-[#1F2937] border-[#84cc16] shadow-sm' },
   ma_technician: { label: 'ช่าง MA', color: 'bg-amber-500 text-white border-amber-600 shadow-sm' },
+  contractor_office: { label: 'รับเหมา Office', color: 'bg-[#A3E635] text-[#1F2937] border-[#84cc16] shadow-sm' },
+  contractor_ma: { label: 'รับเหมา MA', color: 'bg-amber-500 text-white border-amber-600 shadow-sm' },
   sales: { label: 'เซล', color: 'bg-blue-500 text-white border-blue-600 shadow-sm' },
   default: { label: 'พนักงาน', color: 'bg-[#F3F4F6] text-[#4B5563] border-[#D1D5DB]' }
 };

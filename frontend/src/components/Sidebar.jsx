@@ -71,8 +71,8 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
   const isSuperAdmin  = userRoles.includes('super_admin');
   const isAdminOnly   = userRoles.includes('admin') && !isSuperAdmin;
   const isAdmin       = isSuperAdmin || isAdminOnly;
-  const isMATech      = userRoles.includes('ma_technician');
-  const isOfficeTech  = userRoles.includes('technician');
+  const isMATech      = userRoles.includes('ma_technician') || userRoles.includes('contractor_ma');
+  const isOfficeTech  = userRoles.includes('technician') || userRoles.includes('contractor_office');
   const isSales       = userRoles.includes('sales');
 
   const initials = user?.full_name ? user.full_name.substring(0, 2).toUpperCase() : 'U';
@@ -101,6 +101,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       else if (key === 'ais_expansion') navigate('/ais-expansion');
       else if (key === 'oil_history')   navigate('/oil-history');
       else if (key === 'settings')      navigate('/settings');
+      else if (key === 'contractor_inventory') navigate('/contractor-inventory');
     }
     if (window.innerWidth < 768) onClose();
   };
@@ -110,6 +111,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
     items: [
       ...(isSuperAdmin ? [{ key: 'users', label: 'จัดการผู้ใช้', icon: UsersIcon }] : []),
       { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
+      { key: 'contractor_inventory', label: 'สรุปอุปกรณ์รับเหมา', icon: InventoryIcon },
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
       { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
       { key: 'report', label: 'รายการแจ้งปัญหา', icon: ReportIcon },
@@ -254,6 +256,8 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
                     : r === 'admin'          ? 'แอดมิน'
                     : r === 'ma_technician'  ? 'ช่าง MA'
                     : r === 'technician'     ? 'ช่าง Office'
+                    : r === 'contractor_office' ? 'รับเหมา Office'
+                    : r === 'contractor_ma'  ? 'รับเหมา MA'
                     : r === 'sales'          ? 'เซล' : r;
                   return (
                     <span key={i}

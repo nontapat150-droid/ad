@@ -19,7 +19,9 @@ export const generateCheckinExcel = async (data, monthString) => {
     'sales': 'เซล',
     'general': 'ช่างทั่วไป',
     'ma': 'ทีม MA',
-    'manager': 'ผู้จัดการ'
+    'manager': 'ผู้จัดการ',
+    'contractor_office': 'รับเหมา Office',
+    'contractor_ma': 'รับเหมา MA'
   };
 
   // Group users by the mapped role name (so 'ma' and 'ma_technician' go to the same tab)

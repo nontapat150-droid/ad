@@ -348,6 +348,8 @@ function RecordCard({ record, onViewImages }) {
   const initials = displayName.substring(0, 2);
   const roleLabel = r.tech_role === 'ma_technician' ? 'ช่าง MA'
     : r.tech_role === 'technician' ? 'ช่าง Office'
+    : r.tech_role === 'contractor_office' ? 'รับเหมา Office'
+    : r.tech_role === 'contractor_ma' ? 'รับเหมา MA'
     : r.tech_role === 'sales' ? 'เซล'
     : r.tech_role === 'admin' ? 'แอดมิน'
     : r.tech_role === 'super_admin' ? 'Super Admin'

@@ -1066,7 +1066,7 @@ export default function OilDashboardPage() {
 
   const { hasRole } = useAuth();
   const isAdmin = hasRole(['super_admin', 'admin']);
-  const isDataEntryOnly = hasRole(['technician', 'office_technician', 'ma_technician', 'sales']);
+  const isDataEntryOnly = hasRole(['technician', 'office_technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'sales']);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -1537,6 +1537,8 @@ export default function OilDashboardPage() {
                                     technician: 'ช่าง Office',
                                     ma_technician: 'ช่าง MA',
                                     office_technician: 'ช่าง Office',
+                                    contractor_office: 'รับเหมา Office',
+                                    contractor_ma: 'รับเหมา MA',
                                     admin: 'แอดมิน',
                                     super_admin: 'แอดมินสูงสุด'
                                   }[r.tech_role] || r.tech_role || 'พนักงาน'}

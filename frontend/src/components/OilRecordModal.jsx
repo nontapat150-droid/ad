@@ -18,6 +18,10 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
           u.roles?.includes('technician') || 
           u.role === 'technician' || 
           u.role === 'ma_technician' || 
+          u.role === 'contractor_office' ||
+          u.role === 'contractor_ma' ||
+          u.roles?.includes('contractor_office') ||
+          u.roles?.includes('contractor_ma') ||
           u.roles?.includes('sales') || 
           u.role === 'sales'
         ));
@@ -192,7 +196,8 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                 <option value="">-- กรุณาเลือกช่างเทคนิค --</option>
                 {techs.map(t => {
                   const roleText = {
-                    sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office'
+                    sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office',
+                    contractor_office: 'รับเหมา Office', contractor_ma: 'รับเหมา MA'
                   }[t.role] || t.role || 'พนักงาน';
                   return (
                     <option key={t.id} value={t.id}>
@@ -210,7 +215,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                 <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <p className="text-xs text-[#6B7280] font-medium">
                   กำลังบันทึกในนาม: <span className="font-bold text-[#1F2937]">{selectedTech.full_name}</span> ({teamName}) - 
-                  {' '}{{ sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
+                  {' '}{{ sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', contractor_office: 'รับเหมา Office', contractor_ma: 'รับเหมา MA', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
                 </p>
               </div>
             )}
@@ -252,7 +257,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                         <option value="">-- กรุณาเลือกผู้ไปเติมแทน --</option>
                         {techs.map(t => {
                           const roleText = {
-                            sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด'
+                            sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', contractor_office: 'รับเหมา Office', contractor_ma: 'รับเหมา MA', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด'
                           }[t.role] || t.role || 'พนักงาน';
                           return (
                             <option key={t.id} value={t.id}>
@@ -285,6 +290,8 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                     technician: 'ช่าง Office',
                     ma_technician: 'ช่าง MA',
                     office_technician: 'ช่าง Office',
+                    contractor_office: 'รับเหมา Office',
+                    contractor_ma: 'รับเหมา MA',
                     admin: 'แอดมิน',
                     super_admin: 'ผู้ดูแลระบบสูงสุด',
                   }[user?.role] || user?.role || 'พนักงาน'}

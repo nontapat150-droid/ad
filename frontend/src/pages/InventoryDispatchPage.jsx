@@ -19,6 +19,8 @@ const ROLE_STYLES = {
   super_admin: { bg: 'bg-[#1F2937]', text: 'text-white',          label: 'Super Admin' },
   admin:       { bg: 'bg-[#A3E635]', text: 'text-[#1F2937]',      label: 'Admin'       },
   technician:  { bg: 'bg-sky-100',   text: 'text-sky-700',        label: 'ช่าง'        },
+  contractor_office: { bg: 'bg-sky-100', text: 'text-sky-700',    label: 'รับเหมา Office' },
+  contractor_ma: { bg: 'bg-violet-100', text: 'text-violet-700',  label: 'รับเหมา MA' },
   default:     { bg: 'bg-gray-100',  text: 'text-gray-600',       label: 'พนักงาน'     },
 };
 

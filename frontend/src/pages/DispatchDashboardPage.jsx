@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import AOS from 'aos';
 import Sidebar from '../components/Sidebar';
 import JobDispatchModal from '../components/JobDispatchModal';
@@ -31,8 +31,8 @@ L.Icon.Default.mergeOptions({
 export default function DispatchDashboardPage() {
   const { user } = useAuth();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
-  const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician');
-  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician';
+  const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician') || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
+  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician' || user?.role === 'contractor_office' || user?.roles?.includes('contractor_office');
 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);

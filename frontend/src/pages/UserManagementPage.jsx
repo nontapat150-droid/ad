@@ -103,6 +103,8 @@ export default function UserManagementPage() {
       admin: { label: 'แอดมิน', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
       technician: { label: 'ช่าง Office', color: 'bg-blue-50 text-blue-600 border-blue-200' },
       ma_technician: { label: 'ช่าง MA', color: 'bg-cyan-50 text-cyan-600 border-cyan-200' },
+      contractor_office: { label: 'รับเหมา Office', color: 'bg-sky-50 text-sky-600 border-sky-200' },
+      contractor_ma: { label: 'รับเหมา MA', color: 'bg-teal-50 text-teal-600 border-teal-200' },
       sales: { label: 'เซล', color: 'bg-amber-50 text-amber-600 border-amber-200' },
     };
     const r = roles[role] || { label: role, color: 'bg-slate-100 text-slate-600 border-slate-200' };
@@ -428,6 +430,8 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
               <select name="role" value={form.role} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
                 <option value="technician">ช่าง Office</option>
                 <option value="ma_technician">ช่าง MA</option>
+                <option value="contractor_office">รับเหมา Office</option>
+                <option value="contractor_ma">รับเหมา MA</option>
                 <option value="admin">แอดมิน</option>
                 <option value="super_admin">ผู้ดูแลระบบสูงสุด</option>
                 <option value="sales">เซล</option>
@@ -446,7 +450,7 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
           <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
             <label className="block text-sm font-bold text-[#1F2937] mb-3">บทบาทเพิ่มเติม (Extra Roles)</label>
             <div className="flex flex-wrap gap-3">
-              {['technician', 'ma_technician', 'admin', 'super_admin', 'sales']
+              {['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'admin', 'super_admin', 'sales']
                 .filter(r => r !== form.role)
                 .map(r => {
                   const isChecked = (form.extra_roles || []).includes(r);
@@ -486,6 +490,8 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
                       <span className={`text-sm ${isChecked ? 'font-black text-[#1F2937]' : 'font-bold text-[#4B5563]'}`}>{
                         r === 'technician' ? 'ช่าง Office' :
                         r === 'ma_technician' ? 'ช่าง MA' :
+                        r === 'contractor_office' ? 'รับเหมา Office' :
+                        r === 'contractor_ma' ? 'รับเหมา MA' :
                         r === 'admin' ? 'แอดมิน' :
                         r === 'super_admin' ? 'ผู้ดูแลระบบ' : 'เซล'
                       }</span>
