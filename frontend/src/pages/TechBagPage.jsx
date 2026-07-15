@@ -27,6 +27,10 @@ export default function TechBagPage() {
   const [activeTab, setActiveTab] = useState('bag');
   const [selectedUserId, setSelectedUserId] = useState(user?.id);
 
+  // ── Date filter for bag (default = show all) ──
+  const [bagDateFrom, setBagDateFrom] = useState('');
+  const [bagDateTo, setBagDateTo] = useState('');
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -344,20 +348,90 @@ export default function TechBagPage() {
               <div key={activeTab} className="animate-fade-in">
                 {activeTab === 'bag' ? (
                   // ── BAG TAB ──
-                  bagItems.length === 0 ? (
-                    <div className="bg-white p-12 rounded-xl border border-[#E5E7EB] text-center flex flex-col items-center justify-center"
-                      style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                      <div className="w-16 h-16 bg-[#F3F4F6] rounded-2xl flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-[#D1D5DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
-                        </svg>
-                      </div>
-                      <p className="text-lg font-bold text-[#1F2937]">ไม่มีสินค้าในกระเป๋า</p>
-                      <p className="text-[#9CA3AF] text-sm mt-1">เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {bagItems.map((item, index) => (
+                  (() => {
+                    // Apply date filter (client-side)
+                    const filteredBag = bagItems.filter(item => {
+                      const d = new Date(item.dispatched_at);
+                      if (bagDateFrom && d < new Date(bagDateFrom)) return false;
+                      if (bagDateTo) {
+                        const toEnd = new Date(bagDateTo);
+                        toEnd.setHours(23, 59, 59, 999);
+                        if (d > toEnd) return false;
+                      }
+                      return true;
+                    });
+
+                    return (
+                      <>
+                        {/* ── Date Filter Bar ── */}
+                        <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-wrap items-center gap-3 mb-1"
+                          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                          <div className="flex items-center gap-2 text-[#374151]">
+                            <svg className="w-4 h-4 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">กรองวันที่รับเข้า</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ตั้งแต่</label>
+                              <input
+                                type="date"
+                                value={bagDateFrom}
+                                onChange={e => setBagDateFrom(e.target.value)}
+                                className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm text-[#374151] focus:ring-2 focus:ring-[#A3E635]/30 focus:border-[#A3E635] outline-none transition-all"
+                                style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                              />
+                            </div>
+                            <span className="text-[#9CA3AF] text-sm font-bold">–</span>
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ถึง</label>
+                              <input
+                                type="date"
+                                value={bagDateTo}
+                                onChange={e => setBagDateTo(e.target.value)}
+                                className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm text-[#374151] focus:ring-2 focus:ring-[#A3E635]/30 focus:border-[#A3E635] outline-none transition-all"
+                                style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                              />
+                            </div>
+                            {(bagDateFrom || bagDateTo) && (
+                              <button
+                                onClick={() => { setBagDateFrom(''); setBagDateTo(''); }}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors border border-red-100"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                ล้างการกรอง
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-auto">
+                            <span className="text-xs font-bold text-[#9CA3AF]">แสดง</span>
+                            <span className="text-sm font-black text-[#1F2937]">{filteredBag.length}</span>
+                            <span className="text-xs text-[#9CA3AF]">/ {bagItems.length} รายการ</span>
+                          </div>
+                        </div>
+
+                        {/* ── Bag Grid ── */}
+                        {filteredBag.length === 0 ? (
+                        <div className="bg-white p-12 rounded-xl border border-[#E5E7EB] text-center flex flex-col items-center justify-center"
+                            style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                            <div className="w-16 h-16 bg-[#F3F4F6] rounded-2xl flex items-center justify-center mb-4">
+                              <svg className="w-8 h-8 text-[#D1D5DB]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
+                              </svg>
+                            </div>
+                            <p className="text-lg font-bold text-[#1F2937]">
+                              {(bagDateFrom || bagDateTo) ? 'ไม่พบสินค้าในช่วงวันที่เลือก' : 'ไม่มีสินค้าในกระเป๋า'}
+                            </p>
+                            <p className="text-[#9CA3AF] text-sm mt-1">
+                              {(bagDateFrom || bagDateTo) ? 'ลองเปลี่ยนช่วงวันที่ หรือกดปุ่ม“ล้างการกรอง” เพื่อดูสินค้าทั้งหมด' : 'เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่'}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredBag.map((item, index) => (
                         <div key={item.id}
                           className="bg-white p-5 rounded-xl border border-[#E5E7EB] hover:border-[#A3E635]/30 hover:shadow-md transition-all duration-200 flex flex-col group"
                           style={{
@@ -431,9 +505,12 @@ export default function TechBagPage() {
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()
                 ) : (
                   // ── HISTORY TAB ──
                   <div className="space-y-4">
