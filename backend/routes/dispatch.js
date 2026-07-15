@@ -859,9 +859,9 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
       await conn.rollback();
       return res.status(404).json({ error: 'ไม่พบงาน' });
     }
-    if (job.status !== 'completed') {
+    if (job.status !== 'completed' && job.status !== 'failed') {
       await conn.rollback();
-      return res.status(400).json({ error: 'งานนี้ยังไม่เสร็จสิ้น' });
+      return res.status(400).json({ error: 'เปลี่ยนทีมได้เฉพาะงานที่เสร็จสิ้นหรือล้มเหลวแล้วเท่านั้น' });
     }
 
     const oldTeamId = job.team_id;
@@ -870,30 +870,32 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
       return res.status(400).json({ error: 'ทีมใหม่เหมือนกับทีมปัจจุบัน' });
     }
 
-    // Find the month when it was completed
-    const [[jobLog]] = await conn.query(`SELECT timestamp FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
-    const ym = jobLog ? new Date(jobLog.timestamp).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
+    if (job.status === 'completed') {
+      // Find the month when it was completed
+      const [[jobLog]] = await conn.query(`SELECT timestamp FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
+      const ym = jobLog ? new Date(jobLog.timestamp).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
 
-    // Decrement old team
-    if (oldTeamId) {
-      await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND \`year_month\` = ?`, [oldTeamId, ym]);
-    }
+      // Decrement old team
+      if (oldTeamId) {
+        await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND \`year_month\` = ?`, [oldTeamId, ym]);
+      }
 
-    // Increment new team
-    try {
-      await conn.query(
-        `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-        [new_team_id, ym]
-      );
-    } catch (e) {
-      if (e.message.includes("Field 'id' doesn't have a default value")) {
-        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
+      // Increment new team
+      try {
         await conn.query(
-          `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-          [(maxId || 0) + 1, new_team_id, ym]
+          `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+          [new_team_id, ym]
         );
-      } else {
-        throw e;
+      } catch (e) {
+        if (e.message && e.message.includes("Field 'id' doesn't have a default value")) {
+          const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
+          await conn.query(
+            `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+            [(maxId || 0) + 1, new_team_id, ym]
+          );
+        } else {
+          throw e;
+        }
       }
     }
 

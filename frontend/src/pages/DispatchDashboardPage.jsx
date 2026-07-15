@@ -672,9 +672,9 @@ export default function DispatchDashboardPage() {
                                  className="flex-1 py-2 bg-[#F3F4F6] text-[#374151] hover:bg-[#A3E635]/15 hover:text-[#1F2937] rounded-lg text-xs font-bold transition-colors border border-[#E5E7EB] hover:border-[#A3E635]/30">
                                  รายละเอียด / อัปเดต
                                </button>
-                               {(isAdmin && job.status === 'completed') && (
+                               {(isAdmin && (job.status === 'completed' || job.status === 'failed')) && (
                                  <>
-                                   <button onClick={() => handleCancelCompletion(job)} className="py-2 px-3 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-red-200 shadow-sm whitespace-nowrap" title="ยกเลิกการจบงาน">❌ ยกเลิกจบงาน</button>
+                                   {job.status === 'completed' && <button onClick={() => handleCancelCompletion(job)} className="py-2 px-3 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-red-200 shadow-sm whitespace-nowrap" title="ยกเลิกการจบงาน">❌ ยกเลิกจบงาน</button>}
                                    <button onClick={() => handleChangeCompletedTeam(job)} className="py-2 px-3 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg text-xs font-bold transition-colors border border-blue-200 shadow-sm whitespace-nowrap" title="เปลี่ยนทีมที่ปิดงาน">🔄 เปลี่ยนทีม</button>
                                  </>
                                )}
@@ -824,14 +824,16 @@ export default function DispatchDashboardPage() {
                                     )}
                                     {isAdmin && (
                                       <>
-                                        {job.status === 'completed' && (
+                                        {(job.status === 'completed' || job.status === 'failed') && (
                                           <>
-                                            <button onClick={() => handleCancelCompletion(job)}
-                                              className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-200" title="ยกเลิกการจบงาน">
-                                              <span className="text-xs font-bold">❌</span>
-                                            </button>
+                                            {job.status === 'completed' && (
+                                              <button onClick={() => handleCancelCompletion(job)}
+                                                className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-200" title="ยกเลิกการจบงาน">
+                                                <span className="text-xs font-bold">❌</span>
+                                              </button>
+                                            )}
                                             <button onClick={() => handleChangeCompletedTeam(job)}
-                                              className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-200" title="เปลี่ยนทีมที่ปิดงาน">
+                                              className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white rounded-lg transition-colors border border-blue-200" title="เปลี่ยนทีม">
                                               <span className="text-xs font-bold">🔄</span>
                                             </button>
                                           </>
