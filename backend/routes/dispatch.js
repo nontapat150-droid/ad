@@ -857,8 +857,8 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
     }
 
     // Find the month when it was completed
-    const [[jobLog]] = await conn.query(`SELECT created_at FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
-    const ym = jobLog ? new Date(jobLog.created_at).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
+    const [[jobLog]] = await conn.query(`SELECT timestamp FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
+    const ym = jobLog ? new Date(jobLog.timestamp).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
 
     // Decrement old team
     if (oldTeamId) {
