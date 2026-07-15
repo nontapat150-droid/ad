@@ -38,14 +38,31 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
   };
 
   const handleQtyChange = (itemId, qty, maxQty) => {
-    const val = parseInt(qty) || 1;
-    if (val < 1) return;
-    if (val > maxQty) return;
-    
-    setSelectedItems(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], useQty: val }
-    }));
+    if (qty === '') {
+      setSelectedItems(prev => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], useQty: '' }
+      }));
+      return;
+    }
+    const num = parseInt(qty, 10);
+    if (!isNaN(num)) {
+      const val = Math.min(num, maxQty);
+      setSelectedItems(prev => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], useQty: val }
+      }));
+    }
+  };
+
+  const handleQtyBlur = (itemId, qty) => {
+    const num = parseInt(qty, 10);
+    if (isNaN(num) || num < 1) {
+      setSelectedItems(prev => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], useQty: 1 }
+      }));
+    }
   };
 
   const fetchJobs = async () => {
@@ -80,7 +97,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
 
     const itemsPayload = Object.values(selectedItems).map(i => ({
       item_id: i.id,
-      quantity: i.useQty
+      quantity: parseInt(i.useQty, 10) || 1
     }));
 
     try {
@@ -177,6 +194,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
                             max={item.quantity}
                             value={selectedItems[item.id].useQty}
                             onChange={(e) => handleQtyChange(item.id, e.target.value, item.quantity)}
+                            onBlur={(e) => handleQtyBlur(item.id, e.target.value)}
                             className="w-20 px-3 py-1.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none text-center font-bold"
                           />
                           <span className="text-xs font-bold text-slate-500">/ {item.quantity}</span>

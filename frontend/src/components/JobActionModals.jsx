@@ -61,8 +61,22 @@ function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnItems, set
   };
 
   const handleQtyChange = (itemId, qty, maxQty) => {
-    const val = Math.max(1, Math.min(parseInt(qty) || 1, maxQty));
-    setSelectedNoSnItems(prev => ({ ...prev, [itemId]: { ...prev[itemId], useQty: val } }));
+    if (qty === '') {
+      setSelectedNoSnItems(prev => ({ ...prev, [itemId]: { ...prev[itemId], useQty: '' } }));
+      return;
+    }
+    const num = parseInt(qty, 10);
+    if (!isNaN(num)) {
+      const val = Math.min(num, maxQty);
+      setSelectedNoSnItems(prev => ({ ...prev, [itemId]: { ...prev[itemId], useQty: val } }));
+    }
+  };
+
+  const handleQtyBlur = (itemId, qty) => {
+    const num = parseInt(qty, 10);
+    if (isNaN(num) || num < 1) {
+      setSelectedNoSnItems(prev => ({ ...prev, [itemId]: { ...prev[itemId], useQty: 1 } }));
+    }
   };
 
   const selectedCount = Object.keys(selectedNoSnItems).length;
@@ -134,6 +148,7 @@ function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnItems, set
                         max={item.quantity}
                         value={selectedNoSnItems[item.id].useQty}
                         onChange={e => handleQtyChange(item.id, e.target.value, item.quantity)}
+                        onBlur={e => handleQtyBlur(item.id, e.target.value)}
                         className="w-20 px-2 py-1.5 rounded-xl border-2 border-blue-300 focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 outline-none text-center font-bold text-sm"
                       />
                       <span className="text-xs font-semibold text-slate-500">/ {item.quantity}</span>
@@ -326,7 +341,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       // No-SN items selected from UseEquipment popup
       const noSnPayload = Object.values(selectedNoSnItems).map(i => ({
         item_id: i.id,
-        quantity: i.useQty,
+        quantity: parseInt(i.useQty, 10) || 1,
         product_name: i.product_name,
         model_name: i.model_name || '',
         unit: i.unit || 'ชิ้น',
