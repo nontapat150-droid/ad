@@ -93,7 +93,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
       else if (key === 'users')         navigate('/users');
       else if (key === 'bag')           navigate('/bag');
       else if (key === 'entry_fee')     navigate('/entry-fee');
-      else if (key === 'jobs')          navigate('/jobs');
+      else if (key === 'jobs')          navigate('/dispatch-dashboard');
       else if (key === 'ma_performance')navigate('/ma-performance');
       else if (key === 'announcements') navigate('/announcements');
       else if (key === 'report')        navigate('/report');
