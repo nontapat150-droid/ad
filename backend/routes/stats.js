@@ -195,7 +195,7 @@ router.get('/efficiency', auth, async (req, res) => {
                    ELSE NULL END AS liters_per_job
        FROM teams t
        LEFT JOIN team_oil_cases toc
-         ON toc.team_id = t.id AND toc.year_month = ?
+         ON toc.team_id = t.id AND toc.\`year_month\` = ?
        LEFT JOIN users u ON u.team_id = t.id
        LEFT JOIN oil_records r
          ON r.tech_id = u.id AND DATE_FORMAT(r.date_recorded, '%Y-%m') = ?

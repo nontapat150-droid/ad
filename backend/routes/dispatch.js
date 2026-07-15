@@ -582,7 +582,7 @@ router.put(
         try {
           const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
           await conn.query(
-            `INSERT INTO team_oil_cases (team_id, year_month, case_count)
+            `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count)
              VALUES (?, ?, 1)
              ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
             [job.team_id, yearMonth]
@@ -778,7 +778,7 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
         const yearMonth = completedDate.toISOString().slice(0, 7);
         await conn.query(
           `UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1)
-           WHERE team_id = ? AND year_month = ?`,
+           WHERE team_id = ? AND \`year_month\` = ?`,
           [job.team_id, yearMonth]
         );
       } catch(e) {
@@ -862,12 +862,12 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
 
     // Decrement old team
     if (oldTeamId) {
-      await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND year_month = ?`, [oldTeamId, ym]);
+      await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND \`year_month\` = ?`, [oldTeamId, ym]);
     }
 
     // Increment new team
     await conn.query(
-      `INSERT INTO team_oil_cases (team_id, year_month, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+      `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
       [new_team_id, ym]
     );
 
