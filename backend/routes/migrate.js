@@ -23,6 +23,21 @@ router.get('/migrate-fix', async (req, res) => {
       results.push('users.last_active: ' + e.message);
     }
 
+    // Fix role column to VARCHAR(50) for users and user_roles to support new roles
+    try {
+      await pool.query(`ALTER TABLE users MODIFY COLUMN role VARCHAR(50)`);
+      results.push('✅ users.role -> VARCHAR(50) fixed');
+    } catch(e) {
+      results.push('users.role: ' + e.message);
+    }
+
+    try {
+      await pool.query(`ALTER TABLE user_roles MODIFY COLUMN role VARCHAR(50)`);
+      results.push('✅ user_roles.role -> VARCHAR(50) fixed');
+    } catch(e) {
+      results.push('user_roles.role: ' + e.message);
+    }
+
     // Fix inventory_models
     try {
       await pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY`);
