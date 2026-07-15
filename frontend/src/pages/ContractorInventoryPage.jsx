@@ -16,7 +16,7 @@ export default function ContractorInventoryPage() {
     try {
       setLoading(true);
       const res = await api.get('/inventory/contractor-summary');
-      setSummaries(res.data);
+      setSummaries(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
       Swal.fire({
