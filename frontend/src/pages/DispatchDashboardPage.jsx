@@ -83,7 +83,7 @@ export default function DispatchDashboardPage() {
   const fetchTeams = async () => {
     try {
       const res = await axios.get('/users/teams');
-      setTeams(res.data);
+      setTeams(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch teams', err);
     }
@@ -105,7 +105,7 @@ export default function DispatchDashboardPage() {
     try {
       setLoading(true);
       const res = await axios.get(`/dispatch/jobs?type=${activeTab === 'map' ? 'office' : activeTab}`);
-      setJobs(res.data);
+      setJobs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch jobs', err);
     } finally {
