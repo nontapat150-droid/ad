@@ -938,16 +938,16 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // 1. Validate item belongs to current user and has enough quantity
+    // 1. Validate item exists and is dispatched
     const [[item]] = await conn.query(
       `SELECT * FROM inventory_items 
-       WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
-      [item_id, currentUserId]
+       WHERE id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
+      [item_id]
     );
 
     if (!item) {
       await conn.rollback();
-      return res.status(404).json({ error: 'ไม่พบสินค้าในกระเป๋าของคุณ หรือสินค้าหมดอายุแล้ว' });
+      return res.status(404).json({ error: 'ไม่พบสินค้า หรือสินค้าไม่ได้อยู่ในสถานะที่สามารถคืนได้' });
     }
 
     const rQty = parseFloat(return_quantity);
@@ -981,10 +981,11 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       );
     }
 
-    // Log the return
+    // Log the return using the tech's owner_id as from_user_id (the one returning it) 
+    // and to_user_id as the admin processing it (optional, here we set to_user_id = admin)
     await conn.query(
-      'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, NULL, "returned", ?)',
-      [item.id, currentUserId, rQty]
+      'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "returned", ?)',
+      [item.id, item.owner_id || currentUserId, currentUserId, rQty]
     );
 
     await conn.commit();
@@ -995,6 +996,32 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
+  }
+});
+
+// ── GET /api/inventory/search-dispatched-sn/:sn ──
+router.get('/search-dispatched-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit, p.pieces_per_crate, p.crate_unit,
+              u.full_name AS owner_name, u.team_id, t.team_name
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u ON u.id = ii.owner_id
+       LEFT JOIN teams t ON t.id = u.team_id
+       WHERE ii.sn = ? AND ii.status = 'dispatched'`,
+      [req.params.sn]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'ไม่พบสินค้ารหัสนี้ในกระเป๋าช่างคนใด' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Search dispatched SN error:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
