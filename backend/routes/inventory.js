@@ -998,6 +998,84 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
+// ── POST /api/inventory/return-bulk ──
+router.post('/return-bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { items } = req.body;
+  const currentUserId = req.user.id;
+  
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'ไม่พบรายการสินค้าที่ต้องการคืน' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    for (const returnItem of items) {
+      const { item_id, return_quantity } = returnItem;
+      if (!item_id || !return_quantity) {
+        throw new Error('ข้อมูลสินค้าบางรายการไม่ครบถ้วน');
+      }
+
+      // 1. Validate item exists and is dispatched
+      const [[item]] = await conn.query(
+        `SELECT * FROM inventory_items 
+         WHERE id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
+        [item_id]
+      );
+
+      if (!item) {
+        throw new Error(`ไม่พบสินค้า (ID: ${item_id}) หรือสินค้าไม่ได้อยู่ในสถานะที่สามารถคืนได้`);
+      }
+
+      const rQty = parseFloat(return_quantity);
+      const iQty = parseFloat(item.quantity);
+
+      if (rQty <= 0 || rQty > iQty) {
+        throw new Error(`จำนวนที่ต้องการคืนไม่ถูกต้อง สำหรับสินค้า (ID: ${item_id})`);
+      }
+
+      if (rQty === iQty) {
+        // Return whole item to stock
+        await conn.query(
+          `UPDATE inventory_items 
+           SET status = 'in_stock', owner_id = NULL, team_id = NULL, dispatched_at = NULL 
+           WHERE id = ?`,
+          [item.id]
+        );
+      } else {
+        // Split item
+        const newQty = iQty - rQty;
+        await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
+
+        // Create new item in stock
+        const newSn = `${item.sn}-RETURN-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 1000)}`;
+        
+        await conn.query(
+          `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at)
+           VALUES (?, ?, ?, 'in_stock', NULL, NULL, NULL, ?)`,
+          [item.model_id, newSn, rQty, item.expires_at]
+        );
+      }
+
+      // Log the return using "receive" action so it doesn't violate ENUM, with a note
+      await conn.query(
+        'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "receive", ?, "คืนจากกระเป๋าช่าง")',
+        [item.id, currentUserId, rQty]
+      );
+    }
+
+    await conn.commit();
+    res.json({ message: `คืนสินค้าสำเร็จ ${items.length} รายการ` });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Return Bulk Error:', err);
+    res.status(500).json({ error: err.message || 'Server error during bulk return' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── GET /api/inventory/search-dispatched-sn/:sn ──
 router.get('/search-dispatched-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {

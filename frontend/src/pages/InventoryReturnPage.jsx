@@ -190,7 +190,7 @@ function UserDropdown({ users, value, onChange }) {
 export default function InventoryReturnPage() {
   const [activeTab, setActiveTab] = useState('scan'); // 'scan' | 'manual'
   const [sn, setSn] = useState('');
-  const [scannedItem, setScannedItem] = useState(null);
+  const [stagedItems, setStagedItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Manual Mode State
@@ -217,10 +217,17 @@ export default function InventoryReturnPage() {
     if (!sn.trim()) return;
 
     setLoading(true);
-    setScannedItem(null);
     try {
       const res = await axios.get(`/inventory/search-dispatched-sn/${encodeURIComponent(sn.trim())}`);
-      setScannedItem(res.data);
+      const item = res.data;
+      
+      if (stagedItems.find(i => i.id === item.id)) {
+         Swal.fire({ icon: 'warning', title: 'ซ้ำ!', text: 'สินค้านี้อยู่ในรายการรอคืนแล้ว', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+      } else {
+         setStagedItems(prev => [...prev, { ...item, return_quantity: Math.floor(item.quantity) }]);
+         Swal.fire({ icon: 'success', title: 'เพิ่มลงรายการรอคืนแล้ว', toast: true, position: 'top-end', timer: 1500, showConfirmButton: false });
+      }
+      setSn('');
     } catch (err) {
       Swal.fire({
         icon: 'error',
@@ -230,6 +237,55 @@ export default function InventoryReturnPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateStagedQuantity = (id, val) => {
+    const num = parseInt(val, 10);
+    setStagedItems(prev => prev.map(item => {
+      if (item.id === id) {
+        if (!num || num < 1) return { ...item, return_quantity: 1 };
+        if (num > item.quantity) return { ...item, return_quantity: Math.floor(item.quantity) };
+        return { ...item, return_quantity: num };
+      }
+      return item;
+    }));
+  };
+
+  const removeStagedItem = (id) => {
+    setStagedItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleBulkReturn = async () => {
+    if (stagedItems.length === 0) return;
+    
+    const result = await Swal.fire({
+      title: 'ยืนยันการคืนสินค้า?',
+      text: `คุณกำลังคืนสินค้าจำนวน ${stagedItems.length} รายการเข้าสู่คลังหลัก`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันการคืนทั้งหมด',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#A3E635'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        setLoading(true);
+        await axios.post('/inventory/return-bulk', {
+          items: stagedItems.map(item => ({ item_id: item.id, return_quantity: item.return_quantity }))
+        });
+        Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+        setStagedItems([]);
+      } catch (err) {
+        Swal.fire({
+          icon: 'error',
+          title: 'เกิดข้อผิดพลาด',
+          text: err.response?.data?.error || 'ไม่สามารถคืนสินค้าได้'
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -275,10 +331,7 @@ export default function InventoryReturnPage() {
         Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
         
         // Refresh data
-        if (activeTab === 'scan') {
-          setScannedItem(null);
-          setSn('');
-        } else {
+        if (activeTab === 'manual') {
           fetchBag(selectedUserId);
         }
       } catch (err) {
@@ -372,50 +425,73 @@ export default function InventoryReturnPage() {
             </div>
           </form>
 
-          {scannedItem && (
-            <div className="bg-white border-2 border-emerald-100 rounded-2xl p-6 shadow-sm relative overflow-hidden animate-[fadeIn_0.3s_ease-out]">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -z-10"></div>
-              
-              <div className="flex items-start justify-between gap-4 mb-6">
-                <div>
-                  <h3 className="text-xl font-black text-[#1F2937] mb-1">{scannedItem.product_name}</h3>
-                  <p className="text-sm font-bold text-[#6B7280]">โมเดล: {scannedItem.model_name}</p>
-                </div>
-                <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg text-xs font-black shrink-0">
-                  พบสินค้า
-                </div>
+          {stagedItems.length > 0 && (
+            <div className="mt-8 animate-[fadeIn_0.3s_ease-out]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black text-[#1F2937]">รายการรอคืน ({stagedItems.length})</h3>
+                <button
+                  onClick={() => setStagedItems([])}
+                  className="text-sm font-bold text-red-500 hover:text-red-700 transition-colors"
+                >ล้างรายการทั้งหมด</button>
               </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-[#F9FAFB] p-4 rounded-xl border border-[#E5E7EB]">
-                  <p className="text-xs font-bold text-[#9CA3AF] mb-1">Serial Number (SN)</p>
-                  <p className="text-sm font-black text-[#1F2937]">{scannedItem.sn}</p>
-                </div>
-                <div className="bg-[#F9FAFB] p-4 rounded-xl border border-[#E5E7EB]">
-                  <p className="text-xs font-bold text-[#9CA3AF] mb-1">จำนวนในกระเป๋า</p>
-                  <p className="text-sm font-black text-[#1F2937]">{scannedItem.quantity} {scannedItem.unit || ''}</p>
-                </div>
-                <div className="col-span-2 bg-[#F9FAFB] p-4 rounded-xl border border-[#E5E7EB] flex items-center gap-3">
-                   <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-black">
-                     {scannedItem.owner_name?.charAt(0) || '?'}
-                   </div>
-                   <div>
-                     <p className="text-xs font-bold text-[#9CA3AF] mb-0.5">ผู้ถือสินค้าปัจจุบัน</p>
-                     <p className="text-sm font-black text-[#1F2937]">{scannedItem.owner_name || 'ไม่ระบุ'}</p>
-                     {scannedItem.team_name && <p className="text-xs text-blue-600 font-semibold">{scannedItem.team_name}</p>}
-                   </div>
-                </div>
+              
+              <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm overflow-hidden mb-6">
+                 <div className="overflow-x-auto">
+                   <table className="w-full text-left text-sm">
+                     <thead className="bg-[#F9FAFB] text-[#6B7280]">
+                       <tr>
+                         <th className="p-4 font-black">สินค้า</th>
+                         <th className="p-4 font-black">SN</th>
+                         <th className="p-4 font-black w-32">จำนวนคืน</th>
+                         <th className="p-4 font-black text-right">จัดการ</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-[#E5E7EB]">
+                       {stagedItems.map(item => (
+                         <tr key={item.id} className="hover:bg-[#F9FAFB] transition-colors">
+                           <td className="p-4">
+                             <div className="font-black text-[#1F2937]">{item.product_name}</div>
+                             <div className="text-xs font-bold text-[#6B7280]">{item.model_name}</div>
+                             <div className="text-[10px] font-bold text-blue-600 mt-1">
+                               ถือโดย: {item.owner_name} {item.team_name ? `(${item.team_name})` : ''}
+                             </div>
+                           </td>
+                           <td className="p-4 font-mono font-bold text-[#1F2937]">{item.sn}</td>
+                           <td className="p-4">
+                             <div className="flex items-center gap-2">
+                               <input 
+                                 type="number" 
+                                 min="1" 
+                                 max={Math.floor(item.quantity)}
+                                 value={item.return_quantity}
+                                 onChange={e => updateStagedQuantity(item.id, e.target.value)}
+                                 className="w-20 px-3 py-1.5 bg-white border border-[#E5E7EB] rounded-lg text-center font-bold focus:outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
+                               />
+                               <span className="text-xs font-bold text-[#9CA3AF]">/ {Math.floor(item.quantity)}</span>
+                             </div>
+                           </td>
+                           <td className="p-4 text-right">
+                             <button onClick={() => removeStagedItem(item.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                             </button>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
               </div>
 
               <button
-                onClick={() => handleReturnAction(scannedItem)}
-                className="w-full py-4 rounded-xl font-black text-[#1F2937] shadow-[0_4px_15px_rgba(163,230,53,0.3)] hover:shadow-[0_6px_20px_rgba(163,230,53,0.4)] transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5"
+                onClick={handleBulkReturn}
+                disabled={loading}
+                className="w-full py-4 rounded-xl font-black text-[#1F2937] shadow-[0_4px_15px_rgba(163,230,53,0.3)] hover:shadow-[0_6px_20px_rgba(163,230,53,0.4)] transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
                 style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)' }}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                 </svg>
-                ยืนยันการคืนสินค้า (จำนวน {scannedItem.quantity})
+                ยืนยันการคืนสินค้าทั้งหมด ({stagedItems.length} รายการ)
               </button>
             </div>
           )}
