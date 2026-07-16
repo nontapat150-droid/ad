@@ -925,6 +925,79 @@ router.post('/transfer', auth, async (req, res) => {
   }
 });
 
+// ── POST /api/inventory/return ──
+router.post('/return', auth, async (req, res) => {
+  const { item_id, return_quantity } = req.body;
+  const currentUserId = req.user.id;
+  
+  if (!item_id || !return_quantity) {
+    return res.status(400).json({ error: 'Missing required data' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // 1. Validate item belongs to current user and has enough quantity
+    const [[item]] = await conn.query(
+      `SELECT * FROM inventory_items 
+       WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
+      [item_id, currentUserId]
+    );
+
+    if (!item) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้าในกระเป๋าของคุณ หรือสินค้าหมดอายุแล้ว' });
+    }
+
+    const rQty = parseFloat(return_quantity);
+    const iQty = parseFloat(item.quantity);
+
+    if (rQty <= 0 || rQty > iQty) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'จำนวนที่ต้องการคืนไม่ถูกต้อง' });
+    }
+
+    if (rQty === iQty) {
+      // Return whole item to stock
+      await conn.query(
+        `UPDATE inventory_items 
+         SET status = 'in_stock', owner_id = NULL, team_id = NULL, dispatched_at = NULL 
+         WHERE id = ?`,
+        [item.id]
+      );
+    } else {
+      // Split item
+      const newQty = iQty - rQty;
+      await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
+
+      // Create new item in stock
+      const newSn = `${item.sn}-RETURN-${Date.now().toString().slice(-4)}`;
+      
+      await conn.query(
+        `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at)
+         VALUES (?, ?, ?, 'in_stock', NULL, NULL, NULL, ?)`,
+        [item.model_id, newSn, rQty, item.expires_at]
+      );
+    }
+
+    // Log the return
+    await conn.query(
+      'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, NULL, "returned", ?)',
+      [item.id, currentUserId, rQty]
+    );
+
+    await conn.commit();
+    res.json({ message: 'คืนสินค้าสำเร็จ' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Return Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── GET /api/inventory/history ──
 router.get('/history', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {

@@ -134,6 +134,44 @@ export default function TechBagPage() {
     }
   };
 
+  const handleReturn = async (item) => {
+    const { value: quantityStr } = await Swal.fire({
+      title: 'ระบุจำนวนที่ต้องการคืนเข้าคลัง',
+      text: `จำนวนคงเหลือของคุณ: ${item.quantity}`,
+      input: 'number',
+      inputValue: item.quantity,
+      inputAttributes: { min: 0.1, max: item.quantity, step: 0.1 },
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันการคืน',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => {
+        return new Promise((resolve) => {
+          const num = parseFloat(value);
+          if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0');
+          else if (num > parseFloat(item.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
+          else resolve();
+        });
+      }
+    });
+
+    if (!quantityStr) return;
+
+    try {
+      setLoading(true);
+      await axios.post('/inventory/return', {
+        item_id: item.id,
+        return_quantity: parseFloat(quantityStr)
+      });
+      Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+      fetchBag(selectedUserId);
+      fetchHistory(selectedUserId);
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'ล้มเหลว', text: err.response?.data?.error || 'เกิดข้อผิดพลาดในการคืนสินค้า' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- Admin Functions ---
   const handleEditQuantity = async (item) => {
     const { value: quantityStr } = await Swal.fire({
@@ -502,6 +540,17 @@ export default function TechBagPage() {
                                 <svg className="w-4 h-4 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                                 ให้ยืม
                               </button>
+                              {/* Return Button */}
+                              <button 
+                                onClick={() => handleReturn(item)}
+                                className="font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 text-sm flex items-center gap-1.5 text-[#374151] border border-amber-300/30 hover:border-amber-400"
+                                style={{ background: 'rgba(251,191,36,0.12)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.22)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.12)'; }}
+                              >
+                                <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                คืนคลัง
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -543,6 +592,7 @@ export default function TechBagPage() {
                                     {log.action === 'dispatch' && <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-bold text-xs border border-emerald-200">รับเข้า</span>}
                                     {log.action === 'transfer' && <span className="text-violet-700 bg-violet-50 px-2.5 py-1 rounded-md font-bold text-xs border border-violet-200">ยืม/โอน</span>}
                                     {log.action === 'used' && <span className="text-red-600 bg-red-50 px-2.5 py-1 rounded-md font-bold text-xs border border-red-200">นำออก</span>}
+                                    {log.action === 'returned' && <span className="text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md font-bold text-xs border border-amber-200">คืนคลัง</span>}
                                   </td>
                                   <td className="px-5 py-3.5">
                                     <div className="font-bold text-[#1F2937]">{log.product_name}</div>
@@ -583,6 +633,7 @@ export default function TechBagPage() {
                                   {log.action === 'dispatch' && <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-100">รับเข้า</span>}
                                   {log.action === 'transfer' && <span className="text-violet-700 bg-violet-50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-violet-100">ยืม/โอน</span>}
                                   {log.action === 'used' && <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-red-100">นำออก</span>}
+                                  {log.action === 'returned' && <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-100">คืนคลัง</span>}
                                   <span className="text-[10px] text-[#9CA3AF]">{new Date(log.created_at).toLocaleString('th-TH')}</span>
                                 </div>
                                 {isAdmin && (
