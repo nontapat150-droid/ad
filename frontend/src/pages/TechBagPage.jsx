@@ -137,17 +137,22 @@ export default function TechBagPage() {
   const handleReturn = async (item) => {
     const { value: quantityStr } = await Swal.fire({
       title: 'ระบุจำนวนที่ต้องการคืนเข้าคลัง',
-      text: `จำนวนคงเหลือของคุณ: ${item.quantity}`,
+      html: `
+        <div class="mb-2">จำนวนคงเหลือของคุณ: <span class="font-bold text-lg">${item.quantity}</span></div>
+        <div class="text-sm text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">
+          ⚠️ สินค้าจำนวนนี้จะนำกลับสู่สต๊อกทันที
+        </div>
+      `,
       input: 'number',
-      inputValue: item.quantity,
-      inputAttributes: { min: 0.1, max: item.quantity, step: 0.1 },
+      inputValue: Math.floor(item.quantity),
+      inputAttributes: { min: 1, max: Math.floor(item.quantity), step: 1 },
       showCancelButton: true,
       confirmButtonText: 'ยืนยันการคืน',
       cancelButtonText: 'ยกเลิก',
       inputValidator: (value) => {
         return new Promise((resolve) => {
-          const num = parseFloat(value);
-          if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0');
+          const num = parseInt(value, 10);
+          if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0 และเป็นจำนวนเต็ม');
           else if (num > parseFloat(item.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
           else resolve();
         });
@@ -160,7 +165,7 @@ export default function TechBagPage() {
       setLoading(true);
       await axios.post('/inventory/return', {
         item_id: item.id,
-        return_quantity: parseFloat(quantityStr)
+        return_quantity: parseInt(quantityStr, 10)
       });
       Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
       fetchBag(selectedUserId);
