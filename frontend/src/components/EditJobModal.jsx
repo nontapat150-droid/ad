@@ -11,7 +11,12 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
     team_id: '',
     field_engineer_id: '',
     plan_arrival_date: '',
-    plan_arrival_time: ''
+    plan_arrival_time: '',
+    package: '',
+    product: '',
+    task_type: '',
+    service_note: '',
+    remark: ''
   });
   const [teams, setTeams] = useState([]);
   const [techs, setTechs] = useState([]);
@@ -33,7 +38,12 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
           ? (job.plan_arrival_time.includes('T') ? job.plan_arrival_time.split('T')[1].substring(0, 5) : 
              job.plan_arrival_time.includes(' ') ? job.plan_arrival_time.split(' ')[1].substring(0, 5) : 
              job.plan_arrival_time.substring(0, 5))
-          : ''
+          : '',
+        package: job.package || '',
+        product: job.product || '',
+        task_type: job.task_type || '',
+        service_note: job.service_note || '',
+        remark: job.remark || ''
       });
       fetchData();
     }
@@ -96,7 +106,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-lg glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/30 bg-white/40">
           <h2 className="text-[#042C53] font-bold text-lg">แก้ไขข้อมูลงาน {job.access_no}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full glass border border-white/50 flex items-center justify-center text-[#042C53] hover:bg-white/50 transition-colors">
@@ -104,7 +114,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4 overflow-y-auto">
           {error && <div className="p-3 bg-red-100 text-red-600 rounded-xl text-sm font-medium">{error}</div>}
           
           <div>
@@ -136,6 +146,37 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
             <label className="block text-sm font-semibold text-[#042C53] mb-1">พื้นที่ / ที่อยู่</label>
             <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-24"
               value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}></textarea>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">แพ็กเกจ (Package)</label>
+              <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                value={formData.package} onChange={e => setFormData({...formData, package: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[#042C53] mb-1">สินค้า (Product)</label>
+              <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-semibold text-[#042C53] mb-1">ประเภทงาน (Task Type)</label>
+            <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+              value={formData.task_type} onChange={e => setFormData({...formData, task_type: e.target.value})} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-[#042C53] mb-1">รายละเอียดงาน (Service Note)</label>
+            <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-20"
+              value={formData.service_note} onChange={e => setFormData({...formData, service_note: e.target.value})} placeholder="รายละเอียดของงาน/ISP"></textarea>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (Remark)</label>
+            <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-20"
+              value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} placeholder="หมายเหตุเพิ่มเติม"></textarea>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
