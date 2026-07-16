@@ -325,6 +325,60 @@ router.get('/jobs/:id', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/dispatch/jobs/:id/details — Job completion details + equipment ─
+router.get('/jobs/:id/details', auth, async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const table = req.query.type === 'ma' ? 'ma_jobs' : 'jobs';
+
+    const [[job]] = await pool.query(
+      `SELECT j.*, t.team_name, u.full_name AS completed_by_name
+       FROM ${table} j
+       LEFT JOIN teams t ON t.id = j.team_id
+       LEFT JOIN users u ON u.id = j.completed_by
+       WHERE j.id = ?`,
+      [jobId]
+    );
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    // Get completion images
+    let images = [];
+    try {
+      const [imgRows] = await pool.query(
+        'SELECT image_path, uploaded_by, created_at FROM job_completion_images WHERE job_id = ? ORDER BY id',
+        [jobId]
+      );
+      images = imgRows;
+    } catch (e) { /* table may not exist */ }
+
+    // Get used equipment
+    let usedDevices = [];
+    try {
+      const [devRows] = await pool.query(
+        `SELECT device_role, sn, product_name, model_name, quantity, used_at
+         FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
+        [jobId]
+      );
+      usedDevices = devRows;
+    } catch (e) { /* table may not exist */ }
+
+    // Get postpone history (job_logs)
+    let logs = [];
+    try {
+      const [logRows] = await pool.query(
+        `SELECT jl.*, u.full_name AS action_by_name FROM job_logs jl LEFT JOIN users u ON u.id = jl.action_by WHERE jl.job_id = ? ORDER BY jl.created_at DESC`,
+        [jobId]
+      );
+      logs = logRows;
+    } catch (e) { /* table may not exist */ }
+
+    res.json({ ...job, images, used_devices: usedDevices, logs });
+  } catch (err) {
+    console.error('Job details error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── PUT /api/dispatch/jobs/:id/set-off — Tech sets off ─────────
 router.put('/jobs/:id/set-off', auth, async (req, res) => {
   const jobId = req.params.id;
