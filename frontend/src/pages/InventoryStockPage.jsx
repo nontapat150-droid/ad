@@ -96,9 +96,16 @@ export default function InventoryStockPage() {
             </span>
             <span style="color: #6B7280; font-size: 13px; font-weight: 500;">นำเข้าเมื่อ: ${new Date(si.created_at).toLocaleDateString('th-TH')}</span>
           </div>
-          <button type="button" class="del-sn-btn" data-id="${si.id}" data-sn="${si.sn}" style="background: #FEF2F2; color: #EF4444; border: 1px solid #FEE2E2; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;" onmouseover="this.style.background='#FEE2E2'" onmouseout="this.style.background='#FEF2F2'">
-            ลบรายการ
-          </button>
+          <div style="display: flex; gap: 8px;">
+            ${!product.has_sn ? `
+            <button type="button" class="edit-qty-btn" data-id="${si.id}" data-sn="${si.sn}" data-qty="${si.quantity}" style="background: #EFF6FF; color: #3B82F6; border: 1px solid #DBEAFE; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;" onmouseover="this.style.background='#DBEAFE'" onmouseout="this.style.background='#EFF6FF'">
+              แก้ไขจำนวน
+            </button>
+            ` : ''}
+            <button type="button" class="del-sn-btn" data-id="${si.id}" data-sn="${si.sn}" style="background: #FEF2F2; color: #EF4444; border: 1px solid #FEE2E2; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s;" onmouseover="this.style.background='#FEE2E2'" onmouseout="this.style.background='#FEF2F2'">
+              ลบรายการ
+            </button>
+          </div>
         </div>
       `).join('');
 
@@ -147,11 +154,56 @@ export default function InventoryStockPage() {
             });
           }
 
+          const editQtyBtns = popup.querySelectorAll('.edit-qty-btn');
+          editQtyBtns.forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.getAttribute('data-id');
+              const currentQty = btn.getAttribute('data-qty');
+              
+              Swal.close();
+              
+              const { value: newQty } = await Swal.fire({
+                title: 'แก้ไขจำนวนสินค้า',
+                input: 'number',
+                inputLabel: 'ระบุจำนวนใหม่ที่ต้องการ (หากระบุ 0 จะเป็นการลบรายการนี้)',
+                inputValue: currentQty,
+                inputAttributes: {
+                  min: 0,
+                  step: 1
+                },
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกการแก้ไข',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#3B82F6',
+                inputValidator: (value) => {
+                  if (value === '' || value < 0) {
+                    return 'กรุณาระบุจำนวนให้ถูกต้อง';
+                  }
+                }
+              });
+              
+              if (newQty !== undefined) {
+                try {
+                  await axios.put(`/inventory/items/${id}/quantity`, { quantity: newQty });
+                  await Swal.fire({ icon: 'success', title: 'แก้ไขจำนวนสำเร็จ', timer: 1000, showConfirmButton: false });
+                  fetchStock();
+                  showSnList(product, model);
+                } catch (err) {
+                  await Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถแก้ไขจำนวนได้' });
+                  showSnList(product, model);
+                }
+              } else {
+                showSnList(product, model);
+              }
+            });
+          });
+
           const btns = popup.querySelectorAll('.del-sn-btn');
           btns.forEach(btn => {
             btn.addEventListener('click', async () => {
               const id = btn.getAttribute('data-id');
               const sn = btn.getAttribute('data-sn');
+              Swal.close();
               const confirmDel = await Swal.fire({
                 title: 'ยืนยันการลบ',
                 html: `ต้องการลบ <b>${sn}</b> ออกจากระบบใช่หรือไม่?<br><small style="color:#ef4444; font-weight:bold;">การกระทำนี้ไม่สามารถย้อนกลับได้</small>`,

@@ -1270,6 +1270,53 @@ router.delete('/items/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   }
 });
 
+// Edit quantity of a non-SN item
+router.put('/items/:id/quantity', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const itemId = req.params.id;
+  const { quantity } = req.body;
+  const newQty = parseFloat(quantity);
+  
+  if (isNaN(newQty) || newQty < 0) {
+    return res.status(400).json({ error: 'จำนวนไม่ถูกต้อง' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[item]] = await conn.query('SELECT * FROM inventory_items WHERE id = ?', [itemId]);
+    if (!item) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบสินค้านี้ในระบบ' });
+    }
+    if (item.status !== 'in_stock') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'ไม่สามารถแก้ไขได้เนื่องจากสินค้าไม่ได้อยู่ในคลัง (อาจถูกเบิกไปแล้ว)' });
+    }
+
+    if (newQty === 0) {
+      // Delete logs and item if quantity becomes 0
+      await conn.query('DELETE FROM inventory_logs WHERE item_id = ?', [itemId]);
+      await conn.query('DELETE FROM inventory_items WHERE id = ?', [itemId]);
+    } else {
+      // Update quantity
+      await conn.query('UPDATE inventory_items SET quantity = ? WHERE id = ?', [newQty, itemId]);
+      // Update the receive log quantity if it's the only one, or insert an adjustment log
+      // Simplest is to just update the 'received' log quantity for this item
+      await conn.query('UPDATE inventory_logs SET quantity = ? WHERE item_id = ? AND action = "received"', [newQty, itemId]);
+    }
+
+    await conn.commit();
+    res.json({ message: 'แก้ไขจำนวนสำเร็จ' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Update Quantity Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── POST /api/inventory/check-sn-duplicates ──
 // Check which SNs from a provided list already exist in the system
 router.post('/check-sn-duplicates', auth, requireRole(ADMIN_ROLES), async (req, res) => {
