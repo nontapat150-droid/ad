@@ -546,16 +546,18 @@ export default function TechBagPage() {
                                 ให้ยืม
                               </button>
                               {/* Return Button */}
-                              <button 
-                                onClick={() => handleReturn(item)}
-                                className="font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 text-sm flex items-center gap-1.5 text-[#374151] border border-amber-300/30 hover:border-amber-400"
-                                style={{ background: 'rgba(251,191,36,0.12)' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.22)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.12)'; }}
-                              >
-                                <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                                คืนคลัง
-                              </button>
+                              {isAdmin && (
+                                <button 
+                                  onClick={() => handleReturn(item)}
+                                  className="font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 text-sm flex items-center gap-1.5 text-[#374151] border border-amber-300/30 hover:border-amber-400"
+                                  style={{ background: 'rgba(251,191,36,0.12)' }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.22)'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(251,191,36,0.12)'; }}
+                                >
+                                  <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                  คืนคลัง
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

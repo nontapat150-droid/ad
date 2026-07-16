@@ -926,7 +926,7 @@ router.post('/transfer', auth, async (req, res) => {
 });
 
 // ── POST /api/inventory/return ──
-router.post('/return', auth, async (req, res) => {
+router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { item_id, return_quantity } = req.body;
   const currentUserId = req.user.id;
   
