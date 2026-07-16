@@ -981,11 +981,10 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       );
     }
 
-    // Log the return using the tech's owner_id as from_user_id (the one returning it) 
-    // and to_user_id as the admin processing it (optional, here we set to_user_id = admin)
+    // Log the return using "receive" action so it doesn't violate ENUM, with a note
     await conn.query(
-      'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "returned", ?)',
-      [item.id, item.owner_id || currentUserId, currentUserId, rQty]
+      'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "receive", ?, "คืนจากกระเป๋าช่าง")',
+      [item.id, currentUserId, rQty]
     );
 
     await conn.commit();
@@ -993,7 +992,7 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error('Return Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + (err.message || err.toString()) });
   } finally {
     conn.release();
   }
