@@ -131,6 +131,95 @@ router.get('/leaves', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/checkin/reverse-geocode — Address from GPS ────
+router.get('/reverse-geocode', auth, async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+      return res.status(400).json({ error: 'พิกัดไม่ถูกต้อง' });
+    }
+
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('addressdetails', '1');
+    url.searchParams.set('accept-language', 'th');
+    url.searchParams.set('zoom', '18');
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'BountCheckin/1.0 (attendance reverse-geocode)',
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: 'ไม่สามารถค้นหาที่อยู่ได้' });
+    }
+
+    const data = await response.json();
+    const a = data.address || {};
+
+    // Thai OSM fields vary; pick best available for ซอย / ตำบล / อำเภอ / จังหวัด
+    const road = a.road || a.pedestrian || a.path || a.residential || '';
+    const isSoiRoad = /ซอย|soi/i.test(road);
+    const soi = a.alley || (isSoiRoad ? road : '') || '';
+    const street = road && !isSoiRoad ? road : '';
+    const tambon =
+      a.suburb ||
+      a.subdistrict ||
+      a.village ||
+      a.quarter ||
+      a.hamlet ||
+      a.neighbourhood ||
+      '';
+    const amphoe =
+      a.city_district ||
+      a.municipality ||
+      a.city ||
+      a.town ||
+      a.county ||
+      a.district ||
+      '';
+    const province = a.state || a.province || '';
+    const houseNumber = a.house_number || '';
+
+    const withPrefix = (value, prefixes, defaultPrefix) => {
+      if (!value) return '';
+      if (prefixes.some((p) => value.startsWith(p))) return value;
+      return `${defaultPrefix}${value}`;
+    };
+
+    const parts = [];
+    if (houseNumber) parts.push(`เลขที่ ${houseNumber}`);
+    if (soi) parts.push(withPrefix(soi, ['ซอย', 'Soi', 'soi'], 'ซอย '));
+    if (street) parts.push(street);
+    if (tambon) parts.push(withPrefix(tambon, ['ตำบล', 'แขวง'], 'ตำบล'));
+    if (amphoe) parts.push(withPrefix(amphoe, ['อำเภอ', 'เขต'], 'อำเภอ'));
+    if (province) parts.push(withPrefix(province, ['จังหวัด'], 'จังหวัด'));
+
+    const detail = parts.filter(Boolean).join(' ');
+    const display = detail || data.display_name || '';
+
+    res.json({
+      display,
+      detail,
+      soi: soi || null,
+      tambon: tambon || null,
+      amphoe: amphoe || null,
+      province: province || null,
+      road: street || road || null,
+      house_number: houseNumber || null,
+      raw: a,
+    });
+  } catch (err) {
+    console.error('Reverse geocode error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── POST /api/checkin — Check in with selfie ───────────────
 router.post(
   '/',

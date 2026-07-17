@@ -6,9 +6,12 @@ import ManualCheckinModal from '../components/ManualCheckinModal';
 import LeaveRequestModal from '../components/LeaveRequestModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import { DateTimePicker } from '../components/DateTimePicker';
 import { format } from 'date-fns';
 import { generateCheckinExcel } from '../utils/exportCheckins';
+import { getImageUrl } from '../utils/imageUtils';
+import { drawCheckinWatermark, loadImageForCanvas } from '../utils/checkinWatermark';
 
 // ── Helpers ──────────────────────────────────────────────────
 function dataURItoBlob(dataURI) {
@@ -36,6 +39,7 @@ function fmtDateFull(iso) {
 export default function CheckinPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { branding } = useBranding();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
   const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician') || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
   const isSales = user?.role === 'sales' || user?.roles?.includes('sales');
@@ -54,6 +58,7 @@ export default function CheckinPage() {
   const [stream, setStream] = useState(null);
   const [photo, setPhoto] = useState(null);
   const [coords, setCoords] = useState(null);
+  const [locationLabel, setLocationLabel] = useState('');
   const [preloadedCoords, setPreloadedCoords] = useState(null); // GPS prefetch when camera opens
   const [facingMode, setFacingMode] = useState('user');
   const videoRef = useRef(null);
@@ -177,56 +182,20 @@ export default function CheckinPage() {
     await startCamera(newFacing);
   };
 
-  // Draw GPS + timestamp watermark on canvas
-  const drawWatermark = (ctx, w, h, lat, lng) => {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const latStr  = lat ? lat.toFixed(6) : '0.000000';
-    const lngStr  = lng ? lng.toFixed(6) : '0.000000';
-
-    const barH = Math.round(h * 0.12); // ~12% of height
-    const pad  = Math.round(h * 0.014);
-    const fontSize = Math.round(h * 0.028);
-    const smallFont = Math.round(h * 0.022);
-
-    ctx.save();
-    
-    // If facing user, the main context was scaled(-1, 1) to un-mirror the photo.
-    // We MUST revert that scale/translate just for the watermark text, 
-    // otherwise the text will be drawn backwards!
-    if (facingMode === 'user') {
-      ctx.scale(-1, 1);
-      ctx.translate(-w, 0);
+  const resolveAddress = async (lat, lng) => {
+    if (!lat && !lng) return '';
+    try {
+      const res = await api.get('/checkin/reverse-geocode', { params: { lat, lng } });
+      return res.data?.detail || res.data?.display || '';
+    } catch (err) {
+      console.warn('Reverse geocode failed:', err);
+      return '';
     }
-
-    // Semi-transparent dark bar at bottom
-    ctx.fillStyle = 'rgba(0,0,0,0.60)';
-    ctx.fillRect(0, h - barH, w, barH);
-
-    // GPS icon + coords
-    ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
-    ctx.fillStyle = '#4ADE80'; // green
-    ctx.fillText(`📍 ${latStr}, ${lngStr}`, pad, h - barH + pad + fontSize);
-
-    // Date + time
-    ctx.font = `${smallFont}px 'Courier New', monospace`;
-    ctx.fillStyle = '#93C5FD'; // light blue
-    ctx.fillText(`${dateStr}  ${timeStr}`, pad, h - barH + pad + fontSize + smallFont + 4);
-
-    // App name watermark (bottom right)
-    ctx.font = `bold ${smallFont}px sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    const brand = 'Bount';
-    const bw = ctx.measureText(brand).width;
-    ctx.fillText(brand, w - bw - pad, h - pad);
-
-    ctx.restore();
   };
 
   const handleCapture = async () => {
     if (!videoRef.current || !canvasRef.current) return;
-    setLoading(true); // Show loading UI while fetching GPS
+    setLoading(true);
 
     // 1. Get coords (use prefetch, or fetch now if null)
     let finalCoords = preloadedCoords;
@@ -247,7 +216,16 @@ export default function CheckinPage() {
       }
     }
 
-    // 2. Draw image to canvas
+    // 2. Reverse geocode + load logo in parallel
+    const siteName = branding?.website_name || 'Bount';
+    const logoUrl = branding?.website_logo ? getImageUrl(branding.website_logo, 'branding') : null;
+    const [addressText, logoImg] = await Promise.all([
+      resolveAddress(finalCoords?.lat, finalCoords?.lng),
+      loadImageForCanvas(logoUrl),
+    ]);
+    setLocationLabel(addressText);
+
+    // 3. Draw image to canvas
     const video = videoRef.current;
     const w = video.videoWidth;
     const h = video.videoHeight;
@@ -262,10 +240,19 @@ export default function CheckinPage() {
     }
     ctx.drawImage(video, 0, 0, w, h);
 
-    // 3. Draw watermark WITH coords
-    drawWatermark(ctx, w, h, finalCoords?.lat, finalCoords?.lng);
+    // 4. Draw watermark WITH logo, site name, coords, address
+    drawCheckinWatermark(ctx, {
+      width: w,
+      height: h,
+      lat: finalCoords?.lat,
+      lng: finalCoords?.lng,
+      address: addressText,
+      siteName,
+      logoImg,
+      mirrorFix: facingMode === 'user',
+    });
 
-    // 4. Save and cleanup
+    // 5. Save and cleanup
     const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.88);
     setPhoto(dataUrl);
     setCoords(finalCoords);
@@ -280,10 +267,12 @@ export default function CheckinPage() {
   const retakePhoto = () => {
     setPhoto(null);
     setCoords(null);
+    setLocationLabel('');
   };
   const cancelAll = () => {
     setPhoto(null);
     setCoords(null);
+    setLocationLabel('');
     setIsEditMode(false);
     setAdminEditPhotoRecord(null);
     if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
@@ -632,6 +621,12 @@ export default function CheckinPage() {
                           </button>
                           <div className="w-11 h-11" /> {/* spacer */}
                         </div>
+                        {loading && (
+                          <div className="absolute inset-0 bg-[#1F2937]/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 pointer-events-none">
+                            <div className="w-10 h-10 border-[3px] border-[#A3E635]/30 border-t-[#A3E635] rounded-full animate-spin" />
+                            <p className="text-white text-sm font-bold">กำลังบันทึกตำแหน่งและที่อยู่...</p>
+                          </div>
+                        )}
                         {/* Label */}
                         <div className="absolute top-4 left-0 right-0 flex justify-center">
                           <span className="text-white/80 text-xs font-medium bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
@@ -644,20 +639,51 @@ export default function CheckinPage() {
                       <>
                         <img src={photo} alt="ถ่ายแล้ว" className="w-full h-full object-cover" />
                         {coords && (
-                          <div className="absolute top-3 left-3 right-3 bg-slate-900/75 backdrop-blur-md rounded-xl p-2.5 border border-white/20">
-                            <p className="text-[10px] text-slate-300 font-semibold uppercase tracking-wider mb-0.5">📍 พิกัด GPS</p>
-                            <p className="text-xs font-mono text-blue-300 font-bold">
-                              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
-                            </p>
+                          <div className="absolute top-3 left-3 right-3 overflow-hidden rounded-2xl border border-[#374151] shadow-lg">
+                            <div className="h-1 bg-[#A3E635]" />
+                            <div className="bg-[#1F2937]/92 backdrop-blur-md p-3 space-y-2">
+                              <div className="flex items-center gap-2">
+                                {branding?.website_logo ? (
+                                  <img
+                                    src={getImageUrl(branding.website_logo, 'branding')}
+                                    alt=""
+                                    className="w-7 h-7 rounded-lg bg-white object-contain p-0.5 border border-[#E5E7EB]"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-lg bg-[#374151] flex items-center justify-center text-[#A3E635] text-xs font-black">
+                                    {(branding?.website_name || 'B').charAt(0)}
+                                  </div>
+                                )}
+                                <p className="text-xs font-black text-white truncate flex-1">
+                                  {branding?.website_name || 'Bount'}
+                                </p>
+                                <span className="text-[9px] font-bold text-[#1F2937] bg-[#A3E635] px-2 py-0.5 rounded-full shrink-0">
+                                  GPS
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-mono text-[#A3E635] font-bold leading-tight">
+                                {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                              </p>
+                              {locationLabel ? (
+                                <p className="text-[11px] text-[#F9FAFB] font-medium leading-snug line-clamp-3 border-t border-[#374151] pt-2">
+                                  📍 {locationLabel}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-[#9CA3AF] border-t border-[#374151] pt-2">กำลังค้นหาที่อยู่...</p>
+                              )}
+                            </div>
                           </div>
                         )}
                         {!coords && (
-                          <div className="absolute top-3 left-3 right-3 bg-amber-900/70 backdrop-blur-md rounded-xl p-2.5 border border-amber-400/30 flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin shrink-0" />
-                            <p className="text-xs text-amber-200 font-medium">กำลังดึงข้อมูล GPS...</p>
+                          <div className="absolute top-3 left-3 right-3 overflow-hidden rounded-2xl border border-[#374151] shadow-lg">
+                            <div className="h-1 bg-[#A3E635]" />
+                            <div className="bg-[#1F2937]/92 backdrop-blur-md p-3 flex items-center gap-3">
+                              <div className="w-5 h-5 border-2 border-[#A3E635]/30 border-t-[#A3E635] rounded-full animate-spin shrink-0" />
+                              <p className="text-xs text-[#F9FAFB] font-bold">กำลังดึงข้อมูล GPS...</p>
+                            </div>
                           </div>
                         )}
-                        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md">
+                        <div className="absolute top-2 right-2 bg-[#A3E635] text-[#1F2937] text-[10px] font-black px-2.5 py-1 rounded-full shadow-[0_4px_12px_rgba(163,230,53,0.35)]">
                           ✅ พร้อมส่ง
                         </div>
                       </>
