@@ -406,11 +406,15 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               <div>
                 <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-2">📷 รูปภาพหลักฐาน</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {details.images.map((img, i) => (
-                    <a key={i} href={img.image_path} target="_blank" rel="noopener noreferrer">
-                      <img src={img.image_path} className="w-full aspect-square object-cover rounded-xl border border-[#E5E7EB] hover:opacity-80 transition-opacity" />
-                    </a>
-                  ))}
+                  {details.images.map((img, i) => {
+                    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+                    const fullUrl = img.image_path.startsWith('http') ? img.image_path : `${baseUrl}${img.image_path}`;
+                    return (
+                      <a key={i} href={fullUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={fullUrl} className="w-full aspect-square object-cover rounded-xl border border-[#E5E7EB] hover:opacity-80 transition-opacity" />
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             )}
