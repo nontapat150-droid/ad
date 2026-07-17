@@ -407,7 +407,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-2">📷 รูปภาพหลักฐาน</p>
                 <div className="grid grid-cols-3 gap-2">
                   {details.images.map((img, i) => {
-                    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '';
+                    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '/api';
                     const fullUrl = img.image_path.startsWith('http') ? img.image_path : `${baseUrl}${img.image_path}`;
                     return (
                       <a key={i} href={fullUrl} target="_blank" rel="noopener noreferrer">
