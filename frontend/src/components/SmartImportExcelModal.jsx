@@ -151,20 +151,22 @@ function parseExcelDate(raw) {
 function parseExcelTime(raw) {
   if (raw === null || raw === undefined || raw === '') return '';
   if (typeof raw === 'number') {
-    // Excel time fraction
-    const totalMinutes = Math.round(raw * 24 * 60);
+    // Excel stores datetime as integer (days since 1900) + fractional day (time).
+    // A pure time value is 0 < raw < 1; a datetime serial has an integer part ≥ 1.
+    // We always strip the integer part so both cases work correctly.
+    const timeFraction = raw % 1; // keep only the fractional day
+    const totalMinutes = Math.round(timeFraction * 24 * 60);
     const h = Math.floor(totalMinutes / 60) % 24;
     const m = totalMinutes % 60;
-    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
   if (typeof raw === 'string') {
     const s = raw.trim();
-    // Match HH:MM in string
+    // Also handle strings like "12/03/2026 10:30" — grab the time portion
     const timeMatch = s.match(/(\d{1,2}):(\d{2})/);
     if (timeMatch) {
-      return `${timeMatch[1].padStart(2,'0')}:${timeMatch[2]}`;
+      return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
     }
-    // Fallback
     return s.substring(0, 5);
   }
   return String(raw);
