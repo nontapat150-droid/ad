@@ -17,6 +17,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { FilterDateField, FilterSelectField } from '../components/DispatchFilterFields';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
@@ -663,6 +664,16 @@ export default function DispatchDashboardPage() {
 
   const activeFilters = [filterDate, filterTeamId, filterUserId].filter(Boolean).length;
 
+  const teamFilterOptions = useMemo(
+    () => teams.map((t) => ({ value: t.id, label: t.team_name })),
+    [teams]
+  );
+
+  const techFilterOptions = useMemo(
+    () => techsForFilter.map((u) => ({ value: u.id, label: u.full_name })),
+    [techsForFilter]
+  );
+
   return (
     <div className="flex h-dvh font-sans overflow-hidden bg-[#F3F4F6]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpenRequest={() => setSidebarOpen(true)} activeKey="jobs" />
@@ -697,7 +708,7 @@ export default function DispatchDashboardPage() {
 
                 {showFilters && (
                   <div
-                    className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(100vw-2rem,20rem)] origin-top-right animate-filterDropIn"
+                    className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(100vw-2rem,22rem)] origin-top-right animate-filterDropIn"
                     role="dialog"
                     aria-label="ตัวกรองงาน"
                   >
@@ -722,51 +733,40 @@ export default function DispatchDashboardPage() {
                         </button>
                       </div>
 
-                      <div className="p-4 space-y-3">
-                        <label className="block">
-                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
-                            <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            วันที่นัด
-                          </span>
-                          <input
-                            type="date"
-                            value={filterDate}
-                            onChange={e => setFilterDate(e.target.value)}
-                            className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
-                          />
-                        </label>
+                      <div className="p-4 space-y-4">
+                        <FilterDateField
+                          value={filterDate}
+                          onChange={setFilterDate}
+                        />
 
                         {isAdmin && (
                           <>
-                            <label className="block">
-                              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
-                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                ทีม
-                              </span>
-                              <select
-                                value={filterTeamId}
-                                onChange={e => { setFilterTeamId(e.target.value); setFilterUserId(''); }}
-                                className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
-                              >
-                                <option value="">ทีมทั้งหมด</option>
-                                {teams.map(t => <option key={t.id} value={t.id}>{t.team_name}</option>)}
-                              </select>
-                            </label>
+                            <FilterSelectField
+                              label="ทีม"
+                              placeholder="ทีมทั้งหมด"
+                              value={filterTeamId}
+                              onChange={(v) => { setFilterTeamId(v); setFilterUserId(''); }}
+                              options={teamFilterOptions}
+                              icon={
+                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              }
+                            />
 
-                            <label className="block">
-                              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
-                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                ช่าง
-                              </span>
-                              <select
-                                value={filterUserId}
-                                onChange={e => setFilterUserId(e.target.value)}
-                                className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
-                              >
-                                <option value="">ช่างทุกคน</option>
-                                {techsForFilter.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                              </select>
-                            </label>
+                            <FilterSelectField
+                              label="ช่าง"
+                              placeholder="ช่างทุกคน"
+                              value={filterUserId}
+                              onChange={setFilterUserId}
+                              options={techFilterOptions}
+                              searchable
+                              icon={
+                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                              }
+                            />
                           </>
                         )}
                       </div>

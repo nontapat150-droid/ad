@@ -27,6 +27,93 @@ const SYSTEM_FIELDS = [
 
 const IGNORE_KEY = '__ignore__';
 
+function getSheetMeta(workbook) {
+  return workbook.SheetNames.map((name) => {
+    const ws = workbook.Sheets[name];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
+    const dataRows = rows.filter((row) =>
+      row.some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== '')
+    );
+    const headers = (rows[0] || []).filter((cell) => cell !== null && cell !== undefined && String(cell).trim() !== '');
+    return {
+      name,
+      rowCount: dataRows.length,
+      colCount: headers.length || (dataRows[0]?.length ?? 0),
+      previewHeaders: headers.slice(0, 4).map((h) => String(h).trim()).filter(Boolean),
+    };
+  });
+}
+
+function SheetPickerPopup({ sheets, onSelect, onCancel }) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-[#1F2937]/40 backdrop-blur-[2px] rounded-3xl">
+      <div
+        className="w-full max-w-md bg-white rounded-2xl border border-[#E5E7EB] shadow-[0_20px_50px_rgba(15,23,42,0.18)] overflow-hidden animate-filterDropIn"
+        role="dialog"
+        aria-label="เลือกแท็บ Excel"
+      >
+        <div className="h-1" style={{ background: 'linear-gradient(90deg,#A3E635,#65a30d)' }} />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#F3F4F6]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg" style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}>
+              📑
+            </div>
+            <div>
+              <h3 className="text-base font-black text-[#1F2937]">เลือกแท็บที่ต้องการอ่าน</h3>
+              <p className="text-[11px] text-[#9CA3AF] font-medium mt-0.5">ไฟล์นี้มี {sheets.length} แท็บ — เลือกแท็บที่มีข้อมูลงาน</p>
+            </div>
+          </div>
+          <button
+            onClick={onCancel}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1F2937] hover:bg-[#F3F4F6] transition-colors"
+            aria-label="ยกเลิก"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div className="p-4 space-y-2 max-h-[50vh] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+          {sheets.map((sheet, idx) => (
+            <button
+              key={sheet.name}
+              onClick={() => onSelect(sheet.name)}
+              className="w-full text-left p-4 rounded-xl border-2 border-[#E5E7EB] bg-white hover:border-[#A3E635] hover:bg-[#A3E635]/5 transition-all group"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#F3F4F6] group-hover:bg-[#A3E635]/20 flex items-center justify-center text-sm font-black text-[#6B7280] group-hover:text-[#65a30d] shrink-0 transition-colors">
+                  {idx + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-[#1F2937] truncate">{sheet.name}</p>
+                  <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                    {sheet.rowCount} แถว · {sheet.colCount} คอลัมน์
+                  </p>
+                  {sheet.previewHeaders.length > 0 && (
+                    <p className="text-[10px] text-[#6B7280] mt-1.5 truncate">
+                      หัวคอลัมน์: {sheet.previewHeaders.join(' · ')}
+                      {sheet.colCount > 4 ? ' ...' : ''}
+                    </p>
+                  )}
+                </div>
+                <svg className="w-5 h-5 text-[#D1D5DB] group-hover:text-[#65a30d] shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="px-4 pb-4">
+          <button
+            onClick={onCancel}
+            className="w-full px-4 py-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] text-sm font-semibold hover:bg-[#F3F4F6] transition-colors"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Helper: parse Excel date serial to YYYY-MM-DD ────────────────────────────
 function parseExcelDate(raw) {
   if (raw === null || raw === undefined || raw === '') return '';
@@ -139,6 +226,10 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   const [headerRow, setHeaderRow] = useState(1); // 1 or 2
   const [file, setFile] = useState(null);
   const [workbook, setWorkbook] = useState(null);
+  const [sheetNames, setSheetNames] = useState([]);
+  const [sheetMeta, setSheetMeta] = useState([]);
+  const [selectedSheet, setSelectedSheet] = useState('');
+  const [showSheetPicker, setShowSheetPicker] = useState(false);
   const [rawData, setRawData] = useState([]); // all rows as array of arrays
   const [headers, setHeaders] = useState([]); // detected header labels
   const [mapping, setMapping] = useState({}); // { excelColIndex: systemFieldKey }
@@ -161,6 +252,10 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       setHeaderRow(1);
       setFile(null);
       setWorkbook(null);
+      setSheetNames([]);
+      setSheetMeta([]);
+      setSelectedSheet('');
+      setShowSheetPicker(false);
       setRawData([]);
       setHeaders([]);
       setMapping({});
@@ -211,6 +306,33 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     );
   }
 
+  function resetFileSelection() {
+    setFile(null);
+    setWorkbook(null);
+    setSheetNames([]);
+    setSheetMeta([]);
+    setSelectedSheet('');
+    setShowSheetPicker(false);
+    setRawData([]);
+    setHeaders([]);
+    setMapping({});
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function handleSheetSelect(sheetName) {
+    setSelectedSheet(sheetName);
+    setShowSheetPicker(false);
+    setRawData([]);
+    setHeaders([]);
+    setMapping({});
+    setNotification('');
+  }
+
+  function handleSheetPickerCancel() {
+    setShowSheetPicker(false);
+    resetFileSelection();
+  }
+
   // ─── Step 2: Upload file & choose header row ───────────────────────────────
   function handleFileChange(e) {
     const sel = e.target.files[0];
@@ -219,23 +341,40 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     setRawData([]);
     setHeaders([]);
     setMapping({});
+    setSelectedSheet('');
+    setSheetNames([]);
+    setSheetMeta([]);
+    setShowSheetPicker(false);
+    setNotification('');
 
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
+        const meta = getSheetMeta(wb);
         setWorkbook(wb);
+        setSheetNames(wb.SheetNames);
+        setSheetMeta(meta);
+
+        if (wb.SheetNames.length > 1) {
+          setShowSheetPicker(true);
+        } else {
+          setSelectedSheet(wb.SheetNames[0]);
+        }
       } catch (err) {
         setNotification('ไม่สามารถอ่านไฟล์ Excel ได้');
+        resetFileSelection();
       }
     };
     reader.readAsBinaryString(sel);
   }
 
   function handleProceedToMapping() {
-    if (!workbook) { setNotification('กรุณาอัปโหมดไฟล์ Excel ก่อน'); return; }
-    const ws = workbook.Sheets[workbook.SheetNames[0]];
+    if (!workbook) { setNotification('กรุณาอัปโหลดไฟล์ Excel ก่อน'); return; }
+    const sheetName = selectedSheet || workbook.SheetNames[0];
+    if (!sheetName) { setNotification('กรุณาเลือกแท็บที่ต้องการอ่าน'); return; }
+    const ws = workbook.Sheets[sheetName];
     const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
     if (allRows.length < headerRow) { setNotification('ไฟล์มีข้อมูลไม่เพียงพอ'); return; }
 
@@ -313,6 +452,38 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           )}
         </div>
 
+        {/* Selected sheet */}
+        {workbook && selectedSheet && (
+          <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-[#A3E635]/30 bg-[#A3E635]/5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-white border border-[#A3E635]/30 flex items-center justify-center text-sm shrink-0">📑</div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-[#65a30d] uppercase tracking-wide">แท็บที่เลือก</p>
+                <p className="text-sm font-bold text-[#1F2937] truncate">{selectedSheet}</p>
+              </div>
+            </div>
+            {sheetNames.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setShowSheetPicker(true)}
+                className="px-3 py-1.5 text-xs font-bold text-[#1F2937] rounded-lg border border-[#A3E635]/40 bg-white hover:bg-[#A3E635]/10 transition-colors shrink-0"
+              >
+                เปลี่ยนแท็บ
+              </button>
+            )}
+          </div>
+        )}
+
+        {workbook && !selectedSheet && sheetNames.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setShowSheetPicker(true)}
+            className="w-full p-4 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 text-amber-800 text-sm font-bold hover:bg-amber-100 transition-colors"
+          >
+            📑 กรุณาเลือกแท็บ Excel ก่อนดำเนินการต่อ
+          </button>
+        )}
+
         {/* Header row selection */}
         <div>
           <p className="text-sm font-bold text-[#374151] mb-3">เลือกวิธีอ่านหัว Column</p>
@@ -342,9 +513,9 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           <button onClick={() => setStep(1)} className="px-4 py-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] font-semibold hover:bg-[#F3F4F6]">← ย้อนกลับ</button>
           <button
             onClick={handleProceedToMapping}
-            disabled={!workbook}
+            disabled={!workbook || !selectedSheet}
             className="px-6 py-2.5 rounded-xl font-bold text-[#1F2937] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: workbook ? '0 2px 8px rgba(163,230,53,0.3)' : 'none' }}
+            style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: workbook && selectedSheet ? '0 2px 8px rgba(163,230,53,0.3)' : 'none' }}
           >
             อ่าน Header →
           </button>
@@ -650,6 +821,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-[#1F2937]/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-[#E5E7EB]">
+
+        {showSheetPicker && sheetMeta.length > 0 && (
+          <SheetPickerPopup
+            sheets={sheetMeta}
+            onSelect={handleSheetSelect}
+            onCancel={handleSheetPickerCancel}
+          />
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#F3F4F6] shrink-0">
