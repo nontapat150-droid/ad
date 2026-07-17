@@ -517,11 +517,33 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
         {/* Unmatched team warning */}
         {unmatchedTeam.length > 0 && (
-          <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-            <p className="font-bold mb-1">⚠️ ชื่อทีมไม่ตรงกับระบบ (จะนำเข้าโดยไม่ระบุทีม):</p>
-            {[...new Set(unmatchedTeam.map(r => r._team_name_unmatched))].slice(0, 5).map(n => (
-              <span key={n} className="inline-block mr-1 mb-1 px-2 py-0.5 bg-amber-100 rounded-md font-mono">{n}</span>
-            ))}
+          <div className="mb-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
+            <h4 className="text-sm font-bold text-amber-800 flex items-center gap-2 mb-2">
+              ⚠️ ชื่อทีมไม่ตรงกับระบบ (จะนำเข้าโดยไม่ระบุทีม):
+            </h4>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[...new Set(unmatchedTeam.map(r => r._team_name_unmatched))].map((name, i) => (
+                <span key={i} className="px-2 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg shadow-sm border border-amber-200">{name}</span>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3 mt-4 pt-3 border-t border-amber-200/60">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-[11px] font-bold text-amber-800 mb-1">ลองเติมคำนำหน้าชื่อช่าง (เช่น 'ช่าง', 'ทีม'):</label>
+                <input 
+                  type="text" 
+                  value={teamPrefix}
+                  onChange={(e) => setTeamPrefix(e.target.value)}
+                  placeholder="เช่น ช่าง"
+                  className="w-full px-3 py-2 rounded-lg border border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-semibold text-amber-900 bg-white"
+                />
+              </div>
+              <button 
+                onClick={handleBuildPreview}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-sm transition-colors shadow-sm"
+              >
+                🔄 จับคู่ใหม่
+              </button>
+            </div>
           </div>
         )}
 
