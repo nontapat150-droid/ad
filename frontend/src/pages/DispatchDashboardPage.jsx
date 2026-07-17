@@ -531,8 +531,27 @@ export default function DispatchDashboardPage() {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true });
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const [showFilters, setShowFilters] = useState(false);
+  const filterRef = useRef(null);
 
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    if (!showFilters) return;
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setShowFilters(false);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setShowFilters(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showFilters]);
 
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -664,10 +683,129 @@ export default function DispatchDashboardPage() {
             </div>
             {/* Action buttons — collapsed on mobile */}
             <div className="flex items-center gap-1.5">
-              <button onClick={() => setShowFilters(f => !f)} className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-colors ${showFilters ? 'bg-[#1F2937] text-white border-[#1F2937]' : 'bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB] hover:bg-[#E5E7EB]'}`} title="ตัวกรอง">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                {activeFilters > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">{activeFilters}</span>}
-              </button>
+              <div className="relative" ref={filterRef}>
+                <button
+                  onClick={() => setShowFilters(f => !f)}
+                  className={`relative w-9 h-9 rounded-xl flex items-center justify-center border transition-all duration-200 ${showFilters ? 'bg-[#1F2937] text-white border-[#1F2937] shadow-md' : 'bg-[#F3F4F6] text-[#6B7280] border-[#E5E7EB] hover:bg-[#E5E7EB]'}`}
+                  title="ตัวกรอง"
+                  aria-expanded={showFilters}
+                  aria-haspopup="true"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                  {activeFilters > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">{activeFilters}</span>}
+                </button>
+
+                {showFilters && (
+                  <div
+                    className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(100vw-2rem,20rem)] origin-top-right animate-filterDropIn"
+                    role="dialog"
+                    aria-label="ตัวกรองงาน"
+                  >
+                    <div className="rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.12)] overflow-hidden">
+                      <div className="h-1" style={{ background: 'linear-gradient(90deg,#A3E635,#65a30d)' }} />
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-[#F3F4F6]">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}>
+                            <svg className="w-3.5 h-3.5 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-[#1F2937] leading-tight">ตัวกรอง</p>
+                            {activeFilters > 0 && <p className="text-[10px] font-semibold text-[#65a30d]">ใช้งาน {activeFilters} รายการ</p>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowFilters(false)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[#9CA3AF] hover:text-[#1F2937] hover:bg-[#F3F4F6] transition-colors"
+                          aria-label="ปิดตัวกรอง"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+
+                      <div className="p-4 space-y-3">
+                        <label className="block">
+                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
+                            <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            วันที่นัด
+                          </span>
+                          <input
+                            type="date"
+                            value={filterDate}
+                            onChange={e => setFilterDate(e.target.value)}
+                            className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
+                          />
+                        </label>
+
+                        {isAdmin && (
+                          <>
+                            <label className="block">
+                              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
+                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                ทีม
+                              </span>
+                              <select
+                                value={filterTeamId}
+                                onChange={e => { setFilterTeamId(e.target.value); setFilterUserId(''); }}
+                                className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
+                              >
+                                <option value="">ทีมทั้งหมด</option>
+                                {teams.map(t => <option key={t.id} value={t.id}>{t.team_name}</option>)}
+                              </select>
+                            </label>
+
+                            <label className="block">
+                              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
+                                <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                ช่าง
+                              </span>
+                              <select
+                                value={filterUserId}
+                                onChange={e => setFilterUserId(e.target.value)}
+                                className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-sm text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 transition-all"
+                              >
+                                <option value="">ช่างทุกคน</option>
+                                {techsForFilter.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                              </select>
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="px-4 pb-4 flex items-center gap-2">
+                        {activeFilters > 0 ? (
+                          <button
+                            onClick={() => { setFilterDate(''); setFilterTeamId(''); setFilterUserId(''); }}
+                            className="flex-1 px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 transition-colors"
+                          >
+                            ล้างตัวกรอง
+                          </button>
+                        ) : (
+                          <p className="flex-1 text-[11px] text-[#9CA3AF] font-medium px-1">เลือกเงื่อนไขเพื่อกรองรายการงาน</p>
+                        )}
+                        <button
+                          onClick={() => setShowFilters(false)}
+                          className="px-4 py-2 text-xs font-bold text-[#1F2937] rounded-xl transition-all"
+                          style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)', boxShadow: '0 2px 8px rgba(163,230,53,0.25)' }}
+                        >
+                          เสร็จ
+                        </button>
+                      </div>
+
+                      {isAdmin && (
+                        <div className="border-t border-[#F3F4F6] bg-[#FAFAFA] px-4 py-3 space-y-2">
+                          <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider">เครื่องมือแอดมิน</p>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button onClick={handleClearDispatch} className="px-2.5 py-2 bg-orange-50 text-orange-700 text-[11px] font-bold hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors">ล้างจ่ายงาน</button>
+                            <button onClick={handleClearQueue} className="px-2.5 py-2 bg-amber-50 text-amber-700 text-[11px] font-bold hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors">ล้างคิว</button>
+                            <button onClick={handleReorderByLocation} disabled={isReordering} className="px-2.5 py-2 bg-emerald-50 text-emerald-700 text-[11px] font-bold hover:bg-emerald-100 rounded-lg border border-emerald-200 disabled:opacity-50 transition-colors">{isReordering ? '⏳...' : '📍 เรียง GPS'}</button>
+                            <button onClick={handleDeleteAll} className="px-2.5 py-2 bg-red-50 text-red-600 text-[11px] font-bold hover:bg-red-100 rounded-lg border border-red-200 transition-colors">🗑️ ลบทั้งหมด</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               {isAdmin && <>
                 <button
                   onClick={() => {
@@ -687,37 +825,6 @@ export default function DispatchDashboardPage() {
               </>}
             </div>
           </div>
-
-          {/* Filter panel — collapsible */}
-          {showFilters && (
-            <div className="px-4 pb-3 flex flex-wrap items-center gap-2 border-t border-[#F3F4F6] pt-2.5">
-              <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)}
-                className="border border-[#E5E7EB] rounded-lg px-3 py-1.5 text-sm text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-1 focus:ring-[#A3E635] bg-[#F9FAFB]" />
-              {isAdmin && <>
-                <select value={filterTeamId} onChange={e => { setFilterTeamId(e.target.value); setFilterUserId(''); }}
-                  className="border border-[#E5E7EB] rounded-lg px-3 py-1.5 text-sm text-[#1F2937] outline-none focus:border-[#A3E635] bg-[#F9FAFB]">
-                  <option value="">ทีมทั้งหมด</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.team_name}</option>)}
-                </select>
-                <select value={filterUserId} onChange={e => setFilterUserId(e.target.value)}
-                  className="border border-[#E5E7EB] rounded-lg px-3 py-1.5 text-sm text-[#1F2937] outline-none focus:border-[#A3E635] bg-[#F9FAFB]">
-                  <option value="">ช่างทุกคน</option>
-                  {techsForFilter.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                </select>
-              </>}
-              {activeFilters > 0 && (
-                <button onClick={() => { setFilterDate(''); setFilterTeamId(''); setFilterUserId(''); }}
-                  className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors">❌ ล้าง</button>
-              )}
-              {/* Extra admin actions in filter bar */}
-              {isAdmin && <div className="ml-auto flex gap-1.5">
-                <button onClick={handleClearDispatch} className="px-3 py-1.5 bg-orange-50 text-orange-700 text-xs font-bold hover:bg-orange-100 rounded-lg border border-orange-200">ล้างจ่ายงาน</button>
-                <button onClick={handleClearQueue} className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 rounded-lg border border-amber-200">ล้างคิว</button>
-                <button onClick={handleReorderByLocation} disabled={isReordering} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 rounded-lg border border-emerald-200 disabled:opacity-50">{isReordering ? '⏳...' : '📍 เรียง GPS'}</button>
-                <button onClick={handleDeleteAll} className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 rounded-lg border border-red-200">🗑️ ลบทั้งหมด</button>
-              </div>}
-            </div>
-          )}
 
           {/* Main tabs */}
           <div className="flex px-4 gap-1.5 pb-0 border-t border-[#F3F4F6]">

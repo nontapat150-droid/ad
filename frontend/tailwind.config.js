@@ -32,11 +32,16 @@ export default {
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
-        }
+        },
+        filterDropIn: {
+          '0%': { opacity: '0', transform: 'translateY(-8px) scale(0.96)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
       },
       animation: {
         scaleIn: 'scaleIn 0.2s ease-out forwards',
         fadeIn: 'fadeIn 0.3s ease-out forwards',
+        filterDropIn: 'filterDropIn 0.18s ease-out forwards',
       },
       boxShadow: {
         'glow-green': '0 0 20px rgba(124, 179, 51, 0.4)',
