@@ -84,9 +84,8 @@ jobs:
             "ftp://${{ secrets.FTP_SERVER }}/backend/node_modules.zip" \
             --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
 
-      - name: 🔍 Debug unzip.php
-        run: |
-          curl -sS "ftp://${{ secrets.FTP_SERVER }}/unzip.php" --user "${{ secrets.FTP_USERNAME }}:${{ secrets.FTP_PASSWORD }}"
+      - name: 🔍 Verify unzip.php in build output
+        run: test -f frontend/dist/unzip.php
 
       - name: 🚀 Trigger Server Unzip & Restart
         run: |
