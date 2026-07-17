@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { AppSelectField } from './DispatchFilterFields';
 
 // ─── Field definitions for the system ─────────────────────────────────────────
-const SYSTEM_FIELDS = [
+const OFFICE_SYSTEM_FIELDS = [
   { key: 'access_no',         label: 'Access No / รหัสงาน',       required: true  },
   { key: 'customer',          label: 'ชื่อลูกค้า',                 required: false },
   { key: 'phone',             label: 'เบอร์โทร',                   required: false },
@@ -25,6 +25,20 @@ const SYSTEM_FIELDS = [
   { key: 'province',          label: 'จังหวัด',                    required: false },
   { key: 'task_type',         label: 'ประเภทงาน (Task Type)',       required: false },
   { key: 'product_owner',     label: 'Product Owner',              required: false },
+];
+
+const MA_SYSTEM_FIELDS = [
+  { key: 'job_time',          label: 'เวลา',                       required: false },
+  { key: 'customer',          label: 'ชื่อลูกค้า',                 required: true  },
+  { key: 'non_number',        label: 'เลข NON',                    required: true  },
+  { key: 'phone',             label: 'เบอร์โทร',                   required: false },
+  { key: 'symptoms',          label: 'อาการ',                      required: false },
+  { key: 'address',           label: 'ที่อยู่',                    required: false },
+  { key: 'team_id',           label: 'ทีมช่าง (ชื่อทีม)',           required: false },
+  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีม/รับเหมารายคน', required: false },
+  { key: 'area_name',         label: 'พื้นที่',                    required: false },
+  { key: 'remark',            label: 'หมายเหตุ',                   required: false },
+  { key: 'plan_arrival_date', label: 'วันที่เข้างาน (YYYY-MM-DD)', required: false },
 ];
 
 const IGNORE_KEY = '__ignore__';
@@ -378,6 +392,8 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
   if (!isOpen) return null;
 
+  const SYSTEM_FIELDS = jobType === 'ma' ? MA_SYSTEM_FIELDS : OFFICE_SYSTEM_FIELDS;
+
   // ─── Step 1: Choose job type ───────────────────────────────────────────────
   function renderStep1() {
     return (
@@ -496,11 +512,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     const autoMap = {};
     const fieldKeywords = {
       access_no:         ['access', 'เลขที่', 'access no', 'รหัส'],
+      non_number:        ['non', 'เลขnon', 'เลข non', 'เลข NON', 'non number'],
       customer:          ['customer', 'ชื่อลูกค้า', 'ลูกค้า'],
       phone:             ['phone', 'เบอร์', 'โทร', 'tel'],
       plan_arrival_date: ['date', 'วัน', 'plan date', 'วันที่นัด', 'plan_date', 'plan_arrival_date'],
-      plan_arrival_time: ['time', 'เวลา', 'plan time', 'plan_time'],
+      plan_arrival_time: ['plan time', 'plan_time', 'เวลาเข้า'],
+      job_time:          ['time', 'เวลา', 'job time', 'job_time'],
       address:           ['address', 'ที่อยู่'],
+      symptoms:          ['symptoms', 'อาการ', 'ปัญหา'],
       team_id:           ['team', 'ทีม'],
       _engineer_name:    ['engineer', 'ชื่อช่าง', 'ช่าง', 'technician', 'assigned', 'ผู้รับผิดชอบ'],
       product:           ['product', 'สินค้า'],
@@ -511,7 +530,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       lng:               ['lng', 'lon', 'ลอง'],
       order_no:          ['order no', 'order_no'],
       area_code:         ['area code', 'รหัสพื้นที่'],
-      area_name:         ['area name', 'ชื่อพื้นที่', 'พื้นที่'],
+      area_name:         ['area name', 'ชื่อพื้นที่', 'พื้นที่', 'area'],
       province:          ['province', 'จังหวัด'],
       task_type:         ['task type', 'ประเภทงาน'],
       product_owner:     ['owner', 'product owner'],
@@ -743,7 +762,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
         // Special transforms
         if (fieldKey === 'plan_arrival_date') {
           val = parseExcelDate(val);
-        } else if (fieldKey === 'plan_arrival_time') {
+        } else if (fieldKey === 'plan_arrival_time' || fieldKey === 'job_time') {
           val = parseExcelTime(val);
         } else if (fieldKey === 'team_id') {
           const rawName = String(val).trim();
@@ -795,8 +814,12 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
   // ─── Step 4: Preview & Import ──────────────────────────────────────────────
   function renderStep4() {
-    const validRows = parsedRows.filter(r => r.access_no);
-    const invalidRows = parsedRows.filter(r => !r.access_no);
+    const validRows = parsedRows.filter(r =>
+      jobType === 'ma' ? (r.non_number || r.access_no) : r.access_no
+    );
+    const invalidRows = parsedRows.filter(r =>
+      jobType === 'ma' ? !(r.non_number || r.access_no) : !r.access_no
+    );
     const unmatchedTeam = parsedRows.filter(r => r._team_name_unmatched);
     const unmatchedEngineer = parsedRows.filter(r => r._engineer_unmatched);
 
@@ -806,12 +829,12 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
         {/* Summary badges */}
         <div className="flex gap-2 flex-wrap mb-4">
-          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
+            <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
             ✅ นำเข้าได้: {validRows.length} รายการ
           </span>
           {invalidRows.length > 0 && (
             <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full border border-red-200">
-              ⚠️ ไม่มี Access No: {invalidRows.length} รายการ
+              ⚠️ ไม่มี{jobType === 'ma' ? 'เลข NON' : 'Access No'}: {invalidRows.length} รายการ
             </span>
           )}
           {unmatchedTeam.length > 0 && (
@@ -952,7 +975,9 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
   // ─── Perform import ────────────────────────────────────────────────────────
   async function handleImport() {
-    const validRows = parsedRows.filter(r => r.access_no);
+    const validRows = parsedRows.filter(r =>
+      jobType === 'ma' ? (r.non_number || r.access_no) : r.access_no
+    );
     if (validRows.length === 0) return;
 
     setLoading(true);
@@ -970,6 +995,18 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           _is_contractor,
           ...rest
         } = row;
+        // MA: map field_engineer_id → assigned_user_id; time → job_time
+        if (jobType === 'ma') {
+          if (rest.field_engineer_id && !rest.assigned_user_id) {
+            rest.assigned_user_id = rest.field_engineer_id;
+          }
+          if (rest.plan_arrival_time && !rest.job_time) {
+            rest.job_time = rest.plan_arrival_time;
+          }
+          if (!rest.non_number && rest.access_no) {
+            rest.non_number = rest.access_no;
+          }
+        }
         return rest;
       });
 

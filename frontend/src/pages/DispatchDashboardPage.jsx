@@ -5,6 +5,7 @@ import AutoDispatchModal from '../components/AutoDispatchModal';
 import EditJobModal from '../components/EditJobModal';
 import SmartImportExcelModal from '../components/SmartImportExcelModal';
 import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
+import CompleteMaJobModal from '../components/CompleteMaJobModal';
 import ImageWithFallback from '../components/common/ImageWithFallback';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -284,7 +285,9 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
           <div className="flex items-start justify-between px-5 py-3 border-b border-[#E5E7EB] shrink-0">
             <div className="flex-1 min-w-0 pr-4">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                <span className="text-base font-black text-[#1F2937]">{job.access_no}</span>
+                <span className="text-base font-black text-[#1F2937]">
+                  {mainTab === 'ma' ? (job.non_number || job.display_non || job.access_no) : job.access_no}
+                </span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[status]}`}>{STATUS_LABEL[status] || status}</span>
                 {isLate && <span className="text-xs font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">⚠️ ปิดงานล่าช้า</span>}
               </div>
@@ -987,7 +990,11 @@ export default function DispatchDashboardPage() {
         defaultJobType={smartImportJobType}
       />
       {selectedJob && <EditJobModal job={selectedJob} isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} onSuccess={handleActionComplete} type={mainTab} />}
-      <CompleteJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+      {mainTab === 'ma' ? (
+        <CompleteMaJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+      ) : (
+        <CompleteJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+      )}
       <IncompleteJobModal job={actionJob} isOpen={actionType==='incomplete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
       <PostponeJobModal job={actionJob} isOpen={actionType==='postpone'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
 

@@ -505,11 +505,11 @@ export default function CheckinPage() {
               <span className="text-xl shrink-0">{maThreshold ? '⏰' : '💤'}</span>
               <div>
                 <p className={`font-bold text-sm ${maThreshold ? 'text-amber-800' : 'text-slate-700'}`}>
-                  {maThreshold ? `เวลาเข้างาน MA: ${maThreshold} น.` : 'ยังไม่มีงาน MA วันนี้'}
+                  {maThreshold ? `งานแรกวันนี้: ${String(maThreshold).slice(0, 5)} น.` : 'ยังไม่มีงาน MA วันนี้'}
                 </p>
                 <p className={`text-xs mt-0.5 ${maThreshold ? 'text-amber-700' : 'text-slate-500'}`}>
                   {maThreshold
-                    ? `หากเช็คอินหลัง ${maThreshold} น. จะถือว่ามาสาย`
+                    ? `เช็คอินก่อนหรือตรง ${String(maThreshold).slice(0, 5)} น. = ไม่สาย · หลังเวลานี้ = มาสาย`
                     : 'คุณไม่สามารถเช็คอินได้จนกว่าจะได้รับมอบหมายงาน'}
                 </p>
               </div>

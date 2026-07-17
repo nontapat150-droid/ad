@@ -7,6 +7,7 @@ import Layout         from '../components/Layout';
 import JobCard        from '../components/JobCard';
 import TechBagDrawer  from '../components/TechBagDrawer';
 import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
+import CompleteMaJobModal from '../components/CompleteMaJobModal';
 
 // ── Checkin status helpers ────────────────────────────────
 function getCheckinStatus(data) {
@@ -57,11 +58,13 @@ export default function TechDashboard() {
 
   const fetchJobs = useCallback(() => {
     setLoadingJobs(true);
-    api.get('/dispatch/jobs')
+    const isMa = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician')
+      || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
+    api.get(`/dispatch/jobs${isMa ? '?type=ma' : ''}`)
       .then((r) => setJobs(r.data))
       .catch(() => setJobs([]))
       .finally(() => setLoadingJobs(false));
-  }, []);
+  }, [user]);
 
   const fetchStats = useCallback(() => {
     api.get('/stats/tech-dashboard')
@@ -504,12 +507,22 @@ export default function TechDashboard() {
           </div>
         </div>
       )}
-      <CompleteJobModal 
-        isOpen={!!completingJob} 
-        onClose={() => setCompleting(null)} 
-        job={completingJob} 
-        onSuccess={fetchJobs} 
-      />
+      {(user?.role === 'ma_technician' || user?.roles?.includes('ma_technician')
+        || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma')) ? (
+        <CompleteMaJobModal
+          isOpen={!!completingJob}
+          onClose={() => setCompleting(null)}
+          job={completingJob}
+          onSuccess={fetchJobs}
+        />
+      ) : (
+        <CompleteJobModal
+          isOpen={!!completingJob}
+          onClose={() => setCompleting(null)}
+          job={completingJob}
+          onSuccess={fetchJobs}
+        />
+      )}
       <IncompleteJobModal 
         isOpen={!!incompletingJob} 
         onClose={() => setIncompleting(null)} 

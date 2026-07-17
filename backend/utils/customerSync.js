@@ -89,4 +89,63 @@ async function syncCustomerFromJob(conn, jobId) {
   );
 }
 
-module.exports = { syncCustomerFromJob };
+/**
+ * Sync ma_jobs → ma_customers (keyed by non_number) + history
+ */
+async function syncMaCustomerFromJob(conn, maJobId, { action = 'imported', techId = null } = {}) {
+  const [[job]] = await conn.query('SELECT * FROM ma_jobs WHERE id = ? LIMIT 1', [maJobId]);
+  if (!job) return null;
+
+  const nonNumber = job.non_number || job.access_no;
+  if (!nonNumber) return null;
+
+  await conn.query(
+    `INSERT INTO ma_customers (non_number, customer_name, phone, address)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       customer_name = COALESCE(VALUES(customer_name), customer_name),
+       phone = COALESCE(VALUES(phone), phone),
+       address = COALESCE(VALUES(address), address),
+       updated_at = CURRENT_TIMESTAMP`,
+    [nonNumber, job.customer || null, job.phone || null, job.address || null]
+  );
+
+  const [[customer]] = await conn.query(
+    'SELECT id FROM ma_customers WHERE non_number = ? LIMIT 1',
+    [nonNumber]
+  );
+  if (!customer) return null;
+
+  const historyRemarkParts = [];
+  if (job.srt) historyRemarkParts.push(`SRT:${job.srt}`);
+  if (job.spt) historyRemarkParts.push(`SPT:${job.spt}`);
+  if (job.fail_cause) historyRemarkParts.push(`สาเหตุ:${job.fail_cause}`);
+  if (job.fix_method) historyRemarkParts.push(`แก้ไข:${job.fix_method}`);
+  if (job.used_equipment) historyRemarkParts.push(`อุปกรณ์:${job.used_equipment}`);
+  if (job.old_sn) historyRemarkParts.push(`SNเก่า:${job.old_sn}`);
+  if (job.new_sn) historyRemarkParts.push(`SNใหม่:${job.new_sn}`);
+  if (job.cable_used) historyRemarkParts.push(`สาย:${job.cable_used}`);
+  if (job.remark) historyRemarkParts.push(job.remark);
+
+  await conn.query(
+    `INSERT INTO ma_customer_history
+       (customer_id, ma_job_id, non_number, action, symptoms, area_provider, remark, tech_id, team_id, action_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      customer.id,
+      maJobId,
+      nonNumber,
+      action,
+      job.symptoms || null,
+      job.area_name || job.area_provider || null,
+      historyRemarkParts.join(' | ') || job.remark || null,
+      techId || job.completed_by || null,
+      job.team_id || null,
+      job.plan_arrival_date || (job.completed_at ? new Date(job.completed_at) : new Date()),
+    ]
+  );
+
+  return customer.id;
+}
+
+module.exports = { syncCustomerFromJob, syncMaCustomerFromJob };

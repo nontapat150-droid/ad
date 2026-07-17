@@ -53,7 +53,7 @@ function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere
 }
 
 // ── Sub-modal: เลือกอุปกรณ์ไม่มี SN (no-SN items) ──────────────────────────────
-function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnItems, setSelectedNoSnItems }) {
+export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnItems, setSelectedNoSnItems }) {
   if (!isOpen) return null;
 
   const handleToggle = (item) => {

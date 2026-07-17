@@ -5,53 +5,51 @@ import Swal from 'sweetalert2';
 import UserProfileModal from '../components/UserProfileModal';
 import TargetSettingsModal from '../components/TargetSettingsModal';
 
-// ── Role badge config ─────────────────────────────────────────────────────────
 const ROLE_CONFIG = {
-  super_admin: { label: 'Super Admin', bg: 'bg-[#1F2937]',     text: 'text-white'        },
-  admin:       { label: 'Admin',       bg: 'bg-[#A3E635]',     text: 'text-[#1F2937]'    },
-  ma_technician: { label: 'ช่าง MA',    bg: 'bg-violet-100',    text: 'text-violet-700'   },
-  technician:  { label: 'ช่างติดตั้ง',   bg: 'bg-sky-100',       text: 'text-sky-700'       },
+  super_admin: { label: 'Super Admin', bg: 'bg-[#1F2937]', text: 'text-white' },
+  admin: { label: 'Admin', bg: 'bg-[#A3E635]', text: 'text-[#1F2937]' },
+  ma_technician: { label: 'ช่าง MA', bg: 'bg-violet-100', text: 'text-violet-700' },
+  technician: { label: 'ช่างติดตั้ง', bg: 'bg-sky-100', text: 'text-sky-700' },
   contractor_office: { label: 'รับเหมาติดตั้ง', bg: 'bg-sky-100', text: 'text-sky-700' },
   contractor_ma: { label: 'รับเหมา MA', bg: 'bg-violet-100', text: 'text-violet-700' },
-  user:        { label: 'พนักงาน',     bg: 'bg-slate-100',     text: 'text-slate-600'     },
+  user: { label: 'พนักงาน', bg: 'bg-slate-100', text: 'text-slate-600' },
 };
 
-const TEAM_COLORS = [
-  { bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500'    },
-  { bg: 'bg-violet-100',  text: 'text-violet-700',  dot: 'bg-violet-500'  },
-  { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-  { bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500'   },
-  { bg: 'bg-rose-100',    text: 'text-rose-700',    dot: 'bg-rose-500'    },
-  { bg: 'bg-cyan-100',    text: 'text-cyan-700',    dot: 'bg-cyan-500'    },
-  { bg: 'bg-orange-100',  text: 'text-orange-700',  dot: 'bg-orange-500'  },
-  { bg: 'bg-pink-100',    text: 'text-pink-700',    dot: 'bg-pink-500'    },
-];
-
-function getRoleStyle(role) {
-  return ROLE_CONFIG[role] || { label: role, bg: 'bg-gray-100', text: 'text-gray-600' };
-}
-
-// Badge for a single role
 function RoleBadge({ role }) {
-  const s = getRoleStyle(role);
+  const s = ROLE_CONFIG[role] || { label: role, bg: 'bg-gray-100', text: 'text-gray-600' };
   return (
-    <span className={`inline-flex items-center text-[10px] font-black px-1.5 py-0.5 rounded-md ${s.bg} ${s.text} shadow-sm border border-black/5`}>
+    <span className={`inline-flex items-center text-[10px] font-black px-1.5 py-0.5 rounded-md ${s.bg} ${s.text} border border-black/5`}>
       {s.label}
     </span>
   );
 }
 
-// Stat cell component
-function StatCell({ value, passed, icon }) {
+function StatPill({ label, value, target, pass, compare }) {
+  const ok = compare === 'lte' ? value <= target : value >= target;
+  const symbol = compare === 'lte' ? '≤' : '≥';
   return (
-    <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-sm transition-all
-      ${passed
-        ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-        : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-      <span className="text-base leading-none">{passed ? '✔️' : '⚠️'}</span>
-      {value}
+    <div className={`flex-1 min-w-0 rounded-2xl border p-3 ${ok ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
+        {label} {symbol} {target}
+      </p>
+      <p className={`text-xl font-black ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
+        {value}
+        <span className="text-xs font-bold opacity-60 ml-1">/ {target}</span>
+      </p>
+      <p className="text-[10px] font-bold mt-0.5">{ok ? '✔️ ผ่าน' : '⚠️ ไม่ถึง'}</p>
     </div>
   );
+}
+
+function monthLabel(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+}
+
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export default function MaPerformancePage() {
@@ -59,273 +57,190 @@ export default function MaPerformancePage() {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(
     `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
   );
-  const [allowedLateDays, setAllowedLateDays] = useState(0);
-  const [targets, setTargets] = useState({ ma_target_days: 26, ma_target_jobs: 130, allowed_late_days: 0 });
-
-  // Team color map
-  const teamColorMap = {};
-  let colorIdx = 0;
-  data.forEach(u => {
-    const key = u.team_name || '__none__';
-    if (!teamColorMap[key]) { teamColorMap[key] = TEAM_COLORS[colorIdx % TEAM_COLORS.length]; colorIdx++; }
+  const [targets, setTargets] = useState({
+    ma_target_days: 26,
+    ma_target_jobs: 130,
+    allowed_late_days: 0,
   });
 
   useEffect(() => {
-    api.get('/settings/targets').then(res => {
-      setTargets(res.data);
-      setAllowedLateDays(res.data.allowed_late_days);
-    }).catch(console.error);
+    api.get('/settings/targets').then((res) => setTargets(res.data)).catch(console.error);
   }, []);
 
-  useEffect(() => { fetchData(); }, [selectedMonth, allowedLateDays]);
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, targets.allowed_late_days, targets.ma_target_days, targets.ma_target_jobs]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/checkin/ma-performance?month=${selectedMonth}&allowed_late=${allowedLateDays}`);
+      const res = await api.get(
+        `/checkin/ma-performance?month=${selectedMonth}&allowed_late=${targets.allowed_late_days}`
+      );
       setData(res.data);
     } catch (err) {
       console.error(err);
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถโหลดข้อมูลได้' });
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถโหลดข้อมูลได้', confirmButtonColor: '#1F2937' });
     } finally {
       setLoading(false);
     }
   };
 
-  const totalMa  = data.length;
-  const passedMa = data.filter(d => d.is_passed).length;
+  const totalMa = data.length;
+  const passedMa = data.filter((d) => d.is_passed).length;
   const failedMa = totalMa - passedMa;
 
   return (
-    <Layout activeKey="checkin" pageTitle="แดชบอร์ดประเมินเงื่อนไขทีม MA">
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12">
-
-        {/* ── Header + Filter ── */}
-        <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5">
-            <div>
-              <h2 className="text-2xl font-black text-[#1F2937] flex items-center gap-3">
-                <span className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center text-xl shrink-0">📊</span>
-                ผลประเมินการทำงานทีม MA
-              </h2>
-              <p className="text-sm font-bold text-[#6B7280] mt-2 ml-13">
-                เงื่อนไข: ทำงาน ≥ <span className="text-[#1F2937]">{targets.ma_target_days}</span> วัน
-                &nbsp;|&nbsp; มาสาย ≤ <span className="text-[#1F2937]">{allowedLateDays}</span> วัน
-                &nbsp;|&nbsp; จบงาน ≥ <span className="text-[#1F2937]">{targets.ma_target_jobs}</span> งาน
-              </p>
+    <Layout activeKey="ma_performance" pageTitle="ประเมินทีม MA">
+      <div className="flex flex-col gap-4 sm:gap-6 max-w-7xl mx-auto pb-12">
+        {/* Header */}
+        <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
+          <div className="h-1 bg-[#A3E635]" />
+          <div className="p-4 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-[#1F2937] flex items-center gap-2">
+                  <span className="w-9 h-9 rounded-xl bg-[#1F2937] text-[#A3E635] flex items-center justify-center text-lg">📊</span>
+                  ผลประเมินทีม MA
+                </h2>
+                <p className="text-xs sm:text-sm text-[#6B7280] mt-2 font-medium leading-relaxed">
+                  เช็คอินก่อนหรือตรงเวลาเข้างานแรกของวัน = <span className="text-[#1F2937] font-bold">ไม่สาย</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                className="self-start flex items-center gap-2 px-4 py-2.5 bg-[#1F2937] hover:bg-[#374151] text-[#A3E635] font-bold rounded-2xl text-sm active:scale-95"
+              >
+                ⚙️ ตั้งค่าเงื่อนไข
+              </button>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* อนุโลมสาย */}
-              <div className="flex items-center gap-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl px-4 py-2.5">
-                <label className="text-xs font-black text-[#6B7280] whitespace-nowrap">อนุโลมสาย (วัน)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={allowedLateDays}
-                  onChange={(e) => setAllowedLateDays(e.target.value)}
-                  className="w-14 text-center bg-transparent border-b-2 border-[#A3E635] outline-none text-sm font-black text-[#1F2937] focus:border-[#84CC16]"
-                />
+            {/* Condition chips */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] p-3 text-center">
+                <p className="text-[10px] font-bold text-[#6B7280]">ทำงาน</p>
+                <p className="text-base sm:text-lg font-black text-[#1F2937]">≥ {targets.ma_target_days}</p>
+                <p className="text-[10px] text-[#9CA3AF]">วัน</p>
               </div>
-
-              {/* เลือกเดือน */}
-              <div className="flex items-center gap-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl px-4 py-2.5">
-                <svg className="w-4 h-4 text-[#6B7280]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-transparent outline-none text-sm font-bold text-[#1F2937] cursor-pointer"
-                />
+              <div className="rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] p-3 text-center">
+                <p className="text-[10px] font-bold text-[#6B7280]">มาสาย</p>
+                <p className="text-base sm:text-lg font-black text-[#1F2937]">≤ {targets.allowed_late_days}</p>
+                <p className="text-[10px] text-[#9CA3AF]">วัน</p>
               </div>
+              <div className="rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] p-3 text-center">
+                <p className="text-[10px] font-bold text-[#6B7280]">จบงาน</p>
+                <p className="text-base sm:text-lg font-black text-[#1F2937]">≥ {targets.ma_target_jobs}</p>
+                <p className="text-[10px] text-[#9CA3AF]">งาน</p>
+              </div>
+            </div>
 
-              {/* ตั้งค่าเป้าหมาย */}
+            {/* Month nav */}
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#1F2937] hover:bg-[#374151] text-white font-bold rounded-2xl transition-all text-sm shadow-[0_4px_15px_rgba(31,41,55,0.2)] active:scale-95"
+                type="button"
+                onClick={() => setSelectedMonth((m) => shiftMonth(m, -1))}
+                className="w-10 h-11 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] font-bold text-[#4B5563]"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                ตั้งค่าเป้าหมาย
+                ‹
+              </button>
+              <div className="flex-1 h-11 rounded-xl border border-[#E5E7EB] bg-white flex items-center justify-center text-sm font-black text-[#1F2937]">
+                {monthLabel(selectedMonth)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMonth((m) => shiftMonth(m, 1))}
+                className="w-10 h-11 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] font-bold text-[#4B5563]"
+              >
+                ›
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Metric Cards ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Total */}
-          <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-28 h-28 bg-blue-50 rounded-bl-full opacity-60" />
-            <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">👥</div>
-            <div>
-              <p className="text-sm font-bold text-[#6B7280]">พนักงาน MA ทั้งหมด</p>
-              <p className="text-3xl font-black text-[#1F2937] mt-0.5">
-                {loading ? <span className="animate-pulse">—</span> : totalMa}
-                <span className="text-base font-bold text-[#6B7280] ml-1">คน</span>
-              </p>
+        {/* Metrics */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          {[
+            { label: 'ทั้งหมด', value: totalMa, tone: 'text-[#1F2937]', bg: 'bg-white border-[#E5E7EB]' },
+            { label: 'ผ่าน', value: passedMa, tone: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100' },
+            { label: 'ไม่ผ่าน', value: failedMa, tone: 'text-rose-700', bg: 'bg-rose-50 border-rose-100' },
+          ].map((m) => (
+            <div key={m.label} className={`rounded-2xl sm:rounded-3xl border p-3 sm:p-5 ${m.bg}`}>
+              <p className="text-[10px] sm:text-xs font-bold text-[#6B7280]">{m.label}</p>
+              <p className={`text-2xl sm:text-3xl font-black mt-0.5 ${m.tone}`}>{loading ? '—' : m.value}</p>
             </div>
-          </div>
-
-          {/* Passed */}
-          <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-28 h-28 bg-emerald-50 rounded-bl-full opacity-60" />
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">✅</div>
-            <div>
-              <p className="text-sm font-bold text-emerald-600">ผ่านเงื่อนไข</p>
-              <p className="text-3xl font-black text-emerald-700 mt-0.5">
-                {loading ? <span className="animate-pulse">—</span> : passedMa}
-                <span className="text-base font-bold text-emerald-500 ml-1">คน</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Failed */}
-          <div className="bg-white rounded-3xl border border-rose-100 shadow-sm p-6 flex items-center gap-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-28 h-28 bg-rose-50 rounded-bl-full opacity-60" />
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 flex items-center justify-center text-2xl shrink-0 shadow-sm">❌</div>
-            <div>
-              <p className="text-sm font-bold text-rose-600">ผิดเงื่อนไข</p>
-              <p className="text-3xl font-black text-rose-700 mt-0.5">
-                {loading ? <span className="animate-pulse">—</span> : failedMa}
-                <span className="text-base font-bold text-rose-400 ml-1">คน</span>
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* ── Data Table ── */}
+        {/* List */}
         <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider">พนักงาน</th>
-                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
-                    วันทำงาน <span className="normal-case font-bold text-[#9CA3AF]">(≥ {targets.ma_target_days})</span>
-                  </th>
-                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
-                    มาสาย <span className="normal-case font-bold text-[#9CA3AF]">(≤ {allowedLateDays})</span>
-                  </th>
-                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">
-                    จบงาน <span className="normal-case font-bold text-[#9CA3AF]">(≥ {targets.ma_target_jobs})</span>
-                  </th>
-                  <th className="px-6 py-4 text-xs font-black text-[#6B7280] uppercase tracking-wider text-center">สถานะ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F3F4F6]">
-                {loading ? (
-                  // ── Skeleton ──
-                  [...Array(5)].map((_, i) => (
-                    <tr key={i} className="animate-pulse">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-[#F3F4F6]" />
-                          <div className="space-y-2">
-                            <div className="h-3 w-28 bg-[#F3F4F6] rounded-full" />
-                            <div className="h-2.5 w-20 bg-[#F3F4F6] rounded-full" />
-                          </div>
-                        </div>
-                      </td>
-                      {[...Array(4)].map((_, j) => (
-                        <td key={j} className="px-6 py-4 text-center">
-                          <div className="h-7 w-16 bg-[#F3F4F6] rounded-xl mx-auto" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : data.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-16 text-center">
-                      <div className="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">👥</div>
-                      <p className="font-black text-[#6B7280] text-lg">ไม่มีพนักงาน MA ในระบบ</p>
-                      <p className="text-sm text-[#9CA3AF] mt-1">กรุณาตั้งค่า role = MA ให้กับผู้ใช้ในหน้าจัดการผู้ใช้</p>
-                    </td>
-                  </tr>
-                ) : (
-                  data.map((user, idx) => {
-                    const tc = teamColorMap[user.team_name || '__none__'];
-                    const roles = user.roles || [user.role];
-                    return (
-                      <tr
-                        key={idx}
-                        onClick={() => setSelectedUser(user)}
-                        className="hover:bg-[#F9FAFB] transition-all cursor-pointer group"
-                        style={{ animation: `fadeInRow 0.3s ease-out ${idx * 30}ms both` }}
-                      >
-                        {/* ── Employee cell ── */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {/* Avatar */}
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm transition-transform group-hover:scale-110 ${tc?.bg || 'bg-violet-100'} ${tc?.text || 'text-violet-700'}`}>
-                              {user.full_name?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-black text-[#1F2937] truncate">{user.full_name}</p>
-                              {/* Role badges — show ALL roles */}
-                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                {roles.map(r => <RoleBadge key={r} role={r} />)}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Team */}
-                        <td className="px-6 py-4">
-                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${tc?.bg || 'bg-gray-100'} ${tc?.text || 'text-gray-600'} border ${tc?.border || 'border-transparent'}`}>
-                            <span className={`w-2 h-2 rounded-full ${tc?.dot || 'bg-gray-400'}`} />
-                            <span className="text-[11px] font-black uppercase tracking-wider">{user.team_name || 'ไม่มีทีม'}</span>
-                          </div>
-                        </td>
-
-                        {/* Work Days */}
-                        <td className="px-6 py-4 text-center">
-                          <StatCell value={`${user.total_days} / ${targets.ma_target_days}`} passed={user.total_days >= targets.ma_target_days} />
-                        </td>
-
-                        {/* Late Days */}
-                        <td className="px-6 py-4 text-center">
-                          <StatCell value={`${user.total_late} / ${allowedLateDays}`} passed={user.total_late <= allowedLateDays} />
-                        </td>
-
-                        {/* Jobs Done */}
-                        <td className="px-6 py-4 text-center">
-                          <StatCell value={`${user.total_completed} / ${targets.ma_target_jobs}`} passed={user.total_completed >= targets.ma_target_jobs} />
-                        </td>
-
-                        {/* Result */}
-                        <td className="px-6 py-4 text-center font-bold">
-                          {user.is_passed ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 shadow-sm text-sm">
-                              <span className="text-base leading-none">✅</span> ผ่าน
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 shadow-sm text-sm">
-                              <span className="text-base leading-none">❌</span> ไม่ผ่าน
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div className="px-4 sm:px-6 py-4 border-b border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between">
+            <h3 className="font-black text-[#1F2937] text-sm sm:text-base">รายชื่อพนักงาน</h3>
+            <span className="text-[10px] font-bold text-[#9CA3AF]">{data.length} คน</span>
           </div>
-        </div>
 
+          {loading ? (
+            <div className="p-8 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-28 rounded-2xl bg-[#F3F4F6] animate-pulse" />
+              ))}
+            </div>
+          ) : data.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-violet-50 flex items-center justify-center text-2xl">👥</div>
+              <p className="font-black text-[#6B7280]">ไม่มีพนักงาน MA</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#F3F4F6]">
+              {data.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => setSelectedUser(user)}
+                  className="w-full text-left p-4 sm:p-5 hover:bg-[#F9FAFB] transition-colors"
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-11 h-11 rounded-2xl bg-[#1F2937] text-[#A3E635] flex items-center justify-center font-black shrink-0">
+                      {(user.full_name || '?').charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-[#1F2937] truncate">{user.full_name}</p>
+                        {user.is_passed ? (
+                          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg">ผ่าน</span>
+                        ) : (
+                          <span className="text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-lg">ไม่ผ่าน</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {(user.roles || [user.role]).map((r) => (
+                          <RoleBadge key={r} role={r} />
+                        ))}
+                        {user.team_name && (
+                          <span className="text-[10px] font-bold text-[#6B7280] bg-[#F3F4F6] px-1.5 py-0.5 rounded-md">
+                            {user.team_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <StatPill label="ทำงาน" value={user.total_days} target={targets.ma_target_days} compare="gte" />
+                    <StatPill label="มาสาย" value={user.total_late} target={targets.allowed_late_days} compare="lte" />
+                    <StatPill label="จบงาน" value={user.total_completed} target={targets.ma_target_jobs} compare="gte" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── Modals ── */}
       {selectedUser && (
         <UserProfileModal
           user={selectedUser}
@@ -338,18 +253,9 @@ export default function MaPerformancePage() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSaved={(newTargets) => {
-          setTargets(newTargets);
-          setAllowedLateDays(newTargets.allowed_late_days);
-          fetchData();
+          setTargets((prev) => ({ ...prev, ...newTargets }));
         }}
       />
-
-      <style>{`
-        @keyframes fadeInRow {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0);   }
-        }
-      `}</style>
     </Layout>
   );
 }

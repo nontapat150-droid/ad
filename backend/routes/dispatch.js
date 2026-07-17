@@ -2,7 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
-const { syncCustomerFromJob } = require('../utils/customerSync');
+const { syncCustomerFromJob, syncMaCustomerFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
 
 const router = express.Router();
@@ -240,6 +240,106 @@ async function processNoSnItems(conn, { jobId, techId, accessNo, noSnItems }) {
   return summaryParts;
 }
 
+async function ensureMaJobSchema(connOrPool) {
+  const db = connOrPool || pool;
+  const cols = [
+    ['area_name', "VARCHAR(150) DEFAULT NULL COMMENT 'พื้นที่'"],
+    ['srt', 'VARCHAR(100) DEFAULT NULL'],
+    ['spt', 'VARCHAR(100) DEFAULT NULL'],
+    ['fail_cause', 'TEXT DEFAULT NULL'],
+    ['fix_method', 'TEXT DEFAULT NULL'],
+    ['old_sn', 'TEXT DEFAULT NULL'],
+    ['new_sn', 'TEXT DEFAULT NULL'],
+    ['cable_used', 'TEXT DEFAULT NULL'],
+    ['used_equipment', 'TEXT DEFAULT NULL'],
+  ];
+  for (const [name, def] of cols) {
+    try {
+      await db.query(`ALTER TABLE ma_jobs ADD COLUMN ${name} ${def}`);
+    } catch (e) {
+      if (!String(e.message || '').includes('Duplicate column')) {
+        // ignore other alter races
+      }
+    }
+  }
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ma_job_used_inventory (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ma_job_id INT NOT NULL,
+        inventory_item_id INT NOT NULL,
+        device_role VARCHAR(50) DEFAULT 'NoSN',
+        sn VARCHAR(255) DEFAULT NULL,
+        product_name VARCHAR(255) DEFAULT NULL,
+        model_name VARCHAR(255) DEFAULT NULL,
+        quantity DECIMAL(10,2) DEFAULT 1.00,
+        used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        used_by INT DEFAULT NULL,
+        KEY idx_mjui_job (ma_job_id),
+        KEY idx_mjui_item (inventory_item_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+  } catch (e) { /* exists */ }
+}
+
+async function processMaNoSnItems(conn, { maJobId, techId, nonNumber, noSnItems }) {
+  const summaryParts = [];
+  for (const entry of noSnItems) {
+    const itemId = parseInt(entry.item_id, 10);
+    const qty = parseInt(entry.quantity, 10);
+    if (!itemId || !qty || qty <= 0) continue;
+
+    const [[item]] = await conn.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.unit
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = 'dispatched'
+       FOR UPDATE`,
+      [itemId, techId]
+    );
+    if (!item) continue;
+
+    if (item.quantity < qty) {
+      throw new Error(`อุปกรณ์ ${item.product_name} ไม่เพียงพอ (คงเหลือ: ${item.quantity})`);
+    }
+
+    if (item.quantity === qty) {
+      await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
+    } else {
+      await conn.query(`UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`, [qty, itemId]);
+    }
+
+    const note = `MA ติดตั้งให้ลูกค้า: ${nonNumber || maJobId}`;
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', ?, ?)`,
+        [itemId, techId, qty, note]
+      );
+    } catch (le) {
+      if (String(le.message || '').includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', ?, ?)`,
+          [(maxId || 0) + 1, itemId, techId, qty, note]
+        );
+      } else throw le;
+    }
+
+    const productName = entry.product_name || item.product_name;
+    const modelName = entry.model_name || item.model_name || '-';
+    await conn.query(
+      `INSERT INTO ma_job_used_inventory (ma_job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+       VALUES (?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
+      [maJobId, itemId, productName, modelName, qty, techId]
+    );
+
+    const unit = entry.unit || item.unit || 'ชิ้น';
+    summaryParts.push(`${productName} ${modelName} x${qty} ${unit}`.trim());
+  }
+  return summaryParts;
+}
+
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
   try {
@@ -267,7 +367,15 @@ router.get('/jobs', auth, async (req, res) => {
 
     // Non-admin: restrict to own team only or own assignments
     if (!isAdmin) {
-      if (!req.user.team_id) {
+      if (type === 'ma') {
+        if (!req.user.team_id) {
+          where.push('j.assigned_user_id = ?');
+          params.push(req.user.id);
+        } else {
+          where.push('(j.team_id = ? OR j.assigned_user_id = ?)');
+          params.push(req.user.team_id, req.user.id);
+        }
+      } else if (!req.user.team_id) {
         where.push('j.field_engineer_id = ?');
         params.push(req.user.id);
       } else {
@@ -280,7 +388,11 @@ router.get('/jobs', auth, async (req, res) => {
     }
 
     if (user_id) {
-      where.push('(j.team_id = (SELECT team_id FROM users WHERE id = ?) OR j.field_engineer_id = ?)');
+      if (type === 'ma') {
+        where.push('(j.team_id = (SELECT team_id FROM users WHERE id = ?) OR j.assigned_user_id = ?)');
+      } else {
+        where.push('(j.team_id = (SELECT team_id FROM users WHERE id = ?) OR j.field_engineer_id = ?)');
+      }
       params.push(user_id, user_id);
     }
 
@@ -291,8 +403,13 @@ router.get('/jobs', auth, async (req, res) => {
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
+    const selectCols = type === 'ma'
+      ? `j.*, j.job_time AS plan_arrival_time, j.assigned_user_id AS field_engineer_id,
+         COALESCE(j.non_number, j.access_no) AS display_non`
+      : `j.*`;
+
     const [rows] = await pool.query(
-      `SELECT j.*, j.id AS id, t.team_name,
+      `SELECT ${selectCols}, j.id AS id, t.team_name,
               u.full_name AS completed_by_name,
               (SELECT GROUP_CONCAT(full_name SEPARATOR ', ') FROM users WHERE team_id = j.team_id) AS tech_names
        FROM ${table} j
@@ -344,22 +461,39 @@ router.get('/jobs/:id/details', auth, async (req, res) => {
     // Get completion images
     let images = [];
     try {
-      const [imgRows] = await pool.query(
-        'SELECT image_path, uploaded_by, created_at FROM job_completion_images WHERE job_id = ? ORDER BY id',
-        [jobId]
-      );
-      images = imgRows;
+      if (req.query.type === 'ma') {
+        const [imgRows] = await pool.query(
+          'SELECT image_path, uploaded_by, created_at FROM ma_job_completion_images WHERE ma_job_id = ? ORDER BY id',
+          [jobId]
+        );
+        images = imgRows;
+      } else {
+        const [imgRows] = await pool.query(
+          'SELECT image_path, uploaded_by, created_at FROM job_completion_images WHERE job_id = ? ORDER BY id',
+          [jobId]
+        );
+        images = imgRows;
+      }
     } catch (e) { /* table may not exist */ }
 
     // Get used equipment
     let usedDevices = [];
     try {
-      const [devRows] = await pool.query(
-        `SELECT device_role, sn, product_name, model_name, quantity, used_at
-         FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
-        [jobId]
-      );
-      usedDevices = devRows;
+      if (req.query.type === 'ma') {
+        const [devRows] = await pool.query(
+          `SELECT device_role, sn, product_name, model_name, quantity, used_at
+           FROM ma_job_used_inventory WHERE ma_job_id = ? ORDER BY id ASC`,
+          [jobId]
+        );
+        usedDevices = devRows;
+      } else {
+        const [devRows] = await pool.query(
+          `SELECT device_role, sn, product_name, model_name, quantity, used_at
+           FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
+          [jobId]
+        );
+        usedDevices = devRows;
+      }
     } catch (e) { /* table may not exist */ }
 
     // Get postpone history (job_logs)
@@ -1156,6 +1290,204 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
+// ── POST /api/dispatch/ma-jobs/bulk — Admin imports MA jobs from Excel ────
+router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const jobs = req.body.jobs;
+  if (!Array.isArray(jobs) || jobs.length === 0) {
+    return res.status(400).json({ error: 'No jobs data provided' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await ensureMaJobSchema(conn);
+
+    let successCount = 0;
+    let skippedCount = 0;
+
+    for (const job of jobs) {
+      const {
+        job_time, plan_arrival_time, plan_arrival_date,
+        customer, non_number, phone, symptoms, address,
+        team_id, field_engineer_id, assigned_user_id,
+        area_name, remark, access_no,
+      } = job;
+
+      const nonNumber = (non_number || access_no || '').toString().trim();
+      if (!nonNumber) {
+        skippedCount++;
+        continue;
+      }
+
+      const accessKey = (access_no || nonNumber).toString().trim();
+      const timeVal = (job_time || plan_arrival_time || '').toString().trim() || null;
+      const assigneeId = assigned_user_id || field_engineer_id || null;
+
+      try {
+        const [result] = await conn.query(
+          `INSERT INTO ma_jobs
+             (plan_arrival_date, job_time, access_no, non_number, customer, phone,
+              symptoms, address, area_name, remark, team_id, assigned_user_id, status,
+              team_match_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+          [
+            plan_arrival_date || null,
+            timeVal,
+            accessKey,
+            nonNumber,
+            customer || null,
+            phone || null,
+            symptoms || null,
+            address || null,
+            area_name || null,
+            remark || null,
+            team_id || null,
+            assigneeId,
+            (team_id || assigneeId) ? 'matched' : 'unmatched',
+          ]
+        );
+        if (result.insertId) {
+          successCount++;
+          await syncMaCustomerFromJob(conn, result.insertId, { action: 'imported' });
+        } else {
+          skippedCount++;
+        }
+      } catch (err) {
+        console.error('MA bulk insert error for NON:', nonNumber, err.message);
+        skippedCount++;
+      }
+    }
+
+    await conn.commit();
+    res.json({ message: 'MA bulk import complete', successCount, skippedCount, total: jobs.length, count: successCount });
+  } catch (err) {
+    await conn.rollback();
+    console.error('MA Bulk Import Error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/ma-jobs/:id/complete — Complete MA job ─────────────
+router.put(
+  '/ma-jobs/:id/complete',
+  auth,
+  setUpload('job_evidence'),
+  upload.fields([{ name: 'images', maxCount: 40 }]),
+  async (req, res) => {
+    const maJobId = req.params.id;
+    const techId = req.user.id;
+    const conn = await pool.getConnection();
+
+    try {
+      await conn.beginTransaction();
+      await ensureMaJobSchema(conn);
+
+      const [[job]] = await conn.query(`SELECT * FROM ma_jobs WHERE id = ? LIMIT 1`, [maJobId]);
+      if (!job) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'ไม่พบงาน MA' });
+      }
+
+      const userRoles = req.user.roles || [req.user.role];
+      const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
+      const isAssignee = job.assigned_user_id && Number(job.assigned_user_id) === Number(techId);
+      const isSameTeam = job.team_id && req.user.team_id && Number(job.team_id) === Number(req.user.team_id);
+      if (!isAdmin && !isAssignee && !isSameTeam) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'งานนี้ไม่ได้อยู่ในความรับผิดชอบของคุณ' });
+      }
+      if (job.status === 'completed') {
+        await conn.rollback();
+        return res.status(409).json({ error: 'งานนี้ปิดแล้ว' });
+      }
+
+      const images = req.files?.images || [];
+      if (!images.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'กรุณาอัปโหลดรูปจบงานอย่างน้อย 1 รูป' });
+      }
+      if (images.length > 40) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'อัปโหลดรูปได้ไม่เกิน 40 รูป' });
+      }
+
+      const {
+        srt, spt, fail_cause, fix_method, old_sn, new_sn, cable_used, remark,
+      } = req.body;
+
+      const noSnItems = parseNoSnItems(req.body);
+      const equipParts = await processMaNoSnItems(conn, {
+        maJobId,
+        techId,
+        nonNumber: job.non_number || job.access_no,
+        noSnItems,
+      });
+
+      await conn.query(
+        `UPDATE ma_jobs SET
+           status = 'completed',
+           completed_at = NOW(),
+           completed_by = ?,
+           srt = ?,
+           spt = ?,
+           fail_cause = ?,
+           fix_method = ?,
+           old_sn = ?,
+           new_sn = ?,
+           cable_used = ?,
+           used_equipment = ?,
+           remark = COALESCE(?, remark)
+         WHERE id = ?`,
+        [
+          techId,
+          srt || null,
+          spt || null,
+          fail_cause || null,
+          fix_method || null,
+          old_sn || null,
+          new_sn || null,
+          cable_used || null,
+          equipParts.length ? equipParts.join(', ') : null,
+          remark || null,
+          maJobId,
+        ]
+      );
+
+      for (const file of images) {
+        await conn.query(
+          `INSERT INTO ma_job_completion_images (ma_job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
+          [maJobId, file.filename, techId]
+        );
+      }
+
+      // Oil case for team jobs only
+      if (job.team_id) {
+        const yearMonth = new Date().toISOString().slice(0, 7);
+        try {
+          await conn.query(
+            `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count)
+             VALUES (?, ?, 1)
+             ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
+            [job.team_id, yearMonth]
+          );
+        } catch (e) { /* optional */ }
+      }
+
+      await syncMaCustomerFromJob(conn, maJobId, { action: 'completed', techId });
+
+      await conn.commit();
+      res.json({ message: 'ปิดงาน MA สำเร็จ', id: maJobId });
+    } catch (err) {
+      await conn.rollback();
+      console.error('MA complete error:', err);
+      res.status(500).json({ error: err.message || 'Server error' });
+    } finally {
+      conn.release();
+    }
+  }
+);
 
 // ── PUT /api/dispatch/jobs/bulk-assign — Assign team to multiple jobs ──────
 // IMPORTANT: This route MUST be defined BEFORE /jobs/:id routes to avoid Express treating 'bulk-assign' as an :id

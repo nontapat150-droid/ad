@@ -5,6 +5,21 @@ const { upload, setUpload } = require('../middleware/upload');
 
 const router = express.Router();
 
+function normalizeTimeToHms(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    return raw.toTimeString().slice(0, 8);
+  }
+  const s = String(raw).trim();
+  // "2026-07-12 08:30:00" or "08:30:00" or "08:30"
+  const m = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const hh = m[1].padStart(2, '0');
+  const mm = m[2];
+  const ss = (m[3] || '00').padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 async function ensureLeaveTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS leave_records (
@@ -267,12 +282,13 @@ router.post(
           `SELECT MIN(job_time) as first_job_time 
            FROM ma_jobs 
            WHERE (team_id = ? OR assigned_user_id = ?) 
-             AND plan_arrival_date = ?`,
-          [userTeamId, userId, today]
+             AND plan_arrival_date = ?
+             AND job_time IS NOT NULL AND job_time != ''`,
+          [userTeamId || -1, userId, today]
         );
 
         if (maJobs.length > 0 && maJobs[0].first_job_time) {
-          lateThreshold = maJobs[0].first_job_time;
+          lateThreshold = normalizeTimeToHms(maJobs[0].first_job_time);
         } else {
           // No jobs assigned today, prevent check-in
           return res.status(400).json({ error: 'ยังไม่มีงานที่ได้รับมอบหมายในวันนี้ ไม่สามารถเช็คอินได้' });
@@ -290,11 +306,12 @@ router.post(
           if (s.setting_key === `late_time_${userRole}`) roleLateTime = s.setting_value;
         });
 
-        lateThreshold = userRow[0]?.allow_late_time || roleLateTime || globalLateTime;
+        lateThreshold = normalizeTimeToHms(userRow[0]?.allow_late_time || roleLateTime || globalLateTime);
       }
 
       const nowTime = new Date().toTimeString().slice(0, 8);
-      const isLate = nowTime > lateThreshold ? 1 : 0;
+      // เช็คอินก่อนหรือตรงเวลาเข้างานแรก = ไม่สาย (nowTime > threshold เท่านั้นถึงจะสาย)
+      const isLate = lateThreshold && nowTime > lateThreshold ? 1 : 0;
 
       const imagePath = req.file ? req.file.filename : null;
       const lat = req.body.lat ? parseFloat(req.body.lat) : null;
@@ -388,12 +405,14 @@ router.get('/ma-threshold', auth, async (req, res) => {
       `SELECT MIN(job_time) as first_job_time 
        FROM ma_jobs 
        WHERE (team_id = ? OR assigned_user_id = ?) 
-         AND plan_arrival_date = ?`,
-      [userTeamId, userId, today]
+         AND plan_arrival_date = ?
+         AND job_time IS NOT NULL AND job_time != ''`,
+      [userTeamId || -1, userId, today]
     );
 
     if (maJobs.length > 0 && maJobs[0].first_job_time) {
-      res.json({ threshold: maJobs[0].first_job_time });
+      const threshold = normalizeTimeToHms(maJobs[0].first_job_time);
+      res.json({ threshold, rule: 'ก่อนหรือตรงเวลาเข้างานแรก = ไม่สาย' });
     } else {
       res.json({ threshold: null });
     }
@@ -505,7 +524,10 @@ router.get('/ma-performance', auth, async (req, res) => {
        LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN user_roles ur2 ON ur2.user_id = u.id
        WHERE u.status = 'approved'
-         AND (u.role = 'ma_technician' OR u.id IN (SELECT user_id FROM user_roles WHERE role = 'ma_technician'))
+         AND (
+           u.role IN ('ma_technician', 'contractor_ma')
+           OR u.id IN (SELECT user_id FROM user_roles WHERE role IN ('ma_technician', 'contractor_ma'))
+         )
        GROUP BY u.id, u.full_name, u.role, u.team_id, t.team_name`
     );
 
@@ -517,7 +539,8 @@ router.get('/ma-performance', auth, async (req, res) => {
            COUNT(DISTINCT DATE(checkin_time)) as total_days,
            SUM(is_late) as total_late
          FROM checkins
-         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ?`,
+         WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ?
+           AND (checkin_type = 'ma' OR checkin_type IS NULL OR checkin_type = '')`,
         [u.id, month]
       );
 
