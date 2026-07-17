@@ -34,7 +34,7 @@ const MENU_GROUPS = [
   },
 ];
 
-export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
+export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRequest }) {
   const { user, logout } = useAuth();
   const { branding } = useBranding();
   const sidebarRef = useRef(null);
@@ -444,6 +444,41 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate }) {
 
       {/* Profile Modal */}
       <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      {/* ── Mobile Bottom Navigation Bar ──────────────────── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center bg-[#1F2937] border-t border-white/10 safe-area-pb"
+        style={{ boxShadow: '0 -4px 24px rgba(0,0,0,0.25)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+
+        {/* Home */}
+        <button onClick={() => handleNav('home')} className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${ activeKey === 'home' || activeKey === 'home_ma' ? 'text-[#A3E635]' : 'text-[#6B7280]' }`}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeKey==='home'||activeKey==='home_ma'?2.2:1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+          <span className="text-[9px] font-bold">หน้าแรก</span>
+        </button>
+
+        {/* Jobs */}
+        <button onClick={() => handleNav('jobs')} className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${ activeKey === 'jobs' ? 'text-[#A3E635]' : 'text-[#6B7280]' }`}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeKey==='jobs'?2.2:1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+          <span className="text-[9px] font-bold">งาน</span>
+        </button>
+
+        {/* Bag */}
+        <button onClick={() => handleNav('bag')} className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${ activeKey === 'bag' ? 'text-[#A3E635]' : 'text-[#6B7280]' }`}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeKey==='bag'?2.2:1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" /></svg>
+          <span className="text-[9px] font-bold">กระเป๋า</span>
+        </button>
+
+        {/* Checkin */}
+        <button onClick={() => handleNav('checkin')} className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${ activeKey === 'checkin' ? 'text-[#A3E635]' : 'text-[#6B7280]' }`}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={activeKey==='checkin'?2.2:1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <span className="text-[9px] font-bold">เช็คอิน</span>
+        </button>
+
+        {/* More (opens sidebar) */}
+        <button onClick={() => { if (onOpenRequest) onOpenRequest(); }} className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 text-[#6B7280] active:text-white transition-colors">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" /></svg>
+          <span className="text-[9px] font-bold">เพิ่มเติม</span>
+        </button>
+      </nav>
     </>
   );
 }
