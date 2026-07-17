@@ -10,7 +10,8 @@ const SYSTEM_FIELDS = [
   { key: 'plan_arrival_date', label: 'วันที่เข้างาน (YYYY-MM-DD)', required: false },
   { key: 'plan_arrival_time', label: 'เวลาเข้างาน (HH:MM)',        required: false },
   { key: 'address',           label: 'ที่อยู่ / พื้นที่',           required: false },
-  { key: 'team_id',           label: 'ทีมช่าง',                    required: false },
+  { key: 'team_id',           label: 'ทีมช่าง (ชื่อทีม)',           required: false },
+  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีมอัตโนมัติ',  required: false },
   { key: 'product',           label: 'สินค้า',                     required: false },
   { key: 'package',           label: 'แพ็กเกจ',                   required: false },
   { key: 'service_note',      label: 'รายละเอียดงาน (Service Note)', required: false },
@@ -237,6 +238,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   const [mapping, setMapping] = useState({}); // { excelColIndex: systemFieldKey }
   const [parsedRows, setParsedRows] = useState([]); // after applying mapping
   const [teams, setTeams] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [teamPrefix, setTeamPrefix] = useState('ช่าง'); // For admin to prepend to unmatched teams
   const [loading, setLoading] = useState(false);
   const [importResult, setImportResult] = useState(null); // { success, skipped, errors }
@@ -246,8 +248,9 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
   useEffect(() => {
     if (isOpen) {
-      // Fetch teams for normalizing team names
+      // Fetch teams and users for resolving engineer name → team
       axios.get('/users/teams').then(r => setTeams(r.data || [])).catch(() => {});
+      axios.get('/users').then(r => setAllUsers(r.data || [])).catch(() => {});
       // Reset
       setStep(defaultJobType ? 2 : 1);
       setJobType(defaultJobType || 'office');
@@ -394,6 +397,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       plan_arrival_time: ['time', 'เวลา', 'plan time', 'plan_time'],
       address:           ['address', 'ที่อยู่'],
       team_id:           ['team', 'ทีม'],
+      _engineer_name:    ['engineer', 'ช่าง', 'technician', 'assigned', 'ชื่อช่าง', 'ผู้รับผิดชอบ'],
       product:           ['product', 'สินค้า'],
       package:           ['package', 'แพ็ก'],
       service_note:      ['service', 'note', 'รายละเอียด'],
@@ -649,11 +653,41 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           obj['_team_name_display'] = normalizedName;
           val = found ? found.id : null;
           if (!val) obj['_team_name_unmatched'] = rawName;
+        } else if (fieldKey === '_engineer_name') {
+          // Engineer name → look up user → derive team_id
+          const rawName = String(val).trim();
+          obj['_engineer_name'] = rawName;
+          // Try matching with prefix variants
+          const prefixes = ['', 'ช่าง', 'ทีม', teamPrefix].filter(Boolean);
+          let matchedUser = null;
+          for (const prefix of prefixes) {
+            const candidate = prefix ? `${prefix}${rawName}` : rawName;
+            matchedUser = allUsers.find(u =>
+              u.full_name && (
+                u.full_name === candidate ||
+                u.full_name.toLowerCase() === candidate.toLowerCase()
+              )
+            );
+            if (matchedUser) break;
+          }
+          if (matchedUser && matchedUser.team_id && !obj['team_id']) {
+            const team = teams.find(t => t.id === matchedUser.team_id);
+            obj['team_id'] = matchedUser.team_id;
+            obj['_team_name_display'] = team ? team.team_name : `ทีม #${matchedUser.team_id}`;
+            // Clear any unmatched marker set by team_id field
+            delete obj['_team_name_unmatched'];
+          } else if (!matchedUser) {
+            obj['_engineer_unmatched'] = rawName;
+          }
+          val = rawName;
         } else {
           val = String(val).trim();
         }
         obj[fieldKey] = val;
       });
+
+      // Post-pass: if _engineer_name resolved a team and team_id was not yet set
+      // (handled inside loop above already)
       return obj;
     });
 
@@ -666,6 +700,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     const validRows = parsedRows.filter(r => r.access_no);
     const invalidRows = parsedRows.filter(r => !r.access_no);
     const unmatchedTeam = parsedRows.filter(r => r._team_name_unmatched);
+    const unmatchedEngineer = parsedRows.filter(r => r._engineer_unmatched);
 
     return (
       <div>
@@ -686,7 +721,27 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
               🔍 ทีมไม่ตรง: {unmatchedTeam.length} รายการ
             </span>
           )}
+          {unmatchedEngineer.length > 0 && (
+            <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full border border-orange-200">
+              👷 ไม่พบช่าง: {unmatchedEngineer.length} รายการ
+            </span>
+          )}
         </div>
+
+        {/* Unmatched engineer warning */}
+        {unmatchedEngineer.length > 0 && (
+          <div className="mb-3 p-4 bg-orange-50 rounded-xl border border-orange-200">
+            <h4 className="text-sm font-bold text-orange-800 flex items-center gap-2 mb-2">
+              👷 ไม่พบช่างในระบบ (จะนำเข้าโดยไม่ระบุทีม):
+            </h4>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {[...new Set(unmatchedEngineer.map(r => r._engineer_unmatched))].map((name, i) => (
+                <span key={i} className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-bold rounded-lg shadow-sm border border-orange-200">{name}</span>
+              ))}
+            </div>
+            <p className="text-[11px] text-orange-700">ลองเติมคำนำหน้า (เช่น 'ช่าง') แล้วกด "จับคู่ใหม่" ด้านล่าง</p>
+          </div>
+        )}
 
         {/* Unmatched team warning */}
         {unmatchedTeam.length > 0 && (
@@ -727,12 +782,15 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
               <tr>
                 <th className="px-3 py-2 text-left font-bold text-[#374151]">#</th>
                 {Object.entries(mapping)
-                  .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id')
+                  .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id' && v !== '_engineer_name')
                   .slice(0, 6)
                   .map(([idx, key]) => {
                     const field = SYSTEM_FIELDS.find(f => f.key === key);
                     return <th key={idx} className="px-3 py-2 text-left font-bold text-[#374151] whitespace-nowrap">{field?.label || key}</th>;
                   })}
+                {Object.values(mapping).includes('_engineer_name') && (
+                  <th className="px-3 py-2 text-left font-bold text-[#374151]">ช่าง</th>
+                )}
                 <th className="px-3 py-2 text-left font-bold text-[#374151]">ทีมช่าง</th>
               </tr>
             </thead>
@@ -741,11 +799,20 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
                 <tr key={i} className="border-t border-[#F3F4F6] hover:bg-[#F9FAFB]">
                   <td className="px-3 py-2 text-[#9CA3AF]">{i + 1}</td>
                   {Object.entries(mapping)
-                    .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id')
+                    .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id' && v !== '_engineer_name')
                     .slice(0, 6)
                     .map(([idx, key]) => (
                       <td key={idx} className="px-3 py-2 text-[#374151] max-w-[120px] truncate">{row[key] || '-'}</td>
                     ))}
+                  {Object.values(mapping).includes('_engineer_name') && (
+                    <td className="px-3 py-2 text-[#374151] max-w-[100px] truncate">
+                      {row._engineer_name
+                        ? row._engineer_unmatched
+                          ? <span className="text-orange-500">{row._engineer_name} ⚠️</span>
+                          : <span className="text-blue-600 font-semibold">{row._engineer_name}</span>
+                        : '-'}
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-[#374151]">
                     {row._team_name_display ? (
                       row.team_id
