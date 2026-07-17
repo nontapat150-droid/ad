@@ -26,22 +26,56 @@ L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, 
 ───────────────────────────────────────────────────────── */
 const STATUS_LABEL = { completed: 'สำเร็จ', failed: 'ไม่สำเร็จ', postponed: 'เลื่อนนัด', in_progress: 'กำลังดำเนิน', pending: 'รอดำเนินการ' };
 const STATUS_COLOR = {
-  completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  failed:    'bg-red-100 text-red-700 border-red-200',
-  postponed: 'bg-purple-100 text-purple-700 border-purple-200',
+  completed:  'bg-emerald-100 text-emerald-700 border-emerald-200',
+  failed:     'bg-red-100 text-red-700 border-red-200',
+  postponed:  'bg-purple-100 text-purple-700 border-purple-200',
   in_progress:'bg-blue-100 text-blue-700 border-blue-200',
-  pending:   'bg-amber-100 text-amber-700 border-amber-200',
-  overdue:   'bg-orange-100 text-orange-700 border-orange-200',
+  pending:    'bg-amber-100 text-amber-700 border-amber-200',
+  overdue:    'bg-orange-100 text-orange-700 border-orange-200',
 };
 const STATUS_DOT = {
   completed:'bg-emerald-500', failed:'bg-red-500', postponed:'bg-purple-500',
   in_progress:'bg-blue-500', pending:'bg-amber-400', overdue:'bg-orange-500',
 };
 
+/**
+ * ปิดงานล่าช้า = ปิดหลังเที่ยงคืน (00:00) ของวันถัดจาก plan_arrival_date
+ * กล่าวคือ completed_at > plan_arrival_date 23:59:59
+ */
+function isLateCompletion(job) {
+  if (job.status !== 'completed' || !job.plan_arrival_date || !job.completed_at) return false;
+  // วันสิ้นสุดที่ยอมรับได้ = สิ้นวัน plan_arrival_date (23:59:59.999)
+  const planDateStr = job.plan_arrival_date.split('T')[0]; // YYYY-MM-DD
+  const deadline = new Date(`${planDateStr}T23:59:59.999`);
+  const completedAt = new Date(job.completed_at);
+  return completedAt > deadline;
+}
+
+/**
+ * งานเลื่อนที่ยังไม่ได้รับมอบหมายทีม = postponed + !team_id
+ */
+function isPostponedUnassigned(job) {
+  return job.status === 'postponed' && !job.team_id;
+}
+
+/**
+ * งาน postponed ที่ถึงวันนัดใหม่แล้ว แต่ยังไม่ได้ assign = active เป็น "urgent unassigned"
+ * งาน postponed ที่ถึงวันนัดแล้วและมี team = จะแสดงเป็นงานปกติในวันนั้น
+ */
 function getEffectiveStatus(job, today) {
-  if (job.status && job.status !== 'pending') return job.status;
-  if (job.plan_arrival_date && job.plan_arrival_date.split('T')[0] < today) return 'overdue';
-  return 'pending';
+  if (!job.status || job.status === 'pending') {
+    if (job.plan_arrival_date && job.plan_arrival_date.split('T')[0] < today) return 'overdue';
+    return 'pending';
+  }
+  // งาน postponed ที่ถึงวันนัดใหม่แล้ว → ถือว่ากลับมาเป็น pending/overdue
+  if (job.status === 'postponed' && job.plan_arrival_date) {
+    const reschedDate = job.plan_arrival_date.split('T')[0];
+    if (reschedDate <= today) {
+      // ถึงวันนัดแล้ว — re-activate
+      return reschedDate < today ? 'overdue' : 'pending';
+    }
+  }
+  return job.status;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -49,18 +83,30 @@ function getEffectiveStatus(job, today) {
 ───────────────────────────────────────────────────────── */
 function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
   const status = getEffectiveStatus(job, today);
-  const isLate = status === 'completed' && job.plan_arrival_date && job.completed_at &&
-    new Date(job.completed_at).toISOString().split('T')[0] > job.plan_arrival_date.split('T')[0];
+  const isLate = isLateCompletion(job);
+  // งาน postponed ที่ยังไม่ได้รับมอบหมายทีม = แสดงการ์ดแดง
+  const isPostponeNoTeam = isPostponedUnassigned(job);
+  // งาน postponed ที่ถึงวันแล้ว (re-activated)
+  const isReactivated = job.status === 'postponed' && job.plan_arrival_date && job.plan_arrival_date.split('T')[0] <= today;
+
+  // card border / bg
+  let cardBorder = 'border-[#E5E7EB] hover:border-[#A3E635]/50';
+  let cardBg = 'bg-white';
+  if (isSelected) {
+    cardBorder = 'border-[#A3E635] shadow-[0_0_0_3px_rgba(163,230,53,0.2)]';
+  } else if (isPostponeNoTeam) {
+    // postponed แต่ยังไม่ได้ assign ทีม → แดง เพื่อแจ้งเตือน admin
+    cardBorder = 'border-red-400 shadow-[0_0_0_2px_rgba(239,68,68,0.15)]';
+    cardBg = 'bg-red-50';
+  }
 
   return (
     <div
       onClick={() => onCardClick(job)}
-      className={`relative bg-white rounded-2xl border-2 shadow-sm cursor-pointer active:scale-[0.98] transition-all duration-150 select-none overflow-hidden hover:shadow-md ${
-        isSelected ? 'border-[#A3E635] shadow-[0_0_0_3px_rgba(163,230,53,0.2)]' : 'border-[#E5E7EB] hover:border-[#A3E635]/50'
-      }`}
+      className={`relative rounded-2xl border-2 shadow-sm cursor-pointer active:scale-[0.98] transition-all duration-150 select-none overflow-hidden hover:shadow-md ${cardBg} ${cardBorder}`}
     >
       {/* Left accent bar based on status */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${STATUS_DOT[status]}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPostponeNoTeam ? 'bg-red-500' : STATUS_DOT[status]}`} />
 
       <div className="pl-3 pr-4 py-3.5">
         {/* Top row: Access No + Status + Checkbox (admin) */}
@@ -78,9 +124,12 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
               <span className="text-sm font-black text-[#1F2937] tracking-wide">{job.access_no || '-'}</span>
               {job.seq && <span className="text-[10px] font-bold bg-[#1F2937] text-white px-1.5 py-0.5 rounded-md">#{job.seq}</span>}
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[status]}`}>
-                {STATUS_LABEL[status] || status}
+                {isReactivated && !isPostponeNoTeam ? 'รอดำเนินการ (เลื่อน)' : (STATUS_LABEL[status] || status)}
               </span>
               {isLate && <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">⚠️ ล่าช้า</span>}
+              {isPostponeNoTeam && isAdmin && (
+                <span className="text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">🚨 ยังไม่มอบหมาย</span>
+              )}
             </div>
 
             {/* Customer name */}
@@ -99,8 +148,10 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
                   {job.team_name}
                 </span>
               )}
-              {!job.team_name && isAdmin && (
-                <span className="text-[11px] font-semibold text-red-500 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">ยังไม่ระบุทีม</span>
+              {!job.team_name && (
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
+                  isAdmin ? 'text-red-600 bg-red-50 border-red-200 font-bold' : 'text-[#9CA3AF] bg-[#F9FAFB] border-[#E5E7EB]'
+                }`}>{isAdmin ? '⚠️ ยังไม่ระบุทีม' : 'ยังไม่ระบุทีม'}</span>
               )}
               {job.plan_arrival_date && (
                 <span className="text-[11px] text-[#9CA3AF] font-medium flex items-center gap-1">
@@ -117,10 +168,19 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
               )}
             </div>
 
-            {/* Postpone label */}
-            {status === 'postponed' && job.plan_arrival_date && (
-              <div className="mt-1.5 text-[11px] font-semibold text-purple-600 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 inline-block">
-                📅 นัดใหม่: {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+            {/* Postpone labels */}
+            {job.status === 'postponed' && job.plan_arrival_date && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {isReactivated ? (
+                  <div className="text-[11px] font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-2 py-1 inline-flex items-center gap-1">
+                    ⏰ ถึงวันนัดแล้ว — {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    {isPostponeNoTeam && isAdmin && <span className="ml-1 text-red-600">(รอมอบหมาย!)</span>}
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-semibold text-purple-600 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 inline-block">
+                    📅 นัดใหม่: {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -135,6 +195,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
   );
 }
 
+
 /* ─────────────────────────────────────────────────────────
    JOB DETAIL BOTTOM SHEET / MODAL
 ───────────────────────────────────────────────────────── */
@@ -143,8 +204,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   const status = job ? getEffectiveStatus(job, today) : 'pending';
-  const isLate = status === 'completed' && job?.plan_arrival_date && job?.completed_at &&
-    new Date(job.completed_at).toISOString().split('T')[0] > job.plan_arrival_date.split('T')[0];
+  const isLate = isLateCompletion(job || {});
 
   useEffect(() => {
     if (!job) return;
@@ -424,26 +484,46 @@ export default function DispatchDashboardPage() {
   const handleActionComplete = () => { fetchJobs(); setSelectedJobIds([]); };
 
   const filteredJobs = useMemo(() => {
+    // งาน postponed ที่ "re-activated" (ถึงวันนัดใหม่แล้ว) — ถือเป็น active job ไม่ใช่เลื่อนอีกต่อไป
+    const trulyPostponed  = (j) => j.status === 'postponed' && (!j.plan_arrival_date || j.plan_arrival_date.split('T')[0] > today);
+    const isOverdue       = (j) => {
+      if (['completed','failed'].includes(j.status)) return false;
+      if (!j.plan_arrival_date) return false;
+      return j.plan_arrival_date.split('T')[0] < today;
+    };
+    const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
+
     switch (subTab) {
-      case 'assigned': return jobs.filter(j => j.team_id && !['completed','failed','postponed'].includes(j.status));
+      case 'assigned':  return jobs.filter(j => j.team_id && isActive(j) && !isOverdue(j));
       case 'completed': return jobs.filter(j => j.status === 'completed');
-      case 'failed': return jobs.filter(j => j.status === 'failed');
-      case 'postponed': return jobs.filter(j => j.status === 'postponed');
-      case 'overdue': return jobs.filter(j => !['completed','failed','postponed'].includes(j.status) && j.plan_arrival_date && j.plan_arrival_date.split('T')[0] < today);
-      case 'map': return jobs;
-      default: return jobs;
+      case 'failed':    return jobs.filter(j => j.status === 'failed');
+      // postponed tab: แสดงเฉพาะงานที่ยังยังอยู่ในสถานะเลื่อน (ยังไม่ถึงวันนัด)
+      case 'postponed': return jobs.filter(j => trulyPostponed(j));
+      // overdue: งานที่เลยกำหนด (รวม re-activated postponed)
+      case 'overdue':   return jobs.filter(j => isOverdue(j));
+      case 'map':       return jobs;
+      default:          return jobs;
     }
   }, [jobs, subTab, today]);
 
-  const stats = useMemo(() => ({
-    total: jobs.length,
-    assigned: jobs.filter(j => j.team_id && !['completed','failed','postponed'].includes(j.status)).length,
-    completed: jobs.filter(j => j.status === 'completed').length,
-    failed: jobs.filter(j => j.status === 'failed').length,
-    postponed: jobs.filter(j => j.status === 'postponed').length,
-    overdue: jobs.filter(j => !['completed','failed','postponed'].includes(j.status) && j.plan_arrival_date && j.plan_arrival_date.split('T')[0] < today).length,
-    withMap: jobs.filter(j => j.lat && j.lng).length,
-  }), [jobs, today]);
+  const stats = useMemo(() => {
+    const trulyPostponed = (j) => j.status === 'postponed' && (!j.plan_arrival_date || j.plan_arrival_date.split('T')[0] > today);
+    const isOverdue = (j) => {
+      if (['completed','failed'].includes(j.status)) return false;
+      if (!j.plan_arrival_date) return false;
+      return j.plan_arrival_date.split('T')[0] < today;
+    };
+    const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
+    return {
+      total:     jobs.length,
+      assigned:  jobs.filter(j => j.team_id && isActive(j) && !isOverdue(j)).length,
+      completed: jobs.filter(j => j.status === 'completed').length,
+      failed:    jobs.filter(j => j.status === 'failed').length,
+      postponed: jobs.filter(j => trulyPostponed(j)).length,
+      overdue:   jobs.filter(j => isOverdue(j)).length,
+      withMap:   jobs.filter(j => j.lat && j.lng).length,
+    };
+  }, [jobs, today]);
 
   const techsForFilter = useMemo(() => {
     let t = allUsers.filter(u => ['technician','ma_technician','contractor_office','contractor_ma'].some(r => u.role === r || u.roles?.includes(r)));
