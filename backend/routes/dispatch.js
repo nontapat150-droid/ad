@@ -467,7 +467,9 @@ router.put(
 
       const userRoles = req.user.roles || [req.user.role];
       const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
-      if (!isAdmin && job.team_id !== req.user.team_id) {
+      const isAssignee = job.field_engineer_id && Number(job.field_engineer_id) === Number(techId);
+      const isSameTeam = job.team_id && req.user.team_id && Number(job.team_id) === Number(req.user.team_id);
+      if (!isAdmin && !isAssignee && !isSameTeam) {
         await conn.rollback();
         return res.status(403).json({ error: 'Job does not belong to your team' });
       }
@@ -1095,7 +1097,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         plan_arrival_date, plan_arrival_time, product, remark,
         order_no, customer_order_no, province, area_code, area_name,
         task_type, task_order, product_owner, order_type, service_note,
-        sla_status, region, map_link, status, team_id
+        sla_status, region, map_link, status, team_id, field_engineer_id
       } = job;
 
       if (!access_no) {
@@ -1116,8 +1118,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               order_no, customer_order_no, province, area_code, area_name,
               task_type, task_order, product_owner, order_type, service_note,
               sla_status, region, map_link,
-              status, create_user_role, team_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              status, create_user_role, team_id, field_engineer_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             access_no, customer || null, phone || null, pkg || null, address || null,
             lat || null, lng || null, plan_arrival_date || null, formatted_time,
@@ -1127,7 +1129,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
             task_type || null, task_order || null, product_owner || null,
             order_type || null, service_note || null,
             sla_status || 'Normal', region || 'ROS', map_link || null,
-            status || 'pending', req.user.role || null, team_id || null
+            status || 'pending', req.user.role || null, team_id || null,
+            field_engineer_id || null
           ]
         );
         if (result.affectedRows > 0) {

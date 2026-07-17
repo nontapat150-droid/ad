@@ -623,39 +623,166 @@ router.get('/my-bag', auth, async (req, res) => {
 });
 
 // ── GET /api/inventory/contractor-summary ──
+// สรุปอุปกรณ์ที่ช่างรับเหมาใช้ตอนจบงาน (รายคน / ทั้งหมด + กรองวันที่)
 router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
-    // 1. Fetch all contractors
+    const { user_id: filterUserId, start_date, end_date, month } = req.query;
+
+    const contractorWhere = `
+      u.status = 'approved'
+      AND (
+        u.role IN ('contractor_office', 'contractor_ma')
+        OR u.id IN (
+          SELECT user_id FROM user_roles
+          WHERE role IN ('contractor_office', 'contractor_ma')
+        )
+      )
+    `;
+
     const [contractors] = await pool.query(
-      `SELECT u.id, u.username, u.full_name, u.role, u.team_id, t.team_name,
-              GROUP_CONCAT(ur.role SEPARATOR ',') AS roles_csv
+      `SELECT u.id, u.username, u.full_name, u.role, u.team_id,
+              GROUP_CONCAT(DISTINCT ur.role SEPARATOR ',') AS roles_csv
        FROM users u
-       LEFT JOIN teams t ON t.id = u.team_id
        LEFT JOIN user_roles ur ON ur.user_id = u.id
-       WHERE u.status = 'approved' 
-         AND (u.role IN ('contractor_office', 'contractor_ma') 
-              OR u.id IN (SELECT user_id FROM user_roles WHERE role IN ('contractor_office', 'contractor_ma')))
-       GROUP BY u.id`
+       WHERE ${contractorWhere}
+       GROUP BY u.id
+       ORDER BY u.full_name ASC`
     );
 
-    // 2. Fetch inventory balances for these contractors
-    const contractorIds = contractors.map(c => c.id);
-    let inventoryBalances = [];
-    if (contractorIds.length > 0) {
-      const [items] = await pool.query(
-        `SELECT ii.owner_id, ii.status, pm.model_name, p.name AS product_name, COUNT(*) as count
-         FROM inventory_items ii
-         JOIN inventory_models pm ON pm.id = ii.model_id
-         JOIN inventory_products p ON p.id = pm.product_id
-         WHERE ii.owner_id IN (?) 
-           AND ii.status IN ('dispatched', 'used')
-         GROUP BY ii.owner_id, pm.model_name, p.name, ii.status`,
-        [contractorIds]
-      );
-      inventoryBalances = items;
+    const contractorIds = contractors.map((c) => c.id);
+    if (contractorIds.length === 0) {
+      return res.json({
+        contractors: [],
+        summary: { total_items: 0, total_jobs: 0, contractor_count: 0 },
+        by_person: [],
+        usages: [],
+      });
     }
 
-    res.json({ contractors, inventoryBalances });
+    const roleLabel = (role) =>
+      role === 'contractor_ma' ? 'รับเหมา MA'
+        : role === 'contractor_office' ? 'รับเหมาติดตั้ง'
+          : role || 'รับเหมา';
+
+    const contractorsOut = contractors.map((c) => {
+      const roles = c.roles_csv ? c.roles_csv.split(',') : [c.role];
+      const main = roles.find((r) => ['contractor_office', 'contractor_ma'].includes(r)) || c.role;
+      return {
+        id: c.id,
+        username: c.username,
+        full_name: c.full_name,
+        role: main,
+        role_display: roleLabel(main),
+      };
+    });
+
+    const where = ['jui.used_by IN (?)'];
+    const params = [contractorIds];
+
+    if (filterUserId && filterUserId !== 'ALL') {
+      where.push('jui.used_by = ?');
+      params.push(filterUserId);
+    }
+
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      where.push(`DATE_FORMAT(jui.used_at, '%Y-%m') = ?`);
+      params.push(month);
+    } else {
+      if (start_date) {
+        where.push('DATE(jui.used_at) >= ?');
+        params.push(start_date);
+      }
+      if (end_date) {
+        where.push('DATE(jui.used_at) <= ?');
+        params.push(end_date);
+      }
+    }
+
+    const whereSql = where.join(' AND ');
+
+    const [usages] = await pool.query(
+      `SELECT jui.id, jui.job_id, jui.device_role, jui.sn, jui.product_name, jui.model_name,
+              jui.quantity, jui.used_at, jui.used_by,
+              u.full_name AS contractor_name, u.role AS contractor_role,
+              j.access_no, j.customer, j.address, j.completed_at
+       FROM job_used_inventory jui
+       JOIN users u ON u.id = jui.used_by
+       LEFT JOIN jobs j ON j.id = jui.job_id
+       WHERE ${whereSql}
+       ORDER BY jui.used_at DESC
+       LIMIT 2000`,
+      params
+    );
+
+    const [byPerson] = await pool.query(
+      `SELECT jui.used_by AS user_id,
+              u.full_name,
+              u.role,
+              COUNT(*) AS item_count,
+              COUNT(DISTINCT jui.job_id) AS job_count,
+              SUM(jui.quantity) AS total_qty
+       FROM job_used_inventory jui
+       JOIN users u ON u.id = jui.used_by
+       WHERE ${whereSql}
+       GROUP BY jui.used_by, u.full_name, u.role
+       ORDER BY item_count DESC`,
+      params
+    );
+
+    // Remaining bag stock (dispatched) for context — always all contractors or selected
+    const bagParams = [filterUserId && filterUserId !== 'ALL' ? [Number(filterUserId)] : contractorIds];
+    const [bagRows] = await pool.query(
+      `SELECT owner_id, COUNT(*) AS remaining
+       FROM inventory_items
+       WHERE owner_id IN (?) AND status = 'dispatched'
+       GROUP BY owner_id`,
+      bagParams
+    );
+    const bagMap = Object.fromEntries(bagRows.map((r) => [r.owner_id, Number(r.remaining)]));
+
+    const byPersonOut = byPerson.map((p) => ({
+      ...p,
+      role_display: roleLabel(p.role),
+      remaining_bag: bagMap[p.user_id] || 0,
+      item_count: Number(p.item_count),
+      job_count: Number(p.job_count),
+      total_qty: Number(p.total_qty) || 0,
+    }));
+
+    // Include contractors with 0 usage in period when viewing ALL (for picker completeness)
+    const seen = new Set(byPersonOut.map((p) => p.user_id));
+    if (!filterUserId || filterUserId === 'ALL') {
+      for (const c of contractorsOut) {
+        if (!seen.has(c.id)) {
+          byPersonOut.push({
+            user_id: c.id,
+            full_name: c.full_name,
+            role: c.role,
+            role_display: c.role_display,
+            item_count: 0,
+            job_count: 0,
+            total_qty: 0,
+            remaining_bag: bagMap[c.id] || 0,
+          });
+        }
+      }
+    }
+
+    res.json({
+      contractors: contractorsOut,
+      summary: {
+        total_items: usages.length,
+        total_jobs: new Set(usages.map((u) => u.job_id).filter(Boolean)).size,
+        contractor_count: byPersonOut.filter((p) => p.item_count > 0).length,
+        total_qty: usages.reduce((s, u) => s + (Number(u.quantity) || 0), 0),
+      },
+      by_person: byPersonOut,
+      usages: usages.map((u) => ({
+        ...u,
+        quantity: Number(u.quantity) || 0,
+        role_display: roleLabel(u.contractor_role),
+      })),
+    });
   } catch (err) {
     console.error('Contractor Summary Error:', err);
     res.status(500).json({ error: 'Server error' });

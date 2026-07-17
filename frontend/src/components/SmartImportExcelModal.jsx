@@ -12,7 +12,7 @@ const SYSTEM_FIELDS = [
   { key: 'plan_arrival_time', label: 'เวลาเข้างาน (HH:MM)',        required: false },
   { key: 'address',           label: 'ที่อยู่ / พื้นที่',           required: false },
   { key: 'team_id',           label: 'ทีมช่าง (ชื่อทีม)',           required: false },
-  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีมอัตโนมัติ',  required: false },
+  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีม/รับเหมารายคน',  required: false },
   { key: 'product',           label: 'สินค้า',                     required: false },
   { key: 'package',           label: 'แพ็กเกจ',                   required: false },
   { key: 'service_note',      label: 'รายละเอียดงาน (Service Note)', required: false },
@@ -174,10 +174,31 @@ function parseExcelTime(raw) {
   return String(raw);
 }
 
-// ─── Helper: resolve team from engineer nickname or team name ────────────────
+// ─── Helper: resolve assignee from engineer nickname or team name ────────────
+const CONTRACTOR_ROLES = ['contractor_office', 'contractor_ma'];
+
+function userIsContractor(user) {
+  if (!user) return false;
+  const roles = user.roles || (user.roles_csv ? String(user.roles_csv).split(',') : [user.role]);
+  return roles.some((r) => CONTRACTOR_ROLES.includes(r));
+}
+
+/**
+ * Resolve Excel engineer/team name.
+ * - Regular tech with team → team_id
+ * - Contractor (รับเหมา) → field_engineer_id (รายคน), ไม่ผูกทีม
+ * - Fallback: match team name
+ */
 function resolveTeamFromName(rawName, teams, allUsers) {
   if (!rawName) {
-    return { teamId: null, teamName: '', engineerName: '', unmatched: null };
+    return {
+      teamId: null,
+      teamName: '',
+      engineerName: '',
+      fieldEngineerId: null,
+      isContractor: false,
+      unmatched: null,
+    };
   }
 
   const raw = String(rawName).trim();
@@ -209,12 +230,38 @@ function resolveTeamFromName(rawName, teams, allUsers) {
       : null;
     const matchedUser = exactUser || fuzzyUser;
 
-    if (matchedUser?.team_id) {
-      const team = teams.find((t) => t.id === matchedUser.team_id);
+    if (matchedUser) {
+      // ช่างรับเหมา → นับรายคน ไม่ผูกทีม
+      if (userIsContractor(matchedUser)) {
+        return {
+          teamId: null,
+          teamName: 'รับเหมา (รายคน)',
+          engineerName: matchedUser.full_name,
+          fieldEngineerId: matchedUser.id,
+          isContractor: true,
+          unmatched: null,
+        };
+      }
+
+      if (matchedUser.team_id) {
+        const team = teams.find((t) => t.id === matchedUser.team_id);
+        return {
+          teamId: matchedUser.team_id,
+          teamName: team ? team.team_name : `ทีม #${matchedUser.team_id}`,
+          engineerName: matchedUser.full_name,
+          fieldEngineerId: null,
+          isContractor: false,
+          unmatched: null,
+        };
+      }
+
+      // ช่างในระบบแต่ไม่มีทีม — ยังถือว่าเจอชื่อ แต่ไม่ระบุทีม
       return {
-        teamId: matchedUser.team_id,
-        teamName: team ? team.team_name : `ทีม #${matchedUser.team_id}`,
+        teamId: null,
+        teamName: matchedUser.full_name,
         engineerName: matchedUser.full_name,
+        fieldEngineerId: matchedUser.id,
+        isContractor: false,
         unmatched: null,
       };
     }
@@ -232,12 +279,21 @@ function resolveTeamFromName(rawName, teams, allUsers) {
         teamId: exactTeam.id,
         teamName: exactTeam.team_name,
         engineerName: '',
+        fieldEngineerId: null,
+        isContractor: false,
         unmatched: null,
       };
     }
   }
 
-  return { teamId: null, teamName: raw, engineerName: '', unmatched: raw };
+  return {
+    teamId: null,
+    teamName: raw,
+    engineerName: '',
+    fieldEngineerId: null,
+    isContractor: false,
+    unmatched: raw,
+  };
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -694,19 +750,31 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           const resolved = resolveTeamFromName(rawName, teams, allUsers);
           obj['_team_name_display'] = resolved.teamName || rawName;
           if (resolved.engineerName) obj['_engineer_resolved'] = resolved.engineerName;
+          if (resolved.isContractor) obj['_is_contractor'] = true;
+          if (resolved.fieldEngineerId) obj.field_engineer_id = resolved.fieldEngineerId;
           val = resolved.teamId;
-          if (!val) obj['_team_name_unmatched'] = rawName;
+          if (!resolved.teamId && !resolved.fieldEngineerId) obj['_team_name_unmatched'] = rawName;
         } else if (fieldKey === '_engineer_name') {
           const rawName = String(val).trim();
           obj['_engineer_name'] = rawName;
           const resolved = resolveTeamFromName(rawName, teams, allUsers);
-          if (resolved.teamId && !obj.team_id) {
-            obj.team_id = resolved.teamId;
-            obj['_team_name_display'] = resolved.teamName;
+          if (resolved.fieldEngineerId || resolved.teamId) {
+            if (resolved.isContractor) {
+              obj.field_engineer_id = resolved.fieldEngineerId;
+              obj.team_id = null;
+              obj['_is_contractor'] = true;
+              obj['_team_name_display'] = 'รับเหมา (รายคน)';
+            } else if (resolved.teamId && !obj.team_id) {
+              obj.team_id = resolved.teamId;
+              obj['_team_name_display'] = resolved.teamName;
+            } else if (resolved.fieldEngineerId && !obj.field_engineer_id) {
+              obj.field_engineer_id = resolved.fieldEngineerId;
+              obj['_team_name_display'] = resolved.teamName || resolved.engineerName;
+            }
             if (resolved.engineerName) obj['_engineer_resolved'] = resolved.engineerName;
             delete obj['_team_name_unmatched'];
             delete obj['_engineer_unmatched'];
-          } else if (!resolved.teamId) {
+          } else {
             obj['_engineer_unmatched'] = rawName;
           }
           val = rawName;
@@ -825,7 +893,17 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
                     </td>
                   )}
                   <td className="px-3 py-2 text-[#374151]">
-                    {row._team_name_display ? (
+                    {row._is_contractor || row.field_engineer_id ? (
+                      <span className="inline-flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] font-black text-[#1F2937] bg-[#A3E635] px-1.5 py-0.5 rounded">
+                          รับเหมา
+                        </span>
+                        <span className="text-emerald-700 font-semibold">
+                          {row._engineer_resolved || row._team_name_display || '-'}
+                        </span>
+                        <span className="text-[10px] text-[#9CA3AF]">(รายคน)</span>
+                      </span>
+                    ) : row._team_name_display ? (
                       row.team_id
                         ? (
                           <span className="text-emerald-600 font-semibold">
@@ -889,6 +967,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           _engineer_name,
           _engineer_unmatched,
           _engineer_resolved,
+          _is_contractor,
           ...rest
         } = row;
         return rest;
