@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import { AppDateField, AppTimeField, AppSelectField } from './DispatchFilterFields';
 
 export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -56,8 +57,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
-  const handleTeamChange = (e) => {
-    const newTeamId = e.target.value;
+  const handleTeamChange = (newTeamId) => {
     const updates = { team_id: newTeamId };
 
     if (newTeamId) {
@@ -80,8 +80,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleTechChange = (e) => {
-    const techId = e.target.value;
+  const handleTechChange = (techId) => {
     const updates = { field_engineer_id: techId };
     if (techId) {
       const selectedTech = users.find(u => String(u.id) === String(techId));
@@ -160,8 +159,16 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
               <Field label="Access No" name="access_no" value={form.access_no} onChange={handleChange} required placeholder="เช่น 880xxxxxxx" />
               <Field label="ชื่อลูกค้า" name="customer" value={form.customer} onChange={handleChange} placeholder="ระบุชื่อลูกค้า" />
               <Field label="เบอร์โทรศัพท์" name="phone" value={form.phone} onChange={handleChange} placeholder="ระบุเบอร์ติดต่อ" />
-              <Field label="วันที่เข้าทำ (Plan Date)" name="plan_arrival_date" value={form.plan_arrival_date} onChange={handleChange} type="date" />
-              <Field label="เวลานัด (Plan Time)" name="plan_arrival_time" value={form.plan_arrival_time} onChange={handleChange} type="time" />
+              <AppDateField
+                label="วันที่เข้าทำ (Plan Date)"
+                value={form.plan_arrival_date}
+                onChange={(v) => setForm((prev) => ({ ...prev, plan_arrival_date: v }))}
+              />
+              <AppTimeField
+                label="เวลานัด (Plan Time)"
+                value={form.plan_arrival_time}
+                onChange={(v) => setForm((prev) => ({ ...prev, plan_arrival_time: v }))}
+              />
               
               <div className="col-span-1 md:col-span-2">
                 <label className="block text-sm font-bold text-[#042C53] mb-2">สถานที่ติดตั้ง/ที่อยู่</label>
@@ -201,47 +208,24 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess }) {
               </div>
 
               <div className="col-span-1 md:col-span-2 border-t border-white/30 pt-6 mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-[#042C53] mb-2">ทีมที่รับผิดชอบ</label>
-                  <div className="relative">
-                    <select 
-                      name="team_id" 
-                      value={form.team_id || ''} 
-                      onChange={handleTeamChange} 
-                      className="w-full px-4 py-3 border border-white/50 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500  hover:glass/50 focus:glass/50 transition-all outline-none appearance-none font-medium text-[#042C53]"
-                    >
-                      <option value="">-- ยังไม่ระบุทีม --</option>
-                      {teams.map(t => <option key={t.id} value={t.id}>{t.team_name}</option>)}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-[#378ADD] opacity-80">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-[#042C53] mb-2">ช่างติดตั้ง (เฉพาะช่างติดตั้ง)</label>
-                  <div className="relative">
-                    <select 
-                      name="field_engineer_id" 
-                      value={form.field_engineer_id} 
-                      onChange={handleTechChange} 
-                      className="w-full px-4 py-3 border border-white/50 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500  hover:glass/50 focus:glass/50 transition-all outline-none appearance-none font-medium text-[#042C53]"
-                    >
-                      <option value="">-- เลือกช่างติดตั้ง --</option>
-                      {users
-                        .filter(u => !form.team_id || String(u.team_id) === String(form.team_id))
-                        .map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-[#378ADD] opacity-80">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+                <AppSelectField
+                  label="ทีมที่รับผิดชอบ"
+                  value={String(form.team_id || '')}
+                  onChange={handleTeamChange}
+                  options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                  placeholder="ยังไม่ระบุทีม"
+                  searchable
+                />
+                <AppSelectField
+                  label="ช่างติดตั้ง (เฉพาะช่างติดตั้ง)"
+                  value={String(form.field_engineer_id || '')}
+                  onChange={handleTechChange}
+                  options={users
+                    .filter((u) => !form.team_id || String(u.team_id) === String(form.team_id))
+                    .map((u) => ({ value: String(u.id), label: u.full_name }))}
+                  placeholder="เลือกช่างติดตั้ง"
+                  searchable
+                />
               </div>
 
               <div className="col-span-1 md:col-span-2">

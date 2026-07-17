@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { AppDateField, AppTimeField, AppSelectField } from './DispatchFilterFields';
 
 export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = 'office' }) {
   const [formData, setFormData] = useState({
@@ -62,22 +63,18 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
     }
   };
 
-  const handleTeamChange = (e) => {
-    const newTeamId = e.target.value;
+  const handleTeamChange = (newTeamId) => {
     const updates = { team_id: newTeamId };
 
     if (newTeamId) {
-      // Find all technicians belonging to the selected team
       const teamTechs = techs.filter(t => String(t.team_id) === String(newTeamId));
       if (teamTechs.length > 0) {
-        // Pick one randomly
         const randomTech = teamTechs[Math.floor(Math.random() * teamTechs.length)];
         updates.field_engineer_id = randomTech.id;
       } else {
-        updates.field_engineer_id = ''; // Clear if no techs in team
+        updates.field_engineer_id = '';
       }
     } else {
-      // Clear both if team is deselected
       updates.field_engineer_id = '';
     }
 
@@ -124,16 +121,16 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">วันที่นัดหมาย</label>
-              <input type="date" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.plan_arrival_date} onChange={e => setFormData({...formData, plan_arrival_date: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">เวลานัดหมาย</label>
-              <input type="time" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.plan_arrival_time} onChange={e => setFormData({...formData, plan_arrival_time: e.target.value})} />
-            </div>
+            <AppDateField
+              label="วันที่นัดหมาย"
+              value={formData.plan_arrival_date}
+              onChange={(v) => setFormData({ ...formData, plan_arrival_date: v })}
+            />
+            <AppTimeField
+              label="เวลานัดหมาย"
+              value={formData.plan_arrival_time}
+              onChange={(v) => setFormData({ ...formData, plan_arrival_time: v })}
+            />
           </div>
           
           <div>
@@ -220,39 +217,31 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
           </button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">ทีมที่รับผิดชอบ</label>
-              <select className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.team_id} onChange={handleTeamChange}>
-                <option value="">-- ยังไม่ระบุทีม --</option>
-                {teams.map(t => (
-                  <option key={t.id} value={t.id}>{t.team_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">ช่างเทคนิค</label>
-              <select className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.field_engineer_id} onChange={(e) => {
-                  const techId = e.target.value;
-                  const updates = { field_engineer_id: techId };
-                  if (techId) {
-                    const selectedTech = techs.find(t => String(t.id) === String(techId));
-                    if (selectedTech && selectedTech.team_id) {
-                      updates.team_id = selectedTech.team_id;
-                    }
-                  }
-                  setFormData(prev => ({ ...prev, ...updates }));
-                }}>
-                <option value="">-- ยังไม่ระบุช่าง --</option>
-                {techs
-                  .filter(t => !formData.team_id || String(t.team_id) === String(formData.team_id))
-                  .map(t => (
-                  <option key={t.id} value={t.id}>{t.full_name}</option>
-                ))}
-              </select>
-            </div>
+            <AppSelectField
+              label="ทีมที่รับผิดชอบ"
+              value={String(formData.team_id || '')}
+              onChange={handleTeamChange}
+              options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+              placeholder="ยังไม่ระบุทีม"
+              searchable
+            />
+            <AppSelectField
+              label="ช่างเทคนิค"
+              value={String(formData.field_engineer_id || '')}
+              onChange={(techId) => {
+                const updates = { field_engineer_id: techId };
+                if (techId) {
+                  const selectedTech = techs.find((t) => String(t.id) === String(techId));
+                  if (selectedTech?.team_id) updates.team_id = selectedTech.team_id;
+                }
+                setFormData((prev) => ({ ...prev, ...updates }));
+              }}
+              options={techs
+                .filter((t) => !formData.team_id || String(t.team_id) === String(formData.team_id))
+                .map((t) => ({ value: String(t.id), label: t.full_name }))}
+              placeholder="ยังไม่ระบุช่าง"
+              searchable
+            />
           </div>
 
           <div className="mt-4 pt-4 border-t border-white/30 flex gap-3">

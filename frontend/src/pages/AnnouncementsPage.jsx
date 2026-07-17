@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import AOS from 'aos';
 import Swal from 'sweetalert2';
 import api from '../api/axios';
 import Layout from '../components/Layout';
+import { DateTimePicker } from '../components/DateTimePicker';
+import { AppSelectField } from '../components/DispatchFilterFields';
 
 export default function AnnouncementsPage() {
   const [announcements, setAnnouncements] = useState([]);
@@ -282,39 +285,41 @@ export default function AnnouncementsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[#185FA5] mb-1.5">ประเภทประกาศ</label>
-                  <select 
-                    value={formData.type}
-                    onChange={e => setFormData({...formData, type: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl border border-[#378ADD]/30 bg-white/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 text-[#042C53] font-medium appearance-none"
-                  >
-                    <option value="info">ข้อมูลทั่วไป (Info)</option>
-                    <option value="banner">แจ้งเตือนสำคัญ (Banner)</option>
-                    <option value="warning">คำเตือน (Warning)</option>
-                    <option value="gift">กิจกรรม/ของขวัญ (Gift)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[#185FA5] mb-1.5">สถานะ</label>
-                  <select 
-                    value={formData.status}
-                    onChange={e => setFormData({...formData, status: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl border border-[#378ADD]/30 bg-white/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 text-[#042C53] font-medium appearance-none"
-                  >
-                    <option value="active">เปิดใช้งาน</option>
-                    <option value="inactive">ปิดใช้งานชั่วคราว</option>
-                  </select>
-                </div>
+                <AppSelectField
+                  label="ประเภทประกาศ"
+                  value={formData.type}
+                  onChange={(v) => setFormData({ ...formData, type: v })}
+                  options={[
+                    { value: 'info', label: 'ข้อมูลทั่วไป (Info)' },
+                    { value: 'banner', label: 'แจ้งเตือนสำคัญ (Banner)' },
+                    { value: 'warning', label: 'คำเตือน (Warning)' },
+                    { value: 'gift', label: 'กิจกรรม/ของขวัญ (Gift)' },
+                  ]}
+                  placeholder="เลือกประเภท"
+                  allowClear={false}
+                />
+                <AppSelectField
+                  label="สถานะ"
+                  value={formData.status}
+                  onChange={(v) => setFormData({ ...formData, status: v })}
+                  options={[
+                    { value: 'active', label: 'เปิดใช้งาน' },
+                    { value: 'inactive', label: 'ปิดใช้งานชั่วคราว' },
+                  ]}
+                  placeholder="เลือกสถานะ"
+                  allowClear={false}
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-[#185FA5] mb-1.5">เวลาหมดอายุ (ไม่บังคับ)</label>
-                <input 
-                  type="datetime-local" 
-                  value={formData.expires_at}
-                  onChange={e => setFormData({...formData, expires_at: e.target.value})}
-                  className="w-full h-11 px-4 rounded-xl border border-[#378ADD]/30 bg-white/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#185FA5]/30 text-[#042C53] font-medium transition-all"
+                <DateTimePicker
+                  value={formData.expires_at ? new Date(formData.expires_at) : null}
+                  onChange={(d) => setFormData({
+                    ...formData,
+                    expires_at: d ? format(d, "yyyy-MM-dd'T'HH:mm") : '',
+                  })}
+                  placeholder="ไม่กำหนดหมดอายุ"
                 />
                 <p className="text-xs text-[#378ADD] mt-1">หากไม่กำหนด ประกาศจะแสดงตลอดไปจนกว่าจะปิดสถานะ</p>
               </div>

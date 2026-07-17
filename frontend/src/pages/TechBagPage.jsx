@@ -7,6 +7,7 @@ import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import ManualModal from '../components/ManualModal';
 import UseEquipmentModal from '../components/UseEquipmentModal';
+import { AppDateField } from '../components/DispatchFilterFields';
 
 export default function TechBagPage() {
   const { user } = useAuth();
@@ -416,25 +417,25 @@ export default function TechBagPage() {
                             <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">กรองวันที่รับเข้า</span>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 min-w-[180px]">
                               <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ตั้งแต่</label>
-                              <input
-                                type="date"
+                              <AppDateField
+                                label=""
                                 value={bagDateFrom}
-                                onChange={e => setBagDateFrom(e.target.value)}
-                                className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm text-[#374151] focus:ring-2 focus:ring-[#A3E635]/30 focus:border-[#A3E635] outline-none transition-all"
-                                style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                                onChange={setBagDateFrom}
+                                placeholder="ตั้งแต่"
+                                showToday={false}
                               />
                             </div>
                             <span className="text-[#9CA3AF] text-sm font-bold">–</span>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 min-w-[180px]">
                               <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ถึง</label>
-                              <input
-                                type="date"
+                              <AppDateField
+                                label=""
                                 value={bagDateTo}
-                                onChange={e => setBagDateTo(e.target.value)}
-                                className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-sm text-[#374151] focus:ring-2 focus:ring-[#A3E635]/30 focus:border-[#A3E635] outline-none transition-all"
-                                style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}
+                                onChange={setBagDateTo}
+                                placeholder="ถึง"
+                                showToday={false}
                               />
                             </div>
                             {(bagDateFrom || bagDateTo) && (

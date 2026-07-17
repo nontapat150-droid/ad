@@ -4,6 +4,21 @@ import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import { DateTimePicker } from './DateTimePicker';
 import { format } from 'date-fns';
+import { AppSelectField } from './DispatchFilterFields';
+
+const TECH_ROLE_LABELS = {
+  sales: 'เซล',
+  technician: 'ช่างติดตั้ง',
+  ma_technician: 'ช่าง MA',
+  office_technician: 'ช่างติดตั้ง',
+  contractor_office: 'รับเหมาติดตั้ง',
+  contractor_ma: 'รับเหมา MA',
+};
+
+function techOptionLabel(t) {
+  const roleText = TECH_ROLE_LABELS[t.role] || t.role || 'พนักงาน';
+  return `${t.full_name}${t.team_name ? ` (ทีม: ${t.team_name})` : ''} [${roleText}]`;
+}
 
 export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const { user } = useAuth();
@@ -54,15 +69,10 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const [fillerId, setFillerId] = useState('');
   const [isTripMileage, setIsTripMileage] = useState(false);
 
-  const handleTechChange = (e) => {
-    const tId = e.target.value;
+  const handleTechChange = (tId) => {
     const tech = techs.find(t => String(t.id) === String(tId));
     setSelectedTech(tech || null);
-    
-    setForm(prev => ({
-      ...prev,
-      tech_id: tId
-    }));
+    setForm(prev => ({ ...prev, tech_id: tId }));
   };
 
   useEffect(() => {
@@ -185,31 +195,16 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
         {/* User Info (Read-only for tech, Dropdown for Admin) */}
         {isAdmin ? (
           <div className="mb-6 p-5 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB]">
-            <label className="block text-sm font-bold text-[#1F2937] mb-2">เลือกช่างเทคนิค</label>
-            <div className="relative">
-              <select
-                value={form.tech_id}
-                onChange={handleTechChange}
-                className="w-full px-4 py-3 rounded-xl border border-[#E5E7EB] focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] font-medium bg-white appearance-none"
-                required
-              >
-                <option value="">-- กรุณาเลือกช่างเทคนิค --</option>
-                {techs.map(t => {
-                  const roleText = {
-                    sales: 'เซล', technician: 'ช่างติดตั้ง', ma_technician: 'ช่าง MA', office_technician: 'ช่างติดตั้ง',
-                    contractor_office: 'รับเหมาติดตั้ง', contractor_ma: 'รับเหมา MA'
-                  }[t.role] || t.role || 'พนักงาน';
-                  return (
-                    <option key={t.id} value={t.id}>
-                      {t.full_name} {t.team_name ? `(ทีม: ${t.team_name})` : ''} [{roleText}]
-                    </option>
-                  );
-                })}
-              </select>
-              <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-                <svg className="w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </div>
-            </div>
+            <AppSelectField
+              label="เลือกช่างเทคนิค"
+              value={String(form.tech_id || '')}
+              onChange={handleTechChange}
+              options={techs.map((t) => ({ value: String(t.id), label: techOptionLabel(t) }))}
+              placeholder="กรุณาเลือกช่างเทคนิค"
+              searchable
+              searchAlways
+              allowClear={false}
+            />
             {selectedTech && (
               <div className="mt-3 flex items-center gap-2">
                 <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -246,30 +241,16 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
                 {isFillOnBehalf && (
                   <div className="ml-8 mt-2">
-                    <label className="block text-xs font-bold text-[#1F2937] mb-1.5">เลือกผู้ไปเติมน้ำมันแทน</label>
-                    <div className="relative">
-                      <select
-                        value={fillerId}
-                        onChange={(e) => setFillerId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-[#E5E7EB] focus:border-[#A3E635] focus:ring-1 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] text-sm font-medium bg-white appearance-none"
-                        required={isFillOnBehalf}
-                      >
-                        <option value="">-- กรุณาเลือกผู้ไปเติมแทน --</option>
-                        {techs.map(t => {
-                          const roleText = {
-                            sales: 'เซล', technician: 'ช่างติดตั้ง', ma_technician: 'ช่าง MA', office_technician: 'ช่างติดตั้ง', contractor_office: 'รับเหมาติดตั้ง', contractor_ma: 'รับเหมา MA', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด'
-                          }[t.role] || t.role || 'พนักงาน';
-                          return (
-                            <option key={t.id} value={t.id}>
-                              {t.full_name} {t.team_name ? `(ทีม: ${t.team_name})` : ''} [{roleText}]
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                        <svg className="w-3.5 h-3.5 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      </div>
-                    </div>
+                    <AppSelectField
+                      label="เลือกผู้ไปเติมน้ำมันแทน"
+                      value={String(fillerId || '')}
+                      onChange={setFillerId}
+                      options={techs.map((t) => ({ value: String(t.id), label: techOptionLabel(t) }))}
+                      placeholder="กรุณาเลือกผู้ไปเติมแทน"
+                      searchable
+                      searchAlways
+                      allowClear={false}
+                    />
                   </div>
                 )}
               </div>

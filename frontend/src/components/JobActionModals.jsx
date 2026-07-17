@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
-import { FilterSelectField } from './DispatchFilterFields';
+import { FilterSelectField, AppDateField, AppTimeField } from './DispatchFilterFields';
 
 const BAG_DEVICE_SLOTS = [
   { role: 'SOA', label: 'อุปกรณ์ปิด SOA', dashOption: false },
@@ -466,9 +466,14 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
               <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">ข้อมูลพื้นฐาน</h3>
               <div>
-                <label className="block text-xs font-semibold text-[#042C53] mb-1">วันที่ติดตั้ง (ห้ามย้อนหลัง)</label>
-                <input type="date" required min={new Date().toLocaleDateString('en-CA')} value={installDate} onChange={(e) => setInstallDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl glass border border-white/60 focus:border-[#378ADD] outline-none text-[#042C53] bg-white/50 text-sm" />
+                <AppDateField
+                  label="วันที่ติดตั้ง (ห้ามย้อนหลัง)"
+                  value={installDate}
+                  onChange={setInstallDate}
+                  min={new Date().toLocaleDateString('en-CA')}
+                  allowClear={false}
+                  showToday
+                />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-[#042C53] mb-1">ปิดเคสงาน (NON)</label>
@@ -622,16 +627,13 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               {/* Backdate date picker — shown only for 'backdate' */}
               {entryFeeStatus === 'backdate' && (
                 <div className="animate-fade-in-up mt-3 p-3 bg-purple-50/80 rounded-xl border border-purple-200">
-                  <label className="block text-xs font-semibold text-purple-800 mb-2 flex items-center gap-2">
-                    <span>📅</span> เลือกวันที่ย้อนหลัง <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="date" 
-                    value={entryFeeBackdate} 
-                    onChange={(e) => setEntryFeeBackdate(e.target.value)}
+                  <AppDateField
+                    label="เลือกวันที่ย้อนหลัง"
+                    value={entryFeeBackdate}
+                    onChange={setEntryFeeBackdate}
                     max={new Date().toLocaleDateString('en-CA')}
-                    className="w-full px-3 py-2 rounded-xl border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-white text-sm"
-                    required
+                    allowClear={false}
+                    showToday={false}
                   />
                   <p className="text-[10px] text-purple-500 mt-1.5 font-medium">⚠️ รายการนี้จะแสดงเป็น "ย้อนหลัง" ในประวัติ</p>
                 </div>
@@ -839,14 +841,19 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess }) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-sm font-semibold text-purple-900 mb-1">วันที่ต้องการเลื่อนนัด</label>
-              <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} required
-                className="w-full px-4 py-2.5 rounded-xl glass border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-purple-50" />
+              <AppDateField
+                label="วันที่ต้องการเลื่อนนัด"
+                value={newDate}
+                onChange={setNewDate}
+                allowClear={false}
+              />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-semibold text-purple-900 mb-1">เวลา (ไม่บังคับ)</label>
-              <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl glass border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-[#042C53] bg-purple-50" />
+              <AppTimeField
+                label="เวลา (ไม่บังคับ)"
+                value={newTime}
+                onChange={setNewTime}
+              />
             </div>
           </div>
           <div>

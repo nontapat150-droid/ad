@@ -17,7 +17,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FilterDateField, FilterSelectField } from '../components/DispatchFilterFields';
+import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
@@ -941,10 +941,16 @@ export default function DispatchDashboardPage() {
           {selectedJobIds.length > 0 && (
             <div className="shrink-0 px-4 py-3 bg-[#1F2937] flex flex-wrap items-center gap-3" style={{ borderTop: '1px solid rgba(163,230,53,0.2)' }}>
               <span className="font-bold text-sm text-white">เลือก <span className="text-[#A3E635] font-black">{selectedJobIds.length}</span> งาน</span>
-              <select value={bulkAssignTeam} onChange={e => setBulkAssignTeam(e.target.value)} className="flex-1 min-w-[140px] px-3 py-2 text-sm font-semibold rounded-xl bg-white text-[#1F2937] outline-none">
-                <option value="">-- เลือกทีม --</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.team_name}</option>)}
-              </select>
+              <div className="flex-1 min-w-[180px]">
+                <AppSelectField
+                  label=""
+                  value={bulkAssignTeam}
+                  onChange={setBulkAssignTeam}
+                  options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                  placeholder="เลือกทีม"
+                  searchable
+                />
+              </div>
               <button onClick={handleBulkAssign} className="px-4 py-2 text-sm font-bold bg-[#A3E635] text-[#1F2937] hover:bg-[#84cc16] rounded-xl transition-colors">✅ มอบหมาย</button>
               <button onClick={() => setSelectedJobIds([])} className="px-4 py-2 text-sm font-semibold text-white/60 hover:text-white rounded-xl transition-colors">ยกเลิก</button>
               <button onClick={handleDeleteBulk} className="px-4 py-2 text-sm font-bold bg-red-500 hover:bg-red-600 text-white rounded-xl transition-colors">🗑️ ลบ</button>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { getImageUrl } from '../utils/imageUtils';
+import { AppDateField, AppSelectField } from './DispatchFilterFields';
 
 export default function EntryFeeEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -125,41 +126,51 @@ export default function EntryFeeEditModal({ record, onClose, onSuccess }) {
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">ชื่อลูกค้า *</label>
                 <input type="text" name="customer_name" value={formData.customer_name} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50" />
               </div>
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1.5">ผู้ให้บริการ *</label>
-                <select name="network_provider" value={formData.network_provider} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50">
-                  <option value="AIS">AIS</option>
-                  <option value="3BB">3BB</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1.5">ประเภทค่าแรกเข้า *</label>
-                <select name="fee_type" value={formData.fee_type} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50">
-                  <option value="slip">โอนเงิน (สลิป)</option>
-                  <option value="cash">เงินสดหน้างาน</option>
-                  <option value="backdate">ย้อนหลัง</option>
-                </select>
-              </div>
-              
+              <AppSelectField
+                label="ผู้ให้บริการ"
+                value={formData.network_provider}
+                onChange={(v) => setFormData({ ...formData, network_provider: v })}
+                options={[{ value: 'AIS', label: 'AIS' }, { value: '3BB', label: '3BB' }]}
+                placeholder="เลือกผู้ให้บริการ"
+                allowClear={false}
+              />
+              <AppSelectField
+                label="ประเภทค่าแรกเข้า"
+                value={formData.fee_type}
+                onChange={(v) => setFormData({ ...formData, fee_type: v })}
+                options={[
+                  { value: 'slip', label: 'โอนเงิน (สลิป)' },
+                  { value: 'cash', label: 'เงินสดหน้างาน' },
+                  { value: 'backdate', label: 'ย้อนหลัง' },
+                ]}
+                placeholder="เลือกประเภท"
+                allowClear={false}
+              />
+
               {formData.fee_type === 'backdate' && (
-                <div>
-                  <label className="block text-sm font-bold text-[#042C53] mb-1.5">วันที่ย้อนหลัง *</label>
-                  <input type="date" name="backdate" value={formData.backdate} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50" />
-                </div>
+                <AppDateField
+                  label="วันที่ย้อนหลัง"
+                  value={formData.backdate}
+                  onChange={(v) => setFormData({ ...formData, backdate: v })}
+                  allowClear={false}
+                  showToday={false}
+                />
               )}
 
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1.5">ผู้บันทึก</label>
-                <select name="target_user_id" value={formData.target_user_id} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50">
-                  <option value="">-- ไม่แก้ไข --</option>
-                  {usersList.map(u => <option key={u.id} value={u.id}>{u.full_name || u.username}</option>)}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1.5">วันที่บันทึก (แก้ไข)</label>
-                <input type="date" name="admin_date" value={formData.admin_date} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500/30 outline-none text-sm font-bold bg-slate-50" />
-              </div>
+              <AppSelectField
+                label="ผู้บันทึก"
+                value={String(formData.target_user_id || '')}
+                onChange={(v) => setFormData({ ...formData, target_user_id: v })}
+                options={usersList.map((u) => ({ value: String(u.id), label: u.full_name || u.username }))}
+                placeholder="ไม่แก้ไข"
+                searchable
+              />
+
+              <AppDateField
+                label="วันที่บันทึก (แก้ไข)"
+                value={formData.admin_date}
+                onChange={(v) => setFormData({ ...formData, admin_date: v })}
+              />
             </div>
 
             {(formData.fee_type === 'slip' || formData.fee_type === 'backdate') && (

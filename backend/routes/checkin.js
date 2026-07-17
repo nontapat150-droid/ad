@@ -5,6 +5,132 @@ const { upload, setUpload } = require('../middleware/upload');
 
 const router = express.Router();
 
+async function ensureLeaveTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS leave_records (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      leave_date DATE NOT NULL,
+      reason TEXT,
+      image_path VARCHAR(255) DEFAULT NULL,
+      leave_type VARCHAR(50) DEFAULT 'general',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_user_leave_date (user_id, leave_date),
+      INDEX idx_leave_date (leave_date),
+      CONSTRAINT fk_leave_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+}
+
+// ── POST /api/checkin/leave — Request leave ─────────────────
+router.post(
+  '/leave',
+  auth,
+  setUpload('leaves'),
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      await ensureLeaveTable();
+
+      const userId = req.user.id;
+      const { leave_date, reason, leave_type } = req.body;
+      const today = new Date().toISOString().slice(0, 10);
+
+      if (!leave_date) {
+        return res.status(400).json({ error: 'กรุณาเลือกวันที่ลา' });
+      }
+      if (leave_date < today) {
+        return res.status(400).json({ error: 'ไม่สามารถลาย้อนหลังได้' });
+      }
+
+      const reasonText = (reason || '').trim();
+      const imagePath = req.file ? req.file.filename : null;
+      if (!reasonText && !imagePath) {
+        return res.status(400).json({ error: 'กรุณาระบุสาเหตุหรือแนบรูปภาพ' });
+      }
+
+      const [existingCheckin] = await pool.query(
+        `SELECT id FROM checkins WHERE user_id = ? AND DATE(checkin_time) = ? LIMIT 1`,
+        [userId, leave_date]
+      );
+      if (existingCheckin.length > 0) {
+        return res.status(409).json({ error: 'วันนี้มีการเช็คอินแล้ว ไม่สามารถลาได้' });
+      }
+
+      const [existingLeave] = await pool.query(
+        `SELECT id FROM leave_records WHERE user_id = ? AND leave_date = ? LIMIT 1`,
+        [userId, leave_date]
+      );
+      if (existingLeave.length > 0) {
+        return res.status(409).json({ error: 'คุณได้แจ้งลาในวันนี้แล้ว' });
+      }
+
+      const [result] = await pool.query(
+        `INSERT INTO leave_records (user_id, leave_date, reason, image_path, leave_type)
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, leave_date, reasonText || null, imagePath, leave_type || 'general']
+      );
+
+      res.status(201).json({ message: 'บันทึกการลาสำเร็จ', id: result.insertId });
+    } catch (err) {
+      console.error('Leave request error:', err);
+      res.status(500).json({ error: 'Server error: ' + err.message });
+    }
+  }
+);
+
+// ── GET /api/checkin/leaves — Leave history ─────────────────
+router.get('/leaves', auth, async (req, res) => {
+  try {
+    await ensureLeaveTable();
+
+    const limit = Math.min(parseInt(req.query.limit) || 30, 90);
+    const filterUserId = req.query.userId;
+    const userRoles = req.user.roles || [req.user.role];
+    const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
+
+    if (isAdmin) {
+      if (filterUserId === 'ALL' || !filterUserId) {
+        const [rows] = await pool.query(
+          `SELECT l.id, l.leave_date, l.reason, l.image_path, l.leave_type, l.created_at,
+                  u.full_name, u.username, u.role
+           FROM leave_records l
+           JOIN users u ON l.user_id = u.id
+           ORDER BY l.leave_date DESC, l.created_at DESC
+           LIMIT ?`,
+          [limit]
+        );
+        return res.json(rows);
+      }
+      const targetId = filterUserId === 'ME' ? req.user.id : filterUserId;
+      const [rows] = await pool.query(
+        `SELECT l.id, l.leave_date, l.reason, l.image_path, l.leave_type, l.created_at,
+                u.full_name, u.username, u.role
+         FROM leave_records l
+         JOIN users u ON l.user_id = u.id
+         WHERE l.user_id = ?
+         ORDER BY l.leave_date DESC, l.created_at DESC
+         LIMIT ?`,
+        [targetId, limit]
+      );
+      return res.json(rows);
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, leave_date, reason, image_path, leave_type, created_at
+       FROM leave_records
+       WHERE user_id = ?
+       ORDER BY leave_date DESC, created_at DESC
+       LIMIT ?`,
+      [req.user.id, limit]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Leave history error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── POST /api/checkin — Check in with selfie ───────────────
 router.post(
   '/',
@@ -16,6 +142,16 @@ router.post(
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     try {
+      // Prevent check-in if leave recorded for today
+      await ensureLeaveTable();
+      const [leaveToday] = await pool.query(
+        `SELECT id FROM leave_records WHERE user_id = ? AND leave_date = ? LIMIT 1`,
+        [userId, today]
+      );
+      if (leaveToday.length > 0) {
+        return res.status(409).json({ error: 'วันนี้คุณได้แจ้งลาแล้ว ไม่สามารถเช็คอินได้' });
+      }
+
       // Prevent double check-in on same day
       const [existing] = await pool.query(
         `SELECT id FROM checkins WHERE user_id = ? AND DATE(checkin_time) = ? LIMIT 1`,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import ManualCheckinModal from '../components/ManualCheckinModal';
+import LeaveRequestModal from '../components/LeaveRequestModal';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { DateTimePicker } from '../components/DateTimePicker';
@@ -70,9 +71,11 @@ export default function CheckinPage() {
   const [adminEditRecord, setAdminEditRecord] = useState(null); // admin editing time fields
   const [adminEditPhotoRecord, setAdminEditPhotoRecord] = useState(null); // admin editing photo
   const [showManualCheckin, setShowManualCheckin] = useState(false); // admin adding past checkin
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   // History state
   const [history, setHistory] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [historyTab, setHistoryTab] = useState('checkin');
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [stats, setStats] = useState({ late: 0, ontime: 0 });
@@ -83,8 +86,14 @@ export default function CheckinPage() {
   const fetchHistory = useCallback(() => {
     setLoadingHistory(true);
     const q = isAdmin ? `?limit=50&userId=${filterUserId}` : `?limit=30`;
-    api.get(`/checkin/history${q}`)
-      .then(res => setHistory(res.data))
+    Promise.all([
+      api.get(`/checkin/history${q}`),
+      api.get(`/checkin/leaves${q}`),
+    ])
+      .then(([histRes, leaveRes]) => {
+        setHistory(histRes.data);
+        setLeaves(leaveRes.data);
+      })
       .catch(console.error)
       .finally(() => setLoadingHistory(false));
     const sq = isAdmin ? `?userId=${filterUserId}` : '';
@@ -432,6 +441,24 @@ export default function CheckinPage() {
   const showRoleAlert = alreadyCheckedInToday && checkedInRole && checkedInRole !== checkinType && !isAdmin;
   const roleNameMap = { general: 'ช่างติดตั้ง', ma: 'ทีม MA', sales: 'เซลส์' };
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const myTodayLeave = leaves.find(l => {
+    const d = (l.leave_date || '').slice(0, 10);
+    if (d !== todayStr) return false;
+    if (l.user_id != null) return Number(l.user_id) === Number(user?.id);
+    return true;
+  });
+  const showLeaveAlert = !!myTodayLeave && !isEditMode && !adminEditPhotoRecord;
+
+  const getLeaveImgUrl = (filename) => {
+    if (!filename || filename === 'null') return null;
+    let cleanName = filename;
+    if (cleanName.includes('/')) cleanName = cleanName.split('/').pop();
+    if (cleanName.includes('\\')) cleanName = cleanName.split('\\').pop();
+    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '/api';
+    return `${baseUrl}/uploads/leaves/${cleanName}`;
+  };
+
   return (
     <Layout activeKey="checkin" pageTitle="บันทึกเวลาเข้า-ออกงาน">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-12">
@@ -470,6 +497,17 @@ export default function CheckinPage() {
             </div>
           )}
 
+          {/* Leave request button */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowLeaveModal(true)}
+              className="text-sm font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-5 py-2.5 rounded-2xl shadow-sm transition-all active:scale-95 flex items-center gap-2"
+            >
+              📝 แจ้งลางาน
+            </button>
+          </div>
+
           {/* MA threshold notice */}
           {checkinType === 'ma' && (
             <div className={`p-4 rounded-2xl border flex gap-3 items-start shadow-sm ${
@@ -507,7 +545,22 @@ export default function CheckinPage() {
             </div>
 
             <div className="p-6">
-              {showRoleAlert ? (
+              {showLeaveAlert ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center bg-orange-50 rounded-3xl border border-orange-200">
+                  <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-3xl mb-4">
+                    🏖️
+                  </div>
+                  <h3 className="text-xl font-bold text-orange-900 mb-2">
+                    วันนี้คุณได้แจ้งลาแล้ว
+                  </h3>
+                  <p className="text-orange-800 mb-2 text-sm">
+                    {myTodayLeave?.reason || 'ไม่ได้ระบุสาเหตุ'}
+                  </p>
+                  <p className="text-orange-700/80 text-xs">
+                    ไม่สามารถเช็คอินหรือเช็คเอาท์ในวันที่ลาได้
+                  </p>
+                </div>
+              ) : showRoleAlert ? (
                 <div className="flex flex-col items-center justify-center p-10 text-center bg-slate-50 rounded-3xl border border-slate-200">
                   <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-4">
                     ℹ️
@@ -734,10 +787,14 @@ export default function CheckinPage() {
             {/* Tabs */}
             <div className="px-5 pt-4 shrink-0">
               <div className="flex p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl relative shadow-inner">
-                <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white border border-[#E5E7EB] rounded-xl shadow-sm transition-all duration-300 ease-out ${historyTab === 'checkout' ? 'left-[50%]' : 'left-1'}`} />
+                <div
+                  className="absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-white border border-[#E5E7EB] rounded-xl shadow-sm transition-all duration-300 ease-out"
+                  style={{ left: historyTab === 'checkout' ? 'calc(33.333% + 2px)' : historyTab === 'leave' ? 'calc(66.666% + 2px)' : '4px' }}
+                />
                 {[
                   { id: 'checkin', label: '📍 เข้างาน', col: 'text-[#1F2937]' },
                   { id: 'checkout', label: '🏁 เลิกงาน', col: 'text-[#1F2937]' },
+                  { id: 'leave', label: '📝 ลางาน', col: 'text-orange-600' },
                 ].map(tab => (
                   <button key={tab.id}
                     onClick={() => setHistoryTab(tab.id)}
@@ -752,6 +809,48 @@ export default function CheckinPage() {
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-0">
               {loadingHistory ? (
                 [...Array(4)].map((_, i) => <div key={i} className="skeleton h-16 rounded-2xl" />)
+              ) : historyTab === 'leave' ? (
+                leaves.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center text-2xl mb-3">📝</div>
+                    <p className="text-slate-500 text-sm font-medium">ยังไม่มีประวัติการลา</p>
+                  </div>
+                ) : (
+                  leaves.map(record => {
+                    const leaveImg = getLeaveImgUrl(record.image_path);
+                    const leaveDate = (record.leave_date || '').slice(0, 10);
+                    return (
+                      <div key={`leave-${record.id}`}
+                        className="p-4 rounded-2xl border border-orange-100 bg-orange-50/30 hover:border-orange-300 hover:shadow-md transition-all flex items-center gap-4 group">
+                        {leaveImg ? (
+                          <button
+                            onClick={() => setViewerPhoto({ url: leaveImg, name: record.full_name || user?.full_name, time: record.created_at })}
+                            className="w-14 h-14 rounded-xl overflow-hidden border-2 border-orange-200 shrink-0 shadow-sm group-hover:border-orange-400 transition-all relative">
+                            <img src={leaveImg} onError={handleImageFallback} alt="leave proof" className="w-full h-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 bg-orange-100 border border-orange-200">
+                            🏖️
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          {isAdmin && record.full_name && (
+                            <p className="font-bold text-[#4B5563] text-xs truncate mb-1">{record.full_name}</p>
+                          )}
+                          <p className="font-black text-[#1F2937] text-base leading-none">
+                            {fmtDateFull(leaveDate)}
+                          </p>
+                          {record.reason && (
+                            <p className="text-xs text-[#6B7280] mt-1.5 line-clamp-2">{record.reason}</p>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[10px] text-orange-700 font-bold bg-orange-100 border border-orange-200 px-2 py-0.5 rounded-lg mt-1.5">
+                            ลางาน
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
               ) : history.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full py-12 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl mb-3">🕒</div>
@@ -1014,6 +1113,13 @@ export default function CheckinPage() {
           onSuccess={() => { setShowManualCheckin(false); fetchHistory(); }}
         />
       )}
+
+      <LeaveRequestModal
+        isOpen={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        onSuccess={fetchHistory}
+        leaveType={checkinType}
+      />
     </Layout>
   );
 }

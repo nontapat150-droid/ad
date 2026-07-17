@@ -12,6 +12,7 @@ import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import EntryFeeEditModal from '../components/EntryFeeEditModal';
 import { getImageUrl } from '../utils/imageUtils';
+import { AppSelectField } from '../components/DispatchFilterFields';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -711,18 +712,16 @@ export default function EntryFeePage() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
                     {/* Filter by creator */}
                     {isAdmin && (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto min-w-[200px]">
                         <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ผู้บันทึก</label>
-                        <select
+                        <AppSelectField
+                          label=""
                           value={filterCreatedBy}
-                          onChange={(e) => setFilterCreatedBy(e.target.value)}
-                          className="w-full sm:w-auto px-3 py-2 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl outline-none text-[#1F2937] font-bold text-sm hover:border-[#A3E635] transition-all min-w-[140px]"
-                        >
-                          <option value="">ทั้งหมด</option>
-                          {usersList.map(u => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))}
-                        </select>
+                          onChange={setFilterCreatedBy}
+                          options={usersList.map((u) => ({ value: String(u.id), label: u.name }))}
+                          placeholder="ทั้งหมด"
+                          searchable
+                        />
                       </div>
                     )}
                     {/* Month picker */}

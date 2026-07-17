@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
 import CategoryManagementModal from '../components/CategoryManagementModal';
+import { AppSelectField } from '../components/DispatchFilterFields';
 
 export default function InventoryStockPage() {
   const [loading, setLoading] = useState(false);
@@ -773,20 +774,15 @@ export default function InventoryStockPage() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
             </button>
 
-            <div className="relative">
-            <select
+            <div className="relative min-w-[160px]">
+            <AppSelectField
+              label=""
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full sm:w-40 px-4 py-2.5 border border-[#E5E7EB] rounded-xl focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 outline-none text-[#1F2937] text-sm font-bold bg-white transition-all shadow-sm appearance-none"
-            >
-              <option value="">ทุกหมวดหมู่</option>
-              {categories.map(cat => (
-                <option key={cat.name} value={cat.name}>{cat.name}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#9CA3AF]">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
+              onChange={setSelectedCategory}
+              options={categories.map((cat) => ({ value: cat.name, label: cat.name }))}
+              placeholder="ทุกหมวดหมู่"
+              searchable
+            />
           </div>
           
           <div className="relative flex-1 sm:w-64">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { AppSelectField } from './DispatchFilterFields';
 
 export default function InboxModal({ open, onClose, onReadMessage }) {
   const [activeTab, setActiveTab] = useState('inbox'); // 'inbox' | 'sent' | 'compose'
@@ -266,20 +267,15 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
           {activeTab === 'compose' && (
             <form onSubmit={handleSendMessage} className="flex flex-col h-full">
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-[#042C53] mb-2">ส่งถึงใคร?</label>
-                <select 
-                  className="w-full px-4 py-3 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] transition-all bg-white/50"
+                <AppSelectField
+                  label="ส่งถึงใคร?"
                   value={receiverId}
-                  onChange={(e) => setReceiverId(e.target.value)}
-                  required
-                >
-                  <option value="">-- เลือกผู้รับ --</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name} ({u.role})
-                    </option>
-                  ))}
-                </select>
+                  onChange={setReceiverId}
+                  options={users.map((u) => ({ value: String(u.id), label: `${u.full_name} (${u.role})` }))}
+                  placeholder="เลือกผู้รับ"
+                  searchable
+                  allowClear={false}
+                />
               </div>
 
               <div className="mb-4 flex-1 flex flex-col">

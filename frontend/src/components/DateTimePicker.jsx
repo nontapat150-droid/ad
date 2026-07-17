@@ -5,6 +5,7 @@ import { Calendar as CalendarIcon, Clock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Button } from "./ui/button";
 import { Calendar } from "./ui/calendar";
+import { TimePickerColumns } from "./DispatchFilterFields";
 import { cn } from "../lib/utils";
 
 export function DateTimePicker({ value, onChange, placeholder = "เลือกวันและเวลา", className }) {
@@ -92,35 +93,16 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
             locale={th}
           />
           <div className="p-4 border-t border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-[#4B5563]">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#4B5563] mb-2">
               <Clock className="w-4 h-4 text-[#A3E635]" />
               ระบุเวลา
             </div>
-            <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-[#E5E7EB] shadow-sm">
-              <select
-                value={hour}
-                onChange={(e) => handleTimeChange('hour', e.target.value)}
-                className="p-1.5 rounded-lg text-sm font-bold text-[#1F2937] outline-none hover:bg-[#F3F4F6] focus:ring-2 focus:ring-[#A3E635]/50 bg-transparent cursor-pointer appearance-none text-center min-w-[40px]"
-              >
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <option key={i} value={i.toString().padStart(2, '0')}>
-                    {i.toString().padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
-              <span className="text-[#9CA3AF] font-bold">:</span>
-              <select
-                value={minute}
-                onChange={(e) => handleTimeChange('minute', e.target.value)}
-                className="p-1.5 rounded-lg text-sm font-bold text-[#1F2937] outline-none hover:bg-[#F3F4F6] focus:ring-2 focus:ring-[#A3E635]/50 bg-transparent cursor-pointer appearance-none text-center min-w-[40px]"
-              >
-                {Array.from({ length: 60 }).map((_, i) => (
-                  <option key={i} value={i.toString().padStart(2, '0')}>
-                    {i.toString().padStart(2, '0')}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <TimePickerColumns
+              hour={hour}
+              minute={minute}
+              onHourChange={(val) => handleTimeChange('hour', val)}
+              onMinuteChange={(val) => handleTimeChange('minute', val)}
+            />
           </div>
         </div>
       </PopoverContent>

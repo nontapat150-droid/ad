@@ -1,4 +1,11 @@
 <?php
+// Restrict restart to requests with RESTART_SECRET (set in hosting env or .htaccess SetEnv)
+$secret = getenv('RESTART_SECRET') ?: '';
+if ($secret === '' || ($_GET['token'] ?? '') !== $secret) {
+    http_response_code(403);
+    exit('Forbidden');
+}
+
 echo "<h1>Restarting Node.js App...</h1>";
 
 // Try to touch restart.txt in the backend folder

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from '../api/axios';
 import * as XLSX from 'xlsx';
+import { AppSelectField } from './DispatchFilterFields';
 
 // ─── Field definitions for the system ─────────────────────────────────────────
 const SYSTEM_FIELDS = [
@@ -626,19 +627,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
                 {/* Arrow */}
                 <div className={`text-base ${currentVal !== IGNORE_KEY ? 'text-[#65a30d]' : 'text-[#D1D5DB]'}`}>→</div>
                 {/* System field selector */}
-                <select
+                <AppSelectField
+                  label=""
                   value={currentVal}
-                  onChange={e => handleMappingChange(idx, e.target.value)}
-                  className={`w-full px-2 py-1.5 text-xs rounded-lg border outline-none transition-colors ${
-                    currentVal !== IGNORE_KEY
-                      ? 'border-[#A3E635] bg-[#A3E635]/5 text-[#374151] font-semibold'
-                      : 'border-[#E5E7EB] text-[#9CA3AF]'
-                  }`}
-                >
-                  {fieldOptions.map(opt => (
-                    <option key={opt.key} value={opt.key}>{opt.label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => handleMappingChange(idx, v)}
+                  options={fieldOptions.map((opt) => ({ value: opt.key, label: opt.label }))}
+                  placeholder="ไม่นำเข้า"
+                  allowClear={false}
+                />
               </div>
             );
           })}

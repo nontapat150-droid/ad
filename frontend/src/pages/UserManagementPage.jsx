@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Sidebar from '../components/Sidebar';
@@ -7,6 +7,18 @@ import Swal from 'sweetalert2';
 import TeamManagementModal from '../components/TeamManagementModal';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
+import { AppSelectField, AppTimeField } from '../components/DispatchFilterFields';
+
+function TimeFieldWithSeconds({ value, onChange, placeholder }) {
+  return (
+    <AppTimeField
+      label=""
+      value={value ? value.substring(0, 5) : ''}
+      onChange={(v) => onChange(v ? `${v}:00` : '')}
+      placeholder={placeholder}
+    />
+  );
+}
 
 export default function UserManagementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -281,19 +293,19 @@ export default function UserManagementPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
                     <label className="block text-sm font-bold text-[#1F2937] mb-3">ทั่วไป (Global)</label>
-                    <ShadcnTimePicker value={lateTimes['late_time']} onChange={(v) => setLateTimes({...lateTimes, 'late_time': v})} placeholder="--:--" />
+                    <TimeFieldWithSeconds value={lateTimes['late_time']} onChange={(v) => setLateTimes({...lateTimes, 'late_time': v})} placeholder="--:--" />
                   </div>
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
                     <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่างติดตั้ง</label>
-                    <ShadcnTimePicker value={lateTimes['late_time_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_technician': v})} placeholder="--:--" />
+                    <TimeFieldWithSeconds value={lateTimes['late_time_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_technician': v})} placeholder="--:--" />
                   </div>
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
                     <label className="block text-sm font-bold text-[#1F2937] mb-3">ช่าง MA</label>
-                    <ShadcnTimePicker value={lateTimes['late_time_ma_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_ma_technician': v})} placeholder="--:--" />
+                    <TimeFieldWithSeconds value={lateTimes['late_time_ma_technician']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_ma_technician': v})} placeholder="--:--" />
                   </div>
                   <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
                     <label className="block text-sm font-bold text-[#1F2937] mb-3">เซล (Sales)</label>
-                    <ShadcnTimePicker value={lateTimes['late_time_sales']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_sales': v})} placeholder="--:--" />
+                    <TimeFieldWithSeconds value={lateTimes['late_time_sales']} onChange={(v) => setLateTimes({...lateTimes, 'late_time_sales': v})} placeholder="--:--" />
                   </div>
                 </div>
                 
@@ -425,26 +437,34 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-bold text-[#1F2937] mb-2">บทบาทหลัก (Role)</label>
-              <select name="role" value={form.role} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
-                <option value="technician">ช่างติดตั้ง</option>
-                <option value="ma_technician">ช่าง MA</option>
-                <option value="contractor_office">รับเหมาติดตั้ง</option>
-                <option value="contractor_ma">รับเหมา MA</option>
-                <option value="admin">แอดมิน</option>
-                <option value="super_admin">ผู้ดูแลระบบสูงสุด</option>
-                <option value="sales">เซล</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-[#1F2937] mb-2">สถานะ</label>
-              <select name="status" value={form.status} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
-                <option value="approved">ใช้งานปกติ</option>
-                <option value="pending">รออนุมัติ</option>
-                <option value="rejected">ระงับการใช้งาน</option>
-              </select>
-            </div>
+            <AppSelectField
+              label="บทบาทหลัก (Role)"
+              value={form.role}
+              onChange={(v) => setForm((prev) => ({ ...prev, role: v }))}
+              options={[
+                { value: 'technician', label: 'ช่างติดตั้ง' },
+                { value: 'ma_technician', label: 'ช่าง MA' },
+                { value: 'contractor_office', label: 'รับเหมาติดตั้ง' },
+                { value: 'contractor_ma', label: 'รับเหมา MA' },
+                { value: 'admin', label: 'แอดมิน' },
+                { value: 'super_admin', label: 'ผู้ดูแลระบบสูงสุด' },
+                { value: 'sales', label: 'เซล' },
+              ]}
+              placeholder="เลือกบทบาท"
+              allowClear={false}
+            />
+            <AppSelectField
+              label="สถานะ"
+              value={form.status}
+              onChange={(v) => setForm((prev) => ({ ...prev, status: v }))}
+              options={[
+                { value: 'approved', label: 'ใช้งานปกติ' },
+                { value: 'pending', label: 'รออนุมัติ' },
+                { value: 'rejected', label: 'ระงับการใช้งาน' },
+              ]}
+              placeholder="เลือกสถานะ"
+              allowClear={false}
+            />
           </div>
 
           <div className="bg-[#F9FAFB] p-5 rounded-2xl border border-[#E5E7EB]">
@@ -502,18 +522,17 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-bold text-[#1F2937] mb-2">ทีมสังกัด</label>
-              <select name="team_id" value={form.team_id || ''} onChange={handleChange} className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 font-bold text-[#1F2937] bg-[#F9FAFB] hover:bg-white appearance-none">
-                <option value="">-- ไม่ระบุทีม --</option>
-                {teams.map(t => (
-                  <option key={t.id} value={t.id}>{t.team_name}</option>
-                ))}
-              </select>
-            </div>
+            <AppSelectField
+              label="ทีมสังกัด"
+              value={String(form.team_id || '')}
+              onChange={(v) => setForm((prev) => ({ ...prev, team_id: v }))}
+              options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+              placeholder="ไม่ระบุทีม"
+              searchable
+            />
             <div className="relative z-40">
               <label className="block text-sm font-bold text-[#1F2937] mb-2">เวลาเข้างาน (เฉพาะบุคคล)</label>
-              <ShadcnTimePicker value={form.allow_late_time} onChange={(v) => handleChange({ target: { name: 'allow_late_time', value: v }})} placeholder="ไม่ตั้งค่า (ใช้ตามบทบาท)" />
+              <TimeFieldWithSeconds value={form.allow_late_time} onChange={(v) => handleChange({ target: { name: 'allow_late_time', value: v } })} placeholder="ไม่ตั้งค่า (ใช้ตามบทบาท)" />
             </div>
           </div>
 
@@ -545,118 +564,6 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
           </div>
         </form>
       </div>
-    </div>
-  );
-}
-
-function ShadcnTimePicker({ value, onChange, placeholder = "เลือกเวลา" }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [hour, setHour] = useState('08');
-  const [minute, setMinute] = useState('30');
-  
-  const hourRef = useRef(null);
-  const minRef = useRef(null);
-
-  useEffect(() => {
-    if (value) {
-      setHour(value.split(':')[0]);
-      setMinute(value.split(':')[1]);
-    }
-  }, [value]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        const hEl = document.getElementById(`hour-${hour}`);
-        const mEl = document.getElementById(`min-${minute}`);
-        if (hEl && hourRef.current) hourRef.current.scrollTop = hEl.offsetTop - hourRef.current.offsetTop - 60;
-        if (mEl && minRef.current) minRef.current.scrollTop = mEl.offsetTop - minRef.current.offsetTop - 60;
-      }, 50);
-    }
-  }, [isOpen, hour, minute]);
-
-  const handleSave = () => {
-    onChange(`${hour}:${minute}:00`);
-    setIsOpen(false);
-  };
-
-  const handleClear = (e) => {
-    e.stopPropagation();
-    onChange('');
-    setIsOpen(false);
-  };
-
-  return (
-    <div className="relative w-full">
-      <style>{`.hide-scroll::-webkit-scrollbar { display: none; } .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
-      <button 
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-4 py-3.5 bg-white border ${isOpen ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20' : 'border-[#E5E7EB] hover:border-[#D1D5DB]'} rounded-xl shadow-sm text-sm font-bold text-[#1F2937] transition-all`}
-      >
-        <div className="flex items-center gap-3">
-          <svg className="w-5 h-5 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {value ? `${hour}:${minute}` : <span className="text-[#9CA3AF]">{placeholder}</span>}
-        </div>
-        {value && (
-          <div onClick={handleClear} className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#4B5563] transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-          </div>
-        )}
-      </button>
-
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-50 mt-2 w-full min-w-[240px] p-4 bg-white border border-[#E5E7EB] rounded-2xl shadow-xl animate-[slideDown_0.2s_ease-out]">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="flex-1 max-w-[100px]">
-                <label className="block text-xs font-black text-[#9CA3AF] uppercase tracking-wider mb-2 text-center">ชั่วโมง</label>
-                <div ref={hourRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-[#F3F4F6] relative">
-                  {Array.from({length: 24}).map((_, i) => {
-                    const val = i.toString().padStart(2, '0');
-                    const isSelected = hour === val;
-                    return (
-                      <div 
-                        id={`hour-${val}`}
-                        key={val} 
-                        onClick={() => setHour(val)}
-                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-[#1F2937] bg-[#A3E635] rounded-xl shadow-sm' : 'font-bold text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F9FAFB] rounded-xl'}`}
-                      >
-                        {val}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="text-2xl text-[#D1D5DB] font-black mb-4 px-2">:</div>
-              <div className="flex-1 max-w-[100px]">
-                <label className="block text-xs font-black text-[#9CA3AF] uppercase tracking-wider mb-2 text-center">นาที</label>
-                <div ref={minRef} className="h-[160px] overflow-y-auto hide-scroll snap-y snap-mandatory border-y border-[#F3F4F6] relative">
-                  {Array.from({length: 60}).map((_, i) => {
-                    const val = i.toString().padStart(2, '0');
-                    const isSelected = minute === val;
-                    return (
-                      <div 
-                        id={`min-${val}`}
-                        key={val} 
-                        onClick={() => setMinute(val)}
-                        className={`py-2 text-center text-lg cursor-pointer snap-center transition-colors ${isSelected ? 'font-black text-[#1F2937] bg-[#A3E635] rounded-xl shadow-sm' : 'font-bold text-[#6B7280] hover:text-[#1F2937] hover:bg-[#F9FAFB] rounded-xl'}`}
-                      >
-                        {val}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            <button type="button" onClick={handleSave} className="w-full py-3.5 bg-[#1F2937] hover:bg-black text-[#A3E635] rounded-xl text-sm font-black shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-              ยืนยันเวลา
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
