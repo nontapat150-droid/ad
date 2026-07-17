@@ -725,15 +725,22 @@ router.get('/export-monthly', auth, async (req, res) => {
        ORDER BY role, full_name, username`
     );
 
-    // Get checkins for the month
+    // Get checkins for the month (both normal and MA checkins)
     const [checkins] = await pool.query(
       `SELECT user_id, 
-              checkin_time, 
-              checkout_time, 
+              DATE_FORMAT(checkin_time, '%Y-%m-%dT%H:%i:%s') AS checkin_time, 
+              DATE_FORMAT(checkout_time, '%Y-%m-%dT%H:%i:%s') AS checkout_time, 
               is_late 
        FROM checkins 
+       WHERE DATE_FORMAT(checkin_time, '%Y-%m') = ?
+       UNION ALL
+       SELECT user_id, 
+              DATE_FORMAT(checkin_time, '%Y-%m-%dT%H:%i:%s') AS checkin_time, 
+              DATE_FORMAT(checkout_time, '%Y-%m-%dT%H:%i:%s') AS checkout_time, 
+              is_late 
+       FROM ma_checkins 
        WHERE DATE_FORMAT(checkin_time, '%Y-%m') = ?`,
-      [month]
+      [month, month]
     );
 
     res.json({ users, checkins });
