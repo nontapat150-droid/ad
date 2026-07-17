@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { getCheckinImageUrl, handleUploadImageError } from '../utils/uploadImageUrl';
 
 export default function UserProfileModal({ user, onClose, getRoleBadge }) {
   const [history, setHistory] = useState([]);
@@ -177,7 +178,12 @@ export default function UserProfileModal({ user, onClose, getRoleBadge }) {
                       <div className="relative">
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
                           {record.image_path ? (
-                            <img src={`/uploads/checkins/${record.image_path}`} alt="Checkin" className="w-full h-full object-cover" />
+                            <img
+                              src={getCheckinImageUrl(record.image_path, 'checkin')}
+                              alt="Checkin"
+                              onError={handleUploadImageError}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">ไม่มีรูป</div>
                           )}
@@ -188,7 +194,12 @@ export default function UserProfileModal({ user, onClose, getRoleBadge }) {
                       <div className="relative">
                         <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
                           {record.checkout_image ? (
-                            <img src={`/uploads/checkouts/${record.checkout_image}`} alt="Checkout" className="w-full h-full object-cover" />
+                            <img
+                              src={getCheckinImageUrl(record.checkout_image, 'checkout')}
+                              alt="Checkout"
+                              onError={handleUploadImageError}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">ไม่มีรูป</div>
                           )}
