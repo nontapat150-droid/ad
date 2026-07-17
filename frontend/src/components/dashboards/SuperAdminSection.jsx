@@ -105,11 +105,17 @@ export default function SuperAdminSection() {
     return () => cancelAnimationFrame(animationFrameId);
   }, [isHovered]);
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get('/stats/super-admin-dashboard')
       .then(res => setData(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3 * 60 * 1000); // 3 minutes
+    return () => clearInterval(interval);
   }, []);
 
   const onlineGroups = data?.onlineStatus?.reduce((acc, curr) => {

@@ -11,7 +11,7 @@ export default function TechSection() {
   const [overdueJobs, setOverdueJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get('/stats/office-tech-dashboard')
       .then(res => setData(res.data))
       .catch(err => console.error(err))
@@ -30,6 +30,12 @@ export default function TechSection() {
       })
       .catch(err => console.error(err))
       .finally(() => setLoadingJobs(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return (

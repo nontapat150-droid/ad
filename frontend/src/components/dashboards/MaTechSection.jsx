@@ -10,7 +10,7 @@ export default function MaTechSection() {
   const [overdueJobs, setOverdueJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get('/stats/ma-tech-dashboard')
       .then(res => setMaData(res.data))
       .catch(err => console.error(err))
@@ -29,6 +29,12 @@ export default function MaTechSection() {
       })
       .catch(err => console.error(err))
       .finally(() => setLoadingJobs(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return (

@@ -50,11 +50,17 @@ export default function AdminSection() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get('/stats/admin-dashboard')
       .then(res => setData(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 3 * 60 * 1000); // 3 minutes
+    return () => clearInterval(interval);
   }, []);
 
   const onlineGroups = data?.onlineStatus?.reduce((acc, curr) => {
