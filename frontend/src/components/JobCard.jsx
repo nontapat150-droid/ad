@@ -89,7 +89,14 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
             </div>
           </div>
           
-          <p className="text-sm text-[#185FA5] truncate mb-2">{job.customer || 'ไม่ระบุชื่อลูกค้า'}</p>
+          <div className="flex flex-col gap-1 mb-2">
+            <p className="text-sm text-[#185FA5] truncate">{job.customer || 'ไม่ระบุชื่อลูกค้า'}</p>
+            {job.team_name && (
+              <p className="text-xs font-semibold text-emerald-600 bg-emerald-50 self-start px-2 py-0.5 rounded-md border border-emerald-100">
+                👨‍🔧 {job.team_name}
+              </p>
+            )}
+          </div>
           
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#378ADD]">
             <span className="flex items-center gap-1.5">
