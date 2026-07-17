@@ -29,7 +29,7 @@ const IGNORE_KEY = '__ignore__';
 
 // ─── Helper: parse Excel date serial to YYYY-MM-DD ────────────────────────────
 function parseExcelDate(raw) {
-  if (!raw) return '';
+  if (raw === null || raw === undefined || raw === '') return '';
   if (typeof raw === 'number') {
     // Excel date serial
     const jsDate = XLSX.SSF.parse_date_code(raw);
@@ -40,35 +40,62 @@ function parseExcelDate(raw) {
     return `${y}-${m}-${d}`;
   }
   if (typeof raw === 'string') {
-    // Try DD/MM/YYYY or YYYY-MM-DD
-    const s = raw.trim();
-    const ddmm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    // Also consider time attached, e.g. "12/03/2026 10:30:00"
+    const datePart = raw.trim().split(' ')[0];
+    
+    // Support DD/MM/YYYY
+    const ddmm = datePart.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
     if (ddmm) {
       const [, d, m, y] = ddmm;
       const year = y.length === 2 ? (parseInt(y) > 50 ? '19' + y : '20' + y) : y;
       return `${year}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
-    const yyyymm = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    const yyyymm = datePart.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
     if (yyyymm) {
       const [, y, m, d] = yyyymm;
       return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
-    return s;
+    return datePart;
   }
   return String(raw);
 }
 
-// ─── Helper: apply "ช่าง" prefix if team name has no prefix ──────────────────
-function normalizeTeamName(raw, teams) {
+// ─── Helper: parse Excel time to HH:MM ────────────────────────────────────────
+function parseExcelTime(raw) {
+  if (raw === null || raw === undefined || raw === '') return '';
+  if (typeof raw === 'number') {
+    // Excel time fraction
+    const totalMinutes = Math.round(raw * 24 * 60);
+    const h = Math.floor(totalMinutes / 60) % 24;
+    const m = totalMinutes % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    // Match HH:MM in string
+    const timeMatch = s.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      return `${timeMatch[1].padStart(2,'0')}:${timeMatch[2]}`;
+    }
+    // Fallback
+    return s.substring(0, 5);
+  }
+  return String(raw);
+}
+
+// ─── Helper: apply custom prefix if team name has no prefix ──────────────────
+function normalizeTeamName(raw, teams, prefix) {
   if (!raw) return '';
   const str = String(raw).trim();
   // Try direct match
   const exact = teams.find(t => t.team_name === str || t.team_name.toLowerCase() === str.toLowerCase());
   if (exact) return exact.team_name;
-  // Try with "ช่าง" prefix
-  const withPrefix = 'ช่าง' + str;
-  const prefixed = teams.find(t => t.team_name === withPrefix || t.team_name.toLowerCase() === withPrefix.toLowerCase());
-  if (prefixed) return prefixed.team_name;
+  // Try with prefix
+  if (prefix) {
+    const withPrefix = prefix + str;
+    const prefixed = teams.find(t => t.team_name === withPrefix || t.team_name.toLowerCase() === withPrefix.toLowerCase());
+    if (prefixed) return prefixed.team_name;
+  }
   return str; // return as-is if no match
 }
 
@@ -117,6 +144,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   const [mapping, setMapping] = useState({}); // { excelColIndex: systemFieldKey }
   const [parsedRows, setParsedRows] = useState([]); // after applying mapping
   const [teams, setTeams] = useState([]);
+  const [teamPrefix, setTeamPrefix] = useState('ช่าง'); // For admin to prepend to unmatched teams
   const [loading, setLoading] = useState(false);
   const [importResult, setImportResult] = useState(null); // { success, skipped, errors }
   const [notification, setNotification] = useState('');
@@ -137,6 +165,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       setHeaders([]);
       setMapping({});
       setParsedRows([]);
+      setTeamPrefix('ช่าง');
       setImportResult(null);
       setNotification('');
     }
@@ -438,19 +467,11 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
         if (fieldKey === 'plan_arrival_date') {
           val = parseExcelDate(val);
         } else if (fieldKey === 'plan_arrival_time') {
-          if (typeof val === 'number') {
-            // Excel time fraction
-            const totalMinutes = Math.round(val * 24 * 60);
-            const h = Math.floor(totalMinutes / 60) % 24;
-            const m = totalMinutes % 60;
-            val = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-          } else {
-            val = String(val).trim().substring(0, 5);
-          }
+          val = parseExcelTime(val);
         } else if (fieldKey === 'team_id') {
           // Normalize team name → id
           const rawName = String(val).trim();
-          const normalizedName = normalizeTeamName(rawName, teams);
+          const normalizedName = normalizeTeamName(rawName, teams, teamPrefix);
           const found = teams.find(t => t.team_name === normalizedName || t.team_name.toLowerCase() === normalizedName.toLowerCase());
           obj['_team_name_display'] = normalizedName;
           val = found ? found.id : null;
