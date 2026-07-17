@@ -38,16 +38,21 @@ const STATUS_DOT = {
 };
 
 /**
- * ปิดงานล่าช้า = ปิดหลังเที่ยงคืน (00:00) ของวันถัดจาก plan_arrival_date
- * กล่าวคือ completed_at > plan_arrival_date 23:59:59
+ * ปิดงานล่าช้า = ปิดหลัง 00:00 ของ 2 วันต่อมา
+ * เช่น ถ้านัด 15 ก.ค. ต้องปิดภายใน 16 ก.ค. 23:59:59 (เลย 17 ก.ค. 00:00 จะถือว่าล่าช้า)
  */
 function isLateCompletion(job) {
-  if (job.status !== 'completed' || !job.plan_arrival_date || !job.completed_at) return false;
-  // วันสิ้นสุดที่ยอมรับได้ = สิ้นวัน plan_arrival_date (23:59:59.999)
-  const planDateStr = job.plan_arrival_date.split('T')[0]; // YYYY-MM-DD
-  const deadline = new Date(`${planDateStr}T23:59:59.999`);
+  if (job.status !== 'completed' || !job.completed_at) return false;
+  const targetDateStr = job.plan_arrival_date || job.assigned_time;
+  if (!targetDateStr) return false;
+  
+  const datePart = targetDateStr.split('T')[0]; // YYYY-MM-DD
+  const [y, m, d] = datePart.split('-');
+  const deadline = new Date(y, m - 1, d); // 00:00:00 local time of the plan date
+  deadline.setDate(deadline.getDate() + 2); // 00:00:00 of 2 days later
+  
   const completedAt = new Date(job.completed_at);
-  return completedAt > deadline;
+  return completedAt >= deadline;
 }
 
 /**
