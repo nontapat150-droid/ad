@@ -5,6 +5,7 @@ import AutoDispatchModal from '../components/AutoDispatchModal';
 import EditJobModal from '../components/EditJobModal';
 import SmartImportExcelModal from '../components/SmartImportExcelModal';
 import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
+import ImageWithFallback from '../components/common/ImageWithFallback';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -406,15 +407,15 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               <div>
                 <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-2">📷 รูปภาพหลักฐาน</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {details.images.map((img, i) => {
-                    const baseUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : '/api';
-                    const fullUrl = img.image_path.startsWith('http') ? img.image_path : `${baseUrl}${img.image_path}`;
-                    return (
-                      <a key={i} href={fullUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={fullUrl} className="w-full aspect-square object-cover rounded-xl border border-[#E5E7EB] hover:opacity-80 transition-opacity" />
-                      </a>
-                    );
-                  })}
+                  {details.images.map((img, i) => (
+                    <ImageWithFallback 
+                      key={i} 
+                      img={img.image_path} 
+                      defaultFolder="job_evidence"
+                      className="w-full aspect-square object-cover rounded-xl border border-[#E5E7EB] hover:opacity-80 transition-opacity cursor-pointer" 
+                      onClick={(workingUrl) => window.open(workingUrl, '_blank')}
+                    />
+                  ))}
                 </div>
               </div>
             )}
