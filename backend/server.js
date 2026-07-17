@@ -15,6 +15,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 const pool = require('./config/db');
+const { tryAcquireCronLeader } = require('./utils/cronLeader');
 
 // ── Route Modules ───────────────────────────────────────────
 const authRouter = require('./routes/auth');
@@ -96,6 +97,11 @@ async function startBackgroundJobs() {
     return;
   }
 
+  if (!tryAcquireCronLeader()) {
+    console.log('Background jobs skipped — another worker is cron leader');
+    return;
+  }
+
   try {
     await pool.checkConnection();
   } catch (err) {
@@ -115,6 +121,13 @@ async function startBackgroundJobs() {
 
 startBackgroundJobs();
 
+function shutdown(signal) {
+  console.log(`Shutting down (${signal})`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 // ── 404 handler ─────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
@@ -127,9 +140,13 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start ────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 BOU API running at http://localhost:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health\n`);
-});
+const listenPort = process.env.PORT || PORT;
+if (process.env.PASSENGER_APP_ENV) {
+  app.listen('passenger');
+} else {
+  app.listen(listenPort, () => {
+    console.log(`\n🚀 BOU API running on port ${listenPort}\n`);
+  });
+}
 
 module.exports = app;

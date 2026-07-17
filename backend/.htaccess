@@ -1,0 +1,8 @@
+# cPanel / LiteSpeed Node.js — keep process count low
+# (ignored on some hosts; safe to keep)
+PassengerMinInstances 1
+PassengerMaxInstances 2
+PassengerPoolIdleTime 300
+
+# Cron runs in one worker only when ENABLE_CRON is not false
+SetEnv ENABLE_CRON true
