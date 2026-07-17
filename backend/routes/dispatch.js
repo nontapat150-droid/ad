@@ -519,7 +519,13 @@ router.put(
           access_no = COALESCE(?, access_no),
           customer = COALESCE(?, customer),
           package = COALESCE(?, package),
-          install_device = COALESCE(?, install_device)
+          install_device = COALESCE(?, install_device),
+          split_no = ?,
+          port_no = ?,
+          l3_name = ?,
+          cable_length = ?,
+          ref_id_3bb = ?,
+          sc_blue = ?
          WHERE id = ?`,
         [
           techId,
@@ -529,6 +535,12 @@ router.put(
           req.body.customerName || null,
           req.body.mainPackage || null,
           installDeviceStr,
+          req.body.splitNo || null,
+          req.body.portNo || null,
+          req.body.l3Name || null,
+          req.body.cableLength ? req.body.cableLength.replace(/[^0-9.]/g, '') : null,
+          req.body.refId3bb || null,
+          req.body.scBlue || null,
           jobId
         ]
       );

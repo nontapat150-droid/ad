@@ -324,4 +324,83 @@ router.get('/migrate-images', async (req, res) => {
   }
 });
 
+// ─── One-time migration: add job completion detail columns ─────────────────
+// เพิ่มคอลัมน์แยกสำหรับข้อมูลจบงาน (split_no, port_no, l3_name, cable_length, ref_id_3bb, sc_blue)
+// ซึ่งก่อนหน้านี้ถูกเก็บรวมกันใน install_device string เท่านั้น
+router.get('/migrate-job-completion-fields', async (req, res) => {
+  const results = [];
+  try {
+    // jobs table — add separate completion columns
+    const jobColumns = [
+      { col: 'split_no',    def: `VARCHAR(100) DEFAULT NULL COMMENT 'หมายเลข Splitt'` },
+      { col: 'port_no',     def: `VARCHAR(100) DEFAULT NULL COMMENT 'ใช้ Port หมายเลข'` },
+      { col: 'l3_name',     def: `VARCHAR(150) DEFAULT NULL COMMENT 'ชื่อ L3'` },
+      { col: 'cable_length',def: `DECIMAL(10,2) DEFAULT NULL COMMENT 'ระยะสายจริง (เมตร)'` },
+      { col: 'ref_id_3bb',  def: `VARCHAR(100) DEFAULT NULL COMMENT 'Ref ID 3BB'` },
+      { col: 'sc_blue',     def: `VARCHAR(100) DEFAULT NULL COMMENT 'ตัวต่อ SC สีฟ้า'` },
+    ];
+
+    for (const { col, def } of jobColumns) {
+      try {
+        await pool.query(`ALTER TABLE jobs ADD COLUMN ${col} ${def}`);
+        results.push(`✅ jobs.${col} added`);
+      } catch(e) { results.push(`jobs.${col}: ${e.message}`); }
+    }
+
+    // ma_jobs table — same columns if exists
+    const maJobColumns = [
+      { col: 'split_no',    def: `VARCHAR(100) DEFAULT NULL` },
+      { col: 'port_no',     def: `VARCHAR(100) DEFAULT NULL` },
+      { col: 'l3_name',     def: `VARCHAR(150) DEFAULT NULL` },
+      { col: 'cable_length',def: `DECIMAL(10,2) DEFAULT NULL` },
+      { col: 'ref_id_3bb',  def: `VARCHAR(100) DEFAULT NULL` },
+      { col: 'sc_blue',     def: `VARCHAR(100) DEFAULT NULL` },
+    ];
+
+    for (const { col, def } of maJobColumns) {
+      try {
+        await pool.query(`ALTER TABLE ma_jobs ADD COLUMN ${col} ${def}`);
+        results.push(`✅ ma_jobs.${col} added`);
+      } catch(e) { results.push(`ma_jobs.${col}: ${e.message}`); }
+    }
+
+    // Backfill existing completed jobs: parse install_device string → populate new columns
+    try {
+      const [completedJobs] = await pool.query(
+        `SELECT id, install_device FROM jobs WHERE install_device IS NOT NULL AND status = 'completed'`
+      );
+      let backfilled = 0;
+      for (const job of completedJobs) {
+        const parts = {};
+        for (const segment of (job.install_device || '').split(/[\|\n]/)) {
+          const ci = segment.indexOf(':');
+          if (ci === -1) continue;
+          const key = segment.slice(0, ci).trim();
+          const val = segment.slice(ci + 1).trim();
+          const map = {
+            'Sp': 'split_no', 'Pt': 'port_no', 'L3': 'l3_name',
+            'สาย': 'cable_length', '3BB': 'ref_id_3bb', 'SCฟ้า': 'sc_blue',
+          };
+          if (map[key]) parts[map[key]] = key === 'สาย' ? val.replace(/M$/i, '') : val;
+        }
+        if (Object.keys(parts).length > 0) {
+          const sets = Object.entries(parts).map(([k]) => `${k} = ?`).join(', ');
+          await pool.query(
+            `UPDATE jobs SET ${sets} WHERE id = ? AND ${Object.keys(parts).map(k => `${k} IS NULL`).join(' AND ')}`,
+            [...Object.values(parts), job.id]
+          );
+          backfilled++;
+        }
+      }
+      results.push(`✅ Backfilled ${backfilled} completed jobs`);
+    } catch(e) {
+      results.push(`Backfill error: ${e.message}`);
+    }
+
+    res.json({ success: true, results });
+  } catch(err) {
+    res.status(500).json({ error: err.message, results });
+  }
+});
+
 module.exports = router;

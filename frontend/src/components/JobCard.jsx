@@ -7,7 +7,7 @@ const STATUS_MAP = {
   completed:  { label: 'เสร็จสิ้น',     color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
 };
 
-export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, onCancelCompletion, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive }) {
+export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, onCancelCompletion, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive, onCardClick }) {
   const [expanded, setExpanded] = useState(false);
   const st = STATUS_MAP[job.status] || STATUS_MAP.pending;
   const isCompleted = job.status === 'completed';
@@ -46,7 +46,7 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
       {/* ── Header Area ─────────────────────────── */}
       <div 
         className="p-4 cursor-pointer flex gap-4"
-        onClick={() => setExpanded(!expanded)}>
+        onClick={() => onCardClick ? onCardClick(job) : setExpanded(!expanded)}>
         
         {/* Status Icon Indicator */}
         <div className="shrink-0 mt-0.5 flex flex-col items-center gap-2">

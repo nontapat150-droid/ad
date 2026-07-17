@@ -214,6 +214,8 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [entryFeeSlipPreview, setEntryFeeSlipPreview] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  const [showSummaryPopup, setShowSummaryPopup] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
 
   useEffect(() => {
     if (isOpen && job) {
@@ -385,8 +387,43 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       await api.put(`/dispatch/jobs/${job.id}/complete`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      onSuccess();
-      onClose();
+      // Build summary for popup
+      const getDeviceVal = (role) => {
+        const sel = bagSelections[role];
+        if (sel === 'dash') return '-';
+        if (sel) {
+          const item = bagItems.find(b => String(b.id) === String(sel));
+          if (item) return role === 'SOA' ? `${item.product_name} ${item.model_name}`.trim() : item.sn;
+        }
+        return '-';
+      };
+
+      const entryFeeText = entryFeeStatus === 'slip' ? 'โอนเงิน (แนบสลิป)' :
+                           entryFeeStatus === 'cash' ? 'รับเงินสดหน้างาน' :
+                           entryFeeStatus === 'backdate' ? `โอนเงินย้อนหลัง (${entryFeeBackdate})` : '-';
+
+      const summaryText = [
+        `วันที่ติดตั้ง (Plan Date): ${installDate || '-'}`,
+        `เลข (NON): ${accessNo || '-'}`,
+        `แพ็กเกจ: ${mainPackage || '-'}`,
+        `Order No: ${job.order_no || '-'}`,
+        `SOA: -`,
+        `อุปกรณ์ปิด SOA: ${getDeviceVal('SOA')}`,
+        `Splitt: ${splitNo || '-'}`,
+        `ใช้ Port: ${portNo || '-'}`,
+        `ระยะสายจริง(M): ${cableLength || '-'}`,
+        `SN Playbox: ${getDeviceVal('PB')}`,
+        `SN ONU: ${getDeviceVal('ONU')}`,
+        `SN IP camera: ${getDeviceVal('Cam')}`,
+        `Ref ID 3BB: ${refId3bb || '-'}`,
+        `ตัวต่อscสีฟ้า: ${scBlue || '-'}`,
+        `ค่าแรกเข้า: ${entryFeeText}`,
+        `หมายเหตุ: ${remark || '-'}`
+      ].join('\n');
+
+      setSummaryData({ text: summaryText });
+      setShowSummaryPopup(true);
+      // onSuccess called after user closes popup
     } catch (err) {
       console.error(err);
       
@@ -645,6 +682,62 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         selectedNoSnItems={selectedNoSnItems}
         setSelectedNoSnItems={setSelectedNoSnItems}
       />
+
+      {/* Post-Complete Summary Popup */}
+      {showSummaryPopup && summaryData && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in">
+          <div className="absolute inset-0 bg-[#042C53]/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-emerald-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <span className="text-2xl">✅</span> ปิดงานสำเร็จ!
+              </h3>
+              <p className="text-emerald-100 text-sm mt-0.5">คัดลอกข้อมูลเพื่อส่งให้ลูกค้าหรือทีม</p>
+            </div>
+            {/* Summary text box */}
+            <div className="p-5">
+              <pre
+                id="completion-summary-text"
+                className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-4 text-sm text-[#374151] font-mono whitespace-pre-wrap break-words select-all"
+              >{summaryData.text}</pre>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(summaryData.text);
+                    } catch(e) {
+                      const el = document.getElementById('completion-summary-text');
+                      const range = document.createRange();
+                      range.selectNode(el);
+                      window.getSelection().removeAllRanges();
+                      window.getSelection().addRange(range);
+                      document.execCommand('copy');
+                    }
+                    // Show brief success feedback
+                    Swal.fire({ icon: 'success', title: 'คัดลอกแล้ว!', showConfirmButton: false, timer: 1000, position: 'top-end', toast: true });
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all flex justify-center items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                  📋 คัดลอกทั้งหมด
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSummaryPopup(false);
+                    setSummaryData(null);
+                    onSuccess();
+                    onClose();
+                  }}
+                  className="flex-1 py-3 rounded-xl border border-[#E5E7EB] text-[#374151] font-semibold hover:bg-[#F9FAFB] transition-colors"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

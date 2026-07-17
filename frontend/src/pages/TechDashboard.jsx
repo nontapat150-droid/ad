@@ -112,10 +112,14 @@ export default function TechDashboard() {
   const todayDate = new Date().toLocaleDateString('th-TH', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
+  const todayISO = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const greeting = getGreeting();
   const firstName = user?.full_name?.split(' ')[0] || 'ช่าง';
   const completedCount = jobs.filter((j) => j.status === 'completed').length;
   const pendingCount   = jobs.filter((j) => j.status === 'pending').length;
+  // Summary cards data
+  const todayJobs      = jobs.filter(j => j.plan_arrival_date && j.plan_arrival_date.slice(0,10) === todayISO && j.status !== 'completed' && j.status !== 'failed');
+  const unfinishedJobs = jobs.filter(j => ['pending','in_progress'].includes(j.status) && j.plan_arrival_date && j.plan_arrival_date.slice(0,10) < todayISO);
 
   const filteredJobs = jobs.filter(job => {
     if (activeTab === 'all') return true;
@@ -153,6 +157,39 @@ export default function TechDashboard() {
             <StatCard value={jobs.length}    label="งานทั้งหมด"   color="text-[#1F2937]" />
             <StatCard value={pendingCount}   label="รอดำเนินการ" color="text-amber-500" />
             <StatCard value={completedCount} label="เสร็จสิ้น"    color="text-emerald-500" />
+          </div>
+
+          {/* Summary Action Cards */}
+          <div data-aos="fade-up" data-aos-delay="150" className="grid grid-cols-2 gap-3">
+            {/* Today's Jobs — Green */}
+            <button
+              onClick={() => navigate('/jobs?tab=office')}
+              className="relative overflow-hidden rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 20px rgba(34,197,94,0.35)' }}
+            >
+              <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full" />
+              <div className="relative z-10">
+                <div className="text-3xl mb-2">📋</div>
+                <p className="text-white/80 text-xs font-semibold">งานวันนี้</p>
+                <p className="text-white text-3xl font-black leading-none">{todayJobs.length}</p>
+                <p className="text-white/70 text-[10px] mt-1">รายการที่ยังไม่จบ</p>
+              </div>
+            </button>
+
+            {/* Unfinished jobs — Red */}
+            <button
+              onClick={() => navigate('/jobs?tab=office&status=overdue')}
+              className="relative overflow-hidden rounded-2xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              style={{ background: unfinishedJobs.length > 0 ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'linear-gradient(135deg, #6b7280, #4b5563)', boxShadow: unfinishedJobs.length > 0 ? '0 4px 20px rgba(239,68,68,0.35)' : '0 2px 8px rgba(0,0,0,0.1)' }}
+            >
+              <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full" />
+              <div className="relative z-10">
+                <div className="text-3xl mb-2">{unfinishedJobs.length > 0 ? '🔴' : '✅'}</div>
+                <p className="text-white/80 text-xs font-semibold">งานค้างยังไม่จบ</p>
+                <p className="text-white text-3xl font-black leading-none">{unfinishedJobs.length}</p>
+                <p className="text-white/70 text-[10px] mt-1">{unfinishedJobs.length > 0 ? 'กดเพื่อดูรายการ' : 'ไม่มีงานค้าง'}</p>
+              </div>
+            </button>
           </div>
 
           {/* Jobs List Section */}
@@ -224,6 +261,7 @@ export default function TechDashboard() {
                       onComplete={setCompleting} 
                       onIncomplete={setIncompleting}
                       onPostpone={setPostponing}
+                      onCardClick={(j) => navigate(`/jobs?openJob=${j.id}`)}
                     />
                   ))
                 )}
