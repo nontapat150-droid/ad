@@ -118,7 +118,7 @@ export function FilterDateField({ value, onChange }) {
   );
 }
 
-export function FilterSelectField({ label, icon, value, onChange, options, placeholder, searchable = false }) {
+export function FilterSelectField({ label, icon, value, onChange, options, placeholder, searchable = false, searchAlways = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
@@ -168,7 +168,7 @@ export function FilterSelectField({ label, icon, value, onChange, options, place
 
       {open && (
         <div className="relative z-[60] mt-1.5 rounded-xl border border-[#E5E7EB] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)] overflow-hidden animate-filterDropIn">
-          {searchable && options.length > 6 && (
+          {searchable && (searchAlways || options.length > 6) && (
             <div className="p-2 border-b border-[#F3F4F6]">
               <input
                 type="text"
