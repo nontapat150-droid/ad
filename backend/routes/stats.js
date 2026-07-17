@@ -5,6 +5,13 @@ const { auth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
+// Simple in-memory cache for heavy dashboard queries (15 seconds TTL)
+const cache = {
+  admin: { data: null, expiry: 0 },
+  superAdmin: { data: null, expiry: 0 }
+};
+const CACHE_TTL = 60000; // 60s — frontend polls every 3 min; reduces DB load on shared hosting
+
 // ── GET /api/stats/dashboard — Admin overview numbers ──────
 router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
@@ -40,6 +47,11 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
 // ── GET /api/stats/admin-dashboard — Admin Homepage ──────
 router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const now = Date.now();
+  if (cache.admin.data && cache.admin.expiry > now) {
+    return res.json(cache.admin.data);
+  }
+
   try {
     // Run all queries in parallel
     const [inventoryRes, officeRes, maRes, officeUnRes, maUnRes, announcementsRes, onlineRes] = await Promise.allSettled([
@@ -78,7 +90,7 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
         }))
       : [];
 
-    res.json({
+    const responseData = {
       summary: {
         totalInventory: getVal(inventoryRes),
         officeAssignedToday: getVal(officeRes),
@@ -87,7 +99,10 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
       },
       announcements: getRows(announcementsRes),
       onlineStatus
-    });
+    };
+    
+    cache.admin = { data: responseData, expiry: Date.now() + CACHE_TTL };
+    res.json(responseData);
   } catch (err) {
     console.error('Admin Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -96,6 +111,11 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
 // ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
+  const now = Date.now();
+  if (cache.superAdmin.data && cache.superAdmin.expiry > now) {
+    return res.json(cache.superAdmin.data);
+  }
+
   try {
     // Run ALL queries in parallel instead of sequentially
     const [
@@ -163,7 +183,7 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         }))
       : [];
 
-    res.json({
+    const responseData = {
       summary: {
         totalUsers: getVal(usersRes),
         onlineUsers: 0,
@@ -174,7 +194,10 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
       },
       feed,
       onlineStatus
-    });
+    };
+    
+    cache.superAdmin = { data: responseData, expiry: Date.now() + CACHE_TTL };
+    res.json(responseData);
   } catch (err) {
     console.error('Super Admin Dashboard Stats Error:', err);
     res.status(500).json({ error: 'Server error' });

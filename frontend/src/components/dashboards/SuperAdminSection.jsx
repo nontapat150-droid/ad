@@ -78,8 +78,19 @@ export default function SuperAdminSection() {
 
   const feedRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isTabVisible, setIsTabVisible] = useState(
+    () => typeof document !== 'undefined' && document.visibilityState === 'visible'
+  );
 
   useEffect(() => {
+    const onVisibility = () => setIsTabVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  useEffect(() => {
+    if (!isTabVisible) return;
+
     let animationFrameId;
     let lastTime = performance.now();
     const speed = 20; // pixels per second
@@ -103,7 +114,7 @@ export default function SuperAdminSection() {
 
     animationFrameId = requestAnimationFrame(scroll);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [isHovered]);
+  }, [isHovered, isTabVisible]);
 
   const fetchData = () => {
     api.get('/stats/super-admin-dashboard')

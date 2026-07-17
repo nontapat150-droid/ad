@@ -90,218 +90,21 @@ apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
 app.use('/api', apiRouter);
 app.use('/', apiRouter);
 
-// Initialize DB for Event Messages
-
-
-if (process.env.RUN_LEGACY_STARTUP_DB_TASKS === 'true') {
-pool.query("DELETE FROM oil_records WHERE license_plate = 'ทีม 6'").catch(console.error);
-pool.query("DELETE FROM teams WHERE team_name = 'ทีม 6'").catch(console.error);
-pool.query(`
-  CREATE TABLE IF NOT EXISTS issue_reports (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    message TEXT,
-    image_url VARCHAR(255),
-    status ENUM('pending', 'reviewed', 'resolved') DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )
-`).catch(console.error);
-pool.query('ALTER TABLE issue_reports MODIFY id INT AUTO_INCREMENT').catch(e => { /* ignore if fails */ });
-pool.query('ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)').catch(e => { /* ignore if exists */ });
-pool.query('ALTER TABLE issue_reports ADD COLUMN message TEXT').catch(e => { /* ignore if exists */ });
-pool.query('ALTER TABLE inventory_products ADD COLUMN image_url TEXT DEFAULT NULL').catch(e => {});
-pool.query('CREATE TABLE IF NOT EXISTS inventory_category_metadata (category_name VARCHAR(100) PRIMARY KEY, image_url TEXT)').catch(e => {});
-pool.query('ALTER TABLE inventory_models ADD COLUMN image_url TEXT DEFAULT NULL').catch(e => {});
-
-// ── Auto-fix inventory tables: ensure id is AUTO_INCREMENT ──────────────────
-pool.query(`ALTER TABLE users ADD COLUMN last_active DATETIME NULL`).catch(e => console.log('users last_active fix:', e.message));
-pool.query(`ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_products id fix:', e.message));
-pool.query(`ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_models id fix:', e.message));
-pool.query(`ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_items id fix:', e.message));
-pool.query(`ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('inventory_logs id fix:', e.message));
-pool.query(`ALTER TABLE job_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('job_logs id fix:', e.message));
-pool.query(`ALTER TABLE job_completion_images MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('job_completion_images id fix:', e.message));
-pool.query(`ALTER TABLE entry_fees MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`).catch(e => console.log('entry_fees id fix:', e.message));
-
-// ── Auto-migrate columns ───────────────────────
-pool.query(`ALTER TABLE jobs MODIFY COLUMN install_device TEXT`).catch(() => {});
-
-pool.query(`
-  CREATE TABLE IF NOT EXISTS team_oil_cases (
-    team_id INT PRIMARY KEY,
-    year_month VARCHAR(7) NOT NULL,
-    case_count INT DEFAULT 0
-  )
-`).catch(() => {});
-
-// ── Entry Fee upgrade: 3 modes (slip/cash/backdate) ─────────
-pool.query(`ALTER TABLE entry_fees ADD COLUMN fee_type ENUM('slip','cash','backdate') NOT NULL DEFAULT 'slip'`).catch(() => {});
-pool.query(`ALTER TABLE entry_fees ADD COLUMN backdate DATE NULL`).catch(() => {});
-pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL`).catch(() => {});
-pool.query(`ALTER TABLE customers ADD COLUMN entry_fee_date DATETIME NULL`).catch(() => {});
-
-// ── Background Jobs (Cron) ───────────────────────────────────
-require('./cron/reminders');
-}
-
-async function runStartupDbTasks() {
-  try {
-    await pool.checkConnection();
-  } catch (err) {
-    console.error('Startup DB tasks skipped:', pool.formatError(err));
+async function startBackgroundJobs() {
+  if (process.env.ENABLE_CRON === 'false') {
+    console.log('Background jobs disabled (ENABLE_CRON=false)');
     return;
   }
 
-  const startupQueries = [
-    {
-      label: 'cleanup oil team 6',
-      sql: "DELETE FROM oil_records WHERE license_plate = 'ทีม 6'",
-    },
-    {
-      label: 'cleanup team 6',
-      sql: "DELETE FROM teams WHERE team_name = 'ทีม 6'",
-    },
-    {
-      label: 'create issue_reports',
-      sql: `
-        CREATE TABLE IF NOT EXISTS issue_reports (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          message TEXT,
-          image_url VARCHAR(255),
-          status ENUM('pending', 'reviewed', 'resolved') DEFAULT 'pending',
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `,
-    },
-    { label: 'issue_reports id', sql: 'ALTER TABLE issue_reports MODIFY id INT AUTO_INCREMENT', ignoreError: true },
-    { label: 'issue_reports image_url', sql: 'ALTER TABLE issue_reports ADD COLUMN image_url VARCHAR(255)', ignoreError: true },
-    { label: 'issue_reports message', sql: 'ALTER TABLE issue_reports ADD COLUMN message TEXT', ignoreError: true },
-    { label: 'users last_active', sql: 'ALTER TABLE users ADD COLUMN last_active DATETIME NULL', ignoreError: true },
-    { label: 'inventory_products id', sql: 'ALTER TABLE inventory_products MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'inventory_models id', sql: 'ALTER TABLE inventory_models MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'inventory_items id', sql: 'ALTER TABLE inventory_items MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'inventory_items phone_number', sql: 'ALTER TABLE inventory_items ADD COLUMN phone_number VARCHAR(50) NULL', ignoreError: true },
-    { label: 'inventory_logs id', sql: 'ALTER TABLE inventory_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'job_logs id', sql: 'ALTER TABLE job_logs MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'job_completion_images id', sql: 'ALTER TABLE job_completion_images MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'entry_fees id', sql: 'ALTER TABLE entry_fees MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT', ignoreError: true },
-    { label: 'jobs install_device', sql: 'ALTER TABLE jobs MODIFY COLUMN install_device TEXT', ignoreError: true },
-    {
-      label: 'create team_oil_cases',
-      sql: `
-        CREATE TABLE IF NOT EXISTS team_oil_cases (
-          team_id INT PRIMARY KEY,
-          year_month VARCHAR(7) NOT NULL,
-          case_count INT DEFAULT 0
-        )
-      `,
-      ignoreError: true,
-    },
-    { label: 'entry_fees fee_type', sql: "ALTER TABLE entry_fees ADD COLUMN fee_type ENUM('slip','cash','backdate') NOT NULL DEFAULT 'slip'", ignoreError: true },
-    { label: 'entry_fees backdate', sql: 'ALTER TABLE entry_fees ADD COLUMN backdate DATE NULL', ignoreError: true },
-    { label: 'customers entry_fee_status', sql: 'ALTER TABLE customers ADD COLUMN entry_fee_status VARCHAR(50) NULL', ignoreError: true },
-    { label: 'customers entry_fee_date', sql: 'ALTER TABLE customers ADD COLUMN entry_fee_date DATETIME NULL', ignoreError: true },
-    {
-      label: 'create user_fcm_tokens',
-      sql: `
-        CREATE TABLE IF NOT EXISTS user_fcm_tokens (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          user_id INT NOT NULL,
-          fcm_token TEXT NOT NULL,
-          device_info VARCHAR(255) NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id)
-        )
-      `,
-      ignoreError: true,
-    },
-    {
-      label: 'create messages table',
-      sql: `
-        CREATE TABLE IF NOT EXISTS messages (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          sender_id INT NOT NULL,
-          receiver_id INT NOT NULL,
-          message TEXT NOT NULL,
-          is_read BOOLEAN DEFAULT FALSE,
-          is_automated BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_sender (sender_id),
-          INDEX idx_receiver (receiver_id)
-        )
-      `,
-      ignoreError: true,
-    },
-    { label: 'messages is_automated', sql: 'ALTER TABLE messages ADD COLUMN is_automated BOOLEAN DEFAULT FALSE', ignoreError: true },
-    {
-      label: 'create announcements table',
-      sql: `
-        CREATE TABLE IF NOT EXISTS announcements (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          title VARCHAR(255) NOT NULL,
-          content TEXT NOT NULL,
-          target_role VARCHAR(50) DEFAULT 'all',
-          created_by INT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `,
-      ignoreError: true,
-    },
-    {
-      label: 'create user_announcement_reads table',
-      sql: `
-        CREATE TABLE IF NOT EXISTS user_announcement_reads (
-          user_id INT NOT NULL,
-          announcement_id INT NOT NULL,
-          read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (user_id, announcement_id)
-        )
-      `,
-      ignoreError: true,
-    },
-    {
-      label: 'create scheduled_messages table',
-      sql: `
-        CREATE TABLE IF NOT EXISTS scheduled_messages (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          message TEXT NOT NULL,
-          target_role VARCHAR(50) DEFAULT 'all',
-          target_users TEXT NULL,
-          cron_expression VARCHAR(100) NOT NULL,
-          is_active BOOLEAN DEFAULT TRUE,
-          created_by INT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      `,
-      ignoreError: true,
-    },
-    {
-      label: 'alter scheduled_messages charset',
-      sql: `ALTER TABLE scheduled_messages CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
-      ignoreError: true,
-    },
-    {
-      label: 'alter scheduled_messages columns charset',
-      sql: `ALTER TABLE scheduled_messages MODIFY message TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL`,
-      ignoreError: true,
-    },
-  ];
-
-  for (const item of startupQueries) {
-    try {
-      await pool.query(item.sql);
-    } catch (err) {
-      if (!item.ignoreError) {
-        console.error(`Startup DB task failed (${item.label}):`, err.message);
-      }
-    }
+  try {
+    await pool.checkConnection();
+  } catch (err) {
+    console.error('Background jobs skipped — DB unavailable:', pool.formatError(err));
+    return;
   }
 
   require('./cron/reminders');
-  
-  // Start Automated Messages Scheduler
+
   try {
     const { loadSchedules } = require('./scheduler');
     await loadSchedules();
@@ -310,7 +113,7 @@ async function runStartupDbTasks() {
   }
 }
 
-runStartupDbTasks();
+startBackgroundJobs();
 
 // ── 404 handler ─────────────────────────────────────────────
 app.use((req, res) => {

@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 
+const LAST_ACTIVE_INTERVAL_MS = 2 * 60 * 1000; // throttle DB writes per user
+const lastActiveUpdates = new Map();
+
 /**
  * Middleware: Verify JWT from Authorization: Bearer <token>
  * Attaches decoded payload to req.user
@@ -16,10 +19,16 @@ const auth = (req, res, next) => {
     const secretKey = process.env.JWT_SECRET || 'BOU_SECRET_KEY_12345!@#';
     const decoded = jwt.verify(token, secretKey);
     req.user = decoded; // { id, username, role, roles[], team_id, full_name }
-    
-    // Update last_active asynchronously (fire and forget)
-    pool.query('UPDATE users SET last_active = NOW() WHERE id = ?', [decoded.id]).catch(err => console.error('Error updating last_active:', err.message));
-    
+
+    const userId = decoded.id;
+    const now = Date.now();
+    const lastUpdate = lastActiveUpdates.get(userId) || 0;
+    if (now - lastUpdate >= LAST_ACTIVE_INTERVAL_MS) {
+      lastActiveUpdates.set(userId, now);
+      pool.query('UPDATE users SET last_active = NOW() WHERE id = ?', [userId])
+        .catch((err) => console.error('Error updating last_active:', err.message));
+    }
+
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });

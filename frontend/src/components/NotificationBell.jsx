@@ -18,20 +18,27 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchUnreadCount();
-    // Poll every 60 seconds, but only if the tab is active
+
+    const POLL_MS = 120000; // 2 min — FCM handles realtime; reduces API load
+
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchUnreadCount();
       }
-    }, 60000);
-    
-    // Listen for instant local events (e.g. from testing event messages)
+    }, POLL_MS);
+
     const handleInstantAlert = () => fetchUnreadCount();
+    const handleTabVisible = () => {
+      if (document.visibilityState === 'visible') fetchUnreadCount();
+    };
+
     window.addEventListener('new_message_alert', handleInstantAlert);
-    
+    document.addEventListener('visibilitychange', handleTabVisible);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('new_message_alert', handleInstantAlert);
+      document.removeEventListener('visibilitychange', handleTabVisible);
     };
   }, [fetchUnreadCount]);
 
