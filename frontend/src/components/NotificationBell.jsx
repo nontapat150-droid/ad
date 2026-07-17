@@ -18,8 +18,12 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchUnreadCount();
-    // Poll every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
+    // Poll every 60 seconds, but only if the tab is active
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadCount();
+      }
+    }, 60000);
     
     // Listen for instant local events (e.g. from testing event messages)
     const handleInstantAlert = () => fetchUnreadCount();

@@ -34,7 +34,11 @@ export default function TechSection() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 3 * 60 * 1000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
+      }
+    }, 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
