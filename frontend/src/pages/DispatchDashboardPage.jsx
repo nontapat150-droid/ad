@@ -310,14 +310,26 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 )}
               </div>
               {[
-                { label: 'วันที่นัด', value: job.plan_arrival_date ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' }) : '-' },
-                { label: 'เวลาเข้างาน', value: job.plan_arrival_time ? (typeof job.plan_arrival_time === 'string' ? job.plan_arrival_time.substring(0,5) : '-') : '-' },
+                { 
+                  label: 'วันที่นัด', 
+                  value: job.plan_arrival_date 
+                    ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' }) 
+                    : (job.assigned_time ? new Date(job.assigned_time).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' }) : '-') 
+                },
+                { 
+                  label: 'เวลาเข้างาน', 
+                  value: job.plan_arrival_time 
+                    ? (typeof job.plan_arrival_time === 'string' 
+                        ? job.plan_arrival_time.substring(0,5) 
+                        : new Date(job.plan_arrival_time).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })) 
+                    : (job.assigned_time ? new Date(job.assigned_time).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-') 
+                },
                 { label: 'แพ็กเกจ', value: job.package || '-' },
                 { label: 'สินค้า', value: job.product || '-' },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
                   <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">{label}</p>
-                  <p className="text-sm font-semibold text-[#1F2937] break-words">{value}</p>
+                  <p className="text-sm font-semibold text-[#1F2937] break-words">{value === 'Invalid Date' ? '-' : value}</p>
                 </div>
               ))}
             </div>
