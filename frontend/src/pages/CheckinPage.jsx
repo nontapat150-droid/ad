@@ -731,21 +731,19 @@ export default function CheckinPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className={`grid gap-3 ${isSales ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        <div className="grid gap-3 grid-cols-2">
                           <button
                             onClick={() => handleSubmit('checkin')}
                             disabled={loading || !coords}
                             className="rounded-xl bg-[#A3E635] hover:bg-[#84CC16] text-[#1F2937] font-black shadow-[0_4px_15px_rgba(163,230,53,0.3)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
                             {loading ? '⏳' : '✅'} เข้างาน
                           </button>
-                          {!isSales && (
-                            <button
-                              onClick={() => handleSubmit('checkout')}
-                              disabled={loading || !coords}
-                              className="rounded-xl bg-[#1F2937] hover:bg-[#374151] text-white font-bold shadow-[0_4px_15px_rgba(0,0,0,0.1)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
-                              {loading ? '⏳' : '🏁'} เลิกงาน
-                            </button>
-                          )}
+                          <button
+                            onClick={() => handleSubmit('checkout')}
+                            disabled={loading || !coords}
+                            className="rounded-xl bg-[#1F2937] hover:bg-[#374151] text-white font-bold shadow-[0_4px_15px_rgba(0,0,0,0.1)] active:scale-95 transition-all py-3.5 text-base disabled:opacity-50 flex items-center justify-center gap-2">
+                            {loading ? '⏳' : '🏁'} เลิกงาน
+                          </button>
                         </div>
                       )}
                     </div>
