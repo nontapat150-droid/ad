@@ -54,6 +54,8 @@ export default function UnifiedDashboard() {
   const roleLabel = isSuperAdmin ? 'Super Admin'
     : isAdmin ? 'Admin'
     : isMaTech ? 'ช่าง MA'
+    : userRoles.includes('contractor_office') ? 'รับเหมาติดตั้ง'
+    : userRoles.includes('contractor_ma') ? 'รับเหมา MA'
     : isTech ? 'ช่างออฟฟิศ'
     : isSales ? 'เซล'
     : 'ผู้ใช้งาน';
