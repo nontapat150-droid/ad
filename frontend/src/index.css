@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Kanit:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Kanit:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -96,11 +95,20 @@ body {
   background:            var(--page-bg);
   background-attachment: var(--page-bg-fixed);
   min-height: 100vh;
-  font-family:  'Kanit', 'Sora', sans-serif;
+  font-family:  'Sarabun', 'Kanit', 'Tahoma', sans-serif;
   font-size:    15px;
-  line-height:  1.65;
+  line-height:  1.7;
+  letter-spacing: 0.01em;
   color:        var(--blue-900);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings keep the brand display font (Kanit) */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Kanit', 'Sarabun', sans-serif;
+  letter-spacing: 0;
 }
 
 /* optional floating blobs via pseudo */
@@ -540,8 +548,95 @@ label {
 
 /* Note: arbitrary bg classes handled via global overrides above */
 
-/* Note: Tailwind hover utilities with arbitrary values are not overridable in plain CSS.
-   Dark mode hover effects are handled via the glass variable overrides above. */
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE HOVER FIXES
+   Light hover backgrounds become subtle dark highlights so text
+   stays readable (fixes white-on-hover covering text)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* White / near-white hovers → soft raised slate */
+.dark .hover\:bg-white:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-50\/50:hover,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-blue-50:hover,
+.dark .hover\:bg-blue-50\/20:hover,
+.dark .hover\:bg-\[\#F9FAFB\]:hover,
+.dark .hover\:bg-\[\#F9FAFB\]\/80:hover,
+.dark .hover\:bg-\[\#F3F4F6\]:hover,
+.dark .hover\:bg-\[\#E6F1FB\]:hover,
+.dark .hover\:bg-\[\#E6F1FB\]\/30:hover,
+.dark .hover\:bg-\[\#378ADD\]\/5:hover {
+  background-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+/* Light gray hovers → slightly stronger slate */
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-slate-200:hover,
+.dark .hover\:bg-slate-200\/50:hover,
+.dark .hover\:bg-gray-200:hover,
+.dark .hover\:bg-slate-300:hover,
+.dark .hover\:bg-\[\#E5E7EB\]:hover {
+  background-color: #334155 !important;
+}
+
+/* Translucent white hovers → gentle light wash instead of solid white */
+.dark .hover\:bg-white\/30:hover,
+.dark .hover\:bg-white\/40:hover,
+.dark .hover\:bg-white\/50:hover,
+.dark .hover\:bg-white\/60:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Pastel tint hovers → dark-mode tints of the same hue */
+.dark .hover\:bg-amber-50:hover   { background-color: rgba(120,53,15,0.35) !important; }
+.dark .hover\:bg-amber-100:hover  { background-color: rgba(120,53,15,0.5) !important; }
+.dark .hover\:bg-emerald-50:hover,
+.dark .hover\:bg-\[\#F0FDF4\]:hover { background-color: rgba(6,78,59,0.35) !important; }
+.dark .hover\:bg-emerald-100:hover,
+.dark .hover\:bg-emerald-200:hover,
+.dark .hover\:bg-green-100:hover  { background-color: rgba(6,78,59,0.55) !important; }
+.dark .hover\:bg-red-50:hover,
+.dark .hover\:bg-\[\#FEF2F2\]:hover { background-color: rgba(127,29,29,0.35) !important; }
+.dark .hover\:bg-red-100:hover    { background-color: rgba(127,29,29,0.5) !important; }
+.dark .hover\:bg-rose-50:hover    { background-color: rgba(136,19,55,0.35) !important; }
+.dark .hover\:bg-rose-100:hover   { background-color: rgba(136,19,55,0.5) !important; }
+.dark .hover\:bg-orange-50:hover  { background-color: rgba(124,45,18,0.35) !important; }
+.dark .hover\:bg-orange-100:hover { background-color: rgba(124,45,18,0.5) !important; }
+.dark .hover\:bg-blue-100:hover   { background-color: rgba(30,58,138,0.5) !important; }
+.dark .hover\:bg-indigo-100:hover { background-color: rgba(49,46,129,0.5) !important; }
+.dark .hover\:bg-purple-50:hover  { background-color: rgba(88,28,135,0.4) !important; }
+.dark .hover\:bg-violet-100\/50:hover { background-color: rgba(76,29,149,0.4) !important; }
+.dark .hover\:bg-brand-50:hover   { background-color: rgba(54,83,20,0.4) !important; }
+.dark .hover\:bg-brand-100:hover  { background-color: rgba(54,83,20,0.55) !important; }
+.dark .hover\:bg-\[\#A3E635\]\/5:hover,
+.dark .hover\:bg-\[\#A3E635\]\/10:hover  { background-color: rgba(101,163,13,0.15) !important; }
+.dark .hover\:bg-\[\#A3E635\]\/15:hover,
+.dark .hover\:bg-\[\#A3E635\]\/20:hover  { background-color: rgba(101,163,13,0.25) !important; }
+
+/* Hover text that darkens (would vanish on dark bg) → lighten instead */
+.dark .hover\:text-\[\#1F2937\]:hover,
+.dark .hover\:text-\[\#374151\]:hover,
+.dark .hover\:text-\[\#042C53\]:hover,
+.dark .hover\:text-\[\#4B5563\]:hover,
+.dark .hover\:text-slate-800:hover {
+  color: #f1f5f9 !important;
+}
+.dark .hover\:text-\[\#0C447C\]:hover,
+.dark .hover\:text-\[\#185FA5\]:hover { color: #93c5fd !important; }
+.dark .hover\:text-\[\#6B7280\]:hover { color: #cbd5e1 !important; }
+
+/* group-hover white → dark highlight */
+.dark .group:hover .group-hover\:bg-white {
+  background-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+/* Glass hover in dark mode keeps its dark surface */
+.dark .glass:hover,
+.dark .liquid-hover:hover {
+  background: var(--glass-bg);
+}
 
 /* ── Scrollbar for dark mode ─────────────── */
 .dark ::-webkit-scrollbar-track { background: #0f172a; }

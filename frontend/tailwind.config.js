@@ -8,7 +8,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Kanit', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['Sarabun', 'Kanit', 'system-ui', 'sans-serif'],
+        display: ['Kanit', 'Sarabun', 'sans-serif'],
       },
       colors: {
         brand: {

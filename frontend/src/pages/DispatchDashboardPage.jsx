@@ -10,6 +10,7 @@ import ImageWithFallback from '../components/common/ImageWithFallback';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import ManualModal from '../components/ManualModal';
 import Swal from 'sweetalert2';
 
