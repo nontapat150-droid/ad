@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Sidebar from '../components/Sidebar';
@@ -8,6 +8,22 @@ import TeamManagementModal from '../components/TeamManagementModal';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import { AppSelectField, AppTimeField } from '../components/DispatchFilterFields';
+
+const ROLE_OPTIONS = [
+  { value: 'super_admin', label: 'ผู้ดูแลระบบ' },
+  { value: 'admin', label: 'แอดมิน' },
+  { value: 'technician', label: 'ช่างติดตั้ง' },
+  { value: 'ma_technician', label: 'ช่าง MA' },
+  { value: 'contractor_office', label: 'รับเหมาติดตั้ง' },
+  { value: 'contractor_ma', label: 'รับเหมา MA' },
+  { value: 'sales', label: 'เซล' },
+];
+
+const STATUS_OPTIONS = [
+  { value: 'approved', label: 'ใช้งานปกติ' },
+  { value: 'pending', label: 'รออนุมัติ' },
+  { value: 'rejected', label: 'ถูกระงับ' },
+];
 
 function TimeFieldWithSeconds({ value, onChange, placeholder }) {
   return (
@@ -35,6 +51,38 @@ export default function UserManagementPage() {
   const [isTeamModalOpen, setTeamModalOpen] = useState(false);
   const [lateTimes, setLateTimes] = useState({});
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const [search, setSearch] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterTeam, setFilterTeam] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const hasActiveFilter = Boolean(search.trim() || filterRole || filterTeam || filterStatus);
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilterRole('');
+    setFilterTeam('');
+    setFilterStatus('');
+  };
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter((u) => {
+      if (q && !`${u.full_name || ''} ${u.username || ''}`.toLowerCase().includes(q)) return false;
+      if (filterRole) {
+        const userRoles = u.roles && u.roles.length ? u.roles : [u.role];
+        if (!userRoles.includes(filterRole)) return false;
+      }
+      if (filterTeam) {
+        if (filterTeam === 'none') {
+          if (u.team_id) return false;
+        } else if (String(u.team_id || '') !== filterTeam) return false;
+      }
+      if (filterStatus && (u.status || 'approved') !== filterStatus) return false;
+      return true;
+    });
+  }, [users, search, filterRole, filterTeam, filterStatus]);
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -192,6 +240,71 @@ export default function UserManagementPage() {
               )}
             </div>
 
+            {/* Filter Bar */}
+            {activeTab === 'users' && (
+              <div className="bg-white rounded-2xl border border-[#E5E7EB] shadow-sm p-4 sm:p-5 animate-[slideUp_0.3s_ease-out]">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-[#84CC16]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                    </svg>
+                    <span className="text-sm font-black text-[#1F2937]">ตัวกรองผู้ใช้งาน</span>
+                    {hasActiveFilter && (
+                      <span className="px-2 py-0.5 rounded-md bg-[#A3E635]/20 text-[#4D7C0F] text-[11px] font-black">
+                        {filteredUsers.length} / {users.length} คน
+                      </span>
+                    )}
+                  </div>
+                  {hasActiveFilter && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs font-bold text-[#9CA3AF] hover:text-red-500 transition-colors flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="relative">
+                    <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="ค้นหาชื่อ / username..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm font-medium text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <AppSelectField
+                    label=""
+                    value={filterRole}
+                    onChange={setFilterRole}
+                    options={ROLE_OPTIONS}
+                    placeholder="ทุกบทบาท"
+                  />
+                  <AppSelectField
+                    label=""
+                    value={filterTeam}
+                    onChange={setFilterTeam}
+                    options={[
+                      { value: 'none', label: '— ไม่มีทีม —' },
+                      ...teams.map((t) => ({ value: String(t.id), label: t.team_name })),
+                    ]}
+                    placeholder="ทุกทีม"
+                    searchable
+                  />
+                  <AppSelectField
+                    label=""
+                    value={filterStatus}
+                    onChange={setFilterStatus}
+                    options={STATUS_OPTIONS}
+                    placeholder="ทุกสถานะ"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Content Area */}
             {activeTab === 'users' ? (
               <div className="bg-white rounded-3xl border border-[#E5E7EB] shadow-sm overflow-hidden animate-[slideUp_0.3s_ease-out]">
@@ -213,7 +326,26 @@ export default function UserManagementPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#E5E7EB]">
-                        {users.map((u) => (
+                        {filteredUsers.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-12 text-center">
+                              <div className="flex flex-col items-center gap-3">
+                                <div className="w-14 h-14 rounded-2xl bg-[#F3F4F6] border border-[#E5E7EB] flex items-center justify-center">
+                                  <svg className="w-7 h-7 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                                  </svg>
+                                </div>
+                                <p className="text-sm font-bold text-[#6B7280]">ไม่พบผู้ใช้ที่ตรงกับตัวกรอง</p>
+                                {hasActiveFilter && (
+                                  <button onClick={clearFilters} className="text-xs font-black text-[#65a30d] hover:text-[#4D7C0F] underline underline-offset-2">
+                                    ล้างตัวกรองทั้งหมด
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {filteredUsers.map((u) => (
                           <tr key={u.id} className="hover:bg-[#F9FAFB] transition-colors group">
                             <td className="p-5">
                               <div className="flex items-center gap-4">
