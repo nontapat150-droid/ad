@@ -723,6 +723,92 @@ label {
   background: #FFFFFF;
 }
 
+/* ── Thai month picker (used inside Swal dialogs) ── */
+.month-picker {
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  background: #F9FAFB;
+  padding: 14px;
+}
+.month-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.month-picker-nav {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #1F2937;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.month-picker-nav:hover:not(:disabled) {
+  border-color: #A3E635;
+  background: rgba(163, 230, 53, 0.12);
+}
+.month-picker-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+.month-picker-year {
+  font-family: 'Kanit', 'Sarabun', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #1F2937;
+}
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.month-picker-cell {
+  padding: 11px 0;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #FFFFFF;
+  color: #374151;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.month-picker-cell:hover:not(:disabled):not(.selected) {
+  border-color: #A3E635;
+  background: rgba(163, 230, 53, 0.12);
+}
+.month-picker-cell.selected {
+  background: #A3E635;
+  border-color: #A3E635;
+  color: #1F2937;
+  font-weight: 800;
+  box-shadow: 0 2px 10px rgba(163, 230, 53, 0.45);
+}
+.month-picker-cell:disabled { opacity: 0.3; cursor: not-allowed; }
+.month-picker-selected {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #E5E7EB;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4D7C0F;
+  text-align: center;
+}
+
+.dark .month-picker { background: rgba(15, 23, 42, 0.65); border-color: #334155; }
+.dark .month-picker-nav { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+.dark .month-picker-year { color: #f1f5f9; }
+.dark .month-picker-cell { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+.dark .month-picker-cell.selected { background: #65a30d; border-color: #65a30d; color: #f8fafc; }
+.dark .month-picker-selected { border-top-color: #334155; color: #bef264; }
+
 /* SweetAlert2 dark mode */
 .dark .swal2-popup { background: #1e293b !important; }
 .dark .swal2-title { color: #f1f5f9 !important; }

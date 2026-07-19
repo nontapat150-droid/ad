@@ -108,14 +108,29 @@ export default function CheckinPage() {
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleExportMonthly = async () => {
-    const currentMonth = new Date().toISOString().slice(0, 7);
+    const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth();
+    let viewYear = curYear;
+    let selYear = curYear;
+    let selMonth = curMonth;
+
     const { value: monthValue } = await Swal.fire({
       title: 'Export รายงานเช็คอิน',
       html: `
         <div style="text-align:left;">
           <p style="margin:0 0 14px;font-size:13px;color:#6B7280;">เลือกเดือนที่ต้องการดาวน์โหลดเป็นไฟล์ Excel</p>
-          <label style="display:block;font-size:11px;font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;">เดือนที่ต้องการ</label>
-          <input type="month" id="exportMonth" class="app-month-input" value="${currentMonth}" max="${currentMonth}">
+          <div class="month-picker">
+            <div class="month-picker-head">
+              <button type="button" id="mpPrev" class="month-picker-nav" aria-label="ปีก่อนหน้า">‹</button>
+              <span id="mpYear" class="month-picker-year"></span>
+              <button type="button" id="mpNext" class="month-picker-nav" aria-label="ปีถัดไป">›</button>
+            </div>
+            <div id="mpGrid" class="month-picker-grid"></div>
+            <div id="mpSelected" class="month-picker-selected"></div>
+          </div>
         </div>
       `,
       showCancelButton: true,
@@ -123,11 +138,36 @@ export default function CheckinPage() {
       confirmButtonColor: '#A3E635',
       cancelButtonText: 'ยกเลิก',
       customClass: { confirmButton: 'swal2-confirm-brand' },
-      preConfirm: () => {
-        const val = document.getElementById('exportMonth').value;
-        if (!val) Swal.showValidationMessage('กรุณาเลือกเดือน');
-        return val;
-      }
+      didOpen: () => {
+        const yearEl = document.getElementById('mpYear');
+        const gridEl = document.getElementById('mpGrid');
+        const selectedEl = document.getElementById('mpSelected');
+        const prevBtn = document.getElementById('mpPrev');
+        const nextBtn = document.getElementById('mpNext');
+
+        const render = () => {
+          yearEl.textContent = `พ.ศ. ${viewYear + 543}`;
+          nextBtn.disabled = viewYear >= curYear;
+          gridEl.innerHTML = THAI_MONTHS_SHORT.map((m, i) => {
+            const disabled = viewYear === curYear && i > curMonth;
+            const selected = viewYear === selYear && i === selMonth;
+            return `<button type="button" class="month-picker-cell${selected ? ' selected' : ''}" data-month="${i}" ${disabled ? 'disabled' : ''}>${m}</button>`;
+          }).join('');
+          selectedEl.textContent = `เดือนที่เลือก: ${THAI_MONTHS[selMonth]} ${selYear + 543}`;
+          gridEl.querySelectorAll('.month-picker-cell').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              selMonth = Number(btn.dataset.month);
+              selYear = viewYear;
+              render();
+            });
+          });
+        };
+
+        prevBtn.addEventListener('click', () => { viewYear -= 1; render(); });
+        nextBtn.addEventListener('click', () => { if (viewYear < curYear) { viewYear += 1; render(); } });
+        render();
+      },
+      preConfirm: () => `${selYear}-${String(selMonth + 1).padStart(2, '0')}`
     });
 
     if (monthValue) {
