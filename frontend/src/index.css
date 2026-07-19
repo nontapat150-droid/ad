@@ -638,6 +638,108 @@ label {
   background: var(--glass-bg);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   SWEETALERT2 — SITE THEME
+   Rounded surfaces, brand fonts, lime accent, outline cancel
+   ═══════════════════════════════════════════════════════════════ */
+.swal2-container.swal2-backdrop-show {
+  background: rgba(31, 41, 55, 0.55) !important;
+  backdrop-filter: blur(4px);
+}
+.swal2-popup {
+  border-radius: 24px !important;
+  font-family: 'Sarabun', 'Kanit', 'Tahoma', sans-serif !important;
+  padding: 1.75rem 1.5rem 1.5rem !important;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22) !important;
+}
+.swal2-title {
+  font-family: 'Kanit', 'Sarabun', sans-serif !important;
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  color: #1F2937 !important;
+}
+.swal2-html-container {
+  color: #4B5563 !important;
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+}
+.swal2-actions { gap: 10px !important; }
+.swal2-styled {
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  font-family: inherit !important;
+  padding: 11px 24px !important;
+  box-shadow: none !important;
+  transition: transform 0.15s ease, filter 0.15s ease !important;
+}
+.swal2-styled:hover { filter: brightness(0.96); transform: translateY(-1px); }
+.swal2-styled:active { transform: scale(0.97); }
+.swal2-styled:focus { box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.35) !important; }
+.swal2-styled.swal2-cancel {
+  background: #FFFFFF !important;
+  border: 2px solid #E5E7EB !important;
+  color: #4B5563 !important;
+}
+.swal2-styled.swal2-cancel:hover { background: #F9FAFB !important; color: #1F2937 !important; }
+/* Confirm buttons using the brand lime need dark text */
+.swal2-confirm-brand { color: #1F2937 !important; }
+.swal2-input, .swal2-select, .swal2-textarea {
+  border: 1px solid #E5E7EB !important;
+  border-radius: 12px !important;
+  background: #F9FAFB !important;
+  color: #1F2937 !important;
+  font-size: 0.95rem !important;
+  box-shadow: none !important;
+}
+.swal2-input:focus, .swal2-select:focus, .swal2-textarea:focus {
+  border-color: #A3E635 !important;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.2) !important;
+  background: #FFFFFF !important;
+}
+.swal2-validation-message {
+  border-radius: 12px !important;
+  background: #FEF2F2 !important;
+  color: #B91C1C !important;
+  font-weight: 600 !important;
+}
+
+/* Month/date input used inside Swal html (Export dialog etc.) */
+.app-month-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: #F9FAFB;
+  color: #1F2937;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.18s ease;
+}
+.app-month-input:focus {
+  border-color: #A3E635;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.2);
+  background: #FFFFFF;
+}
+
+/* SweetAlert2 dark mode */
+.dark .swal2-popup { background: #1e293b !important; }
+.dark .swal2-title { color: #f1f5f9 !important; }
+.dark .swal2-html-container { color: #cbd5e1 !important; }
+.dark .swal2-styled.swal2-cancel {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+.dark .swal2-styled.swal2-cancel:hover { background: #1e293b !important; color: #f1f5f9 !important; }
+.dark .swal2-validation-message { background: rgba(127, 29, 29, 0.4) !important; color: #f87171 !important; }
+.dark .app-month-input {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
 /* ── Scrollbar for dark mode ─────────────── */
 .dark ::-webkit-scrollbar-track { background: #0f172a; }
 .dark ::-webkit-scrollbar-thumb { background: #334155; }

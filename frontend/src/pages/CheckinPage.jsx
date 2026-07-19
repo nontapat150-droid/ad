@@ -108,13 +108,21 @@ export default function CheckinPage() {
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleExportMonthly = async () => {
+    const currentMonth = new Date().toISOString().slice(0, 7);
     const { value: monthValue } = await Swal.fire({
-      title: 'เลือกเดือนที่ต้องการ Export',
-      html: '<input type="month" id="exportMonth" class="swal2-input">',
+      title: 'Export รายงานเช็คอิน',
+      html: `
+        <div style="text-align:left;">
+          <p style="margin:0 0 14px;font-size:13px;color:#6B7280;">เลือกเดือนที่ต้องการดาวน์โหลดเป็นไฟล์ Excel</p>
+          <label style="display:block;font-size:11px;font-weight:700;color:#6B7280;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:6px;">เดือนที่ต้องการ</label>
+          <input type="month" id="exportMonth" class="app-month-input" value="${currentMonth}" max="${currentMonth}">
+        </div>
+      `,
       showCancelButton: true,
       confirmButtonText: '📥 Export (Excel)',
-      confirmButtonColor: '#1F2937',
+      confirmButtonColor: '#A3E635',
       cancelButtonText: 'ยกเลิก',
+      customClass: { confirmButton: 'swal2-confirm-brand' },
       preConfirm: () => {
         const val = document.getElementById('exportMonth').value;
         if (!val) Swal.showValidationMessage('กรุณาเลือกเดือน');
