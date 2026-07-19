@@ -8,7 +8,9 @@ export function BrandingProvider({ children }) {
   const [branding, setBranding] = useState({
     website_name: 'Bount ระบบจัดการงาน',
     website_logo: null,
-    website_favicon: null
+    website_favicon: null,
+    admin_phone: null,
+    admin_line: null,
   });
   const [loading, setLoading] = useState(true);
 

@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import Swal from 'sweetalert2';
-
-const STATUS_MAP = {
-  pending:    { label: 'รอดำเนินการ', color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-200' },
-  in_progress:{ label: 'กำลังดำเนินการ', color: 'text-[#185FA5]', bg: 'bg-[#B5D4F4]', border: 'border-[#185FA5]/20' },
-  completed:  { label: 'เสร็จสิ้น',     color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
-};
+import { getJobStatusMeta } from '../constants/jobStatus';
 
 export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, onCancelCompletion, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive, onCardClick }) {
   const [expanded, setExpanded] = useState(false);
-  const st = STATUS_MAP[job.status] || STATUS_MAP.pending;
+  const st = getJobStatusMeta(job.status);
   const isCompleted = job.status === 'completed';
 
   const formatTime = (iso) => {
@@ -67,9 +62,20 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
             <h3 className={`font-bold text-base truncate ${isCompleted ? 'text-[#378ADD] line-through' : 'text-[#042C53]'}`}>
-              {job.access_no || 'ไม่ระบุ Access No.'}
+              {job.job_type === 'ma'
+                ? (job.display_non || job.non_number || job.access_no || 'ไม่ระบุ NON')
+                : (job.access_no || 'ไม่ระบุ Access No.')}
             </h3>
             <div className="flex items-center gap-2">
+              {job.job_type && (
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border shrink-0 ${
+                  job.job_type === 'ma'
+                    ? 'bg-violet-50 text-violet-700 border-violet-200'
+                    : 'bg-sky-50 text-sky-700 border-sky-200'
+                }`}>
+                  {job.job_type === 'ma' ? 'MA' : 'ติดตั้ง'}
+                </span>
+              )}
               {onEdit && (
                 <button onClick={(e) => { e.stopPropagation(); onEdit(job); }} className="p-1 rounded-md text-[#378ADD] hover:bg-white/50 hover:text-[#0C447C] transition-colors" title="แก้ไข">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -82,7 +88,7 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
               )}
               <span 
                 onClick={job.status === 'failed' ? handleStatusClick : undefined}
-                className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${st.color} ${st.bg} ${st.border} ${job.status === 'failed' ? 'cursor-pointer hover:opacity-80' : ''}`}
+                className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-md border ${st.text} ${st.bg} ${st.border} ${job.status === 'failed' ? 'cursor-pointer hover:opacity-80' : ''}`}
                 title={job.status === 'failed' ? 'คลิกเพื่อดูสาเหตุ' : ''}>
                 {st.label}
               </span>

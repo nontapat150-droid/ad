@@ -67,6 +67,13 @@ const DEVICE_ROLE_INSTALL_PREFIX = {
   SOA: 'SOA', ONU: 'ONU', PB: 'PB', Mesh: 'Mesh', SIM: 'SIM', Cam: 'Cam',
 };
 
+/** Who owns the bag / gets usage credit — assignee when set, else the person completing */
+function resolveBagOwnerId(job, completerId, { isMa = false } = {}) {
+  const assignee = isMa ? job?.assigned_user_id : job?.field_engineer_id;
+  if (assignee) return Number(assignee);
+  return Number(completerId);
+}
+
 function parseInstallDevice(str) {
   if (!str) return {};
   const map = {
@@ -340,6 +347,62 @@ async function processMaNoSnItems(conn, { maJobId, techId, nonNumber, noSnItems 
   return summaryParts;
 }
 
+/** MA: cut SN items from bag and record in ma_job_used_inventory */
+async function processMaSnItems(conn, { maJobId, techId, nonNumber, snItems }) {
+  const summaryParts = [];
+  const seenIds = new Set();
+
+  for (const entry of snItems) {
+    const itemId = parseInt(entry.inventory_item_id || entry.item_id, 10);
+    if (!itemId) continue;
+    if (seenIds.has(itemId)) throw new Error('เลือกอุปกรณ์ SN ซ้ำกันในรายการ');
+    seenIds.add(itemId);
+
+    const [[item]] = await conn.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = 'dispatched'
+       FOR UPDATE`,
+      [itemId, techId]
+    );
+    if (!item) {
+      throw new Error(`ไม่พบอุปกรณ์ SN ในกระเป๋า (ID: ${itemId})`);
+    }
+
+    await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
+
+    const note = `MA ติดตั้งให้ลูกค้า: ${nonNumber || maJobId}`;
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', 1, ?)`,
+        [itemId, techId, note]
+      );
+    } catch (le) {
+      if (String(le.message || '').includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', 1, ?)`,
+          [(maxId || 0) + 1, itemId, techId, note]
+        );
+      } else throw le;
+    }
+
+    const productName = entry.product_name || item.product_name;
+    const modelName = entry.model_name || item.model_name || '-';
+    const sn = item.sn || entry.sn || '-';
+    await conn.query(
+      `INSERT INTO ma_job_used_inventory (ma_job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
+       VALUES (?, ?, 'SN', ?, ?, ?, 1, ?)`,
+      [maJobId, itemId, sn, productName, modelName, techId]
+    );
+
+    summaryParts.push(`${productName} ${modelName} (SN: ${sn})`.trim());
+  }
+  return summaryParts;
+}
+
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
   try {
@@ -405,8 +468,9 @@ router.get('/jobs', auth, async (req, res) => {
 
     const selectCols = type === 'ma'
       ? `j.*, j.job_time AS plan_arrival_time, j.assigned_user_id AS field_engineer_id,
-         COALESCE(j.non_number, j.access_no) AS display_non`
-      : `j.*`;
+         COALESCE(j.non_number, j.access_no) AS display_non,
+         'ma' AS job_type`
+      : `j.*, 'office' AS job_type`;
 
     const [rows] = await pool.query(
       `SELECT ${selectCols}, j.id AS id, t.team_name,
@@ -613,11 +677,13 @@ router.put(
       }
 
       // 2. Process tech-bag inventory usage (SN items)
+      // Attribute stock + usage to assignee when set (admin completing on behalf)
+      const bagOwnerId = resolveBagOwnerId(job, techId, { isMa: false });
       const usedItems = parseUsedInventoryBody(req.body);
       let installPartsFromBag = [];
       if (usedItems.length > 0) {
         installPartsFromBag = await processUsedInventory(conn, {
-          jobId, techId, accessNo: job.access_no, usedItems,
+          jobId, techId: bagOwnerId, accessNo: job.access_no, usedItems,
         });
       }
 
@@ -626,7 +692,7 @@ router.put(
       let noSnSummaryParts = [];
       if (noSnItems.length > 0) {
         noSnSummaryParts = await processNoSnItems(conn, {
-          jobId, techId, accessNo: job.access_no, noSnItems,
+          jobId, techId: bagOwnerId, accessNo: job.access_no, noSnItems,
         });
       }
 
@@ -1417,13 +1483,30 @@ router.put(
         srt, spt, fail_cause, fix_method, old_sn, new_sn, cable_used, remark,
       } = req.body;
 
+      const bagOwnerId = resolveBagOwnerId(job, techId, { isMa: true });
       const noSnItems = parseNoSnItems(req.body);
-      const equipParts = await processMaNoSnItems(conn, {
-        maJobId,
-        techId,
-        nonNumber: job.non_number || job.access_no,
-        noSnItems,
-      });
+      const snItems = parseUsedInventoryBody(req.body);
+      const equipParts = [];
+
+      if (snItems.length > 0) {
+        const snParts = await processMaSnItems(conn, {
+          maJobId,
+          techId: bagOwnerId,
+          nonNumber: job.non_number || job.access_no,
+          snItems,
+        });
+        equipParts.push(...snParts);
+      }
+
+      if (noSnItems.length > 0) {
+        const noSnParts = await processMaNoSnItems(conn, {
+          maJobId,
+          techId: bagOwnerId,
+          nonNumber: job.non_number || job.access_no,
+          noSnItems,
+        });
+        equipParts.push(...noSnParts);
+      }
 
       await conn.query(
         `UPDATE ma_jobs SET

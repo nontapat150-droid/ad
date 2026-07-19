@@ -4,6 +4,7 @@ import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import axios from '../api/axios';
 import { getImageUrl } from '../utils/imageUtils';
+import { getJobStatusBadgeClass, getJobStatusLabel } from '../constants/jobStatus';
 
 export default function CustomersPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -167,15 +168,8 @@ export default function CustomersPage() {
                     </div>
                     <div className="bg-white/10 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-white/15 text-center">
                       <p className="text-[10px] text-[#A3E635] font-bold uppercase tracking-widest mb-1">สถานะปัจจุบัน</p>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold ${
-                        customerData.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                        customerData.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
-                        customerData.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        'bg-[#F3F4F6] text-[#374151]'
-                      }`}>
-                        {customerData.status === 'completed' ? 'เสร็จสิ้น' :
-                         customerData.status === 'in_progress' ? 'กำลังดำเนินการ' :
-                         customerData.status === 'failed' ? 'ล้มเหลว' : 'รอดำเนินการ'}
+                      <span className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold border ${getJobStatusBadgeClass(customerData.status)}`}>
+                        {getJobStatusLabel(customerData.status)}
                       </span>
                     </div>
                   </div>

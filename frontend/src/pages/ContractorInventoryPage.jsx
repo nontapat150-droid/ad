@@ -108,7 +108,7 @@ export default function ContractorInventoryPage() {
     const q = search.trim().toLowerCase();
     if (!q) return data.usages || [];
     return (data.usages || []).filter((u) =>
-      [u.contractor_name, u.product_name, u.model_name, u.sn, u.access_no, u.customer, u.device_role]
+      [u.contractor_name, u.product_name, u.model_name, u.sn, u.access_no, u.customer, u.device_role, u.job_type_display]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
@@ -327,7 +327,7 @@ export default function ContractorInventoryPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาชื่อ, SN, Access No..."
+                placeholder="ค้นหาชื่อ, SN, Access/NON..."
                 className="w-full pl-9 pr-3 h-10 rounded-xl border border-[#E5E7EB] bg-white text-sm outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
               />
             </div>
@@ -355,16 +355,19 @@ export default function ContractorInventoryPage() {
                         <p className="text-xs text-[#6B7280]">{u.model_name || '-'}</p>
                       </div>
                       <span className="text-[10px] font-black bg-[#1F2937] text-[#A3E635] px-2 py-0.5 rounded-lg shrink-0">
-                        {u.device_role || '-'}
+                        {u.device_role === 'NoSN' ? 'ไม่มี SN' : u.device_role === 'SN' ? 'มี SN' : (u.device_role || '-')}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#6B7280]">
                       <span className="font-bold text-[#1F2937]">{u.contractor_name}</span>
+                      <span className={`font-bold px-1.5 py-0.5 rounded border ${u.job_type === 'ma' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+                        {u.job_type_display || (u.job_type === 'ma' ? 'งาน MA' : 'งานติดตั้ง')}
+                      </span>
                       {u.sn && u.sn !== '-' && <span>SN: {u.sn}</span>}
                       <span>×{u.quantity}</span>
                     </div>
                     <div className="text-[11px] text-[#9CA3AF]">
-                      {u.access_no ? `Access: ${u.access_no}` : 'ไม่ผูก Access'} · {fmtDateTime(u.used_at)}
+                      {u.access_no ? `${u.job_type === 'ma' ? 'NON' : 'Access'}: ${u.access_no}` : 'ไม่ผูกเลขงาน'} · {fmtDateTime(u.used_at)}
                     </div>
                     {u.customer && <p className="text-[11px] text-[#6B7280] truncate">ลูกค้า: {u.customer}</p>}
                   </div>
@@ -378,6 +381,7 @@ export default function ContractorInventoryPage() {
                     <tr>
                       <th className="px-4 py-3">วันเวลา</th>
                       <th className="px-4 py-3">รับเหมา</th>
+                      <th className="px-4 py-3">ประเภทงาน</th>
                       <th className="px-4 py-3">อุปกรณ์</th>
                       <th className="px-4 py-3">SN / บทบาท</th>
                       <th className="px-4 py-3">งาน</th>
@@ -395,11 +399,18 @@ export default function ContractorInventoryPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${u.job_type === 'ma' ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+                            {u.job_type_display || (u.job_type === 'ma' ? 'งาน MA' : 'งานติดตั้ง')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
                           <p className="font-bold text-[#1F2937] text-xs">{u.product_name || '-'}</p>
                           <p className="text-[11px] text-[#9CA3AF]">{u.model_name || '-'}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-[10px] font-black bg-[#1F2937] text-[#A3E635] px-2 py-0.5 rounded-lg">{u.device_role || '-'}</span>
+                          <span className="text-[10px] font-black bg-[#1F2937] text-[#A3E635] px-2 py-0.5 rounded-lg">
+                            {u.device_role === 'NoSN' ? 'ไม่มี SN' : u.device_role === 'SN' ? 'มี SN' : (u.device_role || '-')}
+                          </span>
                           {u.sn && u.sn !== '-' && (
                             <p className="text-[11px] font-mono text-[#4B5563] mt-1">{u.sn}</p>
                           )}

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { FilterSelectField, AppDateField, AppTimeField } from './DispatchFilterFields';
+import { friendlyJobError, PresetChips } from './dashboards/SharedComponents';
+import { INCOMPLETE_REASON_PRESETS } from '../constants/jobStatus';
 
 const BAG_DEVICE_SLOTS = [
   { role: 'SOA', label: 'อุปกรณ์ปิด SOA', dashOption: false },
@@ -245,7 +247,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       setShowNoSnModal(false);
 
       setBagLoading(true);
-      api.get('/inventory/my-bag')
+      const assigneeId = job.field_engineer_id;
+      const bagUrl = assigneeId ? `/inventory/my-bag?user_id=${assigneeId}` : '/inventory/my-bag';
+      api.get(bagUrl)
         .then((res) => {
           const all = res.data || [];
           // has_sn items → SN selector dropdowns
@@ -434,17 +438,13 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       // onSuccess called after user closes popup
     } catch (err) {
       console.error(err);
-      
-      // ดึงข้อความ Error มาแสดงผล
-      const status = err.response?.status || 'Unknown';
-      let errorMsg = err.response?.data?.details || err.response?.data?.error || err.message || 'เกิดข้อผิดพลาดในการจบงาน';
-      
-      // แสดง Popup ด้วย SweetAlert2
+      const friendly = friendlyJobError(err, 'เกิดข้อผิดพลาดในการจบงาน');
       Swal.fire({
         icon: 'error',
-        title: `บันทึกไม่สำเร็จ (รหัส: ${status})`,
-        text: errorMsg,
-        confirmButtonText: 'ตกลง'
+        title: friendly.title,
+        text: friendly.text,
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#1F2937',
       });
     } finally {
       setLoading(false);
@@ -553,7 +553,16 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">Splitt <span className="text-red-500">*</span></label><input type="text" required value={splitNo} onChange={(e) => setSplitNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ Port <span className="text-red-500">*</span></label><input type="text" required value={portNo} onChange={(e) => setPortNo(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ใช้ #L3(ชื่อ)</label><input type="text" value={l3Name} onChange={(e) => setL3Name(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
-              <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ระยะสายจริง(M) <span className="text-red-500">*</span></label><input type="number" step="0.1" required value={cableLength} onChange={(e) => setCableLength(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
+              <div>
+                <label className="block text-xs font-semibold text-[#042C53] mb-1">ระยะสายจริง(M) <span className="text-red-500">*</span></label>
+                <PresetChips
+                  options={['20', '50', '100']}
+                  value={String(cableLength)}
+                  onPick={setCableLength}
+                  className="mb-1.5"
+                />
+                <input type="number" step="0.1" required value={cableLength} onChange={(e) => setCableLength(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" />
+              </div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">Ref ID 3BB</label><input type="text" value={refId3bb} onChange={(e) => setRefId3bb(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
               <div><label className="block text-xs font-semibold text-[#042C53] mb-1">ตัวต่อ sc สีฟ้า</label><input type="text" value={scBlue} onChange={(e) => setScBlue(e.target.value)} className="w-full px-3 py-2 rounded-xl glass border border-white/60 text-sm" /></div>
             </div>
@@ -761,7 +770,7 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!remark.trim()) {
-      alert('กรุณากรอกหมายเหตุ');
+      Swal.fire({ icon: 'warning', title: 'กรุณาระบุสาเหตุ', text: 'แตะตัวเลือกด้านล่าง หรือพิมพ์เอง', confirmButtonColor: '#1F2937' });
       return;
     }
 
@@ -771,7 +780,8 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       onSuccess();
       onClose();
     } catch (err) {
-      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึกงานไม่จบ');
+      const friendly = friendlyJobError(err, 'เกิดข้อผิดพลาดในการบันทึกงานไม่จบ');
+      Swal.fire({ icon: 'error', title: friendly.title, text: friendly.text, confirmButtonColor: '#1F2937' });
     } finally {
       setLoading(false);
     }
@@ -786,9 +796,16 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label className="block text-sm font-semibold text-red-800 mb-1">สาเหตุ / หมายเหตุ (บังคับ)</label>
+            <label className="block text-sm font-semibold text-red-800 mb-2">สาเหตุ / หมายเหตุ (บังคับ)</label>
+            <PresetChips
+              options={INCOMPLETE_REASON_PRESETS}
+              value={remark}
+              onPick={setRemark}
+              className="mb-2"
+            />
             <textarea value={remark} onChange={(e) => setRemark(e.target.value)} required
-              className="w-full px-4 py-2.5 rounded-xl glass border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none text-[#042C53] bg-red-50 resize-none h-28" />
+              className="w-full px-4 py-2.5 rounded-xl glass border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none text-[#042C53] bg-red-50 resize-none h-28"
+              placeholder="แตะตัวเลือกด้านบน หรือพิมพ์เอง" />
           </div>
           <div className="flex gap-3 mt-2">
             <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-red-200 text-red-800 font-semibold hover:bg-red-50 transition-colors">

@@ -20,26 +20,19 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
+import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from '../constants/jobStatus';
+import { AdminContactButton } from '../components/dashboards/SharedComponents';
+import { useBranding } from '../context/BrandingContext';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
 
 /* ─────────────────────────────────────────────────────────
-   STATUS helpers
+   STATUS helpers (shared constants)
 ───────────────────────────────────────────────────────── */
-const STATUS_LABEL = { completed: 'สำเร็จ', failed: 'ไม่สำเร็จ', postponed: 'เลื่อนนัด', in_progress: 'กำลังดำเนิน', pending: 'รอดำเนินการ' };
-const STATUS_COLOR = {
-  completed:  'bg-emerald-100 text-emerald-700 border-emerald-200',
-  failed:     'bg-red-100 text-red-700 border-red-200',
-  postponed:  'bg-purple-100 text-purple-700 border-purple-200',
-  in_progress:'bg-blue-100 text-blue-700 border-blue-200',
-  pending:    'bg-amber-100 text-amber-700 border-amber-200',
-  overdue:    'bg-orange-100 text-orange-700 border-orange-200',
-};
-const STATUS_DOT = {
-  completed:'bg-emerald-500', failed:'bg-red-500', postponed:'bg-purple-500',
-  in_progress:'bg-blue-500', pending:'bg-amber-400', overdue:'bg-orange-500',
-};
+const STATUS_LABEL = (status) => getJobStatusLabel(status);
+const STATUS_COLOR = (status) => getJobStatusBadgeClass(status);
+const STATUS_DOT = (status) => getJobStatusDotClass(status);
 
 /**
  * ปิดงานล่าช้า = ปิดหลัง 00:00 ของ 2 วันต่อมา
@@ -114,7 +107,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
       className={`relative rounded-2xl border-2 shadow-sm cursor-pointer active:scale-[0.98] transition-all duration-150 select-none overflow-hidden hover:shadow-md ${cardBg} ${cardBorder}`}
     >
       {/* Left accent bar based on status */}
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPostponeNoTeam ? 'bg-red-500' : STATUS_DOT[status]}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPostponeNoTeam ? 'bg-red-500' : STATUS_DOT(status)}`} />
 
       <div className="pl-3 pr-4 py-3.5">
         {/* Top row: Access No + Status + Checkbox (admin) */}
@@ -131,8 +124,8 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-sm font-black text-[#1F2937] tracking-wide">{job.access_no || '-'}</span>
               {job.seq && <span className="text-[10px] font-bold bg-[#1F2937] text-white px-1.5 py-0.5 rounded-md">#{job.seq}</span>}
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[status]}`}>
-                {isReactivated && !isPostponeNoTeam ? 'รอดำเนินการ (เลื่อน)' : (STATUS_LABEL[status] || status)}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR(status)}`}>
+                {isReactivated && !isPostponeNoTeam ? 'รอดำเนินการ (เลื่อน)' : STATUS_LABEL(status)}
               </span>
               {isLate && <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">⚠️ ล่าช้า</span>}
               {isPostponeNoTeam && isAdmin && (
@@ -289,7 +282,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 <span className="text-base font-black text-[#1F2937]">
                   {mainTab === 'ma' ? (job.non_number || job.display_non || job.access_no) : job.access_no}
                 </span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR[status]}`}>{STATUS_LABEL[status] || status}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR(status)}`}>{STATUS_LABEL(status)}</span>
                 {isLate && <span className="text-xs font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">⚠️ ปิดงานล่าช้า</span>}
               </div>
               <p className="text-sm font-semibold text-[#374151] truncate">{job.customer || '-'}</p>
@@ -500,9 +493,12 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
 ───────────────────────────────────────────────────────── */
 export default function DispatchDashboardPage() {
   const { user } = useAuth();
+  const { branding } = useBranding();
   const isAdmin = user && (user.roles?.some(r => ['super_admin', 'admin'].includes(r)) || ['super_admin', 'admin'].includes(user.role));
   const isMATech = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician') || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
-  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician' || user?.role === 'contractor_office' || user?.roles?.includes('contractor_office');
+  const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician')
+    || user?.role === 'office_technician' || user?.roles?.includes('office_technician')
+    || user?.role === 'contractor_office' || user?.roles?.includes('contractor_office');
 
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -698,6 +694,13 @@ export default function DispatchDashboardPage() {
             </div>
             {/* Action buttons — collapsed on mobile */}
             <div className="flex items-center gap-1.5">
+              {!isAdmin && (
+                <AdminContactButton
+                  phone={branding?.admin_phone}
+                  lineId={branding?.admin_line}
+                  compact
+                />
+              )}
               <div className="relative" ref={filterRef}>
                 <button
                   onClick={() => setShowFilters(f => !f)}

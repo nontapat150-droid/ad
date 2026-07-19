@@ -73,14 +73,16 @@ router.get('/global', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT setting_key, setting_value FROM system_settings 
-       WHERE setting_key IN ('website_name', 'website_logo', 'website_favicon', 'firebase_web_config')`
+       WHERE setting_key IN ('website_name', 'website_logo', 'website_favicon', 'firebase_web_config', 'admin_phone', 'admin_line')`
     );
     
     const settings = {
       website_name: 'Bount ระบบจัดการงาน',
       website_logo: null,
       website_favicon: null,
-      firebase_web_config: null
+      firebase_web_config: null,
+      admin_phone: null,
+      admin_line: null,
     };
 
     rows.forEach(r => {
@@ -147,10 +149,12 @@ router.post('/branding', auth, setUpload('branding'), upload.fields([{ name: 'lo
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const { website_name, firebase_web_config } = req.body;
+    const { website_name, firebase_web_config, admin_phone, admin_line } = req.body;
     const updates = {};
     if (website_name !== undefined) updates.website_name = website_name;
     if (firebase_web_config !== undefined) updates.firebase_web_config = firebase_web_config;
+    if (admin_phone !== undefined) updates.admin_phone = String(admin_phone).trim();
+    if (admin_line !== undefined) updates.admin_line = String(admin_line).trim();
 
     if (req.files) {
       if (req.files.logo && req.files.logo.length > 0) {

@@ -8,6 +8,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
 import ManualModal from '../components/ManualModal';
+import { AdminContactButton } from '../components/dashboards/SharedComponents';
 
 import SuperAdminSection from '../components/dashboards/SuperAdminSection';
 import AdminSection from '../components/dashboards/AdminSection';
@@ -35,8 +36,13 @@ export default function UnifiedDashboard() {
   const isSuperAdmin = userRoles.includes('super_admin');
   const isAdmin      = userRoles.includes('admin') && !isSuperAdmin;
   const isSales      = userRoles.includes('sales');
-  const isTech       = userRoles.includes('technician') || userRoles.includes('office_technician');
-  const isMaTech     = userRoles.includes('ma_technician');
+  // Include contractors so multi-role users see both job sections
+  const isTech       = userRoles.some((r) =>
+    ['technician', 'office_technician', 'contractor_office'].includes(r)
+  );
+  const isMaTech     = userRoles.some((r) =>
+    ['ma_technician', 'contractor_ma'].includes(r)
+  );
 
   useEffect(() => {
     api.get('/announcements/active')
@@ -50,13 +56,17 @@ export default function UnifiedDashboard() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  // Role label for hero
+  // Role label for hero — prefer showing both when multi-role contractor/tech
   const roleLabel = isSuperAdmin ? 'Super Admin'
     : isAdmin ? 'Admin'
-    : isMaTech ? 'ช่าง MA'
+    : (isTech && isMaTech)
+      ? (userRoles.includes('contractor_office') || userRoles.includes('contractor_ma')
+          ? 'รับเหมา (ติดตั้ง+MA)'
+          : 'ช่างติดตั้ง + MA')
     : userRoles.includes('contractor_office') ? 'รับเหมาติดตั้ง'
     : userRoles.includes('contractor_ma') ? 'รับเหมา MA'
-    : isTech ? 'ช่างออฟฟิศ'
+    : isMaTech ? 'ช่าง MA'
+    : isTech ? 'ช่างติดตั้ง'
     : isSales ? 'เซล'
     : 'ผู้ใช้งาน';
 
@@ -97,6 +107,14 @@ export default function UnifiedDashboard() {
           </div>
 
           {/* Refresh */}
+          {(isTech || isMaTech) && (
+            <AdminContactButton
+              phone={branding?.admin_phone}
+              lineId={branding?.admin_line}
+              compact
+            />
+          )}
+
           <button
             onClick={() => window.location.reload()}
             className="flex items-center gap-1.5 text-xs text-[#65a30d] hover:text-[#1F2937] font-semibold bg-[#F3F4F6] dark:bg-slate-700 hover:bg-[#A3E635]/15 px-3 py-1.5 rounded-lg border border-[#E5E7EB] dark:border-slate-600 hover:border-[#A3E635]/40 transition-all"

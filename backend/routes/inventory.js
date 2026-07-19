@@ -624,8 +624,29 @@ router.get('/my-bag', auth, async (req, res) => {
 
 // ── GET /api/inventory/contractor-summary ──
 // สรุปอุปกรณ์ที่ช่างรับเหมาใช้ตอนจบงาน (รายคน / ทั้งหมด + กรองวันที่)
+// รวมทั้งงานติดตั้ง (job_used_inventory) และงาน MA (ma_job_used_inventory)
 router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
+    // Ensure MA usage table exists (created on first MA complete otherwise)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ma_job_used_inventory (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ma_job_id INT NOT NULL,
+          inventory_item_id INT NOT NULL,
+          device_role VARCHAR(50) DEFAULT 'NoSN',
+          sn VARCHAR(255) DEFAULT NULL,
+          product_name VARCHAR(255) DEFAULT NULL,
+          model_name VARCHAR(255) DEFAULT NULL,
+          quantity DECIMAL(10,2) DEFAULT 1.00,
+          used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          used_by INT DEFAULT NULL,
+          KEY idx_mjui_job (ma_job_id),
+          KEY idx_mjui_item (inventory_item_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+    } catch (_) { /* ignore */ }
+
     const { user_id: filterUserId, start_date, end_date, month } = req.query;
 
     const contractorWhere = `
@@ -653,7 +674,7 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
     if (contractorIds.length === 0) {
       return res.json({
         contractors: [],
-        summary: { total_items: 0, total_jobs: 0, contractor_count: 0 },
+        summary: { total_items: 0, total_jobs: 0, contractor_count: 0, total_qty: 0 },
         by_person: [],
         usages: [],
       });
@@ -675,61 +696,104 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
         role_display: roleLabel(main),
       };
     });
+    const contractorRoleMap = Object.fromEntries(contractorsOut.map((c) => [c.id, c]));
 
-    const where = ['jui.used_by IN (?)'];
-    const params = [contractorIds];
-
-    if (filterUserId && filterUserId !== 'ALL') {
-      where.push('jui.used_by = ?');
-      params.push(filterUserId);
-    }
-
-    if (month && /^\d{4}-\d{2}$/.test(month)) {
-      where.push(`DATE_FORMAT(jui.used_at, '%Y-%m') = ?`);
-      params.push(month);
-    } else {
-      if (start_date) {
-        where.push('DATE(jui.used_at) >= ?');
-        params.push(start_date);
+    // Shared filters applied to both office + MA usage tables
+    const buildDateConds = (alias) => {
+      const conds = [];
+      const vals = [];
+      if (month && /^\d{4}-\d{2}$/.test(month)) {
+        conds.push(`DATE_FORMAT(${alias}.used_at, '%Y-%m') = ?`);
+        vals.push(month);
+      } else {
+        if (start_date) {
+          conds.push(`DATE(${alias}.used_at) >= ?`);
+          vals.push(start_date);
+        }
+        if (end_date) {
+          conds.push(`DATE(${alias}.used_at) <= ?`);
+          vals.push(end_date);
+        }
       }
-      if (end_date) {
-        where.push('DATE(jui.used_at) <= ?');
-        params.push(end_date);
-      }
-    }
+      return { conds, vals };
+    };
 
-    const whereSql = where.join(' AND ');
+    const userFilterIds =
+      filterUserId && filterUserId !== 'ALL' ? [Number(filterUserId)] : contractorIds;
+
+    const officeDate = buildDateConds('jui');
+    const maDate = buildDateConds('mjui');
+
+    const officeWhere = [`jui.used_by IN (?)`, ...officeDate.conds].join(' AND ');
+    const maWhere = [`mjui.used_by IN (?)`, ...maDate.conds].join(' AND ');
+
+    const officeParams = [userFilterIds, ...officeDate.vals];
+    const maParams = [userFilterIds, ...maDate.vals];
 
     const [usages] = await pool.query(
-      `SELECT jui.id, jui.job_id, jui.device_role, jui.sn, jui.product_name, jui.model_name,
-              jui.quantity, jui.used_at, jui.used_by,
-              u.full_name AS contractor_name, u.role AS contractor_role,
-              j.access_no, j.customer, j.address, j.completed_at
-       FROM job_used_inventory jui
-       JOIN users u ON u.id = jui.used_by
-       LEFT JOIN jobs j ON j.id = jui.job_id
-       WHERE ${whereSql}
-       ORDER BY jui.used_at DESC
+      `(
+         SELECT
+           CONCAT('office-', jui.id) AS id,
+           jui.job_id AS job_id,
+           'office' AS job_type,
+           jui.device_role, jui.sn, jui.product_name, jui.model_name,
+           jui.quantity, jui.used_at, jui.used_by,
+           u.full_name AS contractor_name, u.role AS contractor_role,
+           j.access_no AS access_no, j.customer AS customer, j.address AS address,
+           j.completed_at AS completed_at
+         FROM job_used_inventory jui
+         JOIN users u ON u.id = jui.used_by
+         LEFT JOIN jobs j ON j.id = jui.job_id
+         WHERE ${officeWhere}
+       )
+       UNION ALL
+       (
+         SELECT
+           CONCAT('ma-', mjui.id) AS id,
+           mjui.ma_job_id AS job_id,
+           'ma' AS job_type,
+           mjui.device_role, mjui.sn, mjui.product_name, mjui.model_name,
+           mjui.quantity, mjui.used_at, mjui.used_by,
+           u.full_name AS contractor_name, u.role AS contractor_role,
+           COALESCE(mj.non_number, mj.access_no) AS access_no,
+           mj.customer AS customer, mj.address AS address,
+           mj.completed_at AS completed_at
+         FROM ma_job_used_inventory mjui
+         JOIN users u ON u.id = mjui.used_by
+         LEFT JOIN ma_jobs mj ON mj.id = mjui.ma_job_id
+         WHERE ${maWhere}
+       )
+       ORDER BY used_at DESC
        LIMIT 2000`,
-      params
+      [...officeParams, ...maParams]
     );
 
     const [byPerson] = await pool.query(
-      `SELECT jui.used_by AS user_id,
-              u.full_name,
-              u.role,
+      `SELECT used_by AS user_id,
+              full_name,
+              role,
               COUNT(*) AS item_count,
-              COUNT(DISTINCT jui.job_id) AS job_count,
-              SUM(jui.quantity) AS total_qty
-       FROM job_used_inventory jui
-       JOIN users u ON u.id = jui.used_by
-       WHERE ${whereSql}
-       GROUP BY jui.used_by, u.full_name, u.role
+              COUNT(DISTINCT job_key) AS job_count,
+              SUM(quantity) AS total_qty
+       FROM (
+         SELECT jui.used_by, u.full_name, u.role, jui.quantity,
+                CONCAT('office-', jui.job_id) AS job_key
+         FROM job_used_inventory jui
+         JOIN users u ON u.id = jui.used_by
+         WHERE ${officeWhere}
+         UNION ALL
+         SELECT mjui.used_by, u.full_name, u.role, mjui.quantity,
+                CONCAT('ma-', mjui.ma_job_id) AS job_key
+         FROM ma_job_used_inventory mjui
+         JOIN users u ON u.id = mjui.used_by
+         WHERE ${maWhere}
+       ) AS combined
+       GROUP BY used_by, full_name, role
        ORDER BY item_count DESC`,
-      params
+      [...officeParams, ...maParams]
     );
 
-    // Remaining bag stock (dispatched) for context — always all contractors or selected
+    // Remaining bag stock (dispatched) for context
     const bagParams = [filterUserId && filterUserId !== 'ALL' ? [Number(filterUserId)] : contractorIds];
     const [bagRows] = await pool.query(
       `SELECT owner_id, COUNT(*) AS remaining
@@ -740,16 +804,21 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
     );
     const bagMap = Object.fromEntries(bagRows.map((r) => [r.owner_id, Number(r.remaining)]));
 
-    const byPersonOut = byPerson.map((p) => ({
-      ...p,
-      role_display: roleLabel(p.role),
-      remaining_bag: bagMap[p.user_id] || 0,
-      item_count: Number(p.item_count),
-      job_count: Number(p.job_count),
-      total_qty: Number(p.total_qty) || 0,
-    }));
+    const byPersonOut = byPerson.map((p) => {
+      const known = contractorRoleMap[p.user_id];
+      const role = known?.role || p.role;
+      return {
+        ...p,
+        role,
+        role_display: known?.role_display || roleLabel(role),
+        remaining_bag: bagMap[p.user_id] || 0,
+        item_count: Number(p.item_count),
+        job_count: Number(p.job_count),
+        total_qty: Number(p.total_qty) || 0,
+      };
+    });
 
-    // Include contractors with 0 usage in period when viewing ALL (for picker completeness)
+    // Include contractors with 0 usage in period when viewing ALL
     const seen = new Set(byPersonOut.map((p) => p.user_id));
     if (!filterUserId || filterUserId === 'ALL') {
       for (const c of contractorsOut) {
@@ -772,16 +841,25 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
       contractors: contractorsOut,
       summary: {
         total_items: usages.length,
-        total_jobs: new Set(usages.map((u) => u.job_id).filter(Boolean)).size,
+        total_jobs: new Set(usages.map((u) => `${u.job_type}-${u.job_id}`).filter((k) => !k.endsWith('-null') && !k.endsWith('-undefined'))).size,
         contractor_count: byPersonOut.filter((p) => p.item_count > 0).length,
         total_qty: usages.reduce((s, u) => s + (Number(u.quantity) || 0), 0),
       },
       by_person: byPersonOut,
-      usages: usages.map((u) => ({
-        ...u,
-        quantity: Number(u.quantity) || 0,
-        role_display: roleLabel(u.contractor_role),
-      })),
+      usages: usages.map((u) => {
+        const known = contractorRoleMap[u.used_by];
+        // Badge follows the job that used the equipment (not primary user role)
+        const roleFromJob = u.job_type === 'ma' ? 'contractor_ma' : 'contractor_office';
+        return {
+          ...u,
+          quantity: Number(u.quantity) || 0,
+          contractor_role: roleFromJob,
+          role_display: roleLabel(roleFromJob),
+          person_role: known?.role || u.contractor_role,
+          person_role_display: known?.role_display || roleLabel(known?.role || u.contractor_role),
+          job_type_display: u.job_type === 'ma' ? 'งาน MA' : 'งานติดตั้ง',
+        };
+      }),
     });
   } catch (err) {
     console.error('Contractor Summary Error:', err);

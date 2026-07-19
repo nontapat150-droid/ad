@@ -13,7 +13,9 @@ export default function SystemSettingsPage() {
     website_name: '',
     logoFile: null,
     faviconFile: null,
-    firebase_web_config: ''
+    firebase_web_config: '',
+    admin_phone: '',
+    admin_line: '',
   });
 
   useEffect(() => {
@@ -21,7 +23,9 @@ export default function SystemSettingsPage() {
       setBrandingForm(prev => ({
         ...prev,
         website_name: branding.website_name || '',
-        firebase_web_config: branding.firebase_web_config || ''
+        firebase_web_config: branding.firebase_web_config || '',
+        admin_phone: branding.admin_phone || '',
+        admin_line: branding.admin_line || '',
       }));
     }
   }, [branding]);
@@ -40,6 +44,8 @@ export default function SystemSettingsPage() {
     try {
       const formData = new FormData();
       formData.append('website_name', brandingForm.website_name);
+      formData.append('admin_phone', brandingForm.admin_phone || '');
+      formData.append('admin_line', brandingForm.admin_line || '');
       
       let configValue = brandingForm.firebase_web_config;
       if (configValue) {
@@ -62,7 +68,7 @@ export default function SystemSettingsPage() {
         formData.append('favicon', brandingForm.faviconFile);
       }
 
-      await api.post('/branding', formData, {
+      await api.post('/settings/branding', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       
@@ -113,6 +119,30 @@ export default function SystemSettingsPage() {
               placeholder="เช่น Bount ระบบจัดการงาน"
             />
             <p className="text-xs text-slate-500 mt-1">ชื่อนี้จะแสดงบนหัวเว็บและชื่อหน้าต่างเบราว์เซอร์</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">เบอร์โทรแอดมิน (ช่างกดโทรได้)</label>
+              <input
+                type="tel"
+                value={brandingForm.admin_phone}
+                onChange={(e) => setBrandingForm({ ...brandingForm, admin_phone: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-slate-700 bg-slate-50"
+                placeholder="เช่น 0812345678"
+              />
+              <p className="text-xs text-slate-500 mt-1">แสดงปุ่ม “โทรหาแอดมิน” บนแดชบอร์ดช่าง</p>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">LINE แอดมิน (ถ้ามี)</label>
+              <input
+                type="text"
+                value={brandingForm.admin_line}
+                onChange={(e) => setBrandingForm({ ...brandingForm, admin_line: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none text-slate-700 bg-slate-50"
+                placeholder="เช่น @company หรือ line ID"
+              />
+            </div>
           </div>
 
           <div>

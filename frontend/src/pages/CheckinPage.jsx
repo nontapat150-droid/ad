@@ -115,10 +115,12 @@ export default function CheckinPage() {
       if (filterMode === 'day' && filterDate) timeQ = `&date=${filterDate}`;
       else if (filterMode === 'month' && filterMonth) timeQ = `&month=${filterMonth}`;
     }
-    const q = isAdmin ? `?limit=50&userId=${filterUserId}${timeQ}` : `?limit=30`;
+    // Separate KPI / history by check-in role so multi-role users don't mix office + MA
+    const typeQ = checkinType ? `&checkin_type=${checkinType}` : '';
+    const q = isAdmin ? `?limit=50&userId=${filterUserId}${timeQ}${typeQ}` : `?limit=30${typeQ}`;
     Promise.all([
       api.get(`/checkin/history${q}`),
-      api.get(`/checkin/leaves${q}`),
+      api.get(`/checkin/leaves${isAdmin ? `?limit=50&userId=${filterUserId}${timeQ}` : '?limit=30'}`),
     ])
       .then(([histRes, leaveRes]) => {
         setHistory(histRes.data);
@@ -126,9 +128,9 @@ export default function CheckinPage() {
       })
       .catch(console.error)
       .finally(() => setLoadingHistory(false));
-    const sq = isAdmin ? `?userId=${filterUserId}${timeQ}` : '';
+    const sq = isAdmin ? `?userId=${filterUserId}${timeQ}${typeQ}` : `?${typeQ.slice(1)}`;
     api.get(`/checkin/stats${sq}`).then(res => setStats(res.data)).catch(console.error);
-  }, [isAdmin, filterUserId, filterMode, filterDate, filterMonth]);
+  }, [isAdmin, filterUserId, filterMode, filterDate, filterMonth, checkinType]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 

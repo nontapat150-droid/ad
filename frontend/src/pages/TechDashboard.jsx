@@ -52,19 +52,64 @@ export default function TechDashboard() {
 
   const [showBag, setShowBag]         = useState(false);
 
+  const userRoles = user?.roles || (user?.role ? [user.role] : []);
+  const canOffice = userRoles.some((r) =>
+    ['technician', 'office_technician', 'contractor_office', 'admin', 'super_admin'].includes(r)
+  );
+  const canMa = userRoles.some((r) =>
+    ['ma_technician', 'contractor_ma', 'admin', 'super_admin'].includes(r)
+  );
+  const hasBothJobTypes = canOffice && canMa;
+
+  const [jobMode, setJobMode] = useState(() => {
+    if (canOffice && canMa) return 'all';
+    if (canMa) return 'ma';
+    return 'office';
+  });
+
   const fetchCheckin = useCallback(() => {
     api.get('/checkin/today').then((r) => setCheckin(r.data)).catch(() => {});
   }, []);
 
   const fetchJobs = useCallback(() => {
     setLoadingJobs(true);
-    const isMa = user?.role === 'ma_technician' || user?.roles?.includes('ma_technician')
-      || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma');
-    api.get(`/dispatch/jobs${isMa ? '?type=ma' : ''}`)
-      .then((r) => setJobs(r.data))
-      .catch(() => setJobs([]))
-      .finally(() => setLoadingJobs(false));
-  }, [user]);
+
+    const tag = (list, jobType) =>
+      (Array.isArray(list) ? list : []).map((j) => ({ ...j, job_type: j.job_type || jobType }));
+
+    const load = async () => {
+      try {
+        if (jobMode === 'all' && hasBothJobTypes) {
+          const [officeRes, maRes] = await Promise.all([
+            api.get('/dispatch/jobs'),
+            api.get('/dispatch/jobs?type=ma'),
+          ]);
+          const merged = [
+            ...tag(officeRes.data, 'office'),
+            ...tag(maRes.data, 'ma'),
+          ].sort((a, b) => {
+            const da = a.plan_arrival_date || '';
+            const db = b.plan_arrival_date || '';
+            if (da !== db) return da.localeCompare(db);
+            return (a.seq || 0) - (b.seq || 0) || (a.id || 0) - (b.id || 0);
+          });
+          setJobs(merged);
+        } else if (jobMode === 'ma' || (!canOffice && canMa)) {
+          const r = await api.get('/dispatch/jobs?type=ma');
+          setJobs(tag(r.data, 'ma'));
+        } else {
+          const r = await api.get('/dispatch/jobs');
+          setJobs(tag(r.data, 'office'));
+        }
+      } catch {
+        setJobs([]);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+
+    load();
+  }, [jobMode, hasBothJobTypes, canOffice, canMa]);
 
   const fetchStats = useCallback(() => {
     api.get('/stats/tech-dashboard')
@@ -83,10 +128,6 @@ export default function TechDashboard() {
     setActive(key);
     if (key === 'bag')    setShowBag(true);
     if (key === 'oil')    navigate('/oil');
-  };
-
-  const confirmComplete = async () => {
-    // This is now handled by CompleteJobModal
   };
 
   const handleSetOff = async (jobId) => {
@@ -128,12 +169,14 @@ export default function TechDashboard() {
     if (activeTab === 'all') return true;
     if (activeTab === 'pending') return job.status === 'pending';
     if (activeTab === 'completed') return job.status === 'completed';
-    if (activeTab === 'other') return ['incomplete', 'postponed'].includes(job.status);
+    if (activeTab === 'other') return ['incomplete', 'postponed', 'failed'].includes(job.status);
     return true;
   });
 
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage);
   const paginatedJobs = filteredJobs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const isMaJob = (job) => job?.job_type === 'ma';
 
   return (
     <Layout
@@ -208,13 +251,37 @@ export default function TechDashboard() {
               }
             />
 
+            {/* Job type mode — only when tech has both office + MA roles */}
+            {hasBothJobTypes && (
+              <div className="flex p-1 bg-[#F3F4F6] rounded-xl mb-2 border border-[#E5E7EB]">
+                {[
+                  { id: 'all', label: 'ทั้งหมด' },
+                  { id: 'office', label: 'งานติดตั้ง' },
+                  { id: 'ma', label: 'งาน MA' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setJobMode(m.id); setCurrentPage(1); setActiveTab('all'); }}
+                    className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+                      jobMode === m.id
+                        ? 'bg-white text-[#1F2937] shadow-sm border border-[#E5E7EB]'
+                        : 'text-[#6B7280] hover:text-[#374151]'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Tab Selector */}
             <div className="flex overflow-x-auto gap-2 py-1 mb-2" style={{ scrollbarWidth: 'none' }}>
               {[
                 { id: 'all', label: 'ทั้งหมด', count: jobs.length },
                 { id: 'pending', label: 'รอดำเนินการ', count: pendingCount },
                 { id: 'completed', label: 'เสร็จสิ้น', count: completedCount },
-                { id: 'other', label: 'ไม่จบงาน/เลื่อน', count: jobs.filter(j => ['incomplete', 'postponed'].includes(j.status)).length }
+                { id: 'other', label: 'ไม่จบงาน/เลื่อน', count: jobs.filter(j => ['incomplete', 'postponed', 'failed'].includes(j.status)).length }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -258,13 +325,13 @@ export default function TechDashboard() {
                 ) : (
                   paginatedJobs.map((job, i) => (
                     <JobCard 
-                      key={job.id} 
+                      key={`${job.job_type || 'office'}-${job.id}`}
                       job={job} 
                       index={i} 
                       onComplete={setCompleting} 
                       onIncomplete={setIncompleting}
                       onPostpone={setPostponing}
-                      onCardClick={(j) => navigate(`/jobs?openJob=${j.id}`)}
+                      onCardClick={(j) => navigate(`/jobs?openJob=${j.id}&type=${j.job_type === 'ma' ? 'ma' : 'office'}`)}
                     />
                   ))
                 )}
@@ -461,54 +528,8 @@ export default function TechDashboard() {
         <TechBagDrawer open={showBag} onClose={() => { setShowBag(false); setActive('home'); }} />
       )}
 
-      {/* ── Job Completion Sheet ─────────────────────────── */}
-      {completingJob && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#1F2937]/50 backdrop-blur-sm p-4"
-             onClick={(e) => e.target === e.currentTarget && setCompleting(null)}>
-          <div className="w-full max-w-md bg-white border border-[#E5E7EB] rounded-2xl p-6 animate-[slideUp_0.3s_ease-out]"
-            style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div className="sm:hidden flex justify-center mb-4">
-              <div className="w-10 h-1.5 rounded-full bg-[#E5E7EB]" />
-            </div>
-            
-            <div className="w-12 h-12 rounded-xl bg-[#A3E635]/15 text-[#65a30d] flex items-center justify-center text-2xl mb-4 border border-[#A3E635]/25">
-              ✅
-            </div>
-            
-            <h3 className="text-[#1F2937] font-bold text-xl mb-2">ยืนยันการปิดงาน?</h3>
-            <p className="text-[#6B7280] text-sm mb-5 leading-relaxed">
-              คุณต้องการยืนยันว่างานรหัส <span className="text-[#1F2937] font-mono bg-[#F3F4F6] border border-[#E5E7EB] px-1.5 py-0.5 rounded">{completingJob.access_no}</span> ของลูกค้ารายนี้เสร็จสมบูรณ์แล้วใช่หรือไม่?
-              <br/><br/>
-              <strong className="text-[#1F2937]">ลูกค้า:</strong> {completingJob.customer}
-            </p>
-            
-            <div className="rounded-xl p-4 bg-[#F9FAFB] border border-[#E5E7EB] mb-6">
-              <p className="text-[#9CA3AF] text-xs font-semibold mb-2 uppercase tracking-wider">ระบบจะทำการ:</p>
-              <ul className="space-y-2 text-[13px] text-[#374151]">
-                <li className="flex gap-2">✔️ <span className="flex-1">อัปเดตสถานะงานเป็น <strong className="text-[#65a30d]">เสร็จสิ้น</strong></span></li>
-                <li className="flex gap-2">📊 <span className="flex-1">บันทึกประวัติการทำงานเข้าสู่ระบบส่วนกลาง</span></li>
-                <li className="flex gap-2">⛽ <span className="flex-1">นับเพิ่ม 1 งาน สำหรับสถิติค่าเฉลี่ยการใช้น้ำมัน</span></li>
-              </ul>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCompleting(null)}
-                className="flex-1 h-12 rounded-xl bg-[#F3F4F6] hover:bg-[#E5E7EB] border border-[#E5E7EB] text-[#6B7280] font-semibold transition-colors">
-                ยกเลิก
-              </button>
-              <button
-                onClick={confirmComplete}
-                className="flex-1 h-12 rounded-xl text-[#1F2937] font-bold shadow-md transition-all"
-                style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: '0 4px 12px rgba(163,230,53,0.3)' }}>
-                ยืนยันการปิดงาน
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {(user?.role === 'ma_technician' || user?.roles?.includes('ma_technician')
-        || user?.role === 'contractor_ma' || user?.roles?.includes('contractor_ma')) ? (
+      {/* ── Job Completion Modals — chosen by job type, not user role ── */}
+      {isMaJob(completingJob) ? (
         <CompleteMaJobModal
           isOpen={!!completingJob}
           onClose={() => setCompleting(null)}

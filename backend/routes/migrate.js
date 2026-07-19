@@ -127,7 +127,7 @@ router.get('/migrate-fix', async (req, res) => {
           id INT AUTO_INCREMENT PRIMARY KEY,
           job_id INT NOT NULL,
           inventory_item_id INT NOT NULL,
-          device_role ENUM('SOA','ONU','PB','Mesh','SIM','Cam') NOT NULL,
+          device_role ENUM('SOA','ONU','PB','Mesh','SIM','Cam','NoSN','TechBag') NOT NULL,
           sn VARCHAR(255) DEFAULT NULL,
           product_name VARCHAR(255) DEFAULT NULL,
           model_name VARCHAR(255) DEFAULT NULL,
@@ -144,6 +144,42 @@ router.get('/migrate-fix', async (req, res) => {
       results.push('✅ job_used_inventory table created');
     } catch(e) {
       results.push('job_used_inventory: ' + e.message);
+    }
+
+    // Widen device_role for existing DBs (NoSN + TechBag used by bag equipment)
+    try {
+      await pool.query(`
+        ALTER TABLE job_used_inventory
+        MODIFY COLUMN device_role ENUM('SOA','ONU','PB','Mesh','SIM','Cam','NoSN','TechBag') NOT NULL
+      `);
+      results.push('✅ job_used_inventory.device_role -> added NoSN, TechBag');
+    } catch(e) {
+      results.push('job_used_inventory.device_role: ' + e.message);
+    }
+
+    // ma_job_used_inventory — equipment used when completing MA jobs
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ma_job_used_inventory (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          ma_job_id INT NOT NULL,
+          inventory_item_id INT NOT NULL,
+          device_role VARCHAR(50) DEFAULT 'NoSN',
+          sn VARCHAR(255) DEFAULT NULL,
+          product_name VARCHAR(255) DEFAULT NULL,
+          model_name VARCHAR(255) DEFAULT NULL,
+          quantity DECIMAL(10,2) DEFAULT 1.00,
+          used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          used_by INT DEFAULT NULL,
+          KEY idx_mjui_job (ma_job_id),
+          KEY idx_mjui_item (inventory_item_id),
+          KEY idx_mjui_used_by (used_by),
+          KEY idx_mjui_used_at (used_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      results.push('✅ ma_job_used_inventory table created');
+    } catch(e) {
+      results.push('ma_job_used_inventory: ' + e.message);
     }
 
     // inventory_items.status — add 'used'

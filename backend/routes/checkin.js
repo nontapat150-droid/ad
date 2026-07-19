@@ -542,7 +542,7 @@ router.get('/ma-performance', auth, async (req, res) => {
            SUM(is_late) as total_late
          FROM checkins
          WHERE user_id = ? AND DATE_FORMAT(checkin_time, '%Y-%m') = ?
-           AND (checkin_type = 'ma' OR checkin_type IS NULL OR checkin_type = '')`,
+           AND checkin_type = 'ma'`,
         [u.id, month]
       );
 
@@ -593,6 +593,15 @@ function buildTimeFilter(query, column) {
   return { cond: '', params: [] };
 }
 
+// Optional ?checkin_type=general|ma|sales — separate KPI for multi-role users
+function buildCheckinTypeFilter(query, column = 'checkin_type') {
+  const t = (query.checkin_type || query.type || '').toString().trim();
+  if (['general', 'ma', 'sales'].includes(t)) {
+    return { cond: ` AND ${column} = ?`, params: [t] };
+  }
+  return { cond: '', params: [] };
+}
+
 // ── GET /api/checkin/history?limit=30 — My recent history (or All for Admin) ─
 router.get('/history', auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 30, 90);
@@ -600,18 +609,19 @@ router.get('/history', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
   const { cond: timeCond, params: timeParams } = buildTimeFilter(req.query, 'c.checkin_time');
+  const { cond: typeCond, params: typeParams } = buildCheckinTypeFilter(req.query, 'c.checkin_type');
 
   try {
     const baseSelect = `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng, c.checkin_type,
                 u.full_name, u.username, u.role
          FROM checkins c
          JOIN users u ON c.user_id = u.id`;
 
     if (isAdmin && (filterUserId === 'ALL' || !filterUserId)) {
       const [rows] = await pool.query(
-        `${baseSelect} WHERE 1=1${timeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
-        [...timeParams, limit * 2]
+        `${baseSelect} WHERE 1=1${timeCond}${typeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
+        [...timeParams, ...typeParams, limit * 2]
       );
       return res.json(rows);
     }
@@ -620,8 +630,8 @@ router.get('/history', auth, async (req, res) => {
       ? (filterUserId === 'ME' ? req.user.id : filterUserId)
       : req.user.id;
     const [rows] = await pool.query(
-      `${baseSelect} WHERE c.user_id = ?${timeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
-      [targetId, ...timeParams, limit]
+      `${baseSelect} WHERE c.user_id = ?${timeCond}${typeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
+      [targetId, ...timeParams, ...typeParams, limit]
     );
     return res.json(rows);
   } catch (err) {
@@ -676,6 +686,7 @@ router.get('/stats', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
   const { cond: timeCond, params: timeParams } = buildTimeFilter(req.query, 'checkin_time');
+  const { cond: typeCond, params: typeParams } = buildCheckinTypeFilter(req.query, 'checkin_type');
 
   try {
     const baseSelect = `SELECT
@@ -685,14 +696,17 @@ router.get('/stats', auth, async (req, res) => {
 
     let rows;
     if (isAdmin && (filterUserId === 'ALL' || !filterUserId)) {
-      [rows] = await pool.query(`${baseSelect} WHERE 1=1${timeCond}`, timeParams);
+      [rows] = await pool.query(
+        `${baseSelect} WHERE 1=1${timeCond}${typeCond}`,
+        [...timeParams, ...typeParams]
+      );
     } else {
       const targetId = isAdmin
         ? (filterUserId === 'ME' ? req.user.id : filterUserId)
         : req.user.id;
       [rows] = await pool.query(
-        `${baseSelect} WHERE user_id = ?${timeCond}`,
-        [targetId, ...timeParams]
+        `${baseSelect} WHERE user_id = ?${timeCond}${typeCond}`,
+        [targetId, ...timeParams, ...typeParams]
       );
     }
     res.json({
