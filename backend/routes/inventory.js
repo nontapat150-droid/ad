@@ -604,7 +604,7 @@ router.get('/my-bag', auth, async (req, res) => {
 
   try {
     const [items] = await pool.query(
-      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit
        FROM inventory_items ii
        JOIN inventory_models pm ON pm.id = ii.model_id
        JOIN inventory_products p ON p.id = pm.product_id
@@ -872,6 +872,11 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
   router.get('/active-jobs', auth, async (req, res) => {
     try {
       const targetUserId = req.query.user_id || req.user.id;
+      const userRoles = req.user.roles || [req.user.role];
+      const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
+      if (!isAdmin && parseInt(targetUserId) !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
       // Get the target user's team
       const [[userRow]] = await pool.query('SELECT team_id FROM users WHERE id = ?', [targetUserId]);
       const teamId = userRow ? userRow.team_id : null;
@@ -899,8 +904,23 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
   // 🛠️ POST /api/inventory/use-equipment 🛠️
   // Use equipment from tech bag and mark a NON job as completed
   router.post('/use-equipment', auth, async (req, res) => {
-    const { job_id, items } = req.body;
-    const userId = req.user.id;
+    const { job_id, items, user_id } = req.body;
+    const actorId = req.user.id;
+    const userRoles = req.user.roles || [req.user.role];
+    const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
+
+    // Admin may act on another user's bag via user_id
+    let bagOwnerId = actorId;
+    if (user_id != null && user_id !== '') {
+      const requestedOwner = parseInt(user_id, 10);
+      if (!requestedOwner) {
+        return res.status(400).json({ error: 'user_id ไม่ถูกต้อง' });
+      }
+      if (!isAdmin && requestedOwner !== actorId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      bagOwnerId = requestedOwner;
+    }
     
     if (!job_id || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'ข้อมูลไม่ครบถ้วน' });
@@ -927,14 +947,14 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
         const { item_id, quantity } = reqItem;
         if (!item_id || !quantity || quantity <= 0) continue;
   
-        // Verify item is in user's bag and dispatched
+        // Verify item is in bag owner's bag and dispatched
         const [[invItem]] = await conn.query(
           `SELECT ii.*, p.name AS product_name, m.model_name 
            FROM inventory_items ii 
            JOIN inventory_models m ON ii.model_id = m.id 
            JOIN inventory_products p ON m.product_id = p.id 
            WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = "dispatched"`,
-          [item_id, userId]
+          [item_id, bagOwnerId]
         );
   
         if (!invItem) {
@@ -948,7 +968,7 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
         }
   
         // If full quantity is used
-        if (invItem.quantity === quantity) {
+        if (parseFloat(invItem.quantity) === parseFloat(quantity)) {
           await conn.query(
             'UPDATE inventory_items SET status = "used" WHERE id = ?',
             [item_id]
@@ -959,22 +979,21 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
             'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
             [quantity, item_id]
           );
-          // We will just deduct quantity and log it.
         }
   
-        // Log the usage with customer name
+        // Log the usage with customer name (from_user = bag owner)
         const customerText = job.customer ? ` (ลูกค้า: ${job.customer})` : '';
         const note = `ใช้งานกับงาน ${job.access_no}${customerText}`;
         await conn.query(
           'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
-          [item_id, userId, quantity, note]
+          [item_id, bagOwnerId, quantity, note]
         );
 
         // Also insert into job_used_inventory to display reliably in customer page
         await conn.query(
           `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [job_id, item_id, 'TechBag', invItem.sn || '-', invItem.product_name, invItem.model_name || '-', quantity, userId]
+          [job_id, item_id, 'TechBag', invItem.sn || '-', invItem.product_name, invItem.model_name || '-', quantity, bagOwnerId]
         );
 
         // Build summary for the job's install_device field
@@ -999,7 +1018,7 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
             completed_at = IFNULL(completed_at, NOW()),
             completed_by = IFNULL(completed_by, ?)
            WHERE id = ?`,
-          [updatedInstallDevice, userId, job_id]
+          [updatedInstallDevice, actorId, job_id]
         );
       } else {
         await conn.query(
@@ -1055,8 +1074,24 @@ router.get('/my-history', auth, async (req, res) => {
 
 // ── POST /api/inventory/transfer ──
 router.post('/transfer', auth, async (req, res) => {
-  const { item_id, target_user_id, transfer_quantity } = req.body;
-  const currentUserId = req.user.id;
+  const { item_id, target_user_id, transfer_quantity, user_id, from_user_id } = req.body;
+  const actorId = req.user.id;
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
+
+  // Admin may transfer from another user's bag via user_id / from_user_id
+  let bagOwnerId = actorId;
+  const explicitOwner = user_id ?? from_user_id;
+  if (explicitOwner != null && explicitOwner !== '') {
+    const requestedOwner = parseInt(explicitOwner, 10);
+    if (!requestedOwner) {
+      return res.status(400).json({ error: 'user_id ไม่ถูกต้อง' });
+    }
+    if (!isAdmin && requestedOwner !== actorId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    bagOwnerId = requestedOwner;
+  }
   
   if (!item_id || !target_user_id || !transfer_quantity) {
     return res.status(400).json({ error: 'Missing required data' });
@@ -1066,16 +1101,16 @@ router.post('/transfer', auth, async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // 1. Validate item belongs to current user and has enough quantity
+    // 1. Validate item belongs to bag owner and has enough quantity
     const [[item]] = await conn.query(
       `SELECT * FROM inventory_items 
        WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
-      [item_id, currentUserId]
+      [item_id, bagOwnerId]
     );
 
     if (!item) {
       await conn.rollback();
-      return res.status(404).json({ error: 'ไม่พบสินค้าในกระเป๋าของคุณ หรือสินค้าหมดอายุแล้ว' });
+      return res.status(404).json({ error: 'ไม่พบสินค้าในกระเป๋า หรือสินค้าหมดอายุแล้ว' });
     }
 
     const tQty = parseFloat(transfer_quantity);
@@ -1098,12 +1133,9 @@ router.post('/transfer', auth, async (req, res) => {
       );
     } else {
       // Split item
-      // Update original item
       const newQty = iQty - tQty;
       await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
 
-      // Create new item for target user (clone SN by appending a split marker, or if bulk without SN just use the same code with a split suffix)
-      // Actually, if it's bulk (wire), SN might just be the generic code. Let's append an ID or timestamp to ensure uniqueness.
       const newSn = `${item.sn}-SPLIT-${Date.now().toString().slice(-4)}`;
       
       await conn.query(
@@ -1113,10 +1145,10 @@ router.post('/transfer', auth, async (req, res) => {
       );
     }
 
-    // Log the transfer
+    // Log the transfer (from = bag owner)
     await conn.query(
       'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "transfer", ?)',
-      [item.id, currentUserId, target_user_id, tQty]
+      [item.id, bagOwnerId, target_user_id, tQty]
     );
 
     await conn.commit();
@@ -1132,7 +1164,7 @@ router.post('/transfer', auth, async (req, res) => {
 
 // ── POST /api/inventory/return ──
 router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { item_id, return_quantity } = req.body;
+  const { item_id, return_quantity, user_id } = req.body;
   const currentUserId = req.user.id;
   
   if (!item_id || !return_quantity) {
@@ -1143,12 +1175,17 @@ router.post('/return', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // 1. Validate item exists and is dispatched
-    const [[item]] = await conn.query(
-      `SELECT * FROM inventory_items 
-       WHERE id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
-      [item_id]
-    );
+    // 1. Validate item exists and is dispatched (optionally scoped to bag owner)
+    let itemQuery = `SELECT * FROM inventory_items 
+       WHERE id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW())`;
+    const itemParams = [item_id];
+    if (user_id != null && user_id !== '') {
+      itemQuery += ' AND owner_id = ?';
+      itemParams.push(parseInt(user_id, 10));
+    }
+    itemQuery += ' FOR UPDATE';
+
+    const [[item]] = await conn.query(itemQuery, itemParams);
 
     if (!item) {
       await conn.rollback();

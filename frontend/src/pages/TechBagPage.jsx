@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
@@ -26,24 +27,22 @@ export default function TechBagPage() {
   const [historyItems, setHistoryItems] = useState([]);
   const [users, setUsers] = useState([]); 
   const [activeTab, setActiveTab] = useState('bag');
-  const [selectedUserId, setSelectedUserId] = useState(user?.id);
+  const [searchParams] = useSearchParams();
+  const [selectedUserId, setSelectedUserId] = useState(() => {
+    // Admin deep link: /bag?user_id=123
+    const uid = parseInt(new URLSearchParams(window.location.search).get('user_id'), 10);
+    return (!isNaN(uid) && userRoles.some(r => ['super_admin', 'admin'].includes(r))) ? uid : user?.id;
+  });
 
   // ── Date filter for bag (default = show all) ──
   const [bagDateFrom, setBagDateFrom] = useState('');
   const [bagDateTo, setBagDateTo] = useState('');
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  // ── Text search (bag + history) ──
+  const [bagSearch, setBagSearch] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
 
-  useEffect(() => {
-    if (selectedUserId) {
-      fetchBag(selectedUserId);
-      fetchHistory(selectedUserId);
-    }
-  }, [selectedUserId]);
-
-  const fetchBag = async (uid) => {
+  const fetchBag = useCallback(async (uid) => {
     setLoading(true);
     try {
       const res = await axios.get(`/inventory/my-bag?user_id=${uid}`);
@@ -53,25 +52,42 @@ export default function TechBagPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchHistory = async (uid) => {
+  const fetchHistory = useCallback(async (uid) => {
     try {
       const res = await axios.get(`/inventory/my-history?user_id=${uid}`);
       setHistoryItems(res.data);
     } catch (err) {
       console.error('Failed to load history', err);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await axios.get('/users');
       setUsers(res.data.filter(u => u.status === 'approved'));
     } catch (err) {
       console.error('Failed to load users', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // React to user_id changes in URL (admin deep link)
+  useEffect(() => {
+    const uid = parseInt(searchParams.get('user_id'), 10);
+    if (!isNaN(uid) && isAdmin) setSelectedUserId(uid);
+  }, [searchParams, isAdmin]);
+
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchBag(selectedUserId);
+      fetchHistory(selectedUserId);
+    }
+  }, [selectedUserId, fetchBag, fetchHistory]);
 
   const handleTransfer = async (item) => {
     const userOptions = {};
@@ -123,7 +139,8 @@ export default function TechBagPage() {
       await axios.post('/inventory/transfer', {
         item_id: item.id,
         target_user_id: parseInt(targetUserId),
-        transfer_quantity: parseFloat(quantityStr)
+        transfer_quantity: parseFloat(quantityStr),
+        user_id: selectedUserId, // bag owner (admin may act on another's bag)
       });
       Swal.fire({ icon: 'success', title: 'โอนของสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
       fetchBag(selectedUserId);
@@ -166,7 +183,8 @@ export default function TechBagPage() {
       setLoading(true);
       await axios.post('/inventory/return', {
         item_id: item.id,
-        return_quantity: parseInt(quantityStr, 10)
+        return_quantity: parseInt(quantityStr, 10),
+        user_id: selectedUserId, // bag owner being returned from
       });
       Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
       fetchBag(selectedUserId);
@@ -393,7 +411,8 @@ export default function TechBagPage() {
                 {activeTab === 'bag' ? (
                   // ── BAG TAB ──
                   (() => {
-                    // Apply date filter (client-side)
+                    // Apply date + text filters (client-side)
+                    const q = bagSearch.trim().toLowerCase();
                     const filteredBag = bagItems.filter(item => {
                       const d = new Date(item.dispatched_at);
                       if (bagDateFrom && d < new Date(bagDateFrom)) return false;
@@ -402,14 +421,40 @@ export default function TechBagPage() {
                         toEnd.setHours(23, 59, 59, 999);
                         if (d > toEnd) return false;
                       }
+                      if (q) {
+                        const hay = `${item.product_name || ''} ${item.model_name || ''} ${item.sn || ''}`.toLowerCase();
+                        if (!hay.includes(q)) return false;
+                      }
                       return true;
                     });
+                    const hasFilter = bagDateFrom || bagDateTo || bagSearch;
 
                     return (
                       <>
-                        {/* ── Date Filter Bar ── */}
+                        {/* ── Filter Bar ── */}
                         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-wrap items-center gap-3 mb-1"
                           style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                          {/* Text search */}
+                          <div className="relative w-full sm:w-64">
+                            <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                              type="text"
+                              value={bagSearch}
+                              onChange={(e) => setBagSearch(e.target.value)}
+                              placeholder="ค้นหา สินค้า / รุ่น / SN..."
+                              className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#E5E7EB] text-sm text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 bg-[#F9FAFB]"
+                            />
+                            {bagSearch && (
+                              <button onClick={() => setBagSearch('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-red-500 transition-colors">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 text-[#374151]">
                             <svg className="w-4 h-4 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -438,9 +483,9 @@ export default function TechBagPage() {
                                 showToday={false}
                               />
                             </div>
-                            {(bagDateFrom || bagDateTo) && (
+                            {hasFilter && (
                               <button
-                                onClick={() => { setBagDateFrom(''); setBagDateTo(''); }}
+                                onClick={() => { setBagDateFrom(''); setBagDateTo(''); setBagSearch(''); }}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors border border-red-100"
                               >
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -467,10 +512,10 @@ export default function TechBagPage() {
                               </svg>
                             </div>
                             <p className="text-lg font-bold text-[#1F2937]">
-                              {(bagDateFrom || bagDateTo) ? 'ไม่พบสินค้าในช่วงวันที่เลือก' : 'ไม่มีสินค้าในกระเป๋า'}
+                              {hasFilter ? 'ไม่พบสินค้าตามเงื่อนไขที่กรอง' : 'ไม่มีสินค้าในกระเป๋า'}
                             </p>
                             <p className="text-[#9CA3AF] text-sm mt-1">
-                              {(bagDateFrom || bagDateTo) ? 'ลองเปลี่ยนช่วงวันที่ หรือกดปุ่ม“ล้างการกรอง” เพื่อดูสินค้าทั้งหมด' : 'เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่'}
+                              {hasFilter ? 'ลองเปลี่ยนคำค้นหา/ช่วงวันที่ หรือกดปุ่ม“ล้างการกรอง” เพื่อดูสินค้าทั้งหมด' : 'เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่'}
                             </p>
                           </div>
                         ) : (
@@ -570,11 +615,49 @@ export default function TechBagPage() {
                   })()
                 ) : (
                   // ── HISTORY TAB ──
+                  (() => {
+                    const hq = historySearch.trim().toLowerCase();
+                    const filteredHistory = hq
+                      ? historyItems.filter(log =>
+                          `${log.product_name || ''} ${log.model_name || ''} ${log.sn || ''}`.toLowerCase().includes(hq))
+                      : historyItems;
+
+                    return (
                   <div className="space-y-4">
-                    {historyItems.length === 0 ? (
+                    {/* ── History Search Bar ── */}
+                    <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-wrap items-center gap-3"
+                      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <div className="relative w-full sm:w-64">
+                        <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={historySearch}
+                          onChange={(e) => setHistorySearch(e.target.value)}
+                          placeholder="ค้นหา สินค้า / รุ่น / SN..."
+                          className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#E5E7EB] text-sm text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 bg-[#F9FAFB]"
+                        />
+                        {historySearch && (
+                          <button onClick={() => setHistorySearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-red-500 transition-colors">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <span className="text-xs font-bold text-[#9CA3AF]">แสดง</span>
+                        <span className="text-sm font-black text-[#1F2937]">{filteredHistory.length}</span>
+                        <span className="text-xs text-[#9CA3AF]">/ {historyItems.length} รายการ</span>
+                      </div>
+                    </div>
+
+                    {filteredHistory.length === 0 ? (
                       <div className="bg-white p-10 rounded-xl border border-[#E5E7EB] text-center text-[#9CA3AF] font-medium"
                         style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                        ไม่พบประวัติการทำรายการ
+                        {historySearch ? 'ไม่พบประวัติที่ตรงกับคำค้นหา' : 'ไม่พบประวัติการทำรายการ'}
                       </div>
                     ) : (
                       <>
@@ -594,7 +677,7 @@ export default function TechBagPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#F3F4F6]">
-                              {historyItems.map((log) => (
+                              {filteredHistory.map((log) => (
                                 <tr key={log.id} className="hover:bg-[#F9FAFB] transition-colors duration-150">
                                   <td className="px-5 py-3.5 whitespace-nowrap">
                                     {log.action === 'dispatch' && <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-bold text-xs border border-emerald-200">รับเข้า</span>}
@@ -629,7 +712,7 @@ export default function TechBagPage() {
 
                         {/* Mobile View */}
                         <div className="md:hidden space-y-3">
-                          {historyItems.map((log, idx) => (
+                          {filteredHistory.map((log, idx) => (
                             <div key={log.id}
                               className="bg-white p-4 rounded-xl border border-[#E5E7EB] relative hover:border-[#A3E635]/20 transition-all duration-200"
                               style={{
@@ -674,6 +757,8 @@ export default function TechBagPage() {
                       </>
                     )}
                   </div>
+                    );
+                  })()
                 )}
               </div>
             )}
@@ -699,7 +784,10 @@ export default function TechBagPage() {
         isOpen={showUseEquipmentModal}
         onClose={() => setShowUseEquipmentModal(false)}
         bagItems={bagItems}
-        onUsageComplete={() => fetchBag()}
+        onUsageComplete={() => {
+          fetchBag(selectedUserId);
+          fetchHistory(selectedUserId);
+        }}
         initialSelectedItem={preSelectedItem}
         selectedUserId={selectedUserId}
       />

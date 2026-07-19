@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext';
 import { NoSnEquipmentModal } from './JobActionModals';
 import { friendlyJobError, PresetChips } from './dashboards/SharedComponents';
 import {
@@ -36,6 +38,9 @@ function clearDraft(jobId) {
 }
 
 export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = (user?.roles || [user?.role || '']).some(r => ['super_admin', 'admin'].includes(r));
   const [step, setStep] = useState(1);
   const [srt, setSrt] = useState('');
   const [spt, setSpt] = useState('');
@@ -49,6 +54,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
   const [imagePreviews, setImagePreviews] = useState([]);
   const [snBagItems, setSnBagItems] = useState([]);
   const [selectedSnIds, setSelectedSnIds] = useState([]);
+  const [snSearch, setSnSearch] = useState('');
   const [noSnItems, setNoSnItems] = useState([]);
   const [selectedNoSnItems, setSelectedNoSnItems] = useState({});
   const [showNoSnModal, setShowNoSnModal] = useState(false);
@@ -96,6 +102,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
     imagePreviews.forEach((u) => URL.revokeObjectURL(u));
     setImagePreviews([]);
     setShowNoSnModal(false);
+    setSnSearch('');
 
     const draft = loadDraft(job.id);
     if (draft) {
@@ -240,15 +247,22 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       });
 
       clearDraft(job.id);
-      await Swal.fire({
+      const result = await Swal.fire({
         icon: 'success',
         title: 'ปิดงาน MA สำเร็จ',
         text: 'บันทึกลงข้อมูลลูกค้าเรียบร้อย',
-        timer: 1800,
-        showConfirmButton: false,
+        showCancelButton: true,
+        confirmButtonText: '🎒 ดูกระเป๋าช่าง',
+        cancelButtonText: 'ปิด',
+        confirmButtonColor: '#65a30d',
+        cancelButtonColor: '#6B7280',
       });
       onSuccess?.();
       onClose?.();
+      if (result.isConfirmed) {
+        const assigneeId = job.assigned_user_id || job.field_engineer_id;
+        navigate(isAdmin && assigneeId ? `/bag?user_id=${assigneeId}` : '/bag');
+      }
     } catch (err) {
       const friendly = friendlyJobError(err);
       Swal.fire({
@@ -433,37 +447,88 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
           {step === 2 && (
             <>
               <div className="p-4 rounded-2xl border border-[#E5E7EB] bg-white space-y-3">
-                <div>
-                  <h3 className="text-sm font-black text-[#1F2937]">อุปกรณ์มี SN จากกระเป๋า</h3>
-                  <p className="text-[11px] text-[#9CA3AF]">ติ๊กเลือกเพื่อตัดสต๊อก (ไม่บังคับ)</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-black text-[#1F2937]">อุปกรณ์มี SN จากกระเป๋า</h3>
+                    <p className="text-[11px] text-[#9CA3AF]">ติ๊กเลือกเพื่อตัดสต๊อก (ไม่บังคับ)</p>
+                  </div>
+                  {isAdmin && (job.assigned_user_id || job.field_engineer_id) && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/bag?user_id=${job.assigned_user_id || job.field_engineer_id}`)}
+                      className="shrink-0 min-h-[40px] px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold"
+                    >
+                      🎒 ดูกระเป๋า
+                    </button>
+                  )}
                 </div>
                 {bagLoading ? (
                   <p className="text-xs text-[#9CA3AF]">กำลังโหลดกระเป๋า...</p>
                 ) : snBagItems.length === 0 ? (
                   <p className="text-xs text-[#9CA3AF]">ไม่มีอุปกรณ์มี SN ในกระเป๋า</p>
-                ) : (
-                  <ul className="max-h-52 overflow-y-auto divide-y divide-[#F3F4F6] rounded-xl border border-[#E5E7EB]">
-                    {snBagItems.map((item) => {
-                      const checked = selectedSnIds.includes(item.id);
-                      return (
-                        <li key={item.id}>
-                          <label className={`flex items-center gap-3 px-3 py-3 min-h-[52px] cursor-pointer transition-colors ${checked ? 'bg-[#A3E635]/10' : 'hover:bg-[#F9FAFB]'}`}>
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleSn(item.id)}
-                              className="w-5 h-5 rounded border-[#E5E7EB] text-[#65a30d] focus:ring-[#A3E635]"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-bold text-[#1F2937] truncate">{item.product_name} · {item.model_name}</p>
-                              <p className="text-[11px] font-mono text-[#6B7280]">SN: {item.sn}</p>
-                            </div>
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                ) : (() => {
+                  const q = snSearch.trim().toLowerCase();
+                  const visibleSnItems = q
+                    ? snBagItems.filter((item) =>
+                        `${item.product_name || ''} ${item.model_name || ''} ${item.sn || ''}`.toLowerCase().includes(q))
+                    : snBagItems;
+                  return (
+                    <>
+                      <div className="relative">
+                        <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={snSearch}
+                          onChange={(e) => setSnSearch(e.target.value)}
+                          placeholder="ค้นหา สินค้า / รุ่น / SN..."
+                          className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
+                        />
+                        {snSearch && (
+                          <button type="button" onClick={() => setSnSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-red-500">
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {visibleSnItems.length === 0 ? (
+                        <p className="text-xs text-[#9CA3AF] py-3 text-center">ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา</p>
+                      ) : (
+                        <ul className="max-h-52 overflow-y-auto divide-y divide-[#F3F4F6] rounded-xl border border-[#E5E7EB]">
+                          {visibleSnItems.map((item) => {
+                            const checked = selectedSnIds.includes(item.id);
+                            const insufficient = (Number(item.quantity) || 0) < 1;
+                            return (
+                              <li key={item.id}>
+                                <label className={`flex items-center gap-3 px-3 py-3 min-h-[52px] transition-colors ${
+                                  insufficient
+                                    ? 'opacity-50 cursor-not-allowed bg-[#F9FAFB]'
+                                    : checked ? 'bg-[#A3E635]/10 cursor-pointer' : 'hover:bg-[#F9FAFB] cursor-pointer'
+                                }`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={insufficient}
+                                    onChange={() => !insufficient && toggleSn(item.id)}
+                                    className="w-5 h-5 rounded border-[#E5E7EB] text-[#65a30d] focus:ring-[#A3E635] disabled:opacity-40"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-[#1F2937] truncate">{item.product_name} · {item.model_name}</p>
+                                    <p className="text-[11px] font-mono text-[#6B7280]">
+                                      SN: {item.sn}
+                                      {insufficient && <span className="ml-2 text-red-500 font-bold not-italic">จำนวนไม่พอ</span>}
+                                    </p>
+                                  </div>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </>
+                  );
+                })()}
                 {selectedSnIds.length > 0 && (
                   <p className="text-[11px] font-bold text-[#4D7C0F]">เลือกแล้ว {selectedSnIds.length} ชิ้น</p>
                 )}

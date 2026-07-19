@@ -2,7 +2,20 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { AppDateField, AppTimeField, AppSelectField } from './DispatchFilterFields';
 
+// Roles allowed as individual assignee per job type
+const OFFICE_ASSIGNEE_ROLES = ['technician', 'office_technician', 'contractor_office'];
+const MA_ASSIGNEE_ROLES = ['ma_technician', 'contractor_ma'];
+
+function getUserRoles(u) {
+  if (Array.isArray(u.roles)) return u.roles;
+  if (u.roles_csv) return String(u.roles_csv).split(',');
+  return u.role ? [u.role] : [];
+}
+
 export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = 'office' }) {
+  const jobType = job?.job_type === 'ma' || type === 'ma' ? 'ma' : 'office';
+  const isMa = jobType === 'ma';
+
   const [formData, setFormData] = useState({
     customer: '',
     phone: '',
@@ -17,8 +30,11 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
     product: '',
     task_type: '',
     service_note: '',
+    symptoms: '',
+    area_name: '',
     remark: ''
   });
+  const [assignMode, setAssignMode] = useState('unassigned'); // 'team' | 'individual' | 'unassigned'
   const [teams, setTeams] = useState([]);
   const [techs, setTechs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,6 +42,9 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
 
   useEffect(() => {
     if (isOpen && job) {
+      // GET /dispatch/jobs aliases ma_jobs.assigned_user_id → field_engineer_id
+      // and ma_jobs.job_time → plan_arrival_time, so both types read the same keys.
+      const assigneeId = job.field_engineer_id || job.assigned_user_id || '';
       setFormData({
         customer: job.customer || '',
         phone: job.phone || '',
@@ -33,7 +52,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         lat: job.lat || '',
         lng: job.lng || '',
         team_id: job.team_id || '',
-        field_engineer_id: job.field_engineer_id || '',
+        field_engineer_id: assigneeId,
         plan_arrival_date: job.plan_arrival_date ? job.plan_arrival_date.split('T')[0] : '',
         plan_arrival_time: job.plan_arrival_time 
           ? (job.plan_arrival_time.includes('T') ? job.plan_arrival_time.split('T')[1].substring(0, 5) : 
@@ -44,8 +63,11 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         product: job.product || '',
         task_type: job.task_type || '',
         service_note: job.service_note || '',
+        symptoms: job.symptoms || '',
+        area_name: job.area_name || '',
         remark: job.remark || ''
       });
+      setAssignMode(assigneeId ? 'individual' : (job.team_id ? 'team' : 'unassigned'));
       fetchData();
     }
   }, [isOpen, job]);
@@ -57,28 +79,22 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         api.get('/users').catch(() => ({ data: [] }))
       ]);
       setTeams(teamRes.data);
-      setTechs(usersRes.data.filter(u => u.roles && u.roles.includes('technician')));
+      const assigneeRoles = isMa ? MA_ASSIGNEE_ROLES : OFFICE_ASSIGNEE_ROLES;
+      setTechs((usersRes.data || []).filter(u => getUserRoles(u).some(r => assigneeRoles.includes(r))));
     } catch (err) {
       console.error(err);
     }
   };
 
+  const handleAssignModeChange = (mode) => {
+    setAssignMode(mode);
+    setFormData(prev => ({ ...prev, team_id: '', field_engineer_id: '' }));
+  };
+
+  // Team mode: set team only. No auto/random tech assignment — the admin must
+  // pick a person explicitly via the individual mode.
   const handleTeamChange = (newTeamId) => {
-    const updates = { team_id: newTeamId };
-
-    if (newTeamId) {
-      const teamTechs = techs.filter(t => String(t.team_id) === String(newTeamId));
-      if (teamTechs.length > 0) {
-        const randomTech = teamTechs[Math.floor(Math.random() * teamTechs.length)];
-        updates.field_engineer_id = randomTech.id;
-      } else {
-        updates.field_engineer_id = '';
-      }
-    } else {
-      updates.field_engineer_id = '';
-    }
-
-    setFormData(prev => ({ ...prev, ...updates }));
+    setFormData(prev => ({ ...prev, team_id: newTeamId, field_engineer_id: '' }));
   };
 
   const handleSubmit = async (e) => {
@@ -86,7 +102,23 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
     try {
       setLoading(true);
       setError(null);
-      await api.put(`/dispatch/jobs/${job.id}`, { ...formData, type });
+
+      // Resolve assignment from the selected mode
+      let teamId = assignMode === 'team' ? formData.team_id || null : null;
+      const assigneeId = assignMode === 'individual' ? formData.field_engineer_id || null : null;
+      if (assigneeId) {
+        const assignee = techs.find(t => String(t.id) === String(assigneeId));
+        const isContractor = assignee && getUserRoles(assignee).some(r => ['contractor_office', 'contractor_ma'].includes(r));
+        teamId = !isContractor && assignee?.team_id ? assignee.team_id : null;
+      }
+
+      const payload = { ...formData, type: jobType, team_id: teamId, field_engineer_id: assigneeId };
+      if (isMa) {
+        // ma_jobs uses assigned_user_id + job_time instead of the office column names
+        payload.assigned_user_id = assigneeId;
+        payload.job_time = formData.plan_arrival_time || null;
+      }
+      await api.put(`/dispatch/jobs/${job.id}`, payload);
       onSuccess();
       onClose();
     } catch (err) {
@@ -105,7 +137,9 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg glass border border-white/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/30 bg-white/40">
-          <h2 className="text-[#042C53] font-bold text-lg">แก้ไขข้อมูลงาน {job.access_no}</h2>
+          <h2 className="text-[#042C53] font-bold text-lg">
+            แก้ไขข้อมูลงาน{isMa ? ' MA' : ''} {isMa ? (job.non_number || job.display_non || job.access_no) : job.access_no}
+          </h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full glass border border-white/50 flex items-center justify-center text-[#042C53] hover:bg-white/50 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
@@ -145,30 +179,47 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
               value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}></textarea>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">แพ็กเกจ (Package)</label>
-              <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.package} onChange={e => setFormData({...formData, package: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#042C53] mb-1">สินค้า (Product)</label>
-              <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-                value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} />
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-semibold text-[#042C53] mb-1">ประเภทงาน (Task Type)</label>
-            <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
-              value={formData.task_type} onChange={e => setFormData({...formData, task_type: e.target.value})} />
-          </div>
+          {isMa ? (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">อาการ / ปัญหา (Symptoms)</label>
+                <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-20"
+                  value={formData.symptoms} onChange={e => setFormData({...formData, symptoms: e.target.value})} placeholder="อาการเสีย / ปัญหาที่ลูกค้าแจ้ง"></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">พื้นที่ (Area Name)</label>
+                <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                  value={formData.area_name} onChange={e => setFormData({...formData, area_name: e.target.value})} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-[#042C53] mb-1">แพ็กเกจ (Package)</label>
+                  <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                    value={formData.package} onChange={e => setFormData({...formData, package: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[#042C53] mb-1">สินค้า (Product)</label>
+                  <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                    value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-[#042C53] mb-1">รายละเอียดงาน (Service Note)</label>
-            <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-20"
-              value={formData.service_note} onChange={e => setFormData({...formData, service_note: e.target.value})} placeholder="รายละเอียดของงาน/ISP"></textarea>
-          </div>
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">ประเภทงาน (Task Type)</label>
+                <input type="text" className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50"
+                  value={formData.task_type} onChange={e => setFormData({...formData, task_type: e.target.value})} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#042C53] mb-1">รายละเอียดงาน (Service Note)</label>
+                <textarea className="w-full px-4 py-2.5 rounded-xl glass border border-white/60 focus:border-[#378ADD] focus:ring-2 focus:ring-[#378ADD]/20 outline-none text-[#042C53] bg-white/50 resize-none h-20"
+                  value={formData.service_note} onChange={e => setFormData({...formData, service_note: e.target.value})} placeholder="รายละเอียดของงาน/ISP"></textarea>
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-[#042C53] mb-1">หมายเหตุ (Remark)</label>
@@ -216,32 +267,54 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
             จับตำแหน่งปัจจุบัน
           </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <AppSelectField
-              label="ทีมที่รับผิดชอบ"
-              value={String(formData.team_id || '')}
-              onChange={handleTeamChange}
-              options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
-              placeholder="ยังไม่ระบุทีม"
-              searchable
-            />
-            <AppSelectField
-              label="ช่างเทคนิค"
-              value={String(formData.field_engineer_id || '')}
-              onChange={(techId) => {
-                const updates = { field_engineer_id: techId };
-                if (techId) {
-                  const selectedTech = techs.find((t) => String(t.id) === String(techId));
-                  if (selectedTech?.team_id) updates.team_id = selectedTech.team_id;
-                }
-                setFormData((prev) => ({ ...prev, ...updates }));
-              }}
-              options={techs
-                .filter((t) => !formData.team_id || String(t.team_id) === String(formData.team_id))
-                .map((t) => ({ value: String(t.id), label: t.full_name }))}
-              placeholder="ยังไม่ระบุช่าง"
-              searchable
-            />
+          <div className="pt-2 border-t border-white/30">
+            <label className="block text-sm font-semibold text-[#042C53] mb-2">การมอบหมายงาน</label>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {[
+                { key: 'team', label: '👥 ทีม' },
+                { key: 'individual', label: '👤 รายบุคคล' },
+                { key: 'unassigned', label: '⏳ ยังไม่มอบหมาย' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleAssignModeChange(opt.key)}
+                  className={`px-2 py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${
+                    assignMode === opt.key
+                      ? 'border-[#378ADD] bg-[#378ADD]/10 text-[#042C53]'
+                      : 'border-white/60 bg-white/40 text-[#6B7280] hover:border-[#378ADD]/50'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {assignMode === 'team' && (
+              <AppSelectField
+                label="ทีมที่รับผิดชอบ"
+                value={String(formData.team_id || '')}
+                onChange={handleTeamChange}
+                options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                placeholder="เลือกทีม"
+                searchable
+              />
+            )}
+
+            {assignMode === 'individual' && (
+              <AppSelectField
+                label={isMa ? 'ช่าง MA / รับเหมา MA' : 'ช่างติดตั้ง / รับเหมาติดตั้ง'}
+                value={String(formData.field_engineer_id || '')}
+                onChange={(techId) => setFormData((prev) => ({ ...prev, field_engineer_id: techId, team_id: '' }))}
+                options={techs.map((t) => ({ value: String(t.id), label: t.full_name }))}
+                placeholder="เลือกผู้รับผิดชอบ"
+                searchable
+              />
+            )}
+
+            {assignMode === 'unassigned' && (
+              <p className="text-xs text-[#6B7280] font-medium px-1">งานจะถูกล้างทีม/ผู้รับผิดชอบออก สามารถมอบหมายใหม่ภายหลังได้</p>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-white/30 flex gap-3">

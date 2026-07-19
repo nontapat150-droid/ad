@@ -358,21 +358,34 @@ export function FilterSelectField({
                 <li key={opt.value}>
                   <button
                     type="button"
-                    onClick={() => { onChange(String(opt.value)); setOpen(false); setQuery(''); }}
+                    disabled={!!opt.disabled}
+                    onClick={() => {
+                      if (opt.disabled) return;
+                      onChange(String(opt.value));
+                      setOpen(false);
+                      setQuery('');
+                    }}
                     className={cn(
                       'w-full text-left px-3 py-2.5 text-sm transition-colors flex items-center gap-2',
-                      String(opt.value) === String(value)
-                        ? 'bg-[#A3E635]/15 text-[#1F2937] font-bold'
-                        : 'text-[#374151] hover:bg-[#F9FAFB]'
+                      opt.disabled
+                        ? 'text-[#9CA3AF] opacity-50 cursor-not-allowed bg-[#F9FAFB]'
+                        : String(opt.value) === String(value)
+                          ? 'bg-[#A3E635]/15 text-[#1F2937] font-bold'
+                          : 'text-[#374151] hover:bg-[#F9FAFB]'
                     )}
                   >
                     <span className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold shrink-0',
-                      String(opt.value) === String(value) ? 'bg-[#A3E635] text-[#1F2937]' : 'bg-[#F3F4F6] text-[#9CA3AF]'
+                      opt.disabled
+                        ? 'bg-[#E5E7EB] text-[#9CA3AF]'
+                        : String(opt.value) === String(value) ? 'bg-[#A3E635] text-[#1F2937]' : 'bg-[#F3F4F6] text-[#9CA3AF]'
                     )}>
                       {String(opt.value) === String(value) ? '✓' : opt.label.charAt(0)}
                     </span>
-                    <span className="truncate">{opt.label}</span>
+                    <span className="truncate flex-1">{opt.label}</span>
+                    {opt.disabled && (
+                      <span className="text-[10px] font-bold text-red-400 shrink-0">ไม่พอ</span>
+                    )}
                   </button>
                 </li>
               ))

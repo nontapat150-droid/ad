@@ -150,13 +150,15 @@ export default function AdminSection() {
               </div>
               <h3 className="text-[#1F2937] font-bold text-base">ทางลัดด่วน</h3>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <ShortcutBtn icon="📦" label="จัดการคลังสินค้า" sublabel="รับ-จ่ายสินค้า"
                 onClick={() => navigate('/inventory')} gradient="from-[#374151] to-[#1F2937]" shadow="shadow-slate-500/25" />
               <ShortcutBtn icon="🛠️" label="จ่ายงาน MA" sublabel="มอบหมายงานช่าง"
-                onClick={() => navigate('/jobs?tab=ma')} gradient="from-[#65a30d] to-[#A3E635]" shadow="shadow-lime-500/25" />
+                onClick={() => navigate('/dispatch-dashboard?tab=ma')} gradient="from-[#65a30d] to-[#A3E635]" shadow="shadow-lime-500/25" />
               <ShortcutBtn icon="🏢" label="จ่ายงานติดตั้ง" sublabel="มอบหมายงานออฟฟิศ"
-                onClick={() => navigate('/jobs?tab=office')} gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+                onClick={() => navigate('/dispatch-dashboard?tab=office')} gradient="from-emerald-500 to-teal-500" shadow="shadow-emerald-500/25" />
+              <ShortcutBtn icon="🎒" label="กระเป๋าช่าง" sublabel="ดูอุปกรณ์ของช่าง"
+                onClick={() => navigate('/bag')} gradient="from-teal-500 to-cyan-600" shadow="shadow-teal-500/25" />
             </div>
           </div>
         </div>

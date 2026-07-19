@@ -104,7 +104,8 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
       setIsLoading(true);
       const res = await axios.post('/inventory/use-equipment', {
         job_id: selectedJobId,
-        items: itemsPayload
+        items: itemsPayload,
+        user_id: selectedUserId, // bag owner (admin may act on another's bag)
       });
 
       if (res.status === 200) {

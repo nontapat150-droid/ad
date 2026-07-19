@@ -4,7 +4,8 @@ import JobDispatchModal from '../components/JobDispatchModal';
 import AutoDispatchModal from '../components/AutoDispatchModal';
 import EditJobModal from '../components/EditJobModal';
 import SmartImportExcelModal from '../components/SmartImportExcelModal';
-import { CompleteJobModal, IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
+import CompleteJobModal from '../components/CompleteJobModal';
+import { IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
 import CompleteMaJobModal from '../components/CompleteMaJobModal';
 import ImageWithFallback from '../components/common/ImageWithFallback';
 import axios from '../api/axios';
@@ -17,7 +18,7 @@ import Swal from 'sweetalert2';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
 import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from '../constants/jobStatus';
@@ -243,12 +244,64 @@ function PhoneSelector({ phone }) {
 /* ─────────────────────────────────────────────────────────
    JOB DETAIL BOTTOM SHEET / MODAL
 ───────────────────────────────────────────────────────── */
+const AUDIT_ACTION_LABEL = {
+  create: { label: 'สร้างงาน', icon: '🆕', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+  assign: { label: 'มอบหมายงาน', icon: '👥', color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+  update: { label: 'แก้ไขงาน', icon: '✏️', color: 'text-amber-600 bg-amber-50 border-amber-200' },
+  complete: { label: 'จบงาน', icon: '✅', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+  incomplete: { label: 'งานไม่จบ', icon: '❌', color: 'text-red-600 bg-red-50 border-red-200' },
+  postpone: { label: 'เลื่อนนัด', icon: '📅', color: 'text-purple-600 bg-purple-50 border-purple-200' },
+  cancel_completion: { label: 'ยกเลิกการจบงาน', icon: '↩️', color: 'text-orange-600 bg-orange-50 border-orange-200' },
+  change_team: { label: 'เปลี่ยนทีม', icon: '🔄', color: 'text-cyan-600 bg-cyan-50 border-cyan-200' },
+};
+
+function AuditTimeline({ logs }) {
+  if (!logs?.length) return null;
+  return (
+    <div className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
+      <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-2">🕓 ประวัติการเปลี่ยนแปลง</p>
+      <div className="space-y-2.5">
+        {logs.map((log) => {
+          const meta = AUDIT_ACTION_LABEL[log.action] || { label: log.action, icon: '•', color: 'text-gray-600 bg-gray-50 border-gray-200' };
+          const statusChanged = log.new_status && log.new_status !== log.old_status;
+          const teamChanged = String(log.old_team_id ?? '') !== String(log.new_team_id ?? '');
+          const assigneeChanged = String(log.old_assignee_id ?? '') !== String(log.new_assignee_id ?? '');
+          return (
+            <div key={log.id} className="flex gap-2.5 items-start">
+              <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md border ${meta.color}`}>{meta.icon} {meta.label}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-[#374151] leading-snug">
+                  {log.actor_name && <span className="font-semibold">{log.actor_name}</span>}
+                  {statusChanged && (
+                    <span> · สถานะ: {log.old_status ? `${STATUS_LABEL(log.old_status)} → ` : ''}{STATUS_LABEL(log.new_status)}</span>
+                  )}
+                  {teamChanged && (
+                    <span> · ทีม: {log.old_team_id ? (log.old_team_name || `#${log.old_team_id}`) : 'ไม่มี'} → {log.new_team_id ? (log.new_team_name || `#${log.new_team_id}`) : 'ไม่มี'}</span>
+                  )}
+                  {assigneeChanged && (
+                    <span> · ช่าง: {log.old_assignee_id ? (log.old_assignee_name || `#${log.old_assignee_id}`) : 'ไม่มี'} → {log.new_assignee_id ? (log.new_assignee_name || `#${log.new_assignee_id}`) : 'ไม่มี'}</span>
+                  )}
+                </p>
+                {log.remark && <p className="text-[11px] text-[#6B7280] leading-snug break-words">{log.remark}</p>}
+                <p className="text-[10px] text-[#9CA3AF]">{log.created_at ? new Date(log.created_at).toLocaleString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onComplete, onIncomplete, onPostpone, onDelete, onCancelCompletion, onChangeTeam }) {
+  const navigate = useNavigate();
   const [details, setDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const status = job ? getEffectiveStatus(job, today) : 'pending';
   const isLate = isLateCompletion(job || {});
+  const assigneeId = job?.field_engineer_id || job?.assigned_user_id;
 
   useEffect(() => {
     if (!job) return;
@@ -258,6 +311,13 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
       .then(r => setDetails(r.data))
       .catch(() => {})
       .finally(() => setLoadingDetails(false));
+
+    setAuditLogs([]);
+    if (isAdmin) {
+      axios.get(`/dispatch/jobs/${job.id}/audit?type=${mainTab}`)
+        .then(r => setAuditLogs(Array.isArray(r.data) ? r.data : []))
+        .catch(() => {});
+    }
   }, [job?.id]);
 
   if (!job) return null;
@@ -418,15 +478,29 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               </div>
             )}
 
-            {/* Tech names */}
-            {job.tech_names && (
+            {/* Tech names + admin bag deep-link */}
+            {(job.tech_names || (isAdmin && assigneeId)) && (
               <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1.5">👤 ช่างที่รับผิดชอบ</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {job.tech_names.split(',').map((n, i) => <span key={i} className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg">{n.trim()}</span>)}
-                </div>
+                {job.tech_names && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {job.tech_names.split(',').map((n, i) => <span key={i} className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg">{n.trim()}</span>)}
+                  </div>
+                )}
+                {isAdmin && assigneeId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/bag?user_id=${assigneeId}`)}
+                    className="mt-2.5 w-full py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold hover:bg-teal-100 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    🎒 ดูกระเป๋าช่างผู้รับงาน
+                  </button>
+                )}
               </div>
             )}
+
+            {/* Audit trail (admin only) */}
+            {isAdmin && <AuditTimeline logs={auditLogs} />}
           </div>
 
           {/* Action buttons — sticky bottom */}
@@ -522,12 +596,16 @@ export default function DispatchDashboardPage() {
   const [filterDate, setFilterDate] = useState('');
   const [filterTeamId, setFilterTeamId] = useState('');
   const [filterUserId, setFilterUserId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [teams, setTeams] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [bulkAssignTeam, setBulkAssignTeam] = useState('');
+  const [bulkAssignMode, setBulkAssignMode] = useState('team'); // team | user
+  const [bulkAssignUser, setBulkAssignUser] = useState('');
   const [isReordering, setIsReordering] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, isDanger: true });
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
@@ -561,8 +639,14 @@ export default function DispatchDashboardPage() {
 
   useEffect(() => { fetchJobs(); fetchTeams(); fetchUsers(); }, []);
   useEffect(() => { const tab = searchParams.get('tab'); if (tab && ['office', 'ma'].includes(tab)) setMainTab(tab); }, [location.search]);
-  useEffect(() => { fetchJobs(); setSelectedJobIds([]); }, [mainTab, filterDate, filterTeamId, filterUserId]);
-  // Auto-open job from URL param ?openJob=<id> (from TechDashboard navigation)
+  useEffect(() => { fetchJobs(); setSelectedJobIds([]); }, [mainTab, filterDate, filterTeamId, filterUserId, searchQuery]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Auto-open job from URL param ?openJob=<id>
   useEffect(() => {
     const openJobId = searchParams.get('openJob');
     if (openJobId && jobs.length > 0) {
@@ -580,6 +664,7 @@ export default function DispatchDashboardPage() {
       if (filterDate) url += `&date=${filterDate}`;
       if (filterTeamId) url += `&team_id=${filterTeamId}`;
       if (filterUserId) url += `&user_id=${filterUserId}`;
+      if (searchQuery) url += `&q=${encodeURIComponent(searchQuery)}`;
       const r = await axios.get(url);
       setJobs(Array.isArray(r.data) ? r.data : []);
     } catch(e) { console.error(e); } finally { setLoading(false); }
@@ -597,7 +682,14 @@ export default function DispatchDashboardPage() {
     const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
 
     switch (subTab) {
-      case 'assigned':  return jobs.filter(j => j.team_id && isActive(j) && !isOverdue(j));
+      case 'assigned':  return jobs.filter(j => (j.team_id || j.field_engineer_id || j.assigned_user_id) && isActive(j) && !isOverdue(j));
+      case 'unassigned': return jobs.filter(j => !j.team_id && !j.field_engineer_id && !j.assigned_user_id && isActive(j));
+      case 'incomplete_data': return jobs.filter(j => {
+        if (!isActive(j)) return false;
+        if (mainTab === 'ma') return !j.customer || !j.phone || !(j.non_number || j.access_no) || !j.address;
+        return !j.customer || !j.phone || !j.access_no || !j.address;
+      });
+      case 'postponed_unassigned': return jobs.filter(j => trulyPostponed(j) && !j.team_id && !j.field_engineer_id && !j.assigned_user_id);
       case 'completed': return jobs.filter(j => j.status === 'completed');
       case 'failed':    return jobs.filter(j => j.status === 'failed');
       // postponed tab: แสดงเฉพาะงานที่ยังยังอยู่ในสถานะเลื่อน (ยังไม่ถึงวันนัด)
@@ -607,7 +699,7 @@ export default function DispatchDashboardPage() {
       case 'map':       return jobs;
       default:          return jobs;
     }
-  }, [jobs, subTab, today]);
+  }, [jobs, subTab, today, mainTab]);
 
   const stats = useMemo(() => {
     const trulyPostponed = (j) => j.status === 'postponed' && (!j.plan_arrival_date || j.plan_arrival_date.split('T')[0] > today);
@@ -619,14 +711,21 @@ export default function DispatchDashboardPage() {
     const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
     return {
       total:     jobs.length,
-      assigned:  jobs.filter(j => j.team_id && isActive(j) && !isOverdue(j)).length,
+      assigned:  jobs.filter(j => (j.team_id || j.field_engineer_id || j.assigned_user_id) && isActive(j) && !isOverdue(j)).length,
+      unassigned: jobs.filter(j => !j.team_id && !j.field_engineer_id && !j.assigned_user_id && isActive(j)).length,
+      incomplete_data: jobs.filter(j => {
+        if (!isActive(j)) return false;
+        if (mainTab === 'ma') return !j.customer || !j.phone || !(j.non_number || j.access_no) || !j.address;
+        return !j.customer || !j.phone || !j.access_no || !j.address;
+      }).length,
+      postponed_unassigned: jobs.filter(j => trulyPostponed(j) && !j.team_id && !j.field_engineer_id && !j.assigned_user_id).length,
       completed: jobs.filter(j => j.status === 'completed').length,
       failed:    jobs.filter(j => j.status === 'failed').length,
       postponed: jobs.filter(j => trulyPostponed(j)).length,
       overdue:   jobs.filter(j => isOverdue(j)).length,
       withMap:   jobs.filter(j => j.lat && j.lng).length,
     };
-  }, [jobs, today]);
+  }, [jobs, today, mainTab]);
 
   const techsForFilter = useMemo(() => {
     let t = allUsers.filter(u => ['technician','ma_technician','contractor_office','contractor_ma'].some(r => u.role === r || u.roles?.includes(r)));
@@ -637,7 +736,28 @@ export default function DispatchDashboardPage() {
   const requestConfirm = (title, message, onConfirm, isDanger = true) => setConfirmDialog({ isOpen: true, title, message, onConfirm, isDanger });
   const handleDelete = (id) => requestConfirm('ยืนยันลบงาน', 'ลบงานนี้?', async () => { try { await axios.delete(`/dispatch/jobs/${id}`, { params: { type: mainTab } }); handleActionComplete(); showNotification('ลบสำเร็จ'); } catch(e) { showNotification('ไม่สามารถลบได้', 'error'); } });
   const handleDeleteBulk = () => requestConfirm('ลบหลายรายการ', `ลบ ${selectedJobIds.length} งาน?`, async () => { try { await axios.delete('/dispatch/jobs/bulk', { data: { ids: selectedJobIds, type: mainTab } }); handleActionComplete(); showNotification('ลบสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } });
-  const handleBulkAssign = async () => { if (!bulkAssignTeam) return showNotification('เลือกทีม', 'error'); requestConfirm('มอบหมายทีม', `มอบหมาย ${selectedJobIds.length} งาน?`, async () => { try { await axios.put('/dispatch/jobs/bulk-assign', { ids: selectedJobIds, team_id: bulkAssignTeam, type: mainTab }); showNotification('มอบหมายสำเร็จ'); setBulkAssignTeam(''); handleActionComplete(); } catch(e) { showNotification('ผิดพลาด', 'error'); } }); };
+  const handleBulkAssign = async () => {
+    if (bulkAssignMode === 'team' && !bulkAssignTeam) return showNotification('เลือกทีม', 'error');
+    if (bulkAssignMode === 'user' && !bulkAssignUser) return showNotification('เลือกช่าง', 'error');
+    requestConfirm('มอบหมายงาน', `มอบหมาย ${selectedJobIds.length} งาน?`, async () => {
+      try {
+        const payload = {
+          ids: selectedJobIds,
+          type: mainTab,
+          target_type: bulkAssignMode,
+          target_id: bulkAssignMode === 'team' ? bulkAssignTeam : bulkAssignUser,
+        };
+        const r = await axios.put('/dispatch/jobs/bulk-assign', payload);
+        const failed = r.data?.failed?.length || 0;
+        showNotification(failed ? `มอบหมาย ${r.data.updatedCount} สำเร็จ, ล้มเหลว ${failed}` : 'มอบหมายสำเร็จ');
+        setBulkAssignTeam('');
+        setBulkAssignUser('');
+        handleActionComplete();
+      } catch (e) {
+        showNotification(e.response?.data?.error || 'ผิดพลาด', 'error');
+      }
+    });
+  };
   const handleDeleteAll = () => requestConfirm('ลบทั้งหมด', 'ลบงานที่รอดำเนินการทั้งหมด?', async () => { try { await axios.delete('/dispatch/jobs/all', { params: { type: mainTab } }); handleActionComplete(); showNotification('ลบสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } });
   const handleClearDispatch = () => requestConfirm('ล้างจ่ายงาน', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-dispatch', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleClearQueue = () => requestConfirm('ล้างคิว', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-queue', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
@@ -655,9 +775,12 @@ export default function DispatchDashboardPage() {
   const summaryCards = [
     { key:'all', label:'ทั้งหมด', value: stats.total, icon:'📋', activeClass:'bg-slate-700 text-white' },
     { key:'assigned', label:'มอบหมาย', value: stats.assigned, icon:'👥', activeClass:'bg-indigo-600 text-white' },
+    { key:'unassigned', label:'ยังไม่มอบหมาย', value: stats.unassigned, icon:'📭', activeClass:'bg-slate-600 text-white' },
+    { key:'incomplete_data', label:'ข้อมูลไม่ครบ', value: stats.incomplete_data, icon:'📝', activeClass:'bg-amber-600 text-white' },
     { key:'completed', label:'สำเร็จ', value: stats.completed, icon:'✅', activeClass:'bg-emerald-600 text-white' },
     { key:'failed', label:'ไม่สำเร็จ', value: stats.failed, icon:'❌', activeClass:'bg-red-600 text-white' },
     { key:'postponed', label:'เลื่อน', value: stats.postponed, icon:'📅', activeClass:'bg-purple-600 text-white' },
+    { key:'postponed_unassigned', label:'เลื่อนรอมอบหมาย', value: stats.postponed_unassigned, icon:'📆', activeClass:'bg-fuchsia-700 text-white' },
     { key:'overdue', label:'เลยกำหนด', value: stats.overdue, icon:'⏰', activeClass:'bg-orange-600 text-white' },
     { key:'map', label:'แผนที่', value: stats.withMap, icon:'🗺️', activeClass:'bg-teal-600 text-white' },
   ];
@@ -690,7 +813,17 @@ export default function DispatchDashboardPage() {
               <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#A3E635,#65a30d)' }}>
                 <svg className="w-4 h-4 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
               </div>
-              <h1 className="font-black text-[#1F2937] text-base md:text-lg truncate">ระบบแจกจ่ายงาน</h1>
+              <h1 className="font-black text-[#1F2937] text-base md:text-lg truncate hidden sm:block">ระบบแจกจ่ายงาน</h1>
+              <div className="relative flex-1 max-w-xs ml-1 min-w-0">
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={mainTab === 'ma' ? 'ค้นหา NON / ลูกค้า / เบอร์' : 'ค้นหา Access / ลูกค้า / เบอร์'}
+                  className="w-full min-h-[36px] pl-8 pr-3 py-1.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-xs font-medium text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
+                />
+                <svg className="w-3.5 h-3.5 text-[#9CA3AF] absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" /></svg>
+              </div>
             </div>
             {/* Action buttons — collapsed on mobile */}
             <div className="flex items-center gap-1.5">
@@ -948,15 +1081,44 @@ export default function DispatchDashboardPage() {
           {selectedJobIds.length > 0 && (
             <div className="shrink-0 px-4 py-3 bg-[#1F2937] flex flex-wrap items-center gap-3" style={{ borderTop: '1px solid rgba(163,230,53,0.2)' }}>
               <span className="font-bold text-sm text-white">เลือก <span className="text-[#A3E635] font-black">{selectedJobIds.length}</span> งาน</span>
+              <button
+                type="button"
+                onClick={() => setSelectedJobIds(filteredJobs.map((j) => j.id))}
+                className="px-3 py-2 text-xs font-bold rounded-xl border border-white/20 text-white/80 hover:text-white"
+              >
+                เลือกทั้งหมดที่มองเห็น
+              </button>
+              <div className="flex rounded-xl overflow-hidden border border-white/20">
+                <button type="button" onClick={() => setBulkAssignMode('team')} className={`px-3 py-2 text-xs font-bold ${bulkAssignMode === 'team' ? 'bg-[#A3E635] text-[#1F2937]' : 'text-white/70'}`}>ทีม</button>
+                <button type="button" onClick={() => setBulkAssignMode('user')} className={`px-3 py-2 text-xs font-bold ${bulkAssignMode === 'user' ? 'bg-[#A3E635] text-[#1F2937]' : 'text-white/70'}`}>ช่าง</button>
+              </div>
               <div className="flex-1 min-w-[180px]">
-                <AppSelectField
-                  label=""
-                  value={bulkAssignTeam}
-                  onChange={setBulkAssignTeam}
-                  options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
-                  placeholder="เลือกทีม"
-                  searchable
-                />
+                {bulkAssignMode === 'team' ? (
+                  <AppSelectField
+                    label=""
+                    value={bulkAssignTeam}
+                    onChange={setBulkAssignTeam}
+                    options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                    placeholder="เลือกทีม"
+                    searchable
+                  />
+                ) : (
+                  <AppSelectField
+                    label=""
+                    value={bulkAssignUser}
+                    onChange={setBulkAssignUser}
+                    options={techsForFilter
+                      .filter((u) => {
+                        const roles = u.roles || [u.role];
+                        return mainTab === 'ma'
+                          ? roles.some((r) => ['ma_technician', 'contractor_ma'].includes(r))
+                          : roles.some((r) => ['technician', 'office_technician', 'contractor_office'].includes(r));
+                      })
+                      .map((u) => ({ value: String(u.id), label: u.full_name }))}
+                    placeholder="เลือกช่าง"
+                    searchable
+                  />
+                )}
               </div>
               <button onClick={handleBulkAssign} className="px-4 py-2 text-sm font-bold bg-[#A3E635] text-[#1F2937] hover:bg-[#84cc16] rounded-xl transition-colors">✅ มอบหมาย</button>
               <button onClick={() => setSelectedJobIds([])} className="px-4 py-2 text-sm font-semibold text-white/60 hover:text-white rounded-xl transition-colors">ยกเลิก</button>
@@ -985,7 +1147,7 @@ export default function DispatchDashboardPage() {
       )}
 
       {/* ── MODALS ── */}
-      <JobDispatchModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={handleActionComplete} />
+      <JobDispatchModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={handleActionComplete} defaultJobType={mainTab} />
       <AutoDispatchModal isOpen={isAutoModalOpen} onClose={() => setIsAutoModalOpen(false)} onSuccess={handleActionComplete} />
       <SmartImportExcelModal
         isOpen={isSmartImportOpen}
@@ -999,8 +1161,8 @@ export default function DispatchDashboardPage() {
       ) : (
         <CompleteJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
       )}
-      <IncompleteJobModal job={actionJob} isOpen={actionType==='incomplete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
-      <PostponeJobModal job={actionJob} isOpen={actionType==='postpone'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+      <IncompleteJobModal job={actionJob} isOpen={actionType==='incomplete'} jobType={mainTab} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+      <PostponeJobModal job={actionJob} isOpen={actionType==='postpone'} jobType={mainTab} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
 
       {/* Confirm Dialog */}
       {confirmDialog.isOpen && (

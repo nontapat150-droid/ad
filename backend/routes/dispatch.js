@@ -259,6 +259,8 @@ async function ensureMaJobSchema(connOrPool) {
     ['new_sn', 'TEXT DEFAULT NULL'],
     ['cable_used', 'TEXT DEFAULT NULL'],
     ['used_equipment', 'TEXT DEFAULT NULL'],
+    ['lat', 'VARCHAR(50) DEFAULT NULL'],
+    ['lng', 'VARCHAR(50) DEFAULT NULL'],
   ];
   for (const [name, def] of cols) {
     try {
@@ -287,6 +289,85 @@ async function ensureMaJobSchema(connOrPool) {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
   } catch (e) { /* exists */ }
+}
+
+// ── Shared Excel import aliases (normalized nickname → user/team) ─────────────
+// Schema also lives in backend/scripts/job_audit_and_aliases.sql
+async function ensureImportAliasSchema(db) {
+  await (db || pool).query(`
+    CREATE TABLE IF NOT EXISTS user_import_aliases (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      job_type ENUM('office','ma','any') NOT NULL DEFAULT 'any',
+      normalized_alias VARCHAR(150) NOT NULL,
+      user_id INT DEFAULT NULL,
+      team_id INT DEFAULT NULL,
+      created_by INT DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_alias (job_type, normalized_alias),
+      KEY idx_uia_user (user_id),
+      KEY idx_uia_team (team_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+// ── Central job audit log (office + MA) ──────────────────────────────────────
+// Schema also lives in backend/scripts/job_audit_and_aliases.sql
+let jobAuditSchemaReady = false;
+async function ensureJobAuditSchema(db) {
+  if (jobAuditSchemaReady) return;
+  await (db || pool).query(`
+    CREATE TABLE IF NOT EXISTS job_audit_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      job_type ENUM('office','ma') NOT NULL,
+      job_id INT NOT NULL,
+      action VARCHAR(50) NOT NULL,
+      old_status VARCHAR(50) DEFAULT NULL,
+      new_status VARCHAR(50) DEFAULT NULL,
+      old_team_id INT DEFAULT NULL,
+      new_team_id INT DEFAULT NULL,
+      old_assignee_id INT DEFAULT NULL,
+      new_assignee_id INT DEFAULT NULL,
+      actor_id INT DEFAULT NULL,
+      remark TEXT DEFAULT NULL,
+      meta_json JSON DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_jal_job (job_type, job_id),
+      KEY idx_jal_actor (actor_id),
+      KEY idx_jal_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  jobAuditSchemaReady = true;
+}
+
+/** Write one audit row. Never throws — audit must never break the main flow. */
+async function writeJobAudit(db, {
+  job_type, job_id, action,
+  old_status = null, new_status = null,
+  old_team_id = null, new_team_id = null,
+  old_assignee_id = null, new_assignee_id = null,
+  actor_id = null, remark = null, meta_json = null,
+}) {
+  try {
+    const conn = db || pool;
+    await ensureJobAuditSchema(conn);
+    await conn.query(
+      `INSERT INTO job_audit_logs
+         (job_type, job_id, action, old_status, new_status,
+          old_team_id, new_team_id, old_assignee_id, new_assignee_id,
+          actor_id, remark, meta_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        job_type, job_id, action,
+        old_status || null, new_status || null,
+        old_team_id || null, new_team_id || null,
+        old_assignee_id || null, new_assignee_id || null,
+        actor_id || null, remark || null,
+        meta_json ? JSON.stringify(meta_json) : null,
+      ]
+    );
+  } catch (e) {
+    console.warn('audit write failed:', e.message);
+  }
 }
 
 async function processMaNoSnItems(conn, { maJobId, techId, nonNumber, noSnItems }) {
@@ -406,7 +487,7 @@ async function processMaSnItems(conn, { maJobId, techId, nonNumber, snItems }) {
 // ── GET /api/dispatch/jobs — List jobs (team-filtered for techs) ─
 router.get('/jobs', auth, async (req, res) => {
   try {
-    const { status, date, team_id, type, user_id } = req.query;
+    const { status, date, team_id, type, user_id, q } = req.query;
     const userRoles = req.user.roles || [req.user.role];
     const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
 
@@ -463,6 +544,28 @@ router.get('/jobs', auth, async (req, res) => {
     
     // For postponed tab, we might want to ignore date filter or include it
     if (date && type !== 'postponed')   { where.push('j.plan_arrival_date = ?'); params.push(date); }
+
+    const search = String(q || '').trim();
+    if (search) {
+      const like = `%${search}%`;
+      if (type === 'ma') {
+        where.push(`(
+          j.access_no LIKE ? OR j.non_number LIKE ? OR j.customer LIKE ? OR j.phone LIKE ?
+          OR j.address LIKE ? OR j.area_name LIKE ?
+          OR EXISTS (SELECT 1 FROM teams t2 WHERE t2.id = j.team_id AND t2.team_name LIKE ?)
+          OR EXISTS (SELECT 1 FROM users u2 WHERE u2.id = j.assigned_user_id AND u2.full_name LIKE ?)
+        )`);
+        params.push(like, like, like, like, like, like, like, like);
+      } else {
+        where.push(`(
+          j.access_no LIKE ? OR j.customer LIKE ? OR j.phone LIKE ? OR j.address LIKE ?
+          OR j.order_no LIKE ? OR j.customer_order_no LIKE ? OR j.area_name LIKE ?
+          OR EXISTS (SELECT 1 FROM teams t2 WHERE t2.id = j.team_id AND t2.team_name LIKE ?)
+          OR EXISTS (SELECT 1 FROM users u2 WHERE u2.id = j.field_engineer_id AND u2.full_name LIKE ?)
+        )`);
+        params.push(like, like, like, like, like, like, like, like, like);
+      }
+    }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
@@ -573,6 +676,35 @@ router.get('/jobs/:id/details', auth, async (req, res) => {
     res.json({ ...job, images, used_devices: usedDevices, logs });
   } catch (err) {
     console.error('Job details error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── GET /api/dispatch/jobs/:id/audit — Audit trail for a job (admin) ─────────
+router.get('/jobs/:id/audit', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    await ensureJobAuditSchema(pool);
+    const jobType = req.query.type === 'ma' ? 'ma' : 'office';
+    const [rows] = await pool.query(
+      `SELECT a.*,
+              actor.full_name AS actor_name,
+              ot.team_name AS old_team_name,
+              nt.team_name AS new_team_name,
+              oa.full_name AS old_assignee_name,
+              na.full_name AS new_assignee_name
+       FROM job_audit_logs a
+       LEFT JOIN users actor ON actor.id = a.actor_id
+       LEFT JOIN teams ot ON ot.id = a.old_team_id
+       LEFT JOIN teams nt ON nt.id = a.new_team_id
+       LEFT JOIN users oa ON oa.id = a.old_assignee_id
+       LEFT JOIN users na ON na.id = a.new_assignee_id
+       WHERE a.job_type = ? AND a.job_id = ?
+       ORDER BY a.created_at DESC, a.id DESC`,
+      [jobType, req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Job audit fetch error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -876,6 +1008,14 @@ router.put(
 
       await conn.commit();
 
+      writeJobAudit(pool, {
+        job_type: 'office', job_id: jobId, action: 'complete',
+        old_status: job.status, new_status: 'completed',
+        old_team_id: job.team_id, new_team_id: job.team_id,
+        old_assignee_id: job.field_engineer_id, new_assignee_id: job.field_engineer_id,
+        actor_id: techId, remark: req.body.remark || null,
+      });
+
       // 🔔 Push notification to admins when tech completes a job
       const techName = req.user.full_name || req.user.username || 'ช่าง';
       notifyAdmins(
@@ -958,6 +1098,14 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
 
     await conn.commit();
 
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: jobId, action: 'incomplete',
+      old_status: job.status, new_status: 'failed',
+      old_team_id: job.team_id, new_team_id: job.team_id,
+      old_assignee_id: job.field_engineer_id, new_assignee_id: job.field_engineer_id,
+      actor_id: techId, remark: remark.trim(),
+    });
+
     // Push notification to admins
     const techName = req.user.full_name || req.user.username || 'ช่าง';
     notifyAdmins(
@@ -970,6 +1118,143 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error('Incomplete job error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/ma-jobs/:id/incomplete — Mark MA job as failed ──
+router.put('/ma-jobs/:id/incomplete', auth, async (req, res) => {
+  const maJobId = req.params.id;
+  const techId = req.user.id;
+  const { remark } = req.body;
+  if (!remark || !String(remark).trim()) {
+    return res.status(400).json({ error: 'กรุณาระบุสาเหตุที่ไม่จบงาน' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await ensureMaJobSchema(conn);
+
+    const [[job]] = await conn.query('SELECT * FROM ma_jobs WHERE id = ? LIMIT 1', [maJobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน MA' });
+    }
+
+    await conn.query(
+      `UPDATE ma_jobs SET
+         status = 'failed',
+         fail_cause = ?,
+         remark = ?,
+         completed_at = IFNULL(completed_at, NOW()),
+         completed_by = ?
+       WHERE id = ?`,
+      [remark.trim(), remark.trim(), techId, maJobId]
+    );
+
+    await syncMaCustomerFromJob(conn, maJobId, { action: 'failed', techId });
+    await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'ma', job_id: maJobId, action: 'incomplete',
+      old_status: job.status, new_status: 'failed',
+      old_team_id: job.team_id, new_team_id: job.team_id,
+      old_assignee_id: job.assigned_user_id, new_assignee_id: job.assigned_user_id,
+      actor_id: techId, remark: remark.trim(),
+    });
+
+    const techName = req.user.full_name || req.user.username || 'ช่าง';
+    notifyAdmins(
+      '❌ งาน MA ไม่จบ',
+      `${techName} รายงานงาน ${job.non_number || job.access_no || ''} ไม่สำเร็จ: ${remark.trim()}`,
+      { type: 'ma_job_failed', job_id: String(maJobId) }
+    );
+
+    res.json({ message: 'บันทึกงาน MA ไม่จบสำเร็จ' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('MA incomplete error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/ma-jobs/:id/postpone — Postpone MA job ──
+router.put('/ma-jobs/:id/postpone', auth, async (req, res) => {
+  const maJobId = req.params.id;
+  const techId = req.user.id;
+  const { new_date, new_time, remark } = req.body;
+  if (!new_date) return res.status(400).json({ error: 'กรุณาเลือกวันที่ต้องการเลื่อน' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await ensureMaJobSchema(conn);
+
+    const [[job]] = await conn.query('SELECT * FROM ma_jobs WHERE id = ? LIMIT 1', [maJobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน MA' });
+    }
+
+    const timeVal = (new_time || '').toString().trim() || null;
+    const oldDateStr = job.plan_arrival_date
+      ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      : 'ไม่ระบุวันที่';
+    const timeText = timeVal ? ` เวลา ${String(timeVal).slice(0, 5)} น.` : '';
+    const postponeReason = ` [เลื่อนจาก ${oldDateStr} เป็น ${new_date}${timeText}${remark ? ` สาเหตุ: ${remark}` : ''}]`;
+
+    await conn.query(
+      `UPDATE ma_jobs SET
+         status = 'postponed',
+         plan_arrival_date = ?,
+         job_time = COALESCE(?, job_time),
+         remark = CONCAT(IFNULL(remark, ''), ?),
+         team_id = NULL,
+         assigned_user_id = NULL,
+         seq = NULL,
+         team_match_status = 'unmatched'
+       WHERE id = ?`,
+      [new_date, timeVal, postponeReason, maJobId]
+    );
+
+    try {
+      await conn.query(
+        `INSERT INTO ma_job_reschedules (ma_job_id, previous_plan_date, new_plan_date, remark, created_by)
+         VALUES (?, ?, ?, ?, ?)`,
+        [maJobId, job.plan_arrival_date || null, new_date, remark || null, techId]
+      );
+    } catch (e) {
+      console.warn('ma_job_reschedules insert skipped:', e.message);
+    }
+
+    await syncMaCustomerFromJob(conn, maJobId, { action: 'postponed', techId });
+    await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'ma', job_id: maJobId, action: 'postpone',
+      old_status: job.status, new_status: 'postponed',
+      old_team_id: job.team_id, new_team_id: null,
+      old_assignee_id: job.assigned_user_id, new_assignee_id: null,
+      actor_id: techId,
+      remark: `เลื่อนเป็น ${new_date}${timeVal ? ` ${String(timeVal).slice(0, 5)}` : ''}${remark ? ` — ${remark}` : ''}`,
+    });
+
+    const techName = req.user.full_name || req.user.username || 'ช่าง';
+    notifyAdmins(
+      '📅 เลื่อนนัดงาน MA',
+      `${techName} เลื่อนนัดงาน ${job.non_number || job.access_no || ''} ไปวันที่ ${new_date}${remark ? ': ' + String(remark).substring(0, 60) : ''}`,
+      { type: 'ma_job_postponed', job_id: String(maJobId) }
+    );
+
+    res.json({ message: 'เลื่อนนัดงาน MA สำเร็จ' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('MA postpone error:', err);
     res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
   } finally {
     conn.release();
@@ -1100,6 +1385,15 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
     await safeSyncCustomer(conn, jobId);
 
     await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: jobId, action: 'cancel_completion',
+      old_status: 'completed', new_status: 'in_progress',
+      old_team_id: job.team_id, new_team_id: job.team_id,
+      old_assignee_id: job.field_engineer_id, new_assignee_id: job.field_engineer_id,
+      actor_id: adminId, remark: 'Admin ยกเลิกการจบงานและคืนอุปกรณ์',
+    });
+
     res.json({ message: 'ยกเลิกการจบงานสำเร็จ อุปกรณ์ถูกคืนกลับเข้ากระเป๋าช่างเรียบร้อยแล้ว' });
   } catch (err) {
     await conn.rollback();
@@ -1188,6 +1482,15 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
     }
 
     await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: jobId, action: 'change_team',
+      old_status: job.status, new_status: job.status,
+      old_team_id: oldTeamId, new_team_id: new_team_id,
+      old_assignee_id: job.field_engineer_id, new_assignee_id: job.field_engineer_id,
+      actor_id: adminId, remark,
+    });
+
     res.json({ message: 'เปลี่ยนทีมที่จบงานสำเร็จ ระบบปรับยอดผลงานเรียบร้อยแล้ว' });
   } catch (err) {
     await conn.rollback();
@@ -1215,6 +1518,21 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   if (!access_no) return res.status(400).json({ error: 'access_no is required' });
 
   try {
+    // Duplicate pre-check: access_no / customer_order_no must be unique
+    const dupParams = [String(access_no).trim()];
+    let dupSql = 'SELECT id, access_no, customer_order_no FROM jobs WHERE access_no = ?';
+    if (customer_order_no && String(customer_order_no).trim() !== '') {
+      dupSql += ' OR customer_order_no = ?';
+      dupParams.push(String(customer_order_no).trim());
+    }
+    const [[dup]] = await pool.query(`${dupSql} LIMIT 1`, dupParams);
+    if (dup) {
+      const msg = String(dup.access_no) === String(access_no).trim()
+        ? `Access No. "${access_no}" มีอยู่ในระบบแล้ว (งาน #${dup.id}) กรุณาตรวจสอบก่อนบันทึกซ้ำ`
+        : `Customer Order No. "${customer_order_no}" มีอยู่ในระบบแล้ว (งาน #${dup.id}) กรุณาตรวจสอบก่อนบันทึกซ้ำ`;
+      return res.status(409).json({ error: msg });
+    }
+
     let formatted_time = plan_arrival_time || null;
     if (formatted_time && !formatted_time.includes('-') && plan_arrival_date) {
       formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
@@ -1251,6 +1569,13 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       conn.release();
     }
 
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: result.insertId, action: 'create',
+      new_status: status || 'pending',
+      new_team_id: team_id, new_assignee_id: field_engineer_id,
+      actor_id: req.user?.id,
+    });
+
     if (team_id) {
       const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
       const teamName = team?.team_name || 'ทีม';
@@ -1270,18 +1595,112 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.status(201).json({ message: 'Job created', id: result.insertId });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({ error: 'Access No. หรือ Customer Order No. ซ้ำซ้อน' });
+      return res.status(409).json({ error: 'Access No. หรือ Customer Order No. นี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนบันทึกซ้ำ' });
     }
     console.error('Job Creation Error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+// ── GET /api/dispatch/import-aliases — Shared engineer/team aliases for import ─
+router.get('/import-aliases', auth, async (req, res) => {
+  try {
+    await ensureImportAliasSchema(pool);
+    const jobType = ['office', 'ma'].includes(req.query.job_type) ? req.query.job_type : null;
+    // Order 'any' first so job-type-specific rows win when the client builds a map
+    const [rows] = jobType
+      ? await pool.query(
+          `SELECT id, job_type, normalized_alias, user_id, team_id
+           FROM user_import_aliases
+           WHERE job_type IN (?, 'any')
+           ORDER BY (job_type = 'any') DESC, id ASC`,
+          [jobType]
+        )
+      : await pool.query(
+          `SELECT id, job_type, normalized_alias, user_id, team_id
+           FROM user_import_aliases ORDER BY (job_type = 'any') DESC, id ASC`
+        );
+    res.json(rows);
+  } catch (err) {
+    console.error('Get import aliases error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── POST /api/dispatch/import-aliases — Save alias (upsert) ───────────────────
+router.post('/import-aliases', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const { normalized_alias, user_id, team_id } = req.body;
+  const jobType = ['office', 'ma', 'any'].includes(req.body.job_type) ? req.body.job_type : 'any';
+  const alias = String(normalized_alias || '').trim();
+  if (!alias) return res.status(400).json({ error: 'normalized_alias is required' });
+  if (!user_id && !team_id) return res.status(400).json({ error: 'user_id or team_id is required' });
+
+  try {
+    await ensureImportAliasSchema(pool);
+    await pool.query(
+      `INSERT INTO user_import_aliases (job_type, normalized_alias, user_id, team_id, created_by)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         user_id = VALUES(user_id), team_id = VALUES(team_id), created_by = VALUES(created_by)`,
+      [jobType, alias, user_id || null, team_id || null, req.user?.id || null]
+    );
+    res.json({ message: 'Alias saved' });
+  } catch (err) {
+    console.error('Save import alias error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── POST /api/dispatch/jobs/bulk — Admin imports multiple jobs from Excel ────
+// Supports ?preflight=1 → validate + detect duplicates only, no insert.
 router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
+  const preflight = String(req.query.preflight || '') === '1';
   if (!Array.isArray(jobs) || jobs.length === 0) {
     return res.status(400).json({ error: 'No jobs data provided' });
+  }
+
+  // Pass 1: validation + duplicate detection (in-file and in-DB)
+  const errors = [];     // { row, access_no, error }
+  const duplicates = []; // { row, access_no, reason }
+  const seenInFile = new Set();
+  let candidates = [];
+  jobs.forEach((job, i) => {
+    const accessNo = String(job.access_no || '').trim();
+    if (!accessNo) {
+      errors.push({ row: i + 1, access_no: null, error: 'ไม่มี Access No' });
+      return;
+    }
+    if (seenInFile.has(accessNo)) {
+      duplicates.push({ row: i + 1, access_no: accessNo, reason: 'ซ้ำกันในไฟล์' });
+      return;
+    }
+    seenInFile.add(accessNo);
+    candidates.push({ row: i + 1, accessNo, job });
+  });
+
+  try {
+    if (candidates.length > 0) {
+      const [existing] = await pool.query(
+        'SELECT access_no FROM jobs WHERE access_no IN (?)',
+        [candidates.map((c) => c.accessNo)]
+      );
+      const existingSet = new Set(existing.map((r) => String(r.access_no)));
+      candidates = candidates.filter((c) => {
+        if (existingSet.has(c.accessNo)) {
+          duplicates.push({ row: c.row, access_no: c.accessNo, reason: 'มีอยู่ในระบบแล้ว' });
+          return false;
+        }
+        return true;
+      });
+    }
+  } catch (err) {
+    console.error('Bulk duplicate check error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+
+  if (preflight) {
+    return res.json({ ready: candidates.length, errors, duplicates, total: jobs.length });
   }
 
   const conn = await pool.getConnection();
@@ -1289,21 +1708,15 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     await conn.beginTransaction();
 
     let successCount = 0;
-    let skippedCount = 0;
 
-    for (const job of jobs) {
+    for (const { row, accessNo, job } of candidates) {
       const {
-        access_no, customer, phone, package: pkg, address, lat, lng,
+        customer, phone, package: pkg, address, lat, lng,
         plan_arrival_date, plan_arrival_time, product, remark,
         order_no, customer_order_no, province, area_code, area_name,
         task_type, task_order, product_owner, order_type, service_note,
         sla_status, region, map_link, status, team_id, field_engineer_id
       } = job;
-
-      if (!access_no) {
-        skippedCount++;
-        continue;
-      }
 
       let formatted_time = plan_arrival_time || null;
       if (formatted_time && !String(formatted_time).includes('-') && plan_arrival_date) {
@@ -1312,7 +1725,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
       try {
         const [result] = await conn.query(
-          `INSERT IGNORE INTO jobs
+          `INSERT INTO jobs
              (access_no, customer, phone, package, address, lat, lng,
               plan_arrival_date, plan_arrival_time, product, remark,
               order_no, customer_order_no, province, area_code, area_name,
@@ -1321,7 +1734,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               status, create_user_role, team_id, field_engineer_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            access_no, customer || null, phone || null, pkg || null, address || null,
+            accessNo, customer || null, phone || null, pkg || null, address || null,
             lat || null, lng || null, plan_arrival_date || null, formatted_time,
             product || null, remark || null,
             order_no || null, customer_order_no || null, province || null,
@@ -1333,20 +1746,27 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
             field_engineer_id || null
           ]
         );
-        if (result.affectedRows > 0) {
-          successCount++;
-          await safeSyncCustomer(conn, result.insertId);
-        } else {
-          skippedCount++;
-        }
+        successCount++;
+        await safeSyncCustomer(conn, result.insertId);
       } catch (err) {
-        console.error('Bulk insert error for access_no:', access_no, err);
-        skippedCount++;
+        if (err.code === 'ER_DUP_ENTRY') {
+          duplicates.push({ row, access_no: accessNo, reason: 'มีอยู่ในระบบแล้ว' });
+        } else {
+          console.error('Bulk insert error for access_no:', accessNo, err);
+          errors.push({ row, access_no: accessNo, error: err.message });
+        }
       }
     }
-    
+
     await conn.commit();
-    res.json({ message: 'Bulk import complete', successCount, skippedCount, total: jobs.length });
+    res.json({
+      message: 'Bulk import complete',
+      successCount,
+      skippedCount: errors.length + duplicates.length,
+      total: jobs.length,
+      errors,
+      duplicates,
+    });
   } catch (err) {
     await conn.rollback();
     console.error('Bulk Import Error:', err);
@@ -1357,10 +1777,70 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 // ── POST /api/dispatch/ma-jobs/bulk — Admin imports MA jobs from Excel ────
+// Supports ?preflight=1 → validate + detect duplicates only, no insert.
+function toDateKey(d) {
+  if (!d) return '';
+  if (d instanceof Date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  return String(d).slice(0, 10);
+}
+
 router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
+  const preflight = String(req.query.preflight || '') === '1';
   if (!Array.isArray(jobs) || jobs.length === 0) {
     return res.status(400).json({ error: 'No jobs data provided' });
+  }
+
+  // Pass 1: validation + duplicate detection (same NON + same appointment date)
+  const errors = [];     // { row, non_number, error }
+  const duplicates = []; // { row, non_number, reason }
+  const seenInFile = new Set();
+  let candidates = [];
+  jobs.forEach((job, i) => {
+    const nonNumber = String(job.non_number || job.access_no || '').trim();
+    if (!nonNumber) {
+      errors.push({ row: i + 1, non_number: null, error: 'ไม่มีเลข NON' });
+      return;
+    }
+    const dupKey = `${nonNumber}|${toDateKey(job.plan_arrival_date)}`;
+    if (seenInFile.has(dupKey)) {
+      duplicates.push({ row: i + 1, non_number: nonNumber, reason: 'ซ้ำกันในไฟล์' });
+      return;
+    }
+    seenInFile.add(dupKey);
+    candidates.push({ row: i + 1, nonNumber, dupKey, job });
+  });
+
+  try {
+    if (candidates.length > 0) {
+      const [existing] = await pool.query(
+        'SELECT non_number, plan_arrival_date FROM ma_jobs WHERE non_number IN (?)',
+        [candidates.map((c) => c.nonNumber)]
+      );
+      const existingSet = new Set(
+        existing.map((r) => `${String(r.non_number).trim()}|${toDateKey(r.plan_arrival_date)}`)
+      );
+      candidates = candidates.filter((c) => {
+        if (existingSet.has(c.dupKey)) {
+          duplicates.push({ row: c.row, non_number: c.nonNumber, reason: 'มีอยู่ในระบบแล้ว (NON + วันที่ซ้ำ)' });
+          return false;
+        }
+        return true;
+      });
+    }
+  } catch (err) {
+    // ma_jobs may not exist yet — treat as no duplicates
+    if (!String(err.message || '').includes("doesn't exist")) {
+      console.error('MA bulk duplicate check error:', err);
+      return res.status(500).json({ error: 'Server error: ' + err.message });
+    }
+  }
+
+  if (preflight) {
+    return res.json({ ready: candidates.length, errors, duplicates, total: jobs.length });
   }
 
   const conn = await pool.getConnection();
@@ -1369,21 +1849,14 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
     await ensureMaJobSchema(conn);
 
     let successCount = 0;
-    let skippedCount = 0;
 
-    for (const job of jobs) {
+    for (const { row, nonNumber, job } of candidates) {
       const {
         job_time, plan_arrival_time, plan_arrival_date,
-        customer, non_number, phone, symptoms, address,
+        customer, phone, symptoms, address,
         team_id, field_engineer_id, assigned_user_id,
         area_name, remark, access_no,
       } = job;
-
-      const nonNumber = (non_number || access_no || '').toString().trim();
-      if (!nonNumber) {
-        skippedCount++;
-        continue;
-      }
 
       const accessKey = (access_no || nonNumber).toString().trim();
       const timeVal = (job_time || plan_arrival_time || '').toString().trim() || null;
@@ -1416,19 +1889,120 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           successCount++;
           await syncMaCustomerFromJob(conn, result.insertId, { action: 'imported' });
         } else {
-          skippedCount++;
+          errors.push({ row, non_number: nonNumber, error: 'ไม่สามารถบันทึกได้' });
         }
       } catch (err) {
         console.error('MA bulk insert error for NON:', nonNumber, err.message);
-        skippedCount++;
+        errors.push({ row, non_number: nonNumber, error: err.message });
       }
     }
 
     await conn.commit();
-    res.json({ message: 'MA bulk import complete', successCount, skippedCount, total: jobs.length, count: successCount });
+    res.json({
+      message: 'MA bulk import complete',
+      successCount,
+      skippedCount: errors.length + duplicates.length,
+      total: jobs.length,
+      count: successCount,
+      errors,
+      duplicates,
+    });
   } catch (err) {
     await conn.rollback();
     console.error('MA Bulk Import Error:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── POST /api/dispatch/ma-jobs — Admin creates a single MA job (Manual Entry) ─
+router.post('/ma-jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const {
+    plan_arrival_date, job_time, plan_arrival_time,
+    customer, non_number, phone, symptoms, address,
+    team_id, assigned_user_id, field_engineer_id,
+    area_name, remark, access_no, lat, lng,
+    allow_duplicate,
+  } = req.body;
+
+  const nonNumber = (non_number || access_no || '').toString().trim();
+  if (!nonNumber) return res.status(400).json({ error: 'กรุณาระบุเลข NON' });
+
+  const conn = await pool.getConnection();
+  try {
+    await ensureMaJobSchema(conn);
+
+    const accessKey = (access_no || nonNumber).toString().trim();
+    const timeVal = (job_time || plan_arrival_time || '').toString().trim() || null;
+    const assigneeId = assigned_user_id || field_engineer_id || null;
+
+    // Duplicate check: same NON on the same plan date is almost always a double entry.
+    // Repeats of the same NON on other dates are allowed (recurring MA visits).
+    if (plan_arrival_date && !allow_duplicate) {
+      const [[dup]] = await conn.query(
+        `SELECT id FROM ma_jobs
+         WHERE (non_number = ? OR access_no = ?) AND plan_arrival_date = ?
+         LIMIT 1`,
+        [nonNumber, nonNumber, plan_arrival_date]
+      );
+      if (dup) {
+        return res.status(409).json({
+          error: `เลข NON "${nonNumber}" มีงานในวันที่ ${plan_arrival_date} อยู่แล้ว (งาน #${dup.id}) หากต้องการสร้างซ้ำในวันเดียวกัน กรุณายืนยันอีกครั้ง`,
+          duplicate: true,
+        });
+      }
+    }
+
+    const [result] = await conn.query(
+      `INSERT INTO ma_jobs
+         (plan_arrival_date, job_time, access_no, non_number, customer, phone,
+          symptoms, address, area_name, remark, lat, lng, team_id, assigned_user_id,
+          status, team_match_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [
+        plan_arrival_date || null,
+        timeVal,
+        accessKey,
+        nonNumber,
+        customer || null,
+        phone || null,
+        symptoms || null,
+        address || null,
+        area_name || null,
+        remark || null,
+        lat || null,
+        lng || null,
+        team_id || null,
+        assigneeId,
+        (team_id || assigneeId) ? 'matched' : 'unmatched',
+      ]
+    );
+
+    await syncMaCustomerFromJob(conn, result.insertId, { action: 'imported' });
+
+    writeJobAudit(pool, {
+      job_type: 'ma', job_id: result.insertId, action: 'create',
+      new_status: 'pending',
+      new_team_id: team_id, new_assignee_id: assigneeId,
+      actor_id: req.user?.id,
+    });
+
+    if (team_id) {
+      const [[team]] = await conn.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
+      const teamName = team?.team_name || 'ทีม';
+      notifyTeamMembers(
+        team_id,
+        '🔧 มีงาน MA ใหม่เข้า!',
+        `${teamName} ได้รับมอบหมายงาน MA ใหม่ 1 งาน${timeVal ? `\nเวลานัด: ${timeVal} น.` : ''}`,
+        { type: 'job_assigned', count: '1' },
+        req.user?.id
+      );
+    }
+
+    res.status(201).json({ message: 'MA job created', id: result.insertId });
+  } catch (err) {
+    console.error('MA Job Creation Error:', err);
     res.status(500).json({ error: 'Server error: ' + err.message });
   } finally {
     conn.release();
@@ -1561,6 +2135,15 @@ router.put(
       await syncMaCustomerFromJob(conn, maJobId, { action: 'completed', techId });
 
       await conn.commit();
+
+      writeJobAudit(pool, {
+        job_type: 'ma', job_id: maJobId, action: 'complete',
+        old_status: job.status, new_status: 'completed',
+        old_team_id: job.team_id, new_team_id: job.team_id,
+        old_assignee_id: job.assigned_user_id, new_assignee_id: job.assigned_user_id,
+        actor_id: techId, remark: remark || null,
+      });
+
       res.json({ message: 'ปิดงาน MA สำเร็จ', id: maJobId });
     } catch (err) {
       await conn.rollback();
@@ -1572,66 +2155,154 @@ router.put(
   }
 );
 
-// ── PUT /api/dispatch/jobs/bulk-assign — Assign team to multiple jobs ──────
+// ── PUT /api/dispatch/jobs/bulk-assign — Assign team or individual to jobs ──────
 // IMPORTANT: This route MUST be defined BEFORE /jobs/:id routes to avoid Express treating 'bulk-assign' as an :id
 router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
-  const { ids, team_id, type } = req.body;
-  
-  console.log('[bulk-assign] received ids:', ids, 'team_id:', team_id, 'type:', type);
-  
+  const { ids, team_id, type, target_type, target_id, field_engineer_id, assigned_user_id } = req.body;
+
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'No jobs selected' });
   }
-  if (!team_id) {
-    return res.status(400).json({ error: 'No team selected' });
-  }
-  
-  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
-  
-  try {
-    // ids is an array of numeric database IDs
-    const placeholders = ids.map(() => '?').join(',');
-    const [result] = await pool.query(`UPDATE ${table} SET team_id = ? WHERE id IN (${placeholders})`, [team_id, ...ids]);
-    console.log('[bulk-assign] updated rows:', result.affectedRows);
 
-    // 🔔 Push notification to team members
-    if (result.affectedRows > 0) {
-      const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
-      const teamName = team?.team_name || 'ทีม';
-      
-      // Get the earliest plan_arrival_time among the assigned jobs
-      const [earliestJob] = await pool.query(
-        `SELECT plan_arrival_time FROM ${table} WHERE id IN (${placeholders}) AND plan_arrival_time IS NOT NULL ORDER BY plan_arrival_time ASC LIMIT 1`, 
+  const table = type === 'ma' ? 'ma_jobs' : 'jobs';
+  const mode = target_type || (team_id ? 'team' : (field_engineer_id || assigned_user_id ? 'user' : null));
+  const target = target_id || team_id || field_engineer_id || assigned_user_id;
+
+  if (!mode || !target) {
+    return res.status(400).json({ error: 'เลือกทีมหรือช่างที่จะมอบหมาย' });
+  }
+
+  const OFFICE_ROLES = ['technician', 'office_technician', 'contractor_office'];
+  const MA_ROLES = ['ma_technician', 'contractor_ma'];
+  const allowedRoles = type === 'ma' ? MA_ROLES : OFFICE_ROLES;
+
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const results = { updated: 0, failed: [], successIds: [] };
+
+    // Snapshot old values for the audit trail (best-effort)
+    const assigneeCol = type === 'ma' ? 'assigned_user_id' : 'field_engineer_id';
+    let oldRowsById = new Map();
+    try {
+      const [oldRows] = await pool.query(
+        `SELECT id, status, team_id, ${assigneeCol} AS assignee_id FROM ${table} WHERE id IN (${placeholders})`,
         ids
       );
-      
-      let firstJobTime = 'ไม่ได้ระบุเวลา';
-      if (earliestJob && earliestJob.length > 0 && earliestJob[0].plan_arrival_time) {
-        const timeVal = earliestJob[0].plan_arrival_time;
-        // If it's a Date object
-        if (timeVal instanceof Date) {
-          firstJobTime = timeVal.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) + ' น.';
-        } else if (typeof timeVal === 'string') {
-          // If it's a string like "2026-07-12 10:30:00" or just "10:30:00"
-          const parts = timeVal.split(' ');
-          const timePart = parts.length > 1 ? parts[1] : parts[0];
-          firstJobTime = timePart.substring(0, 5) + ' น.';
+      oldRowsById = new Map(oldRows.map((r) => [Number(r.id), r]));
+    } catch (e) { /* audit only */ }
+
+    const auditAssign = (jobId, { newTeamId, newAssigneeId }) => {
+      const old = oldRowsById.get(Number(jobId)) || {};
+      writeJobAudit(pool, {
+        job_type: type === 'ma' ? 'ma' : 'office', job_id: jobId, action: 'assign',
+        old_status: old.status, new_status: old.status,
+        old_team_id: old.team_id, new_team_id: newTeamId,
+        old_assignee_id: old.assignee_id, new_assignee_id: newAssigneeId,
+        actor_id: req.user?.id,
+      });
+    };
+
+    if (mode === 'team') {
+      const [[team]] = await pool.query('SELECT id, team_name FROM teams WHERE id = ?', [target]);
+      if (!team) return res.status(400).json({ error: 'ไม่พบทีมที่เลือก' });
+
+      let result;
+      if (type === 'ma') {
+        [result] = await pool.query(
+          `UPDATE ma_jobs SET team_id = ?, assigned_user_id = NULL, team_match_status = 'matched' WHERE id IN (${placeholders})`,
+          [target, ...ids]
+        );
+      } else {
+        [result] = await pool.query(
+          `UPDATE jobs SET team_id = ? WHERE id IN (${placeholders})`,
+          [target, ...ids]
+        );
+      }
+      results.updated = result.affectedRows;
+      results.successIds = ids;
+
+      for (const id of ids) {
+        auditAssign(id, {
+          newTeamId: target,
+          newAssigneeId: type === 'ma' ? null : (oldRowsById.get(Number(id))?.assignee_id ?? null),
+        });
+      }
+
+      if (result.affectedRows > 0) {
+        notifyTeamMembers(
+          target,
+          '📋 มีงานใหม่เข้า!',
+          `${team.team_name} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน`,
+          { type: 'job_assigned', count: String(result.affectedRows) },
+          req.user?.id
+        );
+      }
+    } else {
+      const [[userRow]] = await pool.query(
+        `SELECT u.id, u.full_name, u.team_id, u.role,
+                (SELECT GROUP_CONCAT(ur.role) FROM user_roles ur WHERE ur.user_id = u.id) AS roles_csv
+         FROM users u WHERE u.id = ? AND u.status = 'approved'`,
+        [target]
+      );
+      if (!userRow) return res.status(400).json({ error: 'ไม่พบช่างที่เลือก' });
+      const roles = (userRow.roles_csv || userRow.role || '').split(',').filter(Boolean);
+      if (!roles.some((r) => allowedRoles.includes(r)) && !allowedRoles.includes(userRow.role)) {
+        return res.status(400).json({ error: `ช่างคนนี้ไม่สามารถรับงาน${type === 'ma' ? ' MA' : 'ติดตั้ง'}ได้` });
+      }
+
+      const isContractor = roles.some((r) => ['contractor_office', 'contractor_ma'].includes(r));
+      for (const id of ids) {
+        try {
+          if (type === 'ma') {
+            await pool.query(
+              `UPDATE ma_jobs SET assigned_user_id = ?, team_id = ?, team_match_status = 'matched' WHERE id = ?`,
+              [target, isContractor ? null : (userRow.team_id || null), id]
+            );
+          } else {
+            await pool.query(
+              `UPDATE jobs SET field_engineer_id = ?, team_id = ? WHERE id = ?`,
+              [target, isContractor ? null : (userRow.team_id || null), id]
+            );
+          }
+          results.updated += 1;
+          results.successIds.push(id);
+          auditAssign(id, {
+            newTeamId: isContractor ? null : (userRow.team_id || null),
+            newAssigneeId: target,
+          });
+        } catch (e) {
+          results.failed.push({ id, error: e.message });
         }
       }
 
-      notifyTeamMembers(
-        team_id,
-        '📋 มีงานใหม่เข้า!',
-        `${teamName} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน\nเวลาเข้างานแรก: ${firstJobTime}`,
-        { type: 'job_assigned', count: String(result.affectedRows) },
-        req.user?.id
-      );
+      if (results.updated > 0) {
+        sendToUser(
+          target,
+          '📋 มีงานใหม่เข้า!',
+          `คุณได้รับมอบหมายงานใหม่ ${results.updated} งาน`,
+          { type: 'job_assigned' }
+        ).catch(() => {});
+        if (userRow.team_id && !isContractor) {
+          notifyTeamMembers(
+            userRow.team_id,
+            '📋 มีงานใหม่เข้า!',
+            `${userRow.full_name} ได้รับมอบหมายงานใหม่ ${results.updated} งาน`,
+            { type: 'job_assigned' },
+            req.user?.id
+          );
+        }
+      }
     }
 
-    res.json({ message: 'Teams assigned successfully', updatedCount: result.affectedRows });
+    res.json({
+      message: 'มอบหมายสำเร็จ',
+      updatedCount: results.updated,
+      failed: results.failed,
+      successIds: results.successIds,
+    });
   } catch (err) {
     console.error('Bulk Assign Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 
@@ -1697,7 +2368,15 @@ router.put('/jobs/reorder-by-location', auth, async (req, res) => {
 router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { team_id } = req.body;
   try {
+    const [[old]] = await pool.query('SELECT status, team_id, field_engineer_id FROM jobs WHERE id = ?', [req.params.id]);
     await pool.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [team_id, req.params.id]);
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: req.params.id, action: 'assign',
+      old_status: old?.status, new_status: old?.status,
+      old_team_id: old?.team_id, new_team_id: team_id,
+      old_assignee_id: old?.field_engineer_id, new_assignee_id: old?.field_engineer_id,
+      actor_id: req.user?.id,
+    });
     res.json({ message: 'Team assigned' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -2143,38 +2822,6 @@ router.get('/entry-fee/history', auth, async (req, res) => {
   }
 });
 
-// ── PUT /api/dispatch/jobs/:id/incomplete — Tech marks a job as incomplete ─
-router.put('/jobs/:id/incomplete', auth, async (req, res) => {
-  const jobId = req.params.id;
-  const techId = req.user.id;
-  const { remark } = req.body;
-  if (!remark) return res.status(400).json({ error: 'Remark is required' });
-  const conn = await pool.getConnection();
-  try {
-    await conn.beginTransaction();
-    const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
-    if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
-    await conn.query('UPDATE jobs SET status = \'failed\', fail_reason = ? WHERE id = ?', [remark, jobId]);
-    await conn.query('INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, \'failed\', ?)', [jobId, techId, remark]);
-    await conn.commit();
-
-    // 🔔 Push notification to admins when tech reports incomplete job
-    const techName = req.user.full_name || req.user.username || 'ช่าง';
-    notifyAdmins(
-      '⚠️ งานไม่จบ',
-      `${techName} แจ้งงาน ${job.access_no || ''} ไม่จบ: ${remark.substring(0, 80)}`,
-      { type: 'job_incomplete', job_id: String(jobId) }
-    );
-
-    res.json({ message: 'Job marked as incomplete' });
-  } catch (err) {
-    await conn.rollback();
-    res.status(500).json({ error: 'Server error' });
-  } finally {
-    conn.release();
-  }
-});
-
 // ── PUT /api/dispatch/jobs/:id/postpone — Tech postpones a job ─
 router.put('/jobs/:id/postpone', auth, async (req, res) => {
   const jobId = req.params.id;
@@ -2192,10 +2839,25 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
       ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { year: 'numeric', month: '2-digit', day: '2-digit' })
       : 'ไม่ระบุวันที่';
     const postponeReason = ` [เลื่อนจาก ${oldDateStr} เป็น ${new_date}${timeText}${remark ? ` สาเหตุ: ${remark}` : ''}]`;
+
+    let formattedTime = null;
+    if (new_time) {
+      formattedTime = String(new_time).includes('-')
+        ? new_time
+        : `${new_date} ${String(new_time).slice(0, 5)}:00`;
+    }
     
     await conn.query(
-      'UPDATE jobs SET status = \'pending\', plan_arrival_date = ?, remark = CONCAT(IFNULL(remark, \'\'), ?), team_id = NULL, seq = NULL WHERE id = ?', 
-      [new_date, postponeReason, jobId]
+      `UPDATE jobs SET
+         status = 'postponed',
+         plan_arrival_date = ?,
+         plan_arrival_time = COALESCE(?, plan_arrival_time),
+         remark = CONCAT(IFNULL(remark, ''), ?),
+         team_id = NULL,
+         field_engineer_id = NULL,
+         seq = NULL
+       WHERE id = ?`,
+      [new_date, formattedTime, postponeReason, jobId]
     );
 
     const logRemark = `Postponed to ${new_date}${timeText}. Reason: ${remark || ''}`;
@@ -2212,8 +2874,18 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
         throw e;
       }
     }
-    
+
+    await safeSyncCustomer(conn, jobId);
     await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'office', job_id: jobId, action: 'postpone',
+      old_status: job.status, new_status: 'postponed',
+      old_team_id: job.team_id, new_team_id: null,
+      old_assignee_id: job.field_engineer_id, new_assignee_id: null,
+      actor_id: techId,
+      remark: `เลื่อนเป็น ${new_date}${new_time ? ` ${new_time}` : ''}${remark ? ` — ${remark}` : ''}`,
+    });
 
     // 🔔 Push notification to admins when tech postpones a job
     const techName = req.user.full_name || req.user.username || 'ช่าง';
@@ -2226,6 +2898,7 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
     res.json({ message: 'Job postponed' });
   } catch (err) {
     await conn.rollback();
+    console.error('Postpone job error:', err);
     res.status(500).json({ error: 'Server error' });
   } finally {
     conn.release();
@@ -2270,8 +2943,8 @@ router.put('/jobs/clear-queue', auth, requireRole(ADMIN_ROLES), async (req, res)
 // ── PUT /api/dispatch/jobs/:id — Update job details ─
 router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const {
-    customer, phone, address, team_id, field_engineer_id, lat, lng, type,
-    plan_arrival_date, plan_arrival_time,
+    customer, phone, address, team_id, field_engineer_id, assigned_user_id, lat, lng, type,
+    plan_arrival_date, plan_arrival_time, job_time, symptoms,
     package: pkg, product, order_no, customer_order_no, province,
     area_code, area_name, task_type, task_order, product_owner, order_type,
     service_note, sla_status, region, map_link, remark
@@ -2284,10 +2957,28 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
     }
 
+    // Snapshot old values for the audit trail (best-effort)
+    let oldJob = null;
+    try {
+      const assigneeCol = table === 'ma_jobs' ? 'assigned_user_id' : 'field_engineer_id';
+      [[oldJob]] = await conn.query(
+        `SELECT status, team_id, ${assigneeCol} AS assignee_id FROM ${table} WHERE id = ?`,
+        [req.params.id]
+      );
+    } catch (e) { /* audit only */ }
+
     if (table === 'ma_jobs') {
+      // ma_jobs uses assigned_user_id + job_time (plain HH:MM), not the office column names
+      const maAssignee = assigned_user_id || field_engineer_id || null;
+      const maTime = (job_time || plan_arrival_time || '').toString().trim() || null;
       await conn.query(
-        `UPDATE ma_jobs SET customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address), lat = ?, lng = ?, team_id = ?, field_engineer_id = ?, plan_arrival_date = COALESCE(?, plan_arrival_date), plan_arrival_time = COALESCE(?, plan_arrival_time) WHERE id = ?`,
-        [customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null, plan_arrival_date || null, formatted_time, req.params.id]
+        `UPDATE ma_jobs SET
+           customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address),
+           lat = ?, lng = ?, team_id = ?, assigned_user_id = ?,
+           plan_arrival_date = COALESCE(?, plan_arrival_date), job_time = COALESCE(?, job_time),
+           symptoms = COALESCE(?, symptoms), area_name = COALESCE(?, area_name), remark = COALESCE(?, remark)
+         WHERE id = ?`,
+        [customer, phone, address, lat || null, lng || null, team_id || null, maAssignee, plan_arrival_date || null, maTime, symptoms || null, area_name || null, remark || null, req.params.id]
       );
     } else {
       await conn.query(
@@ -2315,6 +3006,18 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       );
       await safeSyncCustomer(conn, req.params.id);
     }
+
+    const newAssignee = table === 'ma_jobs'
+      ? (assigned_user_id || field_engineer_id || null)
+      : (field_engineer_id || null);
+    writeJobAudit(pool, {
+      job_type: table === 'ma_jobs' ? 'ma' : 'office', job_id: req.params.id, action: 'update',
+      old_status: oldJob?.status, new_status: oldJob?.status,
+      old_team_id: oldJob?.team_id, new_team_id: team_id || null,
+      old_assignee_id: oldJob?.assignee_id, new_assignee_id: newAssignee,
+      actor_id: req.user?.id,
+    });
+
     res.json({ message: 'Job updated' });
   } catch (err) {
     console.error('Job update error:', err);

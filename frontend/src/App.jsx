@@ -4,7 +4,6 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
-import TechDashboard from './pages/TechDashboard';
 import CheckinPage from './pages/CheckinPage';
 import OilDashboardPage from './pages/OilDashboardPage';
 import UserManagementPage from './pages/UserManagementPage';

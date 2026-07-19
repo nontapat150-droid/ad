@@ -140,9 +140,11 @@ export default function MaTechSection() {
           </div>
           <h3 className="text-[#1F2937] font-bold text-base">ทางลัด</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <ShortcutBtn icon="🔧" label="งาน MA ทั้งหมด" sublabel={`${jobs.length} รายการค้าง`}
             onClick={() => navigate('/dispatch-dashboard?tab=ma')} gradient="from-[#374151] to-[#1F2937]" shadow="shadow-slate-500/25" />
+          <ShortcutBtn icon="🎒" label="กระเป๋าช่าง" sublabel="อุปกรณ์ของฉัน"
+            onClick={() => navigate('/bag')} gradient="from-teal-500 to-cyan-600" shadow="shadow-teal-500/25" />
           <ShortcutBtn icon="⛽" label="กรอกบิลน้ำมัน"
             onClick={() => navigate('/oil')} gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
         </div>
