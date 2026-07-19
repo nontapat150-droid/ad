@@ -103,6 +103,7 @@ router.get('/leaves', auth, async (req, res) => {
     const filterUserId = req.query.userId;
     const userRoles = req.user.roles || [req.user.role];
     const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
+    const { cond: timeCond, params: timeParams } = buildTimeFilter(req.query, 'l.leave_date');
 
     if (isAdmin) {
       if (filterUserId === 'ALL' || !filterUserId) {
@@ -111,9 +112,10 @@ router.get('/leaves', auth, async (req, res) => {
                   u.full_name, u.username, u.role
            FROM leave_records l
            JOIN users u ON l.user_id = u.id
+           WHERE 1=1${timeCond}
            ORDER BY l.leave_date DESC, l.created_at DESC
            LIMIT ?`,
-          [limit]
+          [...timeParams, limit]
         );
         return res.json(rows);
       }
@@ -123,10 +125,10 @@ router.get('/leaves', auth, async (req, res) => {
                 u.full_name, u.username, u.role
          FROM leave_records l
          JOIN users u ON l.user_id = u.id
-         WHERE l.user_id = ?
+         WHERE l.user_id = ?${timeCond}
          ORDER BY l.leave_date DESC, l.created_at DESC
          LIMIT ?`,
-        [targetId, limit]
+        [targetId, ...timeParams, limit]
       );
       return res.json(rows);
     }
@@ -580,61 +582,48 @@ router.get('/ma-performance', auth, async (req, res) => {
   }
 });
 
+// Build an extra SQL condition from ?date=YYYY-MM-DD or ?month=YYYY-MM
+function buildTimeFilter(query, column) {
+  if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
+    return { cond: ` AND DATE(${column}) = ?`, params: [query.date] };
+  }
+  if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
+    return { cond: ` AND DATE_FORMAT(${column}, '%Y-%m') = ?`, params: [query.month] };
+  }
+  return { cond: '', params: [] };
+}
+
 // ── GET /api/checkin/history?limit=30 — My recent history (or All for Admin) ─
 router.get('/history', auth, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 30, 90);
   const filterUserId = req.query.userId;
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
+  const { cond: timeCond, params: timeParams } = buildTimeFilter(req.query, 'c.checkin_time');
 
   try {
-    if (isAdmin) {
-      if (filterUserId === 'ALL' || !filterUserId) {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [limit * 2]
-        );
-        return res.json(rows);
-      } else if (filterUserId === 'ME') {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           WHERE c.user_id = ?
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [req.user.id, limit]
-        );
-        return res.json(rows);
-      } else {
-        const [rows] = await pool.query(
-          `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
-                  c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
-                  u.full_name, u.username, u.role
-           FROM checkins c
-           JOIN users u ON c.user_id = u.id
-           WHERE c.user_id = ?
-           ORDER BY c.checkin_time DESC LIMIT ?`,
-          [filterUserId, limit]
-        );
-        return res.json(rows);
-      }
-    } else {
+    const baseSelect = `SELECT c.id, c.checkin_time, c.checkout_time, c.is_late, c.image_path, c.checkout_image, c.is_edited,
+                c.checkin_lat, c.checkin_lng, c.checkout_lat, c.checkout_lng,
+                u.full_name, u.username, u.role
+         FROM checkins c
+         JOIN users u ON c.user_id = u.id`;
+
+    if (isAdmin && (filterUserId === 'ALL' || !filterUserId)) {
       const [rows] = await pool.query(
-        `SELECT id, checkin_time, checkout_time, is_late, image_path, checkout_image, is_edited,
-                checkin_lat, checkin_lng, checkout_lat, checkout_lng
-         FROM checkins WHERE user_id = ?
-         ORDER BY checkin_time DESC LIMIT ?`,
-        [req.user.id, limit]
+        `${baseSelect} WHERE 1=1${timeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
+        [...timeParams, limit * 2]
       );
-      res.json(rows);
+      return res.json(rows);
     }
+
+    const targetId = isAdmin
+      ? (filterUserId === 'ME' ? req.user.id : filterUserId)
+      : req.user.id;
+    const [rows] = await pool.query(
+      `${baseSelect} WHERE c.user_id = ?${timeCond} ORDER BY c.checkin_time DESC LIMIT ?`,
+      [targetId, ...timeParams, limit]
+    );
+    return res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -686,61 +675,30 @@ router.get('/stats', auth, async (req, res) => {
   const filterUserId = req.query.userId;
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ['super_admin', 'admin'].includes(r));
+  const { cond: timeCond, params: timeParams } = buildTimeFilter(req.query, 'checkin_time');
 
   try {
-    if (isAdmin) {
-      if (filterUserId === 'ALL' || !filterUserId) {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins`
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      } else if (filterUserId === 'ME') {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins 
-           WHERE user_id = ?`,
-          [req.user.id]
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      } else {
-        const [rows] = await pool.query(
-          `SELECT 
-             SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-             SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-           FROM checkins 
-           WHERE user_id = ?`,
-          [filterUserId]
-        );
-        return res.json({
-          late: parseInt(rows[0].late_count || 0),
-          ontime: parseInt(rows[0].ontime_count || 0)
-        });
-      }
+    const baseSelect = `SELECT
+         SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
+         SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
+       FROM checkins`;
+
+    let rows;
+    if (isAdmin && (filterUserId === 'ALL' || !filterUserId)) {
+      [rows] = await pool.query(`${baseSelect} WHERE 1=1${timeCond}`, timeParams);
     } else {
-      const [rows] = await pool.query(
-        `SELECT 
-           SUM(CASE WHEN is_late = 1 THEN 1 ELSE 0 END) AS late_count,
-           SUM(CASE WHEN is_late = 0 THEN 1 ELSE 0 END) AS ontime_count
-         FROM checkins 
-         WHERE user_id = ?`,
-        [req.user.id]
+      const targetId = isAdmin
+        ? (filterUserId === 'ME' ? req.user.id : filterUserId)
+        : req.user.id;
+      [rows] = await pool.query(
+        `${baseSelect} WHERE user_id = ?${timeCond}`,
+        [targetId, ...timeParams]
       );
-      res.json({
-        late: parseInt(rows[0].late_count || 0),
-        ontime: parseInt(rows[0].ontime_count || 0)
-      });
     }
+    res.json({
+      late: parseInt(rows[0].late_count || 0),
+      ontime: parseInt(rows[0].ontime_count || 0)
+    });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }

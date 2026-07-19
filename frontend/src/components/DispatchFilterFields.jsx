@@ -4,6 +4,21 @@ import { th } from 'date-fns/locale';
 import { Calendar } from './ui/calendar';
 import { cn } from '../lib/utils';
 
+const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+/** "2026-07-19" → "19 กรกฎาคม 2569" (Buddhist Era) */
+export function toThaiDateLabel(isoDate) {
+  if (!isoDate) return '';
+  const d = parseISO(isoDate);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return `${d.getDate()} ${THAI_MONTHS_FULL[d.getMonth()]} ${d.getFullYear() + 543}`;
+}
+
+/** Calendar caption in Thai with Buddhist year, e.g. "กรกฎาคม 2569" */
+const thaiCaptionFormatters = {
+  formatCaption: (month) => `${THAI_MONTHS_FULL[month.getMonth()]} ${month.getFullYear() + 543}`,
+};
+
 const triggerClass = (active, hasValue) =>
   cn(
     'w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left',
@@ -115,7 +130,7 @@ export function AppDateField({
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const selected = value ? parseISO(value) : undefined;
-  const display = value ? format(parseISO(value), 'd MMMM yyyy', { locale: th }) : placeholder;
+  const display = value ? toThaiDateLabel(value) : placeholder;
 
   useOutsideClose(ref, open, () => setOpen(false));
 
@@ -151,6 +166,7 @@ export function AppDateField({
             }}
             disabled={isDisabled}
             locale={th}
+            formatters={thaiCaptionFormatters}
             className="border-0 shadow-none rounded-none"
           />
           {(showToday || (allowClear && value)) && (

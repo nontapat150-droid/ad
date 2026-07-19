@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
@@ -12,8 +12,11 @@ import { format } from 'date-fns';
 import { generateCheckinExcel } from '../utils/exportCheckins';
 import { getImageUrl } from '../utils/imageUtils';
 import { drawCheckinWatermark, loadImageForCanvas } from '../utils/checkinWatermark';
+import { AppDateField, AppSelectField, toThaiDateLabel } from '../components/DispatchFilterFields';
 
 // ── Helpers ──────────────────────────────────────────────────
+const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 function dataURItoBlob(dataURI) {
   const byteString = atob(dataURI.split(',')[1]);
   const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
@@ -87,10 +90,32 @@ export default function CheckinPage() {
   const [filterUserId, setFilterUserId] = useState('ALL');
   const [usersList, setUsersList] = useState([]);
 
+  // Admin date/month filter (default: today)
+  const [filterMode, setFilterMode] = useState('day'); // 'day' | 'month' | 'all'
+  const [filterDate, setFilterDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [filterMonth, setFilterMonth] = useState(() => new Date().toISOString().slice(0, 7));
+
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    const d = new Date();
+    for (let i = 0; i < 24; i++) {
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      opts.push({ value: `${y}-${String(m + 1).padStart(2, '0')}`, label: `${THAI_MONTHS[m]} ${y + 543}` });
+      d.setMonth(m - 1);
+    }
+    return opts;
+  }, []);
+
   // ── Data Fetch ───────────────────────────────────────────────
   const fetchHistory = useCallback(() => {
     setLoadingHistory(true);
-    const q = isAdmin ? `?limit=50&userId=${filterUserId}` : `?limit=30`;
+    let timeQ = '';
+    if (isAdmin) {
+      if (filterMode === 'day' && filterDate) timeQ = `&date=${filterDate}`;
+      else if (filterMode === 'month' && filterMonth) timeQ = `&month=${filterMonth}`;
+    }
+    const q = isAdmin ? `?limit=50&userId=${filterUserId}${timeQ}` : `?limit=30`;
     Promise.all([
       api.get(`/checkin/history${q}`),
       api.get(`/checkin/leaves${q}`),
@@ -101,15 +126,13 @@ export default function CheckinPage() {
       })
       .catch(console.error)
       .finally(() => setLoadingHistory(false));
-    const sq = isAdmin ? `?userId=${filterUserId}` : '';
+    const sq = isAdmin ? `?userId=${filterUserId}${timeQ}` : '';
     api.get(`/checkin/stats${sq}`).then(res => setStats(res.data)).catch(console.error);
-  }, [isAdmin, filterUserId]);
+  }, [isAdmin, filterUserId, filterMode, filterDate, filterMonth]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleExportMonthly = async () => {
-    const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-    const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     const now = new Date();
     const curYear = now.getFullYear();
     const curMonth = now.getMonth();
@@ -804,6 +827,74 @@ export default function CheckinPage() {
 
         {/* ── Right: History Panel ────────────────────────── */}
         <div className="lg:col-span-5 flex flex-col gap-4">
+
+          {/* Admin period filter */}
+          {isAdmin && (
+            <div className="bg-white rounded-3xl border border-[#E5E7EB] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
+              <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#1F2937] flex items-center justify-center shadow-sm shrink-0">
+                    <svg className="w-3.5 h-3.5 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                    </svg>
+                  </div>
+                  <span className="text-sm font-black text-[#1F2937]">ช่วงเวลาที่แสดง</span>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#A3E635]/15 border border-[#A3E635]/40 text-[11px] font-black text-[#4D7C0F]">
+                  📅 {filterMode === 'day'
+                    ? toThaiDateLabel(filterDate)
+                    : filterMode === 'month'
+                      ? (monthOptions.find((o) => o.value === filterMonth)?.label || filterMonth)
+                      : 'ทุกช่วงเวลา'}
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex p-1 bg-[#F3F4F6] rounded-xl shrink-0">
+                  {[
+                    { id: 'day', label: 'รายวัน' },
+                    { id: 'month', label: 'รายเดือน' },
+                    { id: 'all', label: 'ทั้งหมด' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setFilterMode(m.id)}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                        filterMode === m.id ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {filterMode === 'day' && (
+                    <AppDateField
+                      label=""
+                      value={filterDate}
+                      onChange={(v) => setFilterDate(v || new Date().toISOString().slice(0, 10))}
+                      max={new Date().toISOString().slice(0, 10)}
+                      allowClear={false}
+                    />
+                  )}
+                  {filterMode === 'month' && (
+                    <AppSelectField
+                      label=""
+                      value={filterMonth}
+                      onChange={(v) => setFilterMonth(v || new Date().toISOString().slice(0, 7))}
+                      options={monthOptions}
+                      placeholder="เลือกเดือน"
+                      allowClear={false}
+                    />
+                  )}
+                  {filterMode === 'all' && (
+                    <div className="h-full min-h-[42px] flex items-center px-4 rounded-xl bg-[#F9FAFB] border border-dashed border-[#E5E7EB] text-xs font-bold text-[#9CA3AF]">
+                      แสดงข้อมูลทุกช่วงเวลา
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4">
