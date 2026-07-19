@@ -42,7 +42,6 @@ const MA_SYSTEM_FIELDS = [
   { key: 'remark',            label: 'หมายเหตุ',                   required: false, group: 'extra' },
 ];
 
-const IGNORE_KEY = '__ignore__';
 const ALIAS_LS_KEY = 'excel-engineer-aliases';
 const PROFILE_LS_KEY = 'excel-mapping-profiles';
 
@@ -99,24 +98,22 @@ function detectHeaderRow(rows) {
   return best;
 }
 
-/** Build auto column→field mapping from headers */
+/** Build auto field→column mapping from headers.
+ *  Stored as { fieldKey: colIdx } so several fields (e.g. date + time in one
+ *  datetime column) can share the same Excel column. */
 function buildAutoMapping(hdrs, systemFields) {
   const validKeys = new Set(systemFields.map((f) => f.key));
   const autoMap = {};
-  const usedFields = new Set();
   hdrs.forEach((h, idx) => {
     const lower = String(h || '').toLowerCase();
-    if (lower) {
-      for (const [fieldKey, keywords] of Object.entries(FIELD_KEYWORDS)) {
-        if (!validKeys.has(fieldKey) || usedFields.has(fieldKey)) continue;
-        if (keywords.some((kw) => lower.includes(kw))) {
-          autoMap[idx] = fieldKey;
-          usedFields.add(fieldKey);
-          break;
-        }
+    if (!lower) return;
+    for (const [fieldKey, keywords] of Object.entries(FIELD_KEYWORDS)) {
+      if (!validKeys.has(fieldKey) || autoMap[fieldKey] !== undefined) continue;
+      if (keywords.some((kw) => lower.includes(kw))) {
+        autoMap[fieldKey] = idx;
+        break;
       }
     }
-    if (autoMap[idx] === undefined) autoMap[idx] = IGNORE_KEY;
   });
   return autoMap;
 }
@@ -723,7 +720,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     // Auto-match columns using keyword heuristics
     const autoMap = buildAutoMapping(hdrs, SYSTEM_FIELDS);
     setMapping(autoMap);
-    setAutoFields(new Set(Object.values(autoMap).filter((v) => v !== IGNORE_KEY)));
+    setAutoFields(new Set(Object.keys(autoMap)));
 
     // Look up a saved mapping profile for this job type + header layout
     const profiles = readMappingProfiles();
@@ -852,14 +849,13 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   }
 
   // ─── Step 3: Guided field mapping ─────────────────────────────────────────
-  /** Convert a saved profile (field → header label) to a column mapping */
+  /** Convert a saved profile (field → header label) to a field→column mapping */
   function profileToMapping(profile) {
     const next = {};
-    headers.forEach((_, idx) => { next[idx] = IGNORE_KEY; });
     Object.entries(profile?.fieldToHeader || {}).forEach(([fieldKey, headerLabel]) => {
       if (!SYSTEM_FIELDS.some((f) => f.key === fieldKey)) return;
       const idx = headers.findIndex((h) => h === headerLabel);
-      if (idx >= 0) next[idx] = fieldKey;
+      if (idx >= 0) next[fieldKey] = idx;
     });
     return next;
   }
@@ -867,9 +863,8 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   function renderStep3() {
     const dataStartRow = headerRow; // 0-indexed: headerRow-1 is header, data starts at headerRow
 
-    // Inverse map: fieldKey → colIdx (string)
-    const inverse = {};
-    Object.entries(mapping).forEach(([c, f]) => { if (f !== IGNORE_KEY) inverse[f] = c; });
+    // mapping is fieldKey → colIdx; several fields may share one column
+    const inverse = mapping;
 
     const requiredFields = SYSTEM_FIELDS.filter((f) => f.group === 'required');
     const missingRequired = requiredFields.filter((f) => inverse[f.key] === undefined);
@@ -890,12 +885,31 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       return <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border shrink-0 ${s.cls}`}>{s.text}</span>;
     }
 
-    function sampleValues(colIdx, count = 3) {
+    const DATE_FIELD_KEYS = ['plan_arrival_date'];
+    const TIME_FIELD_KEYS = ['plan_arrival_time', 'job_time'];
+
+    /** Render a raw cell for humans — converts Excel date/time serials to readable text */
+    function formatSampleValue(v, fieldKey) {
+      if (typeof v === 'number') {
+        if (fieldKey && DATE_FIELD_KEYS.includes(fieldKey)) return parseExcelDate(v);
+        if (fieldKey && TIME_FIELD_KEYS.includes(fieldKey)) return parseExcelTime(v);
+        // No field context: guess from the serial range Excel uses for dates (1954–2064)
+        if (v > 0 && v < 1) return parseExcelTime(v);
+        if (v >= 20000 && v < 60000) {
+          const datePart = parseExcelDate(v);
+          const hasTime = v % 1 !== 0;
+          return hasTime ? `${datePart} ${parseExcelTime(v)}` : datePart;
+        }
+      }
+      return String(v);
+    }
+
+    function sampleValues(colIdx, count = 3, fieldKey = null) {
       const out = [];
       for (let r = dataStartRow; r < rawData.length && out.length < count; r++) {
         const v = (rawData[r] || [])[colIdx];
         if (v !== null && v !== undefined && String(v).trim() !== '') {
-          out.push(String(v).substring(0, 25));
+          out.push(formatSampleValue(v, fieldKey).substring(0, 25));
         }
       }
       return out;
@@ -904,9 +918,11 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     function handleFieldColumnChange(fieldKey, colIdxStr) {
       setMapping(prev => {
         const next = { ...prev };
-        // Unassign this field from its previous column
-        Object.keys(next).forEach(k => { if (next[k] === fieldKey) next[k] = IGNORE_KEY; });
-        if (colIdxStr !== '' && colIdxStr !== undefined) next[parseInt(colIdxStr)] = fieldKey;
+        if (colIdxStr === '' || colIdxStr === undefined) {
+          delete next[fieldKey];
+        } else {
+          next[fieldKey] = parseInt(colIdxStr);
+        }
         return next;
       });
       // User made an explicit choice — no longer "needs review"
@@ -920,22 +936,24 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
     function columnOptionsFor(fieldKey) {
       return headers.map((h, idx) => {
-        const mappedTo = mapping[idx] !== IGNORE_KEY && mapping[idx] !== undefined ? mapping[idx] : null;
-        const usedBy = mappedTo && mappedTo !== fieldKey
-          ? SYSTEM_FIELDS.find((f) => f.key === mappedTo)
-          : null;
-        const samples = sampleValues(idx, 1);
+        // Other fields already reading this column (sharing is allowed, e.g. date + time)
+        const usedByKeys = Object.keys(mapping).filter((k) => mapping[k] === idx && k !== fieldKey);
+        const usedByLabels = usedByKeys
+          .map((k) => SYSTEM_FIELDS.find((f) => f.key === k)?.label)
+          .filter(Boolean);
+        const samples = sampleValues(idx, 1, fieldKey);
         return {
           value: String(idx),
-          label: `${colLabel(idx)} · ${h || `คอลัมน์ ${idx + 1}`}${samples[0] ? ` (เช่น ${samples[0]})` : ''}${usedBy ? ` — ใช้กับ ${usedBy.label} แล้ว` : ''}`,
+          label: `${colLabel(idx)} · ${h || `คอลัมน์ ${idx + 1}`}${samples[0] ? ` (เช่น ${samples[0]})` : ''}${usedByLabels.length ? ` — ใช้ร่วมกับ ${usedByLabels.join(', ')}` : ''}`,
         };
       });
     }
 
     function renderFieldCard(f) {
       const status = fieldStatus(f);
-      const colIdxStr = inverse[f.key];
-      const samples = colIdxStr !== undefined ? sampleValues(parseInt(colIdxStr)) : [];
+      const colIdx = inverse[f.key];
+      const colIdxStr = colIdx !== undefined ? String(colIdx) : undefined;
+      const samples = colIdx !== undefined ? sampleValues(Number(colIdx), 3, f.key) : [];
       return (
         <div
           key={f.key}
@@ -1110,7 +1128,12 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   // ─── Build preview rows from mapping ──────────────────────────────────────
   function buildRows(activeMapping) {
     const dataStart = headerRow; // 0-indexed, rows after header
-    const dataRows = rawData.slice(dataStart).filter(row => row.some(cell => cell !== null && cell !== undefined && cell !== ''));
+    const cellHasData = (cell) => cell !== null && cell !== undefined && String(cell).trim() !== '';
+    const mappedCols = Object.values(activeMapping).map(Number);
+    const dataRows = rawData.slice(dataStart)
+      .map((row, i) => ({ row, excelRowNo: dataStart + i + 1 }))
+      // Skip rows with no data in any *mapped* column (footer/summary/stray rows)
+      .filter(({ row }) => mappedCols.some((c) => cellHasData(row[c])));
     // DB aliases first, local aliases override
     const aliases = { ...dbAliases, ...readLocalAliases() };
 
@@ -1141,12 +1164,11 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       }
     };
 
-    const built = dataRows.map(row => {
-      const obj = {};
-      Object.entries(activeMapping).forEach(([colIdxStr, fieldKey]) => {
-        if (fieldKey === IGNORE_KEY) return;
-        const colIdx = parseInt(colIdxStr);
-        let val = row[colIdx];
+    const built = dataRows.map(({ row, excelRowNo }) => {
+      const obj = { _row_no: excelRowNo };
+      // activeMapping is fieldKey → colIdx; fields may share the same column
+      Object.entries(activeMapping).forEach(([fieldKey, colIdx]) => {
+        let val = row[Number(colIdx)];
         if (val === null || val === undefined) { obj[fieldKey] = ''; return; }
 
         // Special transforms
@@ -1181,6 +1203,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   function cleanRowsForImport(rows) {
     return rows.map(row => {
       const {
+        _row_no,
         _team_name_display,
         _team_name_unmatched,
         _engineer_name,
@@ -1206,8 +1229,13 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     });
   }
 
+  function rowHasKeyNumber(r) {
+    const has = (v) => String(v ?? '').trim() !== '';
+    return jobType === 'ma' ? (has(r.non_number) || has(r.access_no)) : has(r.access_no);
+  }
+
   function getValidRows(rows) {
-    return rows.filter(r => (jobType === 'ma' ? (r.non_number || r.access_no) : r.access_no));
+    return rows.filter(rowHasKeyNumber);
   }
 
   /** Ask the server to validate + detect duplicates without inserting (graceful if unsupported) */
@@ -1230,8 +1258,8 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   function saveMappingProfile(activeMapping) {
     try {
       const fieldToHeader = {};
-      Object.entries(activeMapping).forEach(([c, f]) => {
-        if (f !== IGNORE_KEY) fieldToHeader[f] = headers[parseInt(c)];
+      Object.entries(activeMapping).forEach(([fieldKey, colIdx]) => {
+        fieldToHeader[fieldKey] = headers[Number(colIdx)];
       });
       const profiles = readMappingProfiles();
       profiles[`${jobType}::${headerSignature(headers)}`] = {
@@ -1247,7 +1275,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     const activeMapping = mappingOverride || mapping;
 
     // Block when required fields are unmapped
-    const mappedKeys = new Set(Object.values(activeMapping).filter(v => v !== IGNORE_KEY));
+    const mappedKeys = new Set(Object.keys(activeMapping));
     const missing = SYSTEM_FIELDS.filter(f => f.required && !mappedKeys.has(f.key));
     if (missing.length > 0) {
       setNotification(`กรุณาจับคู่ฟิลด์จำเป็นก่อน: ${missing.map(f => f.label).join(', ')}`);
@@ -1296,9 +1324,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
   // ─── Step 4: Preview & Import ──────────────────────────────────────────────
   function renderStep4() {
     const validRows = getValidRows(parsedRows);
-    const invalidRows = parsedRows.filter(r =>
-      jobType === 'ma' ? !(r.non_number || r.access_no) : !r.access_no
-    );
+    const invalidRows = parsedRows.filter(r => !rowHasKeyNumber(r));
 
     // Unique unmatched engineer/team names (with ambiguous candidates if any)
     const unmatchedItems = [];
@@ -1335,6 +1361,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           {invalidRows.length > 0 && (
             <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full border border-red-200">
               ⚠️ ไม่มี{jobType === 'ma' ? 'เลข NON' : 'Access No'}: {invalidRows.length} รายการ
+              {' '}(แถว Excel: {invalidRows.slice(0, 8).map(r => r._row_no).filter(Boolean).join(', ')}{invalidRows.length > 8 ? ', ...' : ''})
             </span>
           )}
           {dupCount > 0 && (
@@ -1408,14 +1435,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
             <thead className="bg-[#F3F4F6] sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left font-bold text-[#374151]">#</th>
-                {Object.entries(mapping)
-                  .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id' && v !== '_engineer_name')
+                {Object.keys(mapping)
+                  .filter((key) => key !== 'team_id' && key !== '_engineer_name')
                   .slice(0, 6)
-                  .map(([idx, key]) => {
+                  .map((key) => {
                     const field = SYSTEM_FIELDS.find(f => f.key === key);
-                    return <th key={idx} className="px-3 py-2 text-left font-bold text-[#374151] whitespace-nowrap">{field?.label || key}</th>;
+                    return <th key={key} className="px-3 py-2 text-left font-bold text-[#374151] whitespace-nowrap">{field?.label || key}</th>;
                   })}
-                {Object.values(mapping).includes('_engineer_name') && (
+                {mapping['_engineer_name'] !== undefined && (
                   <th className="px-3 py-2 text-left font-bold text-[#374151]">ช่าง</th>
                 )}
                 <th className="px-3 py-2 text-left font-bold text-[#374151]">ทีมช่าง</th>
@@ -1425,13 +1452,13 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
               {validRows.slice(0, 50).map((row, i) => (
                 <tr key={i} className="border-t border-[#F3F4F6] hover:bg-[#F9FAFB]">
                   <td className="px-3 py-2 text-[#9CA3AF]">{i + 1}</td>
-                  {Object.entries(mapping)
-                    .filter(([, v]) => v !== IGNORE_KEY && v !== 'team_id' && v !== '_engineer_name')
+                  {Object.keys(mapping)
+                    .filter((key) => key !== 'team_id' && key !== '_engineer_name')
                     .slice(0, 6)
-                    .map(([idx, key]) => (
-                      <td key={idx} className="px-3 py-2 text-[#374151] max-w-[120px] truncate">{row[key] || '-'}</td>
+                    .map((key) => (
+                      <td key={key} className="px-3 py-2 text-[#374151] max-w-[120px] truncate">{row[key] || '-'}</td>
                     ))}
-                  {Object.values(mapping).includes('_engineer_name') && (
+                  {mapping['_engineer_name'] !== undefined && (
                     <td className="px-3 py-2 text-[#374151] max-w-[100px] truncate">
                       {row._engineer_name
                         ? row._engineer_unmatched
