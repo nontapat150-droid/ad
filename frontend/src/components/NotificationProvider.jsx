@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { requestNotificationPermission, onForegroundMessage } from '../lib/firebase';
 import { resolveNotificationPath } from '../utils/notificationUi';
 import api from '../api/axios';
@@ -69,21 +70,25 @@ function hasAuthToken() {
 
 export default function NotificationProvider({ children }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [toast, setToast] = useState(null);
+  const promptedRef = useRef(false);
 
   const bumpBell = useCallback(() => {
     window.dispatchEvent(new CustomEvent('new_message_alert'));
   }, []);
 
   const registerToken = useCallback(async (token) => {
-    if (!token || !hasAuthToken()) return;
+    if (!token || !hasAuthToken()) return false;
     try {
       await api.post('/fcm/register-token', {
         fcm_token: token,
         device_info: navigator.userAgent.substring(0, 200),
       });
+      return true;
     } catch (err) {
       console.error('Failed to register FCM token:', err);
+      return false;
     }
   }, []);
 
@@ -112,11 +117,18 @@ export default function NotificationProvider({ children }) {
   }, [registerToken]);
 
   useEffect(() => {
+    if (!user) return undefined;
+
     const timer = setTimeout(() => {
-      ensurePushReady({ promptIfNeeded: true });
-    }, 2000);
+      ensurePushReady({ promptIfNeeded: !promptedRef.current }).then(() => {
+        if (typeof Notification !== 'undefined' && Notification.permission !== 'default') {
+          promptedRef.current = true;
+        }
+      });
+    }, 800);
+
     return () => clearTimeout(timer);
-  }, [ensurePushReady]);
+  }, [user?.id, ensurePushReady]);
 
   useEffect(() => {
     const onVisible = () => {

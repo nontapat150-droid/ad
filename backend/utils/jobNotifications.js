@@ -137,6 +137,7 @@ async function notifyJobsAssignedToTeam({
     type: isMa ? 'ma_job_assigned' : 'job_assigned',
     data,
     recipients: members,
+    resend: source === 'assign' || source === 'import' || source === 'auto',
   });
 
   await notifyEvent({
@@ -147,6 +148,7 @@ async function notifyJobsAssignedToTeam({
     type: isMa ? 'ma_job_assigned' : 'job_assigned',
     data,
     recipients: await getAdminIds(),
+    resend: source === 'assign' || source === 'import' || source === 'auto',
   });
 }
 
@@ -189,6 +191,7 @@ async function notifyJobsAssignedToUser({
       assignee_id: userId,
     },
     recipients: [userId],
+    resend: true,
   });
 
   if (notifyTeam && teamId) {
@@ -214,6 +217,7 @@ async function notifyJobsAssignedToUser({
           job_type: kind,
         },
         recipients: mates,
+        resend: true,
       });
     }
   }
@@ -237,6 +241,7 @@ async function notifyJobsAssignedToUser({
       assignee_id: userId,
     },
     recipients: await getAdminIds(),
+    resend: true,
   });
 }
 

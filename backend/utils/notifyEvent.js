@@ -151,6 +151,7 @@ function normalizeRecipients(recipients, defaultTitle, defaultBody) {
  * @param {object} [opts.data]  Extra payload for deep links / FCM data
  * @param {Array<number|{userId,title?,body?}>} opts.recipients
  * @param {boolean} [opts.push=true]
+ * @param {boolean} [opts.resend=false]  Re-notify on duplicate event_key (refresh inbox + push again)
  */
 async function notifyEvent({
   eventKey,
@@ -161,6 +162,7 @@ async function notifyEvent({
   data = {},
   recipients = [],
   push = true,
+  resend = false,
 } = {}) {
   if (!eventKey || !String(eventKey).trim()) {
     console.warn('notifyEvent: missing eventKey — skipped');
@@ -181,37 +183,82 @@ async function notifyEvent({
 
   const results = { inserted: 0, skipped: 0, pushed: 0, ids: [] };
   const dataJson = JSON.stringify(data && typeof data === 'object' ? data : {});
+  const key = String(eventKey).slice(0, 190);
 
   for (const r of list) {
     try {
-      const [ins] = await pool.query(
-        `INSERT IGNORE INTO notifications
-           (user_id, event_key, type, title, body, data_json, actor_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          r.userId,
-          String(eventKey).slice(0, 190),
-          String(type || 'system').slice(0, 50),
-          String(r.title || 'แจ้งเตือน').slice(0, 255),
-          r.body || '',
-          dataJson,
-          actor || null,
-        ]
-      );
+      let notifId = null;
+      let shouldPush = false;
 
-      if (!ins.affectedRows) {
-        results.skipped += 1;
-        continue;
+      if (resend) {
+        const [upsert] = await pool.query(
+          `INSERT INTO notifications
+             (user_id, event_key, type, title, body, data_json, actor_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             type = VALUES(type),
+             title = VALUES(title),
+             body = VALUES(body),
+             data_json = VALUES(data_json),
+             actor_id = VALUES(actor_id),
+             is_read = 0,
+             read_at = NULL,
+             created_at = CURRENT_TIMESTAMP`,
+          [
+            r.userId,
+            key,
+            String(type || 'system').slice(0, 50),
+            String(r.title || 'แจ้งเตือน').slice(0, 255),
+            r.body || '',
+            dataJson,
+            actor || null,
+          ]
+        );
+
+        notifId = upsert.insertId;
+        if (!notifId) {
+          const [[row]] = await pool.query(
+            'SELECT id FROM notifications WHERE user_id = ? AND event_key = ? LIMIT 1',
+            [r.userId, key]
+          );
+          notifId = row?.id || null;
+        }
+
+        results.inserted += 1;
+        if (notifId) results.ids.push(notifId);
+        shouldPush = Boolean(notifId);
+      } else {
+        const [ins] = await pool.query(
+          `INSERT IGNORE INTO notifications
+             (user_id, event_key, type, title, body, data_json, actor_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            r.userId,
+            key,
+            String(type || 'system').slice(0, 50),
+            String(r.title || 'แจ้งเตือน').slice(0, 255),
+            r.body || '',
+            dataJson,
+            actor || null,
+          ]
+        );
+
+        if (!ins.affectedRows) {
+          results.skipped += 1;
+          continue;
+        }
+
+        notifId = ins.insertId;
+        results.inserted += 1;
+        results.ids.push(notifId);
+        shouldPush = true;
       }
 
-      results.inserted += 1;
-      results.ids.push(ins.insertId);
-
-      if (push) {
+      if (push && shouldPush && notifId) {
         const fcmData = {
           type: String(type || 'system'),
           event_key: String(eventKey),
-          notification_id: String(ins.insertId),
+          notification_id: String(notifId),
           ...Object.fromEntries(
             Object.entries(data || {}).map(([k, v]) => [k, v == null ? '' : String(v)])
           ),

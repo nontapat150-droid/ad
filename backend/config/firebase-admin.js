@@ -4,6 +4,36 @@ const path = require('path');
 const fs = require('fs');
 const pool = require('./db');
 
+let fcmSchemaReady = false;
+let fcmSchemaPromise = null;
+
+/** Ensure user_fcm_tokens exists (was missing from DB migrations). */
+async function ensureFcmTokensSchema(db = pool) {
+  if (fcmSchemaReady) return;
+  if (fcmSchemaPromise) return fcmSchemaPromise;
+
+  fcmSchemaPromise = (async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        fcm_token VARCHAR(512) NOT NULL,
+        device_info VARCHAR(255) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_fcm_token (fcm_token),
+        KEY idx_user_fcm_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    fcmSchemaReady = true;
+  })().catch((err) => {
+    fcmSchemaPromise = null;
+    throw err;
+  });
+
+  return fcmSchemaPromise;
+}
+
 // ── Initialize Firebase Admin ───────────────────────────────
 const serviceAccountPath = path.join(__dirname, 'firebase-service-account.json');
 let firebaseInitialized = false;
@@ -113,6 +143,7 @@ async function sendToUser(userId, title, body, data = {}) {
   }
 
   try {
+    await ensureFcmTokensSchema();
     const [tokens] = await pool.query(
       'SELECT fcm_token FROM user_fcm_tokens WHERE user_id = ?',
       [userId]
@@ -143,6 +174,7 @@ async function sendToUser(userId, title, body, data = {}) {
 module.exports = {
   admin,
   firebaseInitialized,
+  ensureFcmTokensSchema,
   sendPushNotification,
   sendToUser,
 };

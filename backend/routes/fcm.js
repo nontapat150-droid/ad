@@ -1,7 +1,12 @@
 const express = require('express');
 const pool = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
-const { sendPushNotification, sendToUser, firebaseInitialized } = require('../config/firebase-admin');
+const {
+  sendPushNotification,
+  sendToUser,
+  firebaseInitialized,
+  ensureFcmTokensSchema,
+} = require('../config/firebase-admin');
 
 const router = express.Router();
 
@@ -12,6 +17,8 @@ router.post('/register-token', auth, async (req, res) => {
     if (!fcm_token) {
       return res.status(400).json({ error: 'fcm_token is required' });
     }
+
+    await ensureFcmTokensSchema();
 
     // Upsert: if token already exists for this user, update it
     // If token exists for another user, reassign it (device changed user)
