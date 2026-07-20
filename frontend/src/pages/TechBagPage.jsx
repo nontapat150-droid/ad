@@ -34,13 +34,17 @@ export default function TechBagPage() {
     return (!isNaN(uid) && userRoles.some(r => ['super_admin', 'admin'].includes(r))) ? uid : user?.id;
   });
 
-  // ── Date filter for bag (default = show all) ──
-  const [bagDateFrom, setBagDateFrom] = useState('');
-  const [bagDateTo, setBagDateTo] = useState('');
-
   // ── Text search (bag + history) ──
   const [bagSearch, setBagSearch] = useState('');
   const [historySearch, setHistorySearch] = useState('');
+
+  // ── แท็บเบิกของ: เลือกสินค้า → ประวัติเบิก + กรองวันที่ ──
+  const [dispatchProduct, setDispatchProduct] = useState(null);
+  const [dispatchLogs, setDispatchLogs] = useState([]);
+  const [dispatchLoading, setDispatchLoading] = useState(false);
+  const [dispatchDateFrom, setDispatchDateFrom] = useState('');
+  const [dispatchDateTo, setDispatchDateTo] = useState('');
+  const [dispatchSearch, setDispatchSearch] = useState('');
 
   const fetchBag = useCallback(async (uid) => {
     setLoading(true);
@@ -62,6 +66,41 @@ export default function TechBagPage() {
     } catch (err) {
       console.error('Failed to load history', err);
     }
+  }, []);
+
+  const fetchDispatchHistory = useCallback(async (uid, product) => {
+    if (!product) {
+      setDispatchLogs([]);
+      return;
+    }
+    setDispatchLoading(true);
+    try {
+      const params = new URLSearchParams({ user_id: String(uid) });
+      if (product.model_id) params.set('model_id', String(product.model_id));
+      if (Number(product.has_sn) === 1 && product.id) {
+        params.set('item_id', String(product.id));
+      }
+      const res = await axios.get(`/inventory/dispatch-history?${params.toString()}`);
+      setDispatchLogs(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Failed to load dispatch history', err);
+      setDispatchLogs([]);
+      Swal.fire({
+        icon: 'error',
+        title: 'โหลดประวัติเบิกไม่สำเร็จ',
+        text: err.response?.data?.error || 'ลองใหม่อีกครั้ง',
+      });
+    } finally {
+      setDispatchLoading(false);
+    }
+  }, []);
+
+  const openDispatchTab = useCallback((item) => {
+    setDispatchProduct(item);
+    setDispatchDateFrom('');
+    setDispatchDateTo('');
+    setDispatchSearch('');
+    setActiveTab('dispatch');
   }, []);
 
   const fetchUsers = useCallback(async () => {
@@ -87,8 +126,16 @@ export default function TechBagPage() {
     if (selectedUserId) {
       fetchBag(selectedUserId);
       fetchHistory(selectedUserId);
+      setDispatchProduct(null);
+      setDispatchLogs([]);
     }
   }, [selectedUserId, fetchBag, fetchHistory]);
+
+  useEffect(() => {
+    if (activeTab === 'dispatch' && selectedUserId && dispatchProduct) {
+      fetchDispatchHistory(selectedUserId, dispatchProduct);
+    }
+  }, [activeTab, selectedUserId, dispatchProduct, fetchDispatchHistory]);
 
   const resolveHolderItem = async (item, actionLabel = 'ดำเนินการ') => {
     const holders = Array.isArray(item.holders) ? item.holders.filter((h) => Number(h.quantity) > 0) : [];
@@ -403,12 +450,12 @@ export default function TechBagPage() {
           <div className="max-w-5xl mx-auto space-y-5">
             
             {/* ── Tabs ─────────────────────────────────────── */}
-            <div className="flex gap-1 bg-white p-1.5 rounded-xl border border-[#E5E7EB]"
+            <div className="flex gap-1 bg-white p-1.5 rounded-xl border border-[#E5E7EB] overflow-x-auto"
               style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
               <button 
                 type="button"
                 onClick={() => setActiveTab('bag')}
-                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                   activeTab === 'bag'
                     ? 'text-[#1F2937] shadow-sm'
                     : 'text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F9FAFB]'
@@ -418,7 +465,7 @@ export default function TechBagPage() {
                   border: '1px solid rgba(163,230,53,0.35)',
                 } : { border: '1px solid transparent' }}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
                 </svg>
                 สินค้าในกระเป๋า
@@ -428,8 +475,26 @@ export default function TechBagPage() {
               </button>
               <button 
                 type="button"
+                onClick={() => setActiveTab('dispatch')}
+                className={`flex-1 min-w-[110px] py-2.5 px-3 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                  activeTab === 'dispatch'
+                    ? 'text-[#1F2937] shadow-sm'
+                    : 'text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F9FAFB]'
+                }`}
+                style={activeTab === 'dispatch' ? {
+                  background: 'linear-gradient(135deg, rgba(163,230,53,0.18), rgba(101,163,13,0.10))',
+                  border: '1px solid rgba(163,230,53,0.35)',
+                } : { border: '1px solid transparent' }}
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                เบิกของ
+              </button>
+              <button 
+                type="button"
                 onClick={() => setActiveTab('history')}
-                className={`flex-1 py-2.5 px-4 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-lg font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                   activeTab === 'history'
                     ? 'text-[#1F2937] shadow-sm'
                     : 'text-[#9CA3AF] hover:text-[#374151] hover:bg-[#F9FAFB]'
@@ -439,10 +504,10 @@ export default function TechBagPage() {
                   border: '1px solid rgba(163,230,53,0.35)',
                 } : { border: '1px solid transparent' }}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                ประวัติการรับ/โอน
+                ประวัติรับ/โอน
               </button>
             </div>
 
@@ -461,31 +526,20 @@ export default function TechBagPage() {
                 {activeTab === 'bag' ? (
                   // ── BAG TAB ──
                   (() => {
-                    // Apply date + text filters (client-side)
                     const q = bagSearch.trim().toLowerCase();
-                    const filteredBag = bagItems.filter(item => {
-                      const d = new Date(item.dispatched_at);
-                      if (bagDateFrom && d < new Date(bagDateFrom)) return false;
-                      if (bagDateTo) {
-                        const toEnd = new Date(bagDateTo);
-                        toEnd.setHours(23, 59, 59, 999);
-                        if (d > toEnd) return false;
-                      }
-                      if (q) {
-                        const hay = `${item.product_name || ''} ${item.model_name || ''} ${item.sn || ''}`.toLowerCase();
-                        if (!hay.includes(q)) return false;
-                      }
-                      return true;
-                    });
-                    const hasFilter = bagDateFrom || bagDateTo || bagSearch;
+                    const filteredBag = q
+                      ? bagItems.filter((item) => {
+                          const hay = `${item.product_name || ''} ${item.model_name || ''} ${item.sn || ''} ${item.owner_name || ''}`.toLowerCase();
+                          return hay.includes(q);
+                        })
+                      : bagItems;
 
                     return (
                       <>
-                        {/* ── Filter Bar ── */}
+                        {/* ── Search only (no date filter — totals always full) ── */}
                         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-wrap items-center gap-3 mb-1"
                           style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                          {/* Text search */}
-                          <div className="relative w-full sm:w-64">
+                          <div className="relative w-full sm:w-72">
                             <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
@@ -505,46 +559,9 @@ export default function TechBagPage() {
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-[#374151]">
-                            <svg className="w-4 h-4 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wider">กรองวันที่รับเข้า</span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 flex-1">
-                            <div className="flex items-center gap-1.5 min-w-[180px]">
-                              <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ตั้งแต่</label>
-                              <AppDateField
-                                label=""
-                                value={bagDateFrom}
-                                onChange={setBagDateFrom}
-                                placeholder="ตั้งแต่"
-                                showToday={false}
-                              />
-                            </div>
-                            <span className="text-[#9CA3AF] text-sm font-bold">–</span>
-                            <div className="flex items-center gap-1.5 min-w-[180px]">
-                              <label className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider whitespace-nowrap">ถึง</label>
-                              <AppDateField
-                                label=""
-                                value={bagDateTo}
-                                onChange={setBagDateTo}
-                                placeholder="ถึง"
-                                showToday={false}
-                              />
-                            </div>
-                            {hasFilter && (
-                              <button
-                                onClick={() => { setBagDateFrom(''); setBagDateTo(''); setBagSearch(''); }}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold transition-colors border border-red-100"
-                              >
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                                ล้างการกรอง
-                              </button>
-                            )}
-                          </div>
+                          <p className="text-xs text-[#9CA3AF] font-medium">
+                            แสดงยอดคงเหลือรวมทั้งหมด · ดูวันเวลาเบิกได้ที่แท็บเบิกของ
+                          </p>
                           <div className="flex items-center gap-2 ml-auto">
                             <span className="text-xs font-bold text-[#9CA3AF]">แสดง</span>
                             <span className="text-sm font-black text-[#1F2937]">{filteredBag.length}</span>
@@ -562,10 +579,10 @@ export default function TechBagPage() {
                               </svg>
                             </div>
                             <p className="text-lg font-bold text-[#1F2937]">
-                              {hasFilter ? 'ไม่พบสินค้าตามเงื่อนไขที่กรอง' : 'ไม่มีสินค้าในกระเป๋า'}
+                              {bagSearch ? 'ไม่พบสินค้าตามคำค้นหา' : 'ไม่มีสินค้าในกระเป๋า'}
                             </p>
                             <p className="text-[#9CA3AF] text-sm mt-1">
-                              {hasFilter ? 'ลองเปลี่ยนคำค้นหา/ช่วงวันที่ หรือกดปุ่ม“ล้างการกรอง” เพื่อดูสินค้าทั้งหมด' : 'เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่'}
+                              {bagSearch ? 'ลองเปลี่ยนคำค้นหา' : 'เมื่อคุณได้รับการเบิกจ่าย สินค้าจะมาปรากฏที่นี่'}
                             </p>
                           </div>
                         ) : (
@@ -643,9 +660,13 @@ export default function TechBagPage() {
                           </div>
                           
                           <div className="mt-auto pt-3.5 border-t border-[#F3F4F6] flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-[11px] text-[#9CA3AF]">
-                              รับมาเมื่อ: <span className="text-[#6B7280] font-medium">{new Date(item.dispatched_at).toLocaleDateString('th-TH')}</span>
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() => openDispatchTab(item)}
+                              className="text-[11px] font-bold text-[#042C53] hover:underline underline-offset-2"
+                            >
+                              ดูประวัติเบิก →
+                            </button>
                             
                             <div className="flex items-center gap-1.5">
                               {/* Admin Action Buttons */}
@@ -703,6 +724,240 @@ export default function TechBagPage() {
                           </div>
                         )}
                       </>
+                    );
+                  })()
+                ) : activeTab === 'dispatch' ? (
+                  // ── DISPATCH HISTORY TAB ──
+                  (() => {
+                    const filteredLogs = dispatchLogs.filter((log) => {
+                      const d = new Date(log.created_at);
+                      if (dispatchDateFrom) {
+                        const from = new Date(dispatchDateFrom);
+                        from.setHours(0, 0, 0, 0);
+                        if (d < from) return false;
+                      }
+                      if (dispatchDateTo) {
+                        const toEnd = new Date(dispatchDateTo);
+                        toEnd.setHours(23, 59, 59, 999);
+                        if (d > toEnd) return false;
+                      }
+                      const q = dispatchSearch.trim().toLowerCase();
+                      if (q) {
+                        const hay = `${log.product_name || ''} ${log.model_name || ''} ${log.sn || ''} ${log.to_user_name || ''} ${log.from_user_name || ''} ${log.note || ''}`.toLowerCase();
+                        if (!hay.includes(q)) return false;
+                      }
+                      return true;
+                    });
+                    const hasDispatchFilter = dispatchDateFrom || dispatchDateTo || dispatchSearch;
+                    const totalDispatched = filteredLogs.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Product picker */}
+                        <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3"
+                          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div className="flex-1 min-w-[220px]">
+                              <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-1.5">
+                                เลือกสินค้าเพื่อดูประวัติเบิก
+                              </label>
+                              <select
+                                value={
+                                  dispatchProduct
+                                    ? (Number(dispatchProduct.has_sn) === 1
+                                        ? `item:${dispatchProduct.id}`
+                                        : `model:${dispatchProduct.model_id}`)
+                                    : ''
+                                }
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (!val) {
+                                    setDispatchProduct(null);
+                                    setDispatchLogs([]);
+                                    return;
+                                  }
+                                  const [kind, id] = val.split(':');
+                                  const found = bagItems.find((it) =>
+                                    kind === 'item'
+                                      ? String(it.id) === id
+                                      : String(it.model_id) === id && !Number(it.has_sn)
+                                  );
+                                  setDispatchProduct(found || null);
+                                }}
+                                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-bold text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
+                              >
+                                <option value="">-- เลือกสินค้าในกระเป๋า --</option>
+                                {bagItems.map((it) => (
+                                  <option
+                                    key={Number(it.has_sn) === 1 ? `item-${it.id}` : `model-${it.model_id}`}
+                                    value={Number(it.has_sn) === 1 ? `item:${it.id}` : `model:${it.model_id}`}
+                                  >
+                                    {it.product_name} · {it.model_name}
+                                    {Number(it.has_sn) === 1 ? ` · SN ${it.sn}` : ` · คงเหลือ ${Number(it.quantity).toLocaleString()} ${it.unit || ''}`}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {dispatchProduct && (
+                              <div className="px-3 py-2 rounded-xl bg-[#1F2937] text-white text-sm font-bold">
+                                คงเหลือตอนนี้{' '}
+                                {Number(dispatchProduct.quantity).toLocaleString()}{' '}
+                                {dispatchProduct.unit || (Number(dispatchProduct.has_sn) ? 'ชิ้น' : '')}
+                              </div>
+                            )}
+                          </div>
+
+                          {dispatchProduct && (
+                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#F3F4F6]">
+                              <div className="relative w-full sm:w-56">
+                                <input
+                                  type="text"
+                                  value={dispatchSearch}
+                                  onChange={(e) => setDispatchSearch(e.target.value)}
+                                  placeholder="ค้นหาในประวัติ..."
+                                  className="w-full px-3 py-2 rounded-xl border border-[#E5E7EB] text-sm outline-none focus:border-[#A3E635] bg-[#F9FAFB]"
+                                />
+                              </div>
+                              <div className="flex items-center gap-1.5 min-w-[160px]">
+                                <label className="text-[10px] font-bold text-[#9CA3AF] uppercase whitespace-nowrap">ตั้งแต่</label>
+                                <AppDateField
+                                  label=""
+                                  value={dispatchDateFrom}
+                                  onChange={setDispatchDateFrom}
+                                  placeholder="ตั้งแต่"
+                                  showToday={false}
+                                />
+                              </div>
+                              <span className="text-[#9CA3AF] text-sm font-bold">–</span>
+                              <div className="flex items-center gap-1.5 min-w-[160px]">
+                                <label className="text-[10px] font-bold text-[#9CA3AF] uppercase whitespace-nowrap">ถึง</label>
+                                <AppDateField
+                                  label=""
+                                  value={dispatchDateTo}
+                                  onChange={setDispatchDateTo}
+                                  placeholder="ถึง"
+                                  showToday={false}
+                                />
+                              </div>
+                              {hasDispatchFilter && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDispatchDateFrom('');
+                                    setDispatchDateTo('');
+                                    setDispatchSearch('');
+                                  }}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 text-xs font-bold border border-red-100"
+                                >
+                                  ล้างการกรอง
+                                </button>
+                              )}
+                              <div className="ml-auto text-xs text-[#9CA3AF] font-medium">
+                                {filteredLogs.length} รายการ · รวมเบิกที่กรอง{' '}
+                                <span className="font-black text-[#1F2937]">{totalDispatched.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {!dispatchProduct ? (
+                          <div className="bg-white p-12 rounded-xl border border-[#E5E7EB] text-center"
+                            style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                            <p className="text-lg font-bold text-[#1F2937]">เลือกสินค้าเพื่อดูประวัติเบิก</p>
+                            <p className="text-[#9CA3AF] text-sm mt-1">
+                              หรือกดปุ่มดูประวัติเบิกจากบัตรสินค้าในกระเป๋า
+                            </p>
+                          </div>
+                        ) : dispatchLoading ? (
+                          <div className="flex justify-center py-16 text-sm text-[#9CA3AF] font-medium">กำลังโหลดประวัติเบิก...</div>
+                        ) : filteredLogs.length === 0 ? (
+                          <div className="bg-white p-10 rounded-xl border border-[#E5E7EB] text-center text-[#9CA3AF] font-medium">
+                            {hasDispatchFilter ? 'ไม่พบรายการตามเงื่อนไขที่กรอง' : 'ยังไม่มีประวัติเบิกรายการนี้'}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="hidden md:block bg-white rounded-xl border border-[#E5E7EB] overflow-hidden"
+                              style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                              <table className="w-full text-left text-sm">
+                                <thead className="bg-[#F9FAFB] text-[11px] text-[#9CA3AF] font-bold uppercase tracking-wider border-b border-[#E5E7EB]">
+                                  <tr>
+                                    <th className="px-5 py-3.5">วันเวลาเบิก</th>
+                                    <th className="px-5 py-3.5">สินค้า</th>
+                                    <th className="px-5 py-3.5 text-center">จำนวน</th>
+                                    <th className="px-5 py-3.5">ผู้เบิกให้</th>
+                                    <th className="px-5 py-3.5">ผู้รับ</th>
+                                    <th className="px-5 py-3.5">หมายเหตุ</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#F3F4F6]">
+                                  {filteredLogs.map((log) => (
+                                    <tr key={log.id} className="hover:bg-[#F9FAFB]">
+                                      <td className="px-5 py-3.5 whitespace-nowrap text-xs font-semibold text-[#374151]">
+                                        {new Date(log.created_at).toLocaleString('th-TH', {
+                                          dateStyle: 'medium',
+                                          timeStyle: 'short',
+                                        })}
+                                      </td>
+                                      <td className="px-5 py-3.5">
+                                        <div className="font-bold text-[#1F2937]">{log.product_name}</div>
+                                        <div className="text-[11px] text-[#9CA3AF]">
+                                          {log.model_name}
+                                          {log.sn ? ` · ${log.sn}` : ''}
+                                        </div>
+                                      </td>
+                                      <td className="px-5 py-3.5 font-bold text-[#1F2937] text-center">
+                                        {Number(log.quantity).toLocaleString()} {log.unit || ''}
+                                      </td>
+                                      <td className="px-5 py-3.5 text-xs text-[#6B7280]">{log.from_user_name || '-'}</td>
+                                      <td className="px-5 py-3.5 text-xs text-[#6B7280]">{log.to_user_name || '-'}</td>
+                                      <td className="px-5 py-3.5 text-xs text-[#9CA3AF]">{log.note || '-'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div className="md:hidden space-y-3">
+                              {filteredLogs.map((log, idx) => (
+                                <div
+                                  key={log.id}
+                                  className="bg-white p-4 rounded-xl border border-[#E5E7EB]"
+                                  style={{
+                                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                                    animation: `fadeInUp 0.3s ease-out ${idx * 40}ms both`,
+                                  }}
+                                >
+                                  <div className="flex justify-between gap-2 mb-2">
+                                    <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-bold border border-emerald-100">
+                                      เบิกเข้า
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-[#374151]">
+                                      {new Date(log.created_at).toLocaleString('th-TH', {
+                                        dateStyle: 'medium',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
+                                  </div>
+                                  <p className="font-bold text-[#1F2937]">{log.product_name}</p>
+                                  <p className="text-xs text-[#9CA3AF]">{log.model_name}</p>
+                                  <div className="mt-2 flex justify-between items-center bg-[#F9FAFB] rounded-lg p-2.5 border border-[#E5E7EB]">
+                                    <div className="text-xs text-[#6B7280]">
+                                      <p>จาก: {log.from_user_name || '-'}</p>
+                                      <p>ถึง: {log.to_user_name || '-'}</p>
+                                    </div>
+                                    <span className="font-black text-[#1F2937]">
+                                      +{Number(log.quantity).toLocaleString()} {log.unit || ''}
+                                    </span>
+                                  </div>
+                                  {log.note && (
+                                    <p className="text-[11px] text-[#65a30d] mt-2 font-semibold">{log.note}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     );
                   })()
                 ) : (

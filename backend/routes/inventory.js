@@ -1534,6 +1534,92 @@ router.get('/my-history', auth, async (req, res) => {
   }
 });
 
+// ── GET /api/inventory/dispatch-history ──
+// ประวัติการเบิก (action=dispatch) ของรุ่น/สินค้า ในขอบเขตกระเป๋าผู้ใช้หรือทีม
+// Query: user_id, model_id (แนะนำ), item_id (สำหรับ SN)
+router.get('/dispatch-history', auth, async (req, res) => {
+  const viewerId = req.user.id;
+  const requestedId = parseInt(req.query.user_id || viewerId, 10) || viewerId;
+  const modelId = req.query.model_id != null && req.query.model_id !== ''
+    ? parseInt(req.query.model_id, 10)
+    : null;
+  const itemId = req.query.item_id != null && req.query.item_id !== ''
+    ? parseInt(req.query.item_id, 10)
+    : null;
+
+  const userRoles = req.user.roles || [req.user.role];
+  const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
+
+  try {
+    const viewerTeamId = await getUserTeamId(pool, viewerId);
+    let scopeUserId = viewerId;
+    let scopeTeamId = viewerTeamId;
+
+    if (requestedId !== viewerId) {
+      const targetTeamId = await getUserTeamId(pool, requestedId);
+      if (!isAdmin) {
+        if (!viewerTeamId || !targetTeamId || Number(viewerTeamId) !== Number(targetTeamId)) {
+          return res.status(403).json({
+            error: 'ดูประวัติเบิกได้เฉพาะของตัวเองหรือทีมเดียวกันเท่านั้น',
+          });
+        }
+      }
+      scopeUserId = requestedId;
+      scopeTeamId = targetTeamId || viewerTeamId;
+    }
+
+    const teamParam = bagTeamParam(scopeTeamId);
+    const params = [scopeUserId, teamParam];
+    let extra = '';
+
+    if (modelId && Number.isFinite(modelId)) {
+      extra += ' AND ii.model_id = ?';
+      params.push(modelId);
+    }
+    if (itemId && Number.isFinite(itemId)) {
+      // SN: include logs on this item id; also same SN if split
+      extra += ' AND (il.item_id = ? OR ii.id = ?)';
+      params.push(itemId, itemId);
+    }
+
+    if (!modelId && !itemId) {
+      return res.status(400).json({ error: 'กรุณาเลือกสินค้า (model_id หรือ item_id)' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT il.id, il.action, il.quantity, il.created_at, il.note, il.item_id,
+              ii.sn, ii.model_id, pm.model_name, p.name AS product_name, p.unit, p.has_sn,
+              u_from.full_name AS from_user_name,
+              u_to.full_name AS to_user_name,
+              u_to.id AS to_user_id
+       FROM inventory_logs il
+       JOIN inventory_items ii ON ii.id = il.item_id
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u_from ON u_from.id = il.from_user_id
+       LEFT JOIN users u_to ON u_to.id = il.to_user_id
+       WHERE il.action = 'dispatch'
+         AND (
+           il.to_user_id = ?
+           OR (u_to.team_id IS NOT NULL AND u_to.team_id = ?)
+         )
+         ${extra}
+       ORDER BY il.created_at DESC
+       LIMIT 300`,
+      params
+    );
+
+    res.json(rows.map((r) => ({
+      ...r,
+      quantity: Number(r.quantity) || 0,
+      has_sn: Number(r.has_sn) ? 1 : 0,
+    })));
+  } catch (err) {
+    console.error('Dispatch History Error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
 // ── POST /api/inventory/transfer ──
 router.post('/transfer', auth, async (req, res) => {
   const { item_id, target_user_id, transfer_quantity, user_id, from_user_id } = req.body;
