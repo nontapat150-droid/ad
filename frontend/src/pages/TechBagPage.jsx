@@ -90,7 +90,45 @@ export default function TechBagPage() {
     }
   }, [selectedUserId, fetchBag, fetchHistory]);
 
+  const resolveHolderItem = async (item, actionLabel = 'ดำเนินการ') => {
+    const holders = Array.isArray(item.holders) ? item.holders.filter((h) => Number(h.quantity) > 0) : [];
+    if (!item.is_team_pooled || holders.length <= 1) {
+      return {
+        id: holders[0]?.item_id || item.id,
+        quantity: holders[0]?.quantity ?? item.quantity,
+        owner_name: holders[0]?.owner_name || item.owner_name,
+      };
+    }
+    const inputOptions = Object.fromEntries(
+      holders.map((h) => [
+        String(h.item_id),
+        `${h.owner_name}: ${Number(h.quantity).toLocaleString()} ${item.unit || ''}`.trim(),
+      ])
+    );
+    const { value: holderId } = await Swal.fire({
+      title: `เลือกผู้ถือของก่อน${actionLabel}`,
+      text: `รวมทีม ${Number(item.quantity).toLocaleString()} ${item.unit || ''}`.trim(),
+      input: 'select',
+      inputOptions,
+      inputPlaceholder: '-- เลือกผู้ถือ --',
+      showCancelButton: true,
+      confirmButtonText: 'ถัดไป',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => (!value ? 'กรุณาเลือกผู้ถือ' : undefined),
+    });
+    if (!holderId) return null;
+    const h = holders.find((x) => String(x.item_id) === String(holderId));
+    return {
+      id: h.item_id,
+      quantity: h.quantity,
+      owner_name: h.owner_name,
+    };
+  };
+
   const handleTransfer = async (item) => {
+    const holder = await resolveHolderItem(item, 'โอน');
+    if (!holder) return;
+
     const userOptions = {};
     users.forEach(u => {
       userOptions[u.id] = `${u.full_name} ${u.team_name ? '('+u.team_name+')' : ''}`;
@@ -116,10 +154,10 @@ export default function TechBagPage() {
 
     const { value: quantityStr } = await Swal.fire({
       title: 'ระบุจำนวนที่ต้องการโอน',
-      text: `จำนวนคงเหลือของคุณ: ${item.quantity}`,
+      text: `ของ${holder.owner_name || ''}: คงเหลือ ${holder.quantity}`.trim(),
       input: 'number',
-      inputValue: item.quantity,
-      inputAttributes: { min: 0.1, max: item.quantity, step: 0.1 },
+      inputValue: holder.quantity,
+      inputAttributes: { min: 0.1, max: holder.quantity, step: 0.1 },
       showCancelButton: true,
       confirmButtonText: 'ยืนยันการโอน',
       cancelButtonText: 'ยกเลิก',
@@ -127,7 +165,7 @@ export default function TechBagPage() {
         return new Promise((resolve) => {
           const num = parseFloat(value);
           if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0');
-          else if (num > parseFloat(item.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
+          else if (num > parseFloat(holder.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
           else resolve();
         });
       }
@@ -138,7 +176,7 @@ export default function TechBagPage() {
     try {
       setLoading(true);
       await axios.post('/inventory/transfer', {
-        item_id: item.id,
+        item_id: holder.id,
         target_user_id: parseInt(targetUserId),
         transfer_quantity: parseFloat(quantityStr),
         user_id: selectedUserId, // bag owner (admin may act on another's bag)
@@ -154,17 +192,20 @@ export default function TechBagPage() {
   };
 
   const handleReturn = async (item) => {
+    const holder = await resolveHolderItem(item, 'คืนคลัง');
+    if (!holder) return;
+
     const { value: quantityStr } = await Swal.fire({
       title: 'ระบุจำนวนที่ต้องการคืนเข้าคลัง',
       html: `
-        <div class="mb-2">จำนวนคงเหลือของคุณ: <span class="font-bold text-lg">${item.quantity}</span></div>
+        <div class="mb-2">ของ${holder.owner_name || ''} คงเหลือ: <span class="font-bold text-lg">${holder.quantity}</span></div>
         <div class="text-sm text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100">
           ⚠️ สินค้าจำนวนนี้จะนำกลับสู่สต๊อกทันที
         </div>
       `,
       input: 'number',
-      inputValue: Math.floor(item.quantity),
-      inputAttributes: { min: 1, max: Math.floor(item.quantity), step: 1 },
+      inputValue: Math.floor(holder.quantity),
+      inputAttributes: { min: 1, max: Math.floor(holder.quantity), step: 1 },
       showCancelButton: true,
       confirmButtonText: 'ยืนยันการคืน',
       cancelButtonText: 'ยกเลิก',
@@ -172,7 +213,7 @@ export default function TechBagPage() {
         return new Promise((resolve) => {
           const num = parseInt(value, 10);
           if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0 และเป็นจำนวนเต็ม');
-          else if (num > parseFloat(item.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
+          else if (num > parseFloat(holder.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
           else resolve();
         });
       }
@@ -183,7 +224,7 @@ export default function TechBagPage() {
     try {
       setLoading(true);
       await axios.post('/inventory/return', {
-        item_id: item.id,
+        item_id: holder.id,
         return_quantity: parseInt(quantityStr, 10),
         user_id: selectedUserId, // bag owner being returned from
       });
@@ -199,11 +240,14 @@ export default function TechBagPage() {
 
   // --- Admin Functions ---
   const handleEditQuantity = async (item) => {
+    const holder = await resolveHolderItem(item, 'แก้ไข');
+    if (!holder) return;
+
     const { value: quantityStr } = await Swal.fire({
       title: 'แก้ไขจำนวนสินค้า',
-      text: `จำนวนปัจจุบัน: ${item.quantity}`,
+      text: `ของ${holder.owner_name || ''}: จำนวนปัจจุบัน ${holder.quantity}`.trim(),
       input: 'number',
-      inputValue: item.quantity,
+      inputValue: holder.quantity,
       inputAttributes: { min: 0.1, step: 0.1 },
       showCancelButton: true,
       confirmButtonText: 'บันทึก',
@@ -220,7 +264,7 @@ export default function TechBagPage() {
 
     try {
       setLoading(true);
-      await axios.put(`/inventory/items/tech/${item.id}`, { quantity: parseFloat(quantityStr) });
+      await axios.put(`/inventory/items/tech/${holder.id}`, { quantity: parseFloat(quantityStr) });
       Swal.fire({ icon: 'success', title: 'อัปเดตจำนวนสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
       fetchBag(selectedUserId);
     } catch (err) {
@@ -231,9 +275,12 @@ export default function TechBagPage() {
   };
 
   const handleDeleteItem = async (item) => {
+    const holder = await resolveHolderItem(item, 'ลบ');
+    if (!holder) return;
+
     const result = await Swal.fire({
       title: 'ลบสินค้านี้ออกจากกระเป๋าช่าง?',
-      text: "การลบนี้จะเปลี่ยนสถานะสินค้าเป็น 'ถูกใช้/สูญหาย' คุณแน่ใจหรือไม่?",
+      text: `จะลบของ${holder.owner_name || ''} (${holder.quantity}) — สถานะจะเป็น 'ถูกใช้/สูญหาย'`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -245,7 +292,7 @@ export default function TechBagPage() {
     if (result.isConfirmed) {
       try {
         setLoading(true);
-        await axios.delete(`/inventory/items/tech/${item.id}`);
+        await axios.delete(`/inventory/items/tech/${holder.id}`);
         Swal.fire({ icon: 'success', title: 'ลบสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
         fetchBag(selectedUserId);
       } catch (err) {
@@ -535,15 +582,27 @@ export default function TechBagPage() {
                               <span className="inline-block px-2 py-0.5 bg-[#A3E635]/10 text-[#65a30d] text-[10px] font-bold rounded-md uppercase tracking-wider mb-2 border border-[#A3E635]/20">
                                 {item.product_name}
                               </span>
-                              {item.owner_name && (
+                              {item.is_team_pooled && Array.isArray(item.holders) && item.holders.length > 1 ? (
+                                <span className="ml-1.5 inline-block px-2 py-0.5 bg-sky-50 text-sky-700 text-[10px] font-bold rounded-md border border-sky-100 mb-2">
+                                  กระเป๋าร่วมทีม
+                                </span>
+                              ) : item.owner_name ? (
                                 <span className="ml-1.5 inline-block px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-bold rounded-md border border-teal-100 mb-2">
                                   ถือโดย {item.owner_name}
                                 </span>
-                              )}
-                              <h3 className="font-bold text-[#1F2937] text-base leading-tight break-all">{item.sn}</h3>
+                              ) : null}
+                              <h3 className="font-bold text-[#1F2937] text-base leading-tight break-all">
+                                {!item.has_sn ? (item.model_name || item.sn) : item.sn}
+                              </h3>
                               <p className="text-xs text-[#9CA3AF] mt-1 flex flex-wrap items-center gap-1">
                                 <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block" />
                                 โมเดล: <span className="text-[#6B7280] font-medium">{item.model_name}</span>
+                                {item.unit && !item.has_sn && (
+                                  <>
+                                    <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block ml-1" />
+                                    หน่วย: <span className="text-[#6B7280] font-medium">{item.unit}</span>
+                                  </>
+                                )}
                                 {item.phone_number && (
                                   <>
                                     <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block ml-1" />
@@ -551,10 +610,35 @@ export default function TechBagPage() {
                                   </>
                                 )}
                               </p>
+                              {item.is_team_pooled && Array.isArray(item.holders) && item.holders.length > 0 && (
+                                <div className="mt-2.5 rounded-lg border border-sky-100 bg-sky-50/70 px-2.5 py-2 space-y-1">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-sky-600">
+                                    ผู้ถือในทีม
+                                  </p>
+                                  {item.holders.map((h) => (
+                                    <div key={`${h.item_id}-${h.owner_id}`} className="flex items-center justify-between gap-2 text-xs">
+                                      <span className="font-semibold text-[#374151] truncate">{h.owner_name}</span>
+                                      <span className="font-bold text-[#042C53] shrink-0">
+                                        {Number(h.quantity).toLocaleString()} {item.unit || ''}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                            <div className="bg-[#1F2937] text-white font-bold px-3 py-1.5 rounded-lg text-sm shrink-0"
+                            <div className="bg-[#1F2937] text-white font-bold px-3 py-1.5 rounded-lg text-sm shrink-0 text-right"
                               style={{ boxShadow: '0 2px 6px rgba(31,41,55,0.15)' }}>
-                              x {item.quantity}
+                              <div className="leading-tight">
+                                {Number(item.quantity).toLocaleString()}
+                                {item.unit && !item.has_sn ? (
+                                  <span className="block text-[10px] font-semibold text-white/70 mt-0.5">{item.unit}</span>
+                                ) : (
+                                  <span className="ml-1">x</span>
+                                )}
+                              </div>
+                              {item.is_team_pooled && item.holders?.length > 1 && (
+                                <div className="text-[9px] font-semibold text-[#A3E635] mt-1">รวมทีม</div>
+                              )}
                             </div>
                           </div>
                           

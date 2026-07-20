@@ -102,6 +102,93 @@ async function lockSharedBagItem(conn, { itemId, userId, teamId, fields }) {
   return item || null;
 }
 
+/**
+ * Deduct no-SN qty starting from seed item, then other same-model rows in team bag.
+ * Returns { product_name, model_name, unit, deductions }.
+ */
+async function deductNoSnAcrossTeamBag(conn, {
+  itemId, qty, techId, teamId, actorId, note,
+}) {
+  const tid = Number(teamId) > 0 ? Number(teamId) : -1;
+  const seed = await lockSharedBagItem(conn, {
+    itemId,
+    userId: techId,
+    teamId,
+    fields: 'ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit',
+  });
+  if (!seed) {
+    throw new Error('ไม่พบสินค้าในกระเป๋าทีม — อาจยังไม่ได้เบิกจากคลัง หรือถูกใช้ไปแล้ว');
+  }
+
+  const rows = [seed];
+  if (!Number(seed.has_sn)) {
+    const [more] = await conn.query(
+      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE ii.status = 'dispatched'
+         AND ii.model_id = ?
+         AND ii.id <> ?
+         AND p.has_sn = 0
+         AND (
+           ii.owner_id = ?
+           OR ii.team_id = ?
+           OR ii.owner_id IN (SELECT id FROM users WHERE team_id = ?)
+         )
+       ORDER BY ii.id ASC
+       FOR UPDATE`,
+      [seed.model_id, itemId, techId, tid, tid]
+    );
+    rows.push(...more);
+  }
+
+  const qtyNeeded = parseFloat(qty);
+  const totalAvail = rows.reduce((s, r) => s + (parseFloat(r.quantity) || 0), 0);
+  if (totalAvail < qtyNeeded) {
+    throw new Error(
+      `สินค้า "${seed.product_name}" ไม่พอในกระเป๋า (ต้องการ ${qtyNeeded} คงเหลือ ${totalAvail})`
+    );
+  }
+
+  let remaining = qtyNeeded;
+  const deductions = [];
+  for (const row of rows) {
+    if (remaining <= 0) break;
+    const have = parseFloat(row.quantity) || 0;
+    if (have <= 0) continue;
+    const take = Math.min(have, remaining);
+    if (take >= have) {
+      await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [row.id]);
+    } else {
+      await conn.query(`UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`, [take, row.id]);
+    }
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', ?, ?)`,
+        [row.id, actorId || techId, take, note || null]
+      );
+    } catch (le) {
+      if (String(le.message || '').includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', ?, ?)`,
+          [(maxId || 0) + 1, row.id, actorId || techId, take, note || null]
+        );
+      } else throw le;
+    }
+    deductions.push({ item_id: row.id, qty: take });
+    remaining -= take;
+  }
+
+  return {
+    product_name: seed.product_name,
+    model_name: seed.model_name || '-',
+    unit: seed.unit || 'ชิ้น',
+    deductions,
+  };
+}
+
 /** Resolve team scope for bag deduction when completing a job */
 async function resolveJobBagTeamId(conn, { job, actorId }) {
   const actorTeam = await getUserTeamId(conn, actorId);
@@ -233,7 +320,7 @@ function parseNoSnItems(body) {
   }
 }
 
-// ─ process no-SN inventory items (deduct quantity, log, insert job_used_inventory) ─
+// ─ process no-SN inventory items (deduct quantity across team pool, log, insert job_used_inventory) ─
 async function processNoSnItems(conn, { jobId, techId, teamId, accessNo, noSnItems, usedBy }) {
   const summaryParts = [];
   const actorId = usedBy || techId;
@@ -242,55 +329,19 @@ async function processNoSnItems(conn, { jobId, techId, teamId, accessNo, noSnIte
     const qty    = parseInt(entry.quantity, 10);
     if (!itemId || !qty || qty <= 0) continue;
 
-    const item = await lockSharedBagItem(conn, {
-      itemId,
-      userId: techId,
-      teamId,
-      fields: 'ii.*, pm.model_name, p.name AS product_name, p.unit',
-    });
-    if (!item) {
-      throw new Error('ไม่พบสินค้าในกระเป๋าทีม — อาจยังไม่ได้เบิกจากคลัง หรือถูกใช้ไปแล้ว');
-    }
-
-    if (item.quantity < qty) {
-      throw new Error(
-        `สินค้า "${item.product_name}" ไม่พอในกระเป๋า (ต้องการ ${qty} คงเหลือ ${item.quantity})`
-      );
-    }
-
-    if (item.quantity === qty) {
-      // ใช้หมด → เปลี่ยนสถานะเป็น used
-      await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
-    } else {
-      // ใช้บางส่วน → หักจำนวน
-      await conn.query(`UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`, [qty, itemId]);
-    }
-
-    // บันทึก log
     const note = `ติดตั้งให้ลูกค้า: ${accessNo || jobId}`;
-    try {
-      await conn.query(
-        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', ?, ?)`,
-        [itemId, actorId, qty, note]
-      );
-    } catch(le) {
-      if (le.message.includes("Field 'id' doesn't have a default value")) {
-        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
-        await conn.query(
-          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', ?, ?)`,
-          [(maxId||0)+1, itemId, actorId, qty, note]
-        );
-      } else throw le;
-    }
+    const used = await deductNoSnAcrossTeamBag(conn, {
+      itemId, qty, techId, teamId, actorId, note,
+    });
 
-    // บันทึก job_used_inventory
-    const productName = entry.product_name || item.product_name;
-    const modelName   = entry.model_name   || item.model_name || '-';
+    const productName = entry.product_name || used.product_name;
+    const modelName   = entry.model_name   || used.model_name || '-';
+    const primaryId = used.deductions[0]?.item_id || itemId;
     try {
       await conn.query(
         `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
          VALUES (?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
-        [jobId, itemId, productName, modelName, qty, actorId]
+        [jobId, primaryId, productName, modelName, qty, actorId]
       );
     } catch(je) {
       if (je.message.includes("Field 'id' doesn't have a default value")) {
@@ -298,12 +349,12 @@ async function processNoSnItems(conn, { jobId, techId, teamId, accessNo, noSnIte
         await conn.query(
           `INSERT INTO job_used_inventory (id, job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
            VALUES (?, ?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
-          [(maxId||0)+1, jobId, itemId, productName, modelName, qty, actorId]
+          [(maxId||0)+1, jobId, primaryId, productName, modelName, qty, actorId]
         );
       } else throw je;
     }
 
-    const unit = entry.unit || item.unit || 'ชิ้น';
+    const unit = entry.unit || used.unit || 'ชิ้น';
     summaryParts.push(`${productName} ${modelName} x${qty} ${unit}`.trim());
   }
   return summaryParts;
@@ -440,53 +491,21 @@ async function processMaNoSnItems(conn, { maJobId, techId, teamId, nonNumber, no
     const qty = parseInt(entry.quantity, 10);
     if (!itemId || !qty || qty <= 0) continue;
 
-    const item = await lockSharedBagItem(conn, {
-      itemId,
-      userId: techId,
-      teamId,
-      fields: 'ii.*, pm.model_name, p.name AS product_name, p.unit',
-    });
-    if (!item) {
-      throw new Error('ไม่พบสินค้าในกระเป๋าทีม — อาจยังไม่ได้เบิกจากคลัง หรือถูกใช้ไปแล้ว');
-    }
-
-    if (item.quantity < qty) {
-      throw new Error(
-        `สินค้า "${item.product_name}" ไม่พอในกระเป๋า (ต้องการ ${qty} คงเหลือ ${item.quantity})`
-      );
-    }
-
-    if (item.quantity === qty) {
-      await conn.query(`UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`, [itemId]);
-    } else {
-      await conn.query(`UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`, [qty, itemId]);
-    }
-
     const note = `MA ติดตั้งให้ลูกค้า: ${nonNumber || maJobId}`;
-    try {
-      await conn.query(
-        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'used', ?, ?)`,
-        [itemId, actorId, qty, note]
-      );
-    } catch (le) {
-      if (String(le.message || '').includes("Field 'id' doesn't have a default value")) {
-        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
-        await conn.query(
-          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'used', ?, ?)`,
-          [(maxId || 0) + 1, itemId, actorId, qty, note]
-        );
-      } else throw le;
-    }
+    const used = await deductNoSnAcrossTeamBag(conn, {
+      itemId, qty, techId, teamId, actorId, note,
+    });
 
-    const productName = entry.product_name || item.product_name;
-    const modelName = entry.model_name || item.model_name || '-';
+    const productName = entry.product_name || used.product_name;
+    const modelName = entry.model_name || used.model_name || '-';
+    const primaryId = used.deductions[0]?.item_id || itemId;
     await conn.query(
       `INSERT INTO ma_job_used_inventory (ma_job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
        VALUES (?, ?, 'NoSN', '-', ?, ?, ?, ?)`,
-      [maJobId, itemId, productName, modelName, qty, actorId]
+      [maJobId, primaryId, productName, modelName, qty, actorId]
     );
 
-    const unit = entry.unit || item.unit || 'ชิ้น';
+    const unit = entry.unit || used.unit || 'ชิ้น';
     summaryParts.push(`${productName} ${modelName} x${qty} ${unit}`.trim());
   }
   return summaryParts;

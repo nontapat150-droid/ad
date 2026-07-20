@@ -40,9 +40,14 @@ function bagItemLabel(item) {
   const qty = Number(item.quantity) || 0;
   const name = item.product_name || 'สินค้า';
   const model = item.model_name || '-';
+  if (!isSnBagItem(item)) {
+    const holders = Array.isArray(item.holders) && item.holders.length > 1
+      ? ` · ${item.holders.map((h) => `${h.owner_name} ${Number(h.quantity).toLocaleString()}`).join(', ')}`
+      : '';
+    return `${name} — ${model} · คงเหลือทีม ${qty.toLocaleString()} ${unit}${holders}`;
+  }
   const sn = item.sn || '-';
-  const base = `${name} — ${model} [SN: ${sn}]`;
-  return `${base} · คงเหลือ ${qty} ${unit}`;
+  return `${name} — ${model} [SN: ${sn}] · คงเหลือ ${qty} ${unit}`;
 }
 
 function isSnBagItem(item) {

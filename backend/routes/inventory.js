@@ -42,6 +42,276 @@ async function getUserTeamId(db, userId) {
   return u?.team_id || null;
 }
 
+/**
+ * Merge duplicate no-SN dispatched rows for the same owner + model into one line
+ * (e.g. 2000m + 1000m → one row with 3000).
+ */
+async function consolidateNoSnBagRows(db, { ownerId = null, teamId = null } = {}) {
+  const teamParam = bagTeamParam(teamId);
+  const params = [];
+  let ownerFilter = '';
+  if (ownerId != null) {
+    ownerFilter = 'AND ii.owner_id = ?';
+    params.push(ownerId);
+  } else if (teamId != null && Number(teamId) > 0) {
+    ownerFilter = `AND (
+      ii.owner_id IN (SELECT id FROM users WHERE team_id = ?)
+      OR ii.team_id = ?
+    )`;
+    params.push(teamParam, teamParam);
+  } else {
+    return;
+  }
+
+  const [groups] = await db.query(
+    `SELECT ii.owner_id, ii.model_id,
+            MIN(ii.id) AS keep_id,
+            SUM(ii.quantity) AS total_qty,
+            COUNT(*) AS cnt
+     FROM inventory_items ii
+     JOIN inventory_models pm ON pm.id = ii.model_id
+     JOIN inventory_products p ON p.id = pm.product_id
+     WHERE ii.status = 'dispatched'
+       AND p.has_sn = 0
+       AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+       ${ownerFilter}
+     GROUP BY ii.owner_id, ii.model_id
+     HAVING COUNT(*) > 1`,
+    params
+  );
+
+  for (const g of groups) {
+    await db.query(
+      'UPDATE inventory_items SET quantity = ? WHERE id = ?',
+      [g.total_qty, g.keep_id]
+    );
+    await db.query(
+      `UPDATE inventory_items
+       SET status = 'used', quantity = 0, owner_id = NULL, team_id = NULL
+       WHERE owner_id = ? AND model_id = ? AND status = 'dispatched' AND id <> ?
+         AND (expires_at IS NULL OR expires_at > NOW())`,
+      [g.owner_id, g.model_id, g.keep_id]
+    );
+  }
+}
+
+function formatBagQty(n) {
+  const num = Number(n) || 0;
+  return Number.isInteger(num) ? String(num) : String(Math.round(num * 100) / 100);
+}
+
+/**
+ * For shared team bags: collapse no-SN rows of the same model into one display line
+ * with total quantity + holders breakdown (who holds how much).
+ * SN items stay as separate rows.
+ */
+function aggregateTeamNoSnBag(items, { poolByTeam }) {
+  const normalized = items.map((row) => ({
+    ...row,
+    has_sn: Number(row.has_sn) ? 1 : 0,
+    quantity: Number(row.quantity) || 0,
+    product_name: row.product_name || 'สินค้า',
+    model_name: row.model_name || '-',
+    sn: row.sn || '',
+    unit: row.unit || 'ชิ้น',
+  }));
+
+  if (!poolByTeam) {
+    return normalized.map((row) => ({
+      ...row,
+      is_team_pooled: false,
+      holders: row.owner_id
+        ? [{
+            item_id: row.id,
+            owner_id: row.owner_id,
+            owner_name: row.owner_name || 'ไม่ระบุ',
+            quantity: row.quantity,
+            unit: row.unit,
+          }]
+        : [],
+    }));
+  }
+
+  const snItems = [];
+  const byModel = new Map();
+
+  for (const row of normalized) {
+    if (row.has_sn) {
+      snItems.push({
+        ...row,
+        is_team_pooled: false,
+        holders: [{
+          item_id: row.id,
+          owner_id: row.owner_id,
+          owner_name: row.owner_name || 'ไม่ระบุ',
+          quantity: row.quantity,
+          unit: row.unit,
+        }],
+      });
+      continue;
+    }
+
+    const key = String(row.model_id);
+    if (!byModel.has(key)) {
+      byModel.set(key, {
+        ...row,
+        quantity: 0,
+        is_team_pooled: true,
+        holders: [],
+        sn: '',
+      });
+    }
+    const group = byModel.get(key);
+    group.quantity += row.quantity;
+    group.holders.push({
+      item_id: row.id,
+      owner_id: row.owner_id,
+      owner_name: row.owner_name || 'ไม่ระบุ',
+      quantity: row.quantity,
+      unit: row.unit,
+    });
+    if (
+      row.dispatched_at &&
+      (!group.dispatched_at || new Date(row.dispatched_at) < new Date(group.dispatched_at))
+    ) {
+      group.dispatched_at = row.dispatched_at;
+    }
+  }
+
+  const pooled = [...byModel.values()].map((group) => {
+    // Merge same owner into one holder line
+    const byOwner = new Map();
+    for (const h of group.holders) {
+      const ok = String(h.owner_id ?? 'none');
+      if (!byOwner.has(ok)) {
+        byOwner.set(ok, { ...h });
+      } else {
+        byOwner.get(ok).quantity += h.quantity;
+        // keep lowest item_id as canonical for that owner
+        if (h.item_id < byOwner.get(ok).item_id) {
+          byOwner.get(ok).item_id = h.item_id;
+        }
+      }
+    }
+    group.holders = [...byOwner.values()].sort((a, b) => b.quantity - a.quantity);
+    const primary = group.holders[0];
+    if (primary) {
+      group.id = primary.item_id;
+      group.owner_id = primary.owner_id;
+    }
+    group.sn = group.model_name || 'รวมทีม';
+    if (group.holders.length <= 1) {
+      group.owner_name = primary?.owner_name || group.owner_name;
+      group.is_team_pooled = group.holders.length > 0;
+    } else {
+      group.owner_name = group.holders
+        .map((h) => `${h.owner_name} ${formatBagQty(h.quantity)}${group.unit ? ` ${group.unit}` : ''}`)
+        .join(' · ');
+    }
+    return group;
+  });
+
+  return [...pooled, ...snItems];
+}
+
+/**
+ * Deduct no-SN quantity from a bag item, spilling over to other same-model
+ * rows in the shared team bag when needed (A 3000 + B 1000 → use 3500 OK).
+ * Returns { product_name, model_name, unit, deductions: [{item_id, qty}] }
+ */
+async function deductNoSnAcrossTeamBag(conn, {
+  itemId,
+  quantity,
+  bagOwnerId,
+  teamId,
+  actorId,
+  note,
+}) {
+  const qtyNeeded = parseFloat(quantity);
+  if (!itemId || !(qtyNeeded > 0)) {
+    throw new Error('จำนวนไม่ถูกต้อง');
+  }
+
+  const teamParam = bagTeamParam(teamId);
+  const [[seed]] = await conn.query(
+    `SELECT ii.*, p.name AS product_name, p.has_sn, p.unit, m.model_name
+     FROM inventory_items ii
+     JOIN inventory_models m ON ii.model_id = m.id
+     JOIN inventory_products p ON m.product_id = p.id
+     WHERE ii.id = ? AND ii.status = 'dispatched'
+       AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+       AND ${bagAccessSql('ii')}
+     FOR UPDATE`,
+    [itemId, bagOwnerId, teamParam, teamParam]
+  );
+  if (!seed) {
+    throw new Error('ไม่พบสินค้าในกระเป๋าทีม — อาจยังไม่ได้เบิกจากคลัง หรือถูกใช้ไปแล้ว');
+  }
+
+  const rows = [seed];
+  if (!Number(seed.has_sn)) {
+    const [more] = await conn.query(
+      `SELECT ii.*, p.name AS product_name, p.has_sn, p.unit, m.model_name
+       FROM inventory_items ii
+       JOIN inventory_models m ON ii.model_id = m.id
+       JOIN inventory_products p ON m.product_id = p.id
+       WHERE ii.status = 'dispatched'
+         AND ii.model_id = ?
+         AND ii.id <> ?
+         AND p.has_sn = 0
+         AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+         AND ${bagAccessSql('ii')}
+       ORDER BY ii.id ASC
+       FOR UPDATE`,
+      [seed.model_id, itemId, bagOwnerId, teamParam, teamParam]
+    );
+    rows.push(...more);
+  }
+
+  const totalAvail = rows.reduce((s, r) => s + (parseFloat(r.quantity) || 0), 0);
+  if (totalAvail < qtyNeeded) {
+    throw new Error(
+      `สินค้า "${seed.product_name}" ไม่พอในกระเป๋า (ต้องการ ${qtyNeeded} คงเหลือ ${totalAvail})`
+    );
+  }
+
+  let remaining = qtyNeeded;
+  const deductions = [];
+  for (const row of rows) {
+    if (remaining <= 0) break;
+    const have = parseFloat(row.quantity) || 0;
+    if (have <= 0) continue;
+    const take = Math.min(have, remaining);
+    if (take >= have) {
+      await conn.query(
+        `UPDATE inventory_items SET status = 'used', quantity = 0 WHERE id = ?`,
+        [row.id]
+      );
+    } else {
+      await conn.query(
+        `UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?`,
+        [take, row.id]
+      );
+    }
+    await conn.query(
+      `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note)
+       VALUES (?, ?, 'used', ?, ?)`,
+      [row.id, actorId || bagOwnerId, take, note || null]
+    );
+    deductions.push({ item_id: row.id, qty: take, sn: row.sn });
+    remaining -= take;
+  }
+
+  return {
+    product_name: seed.product_name,
+    model_name: seed.model_name || '-',
+    unit: seed.unit || 'ชิ้น',
+    sn: seed.sn,
+    deductions,
+    quantity: qtyNeeded,
+  };
+}
+
 // ==========================================
 // PHASE 1: ADMIN - PRODUCTS & MODELS
 // ==========================================
@@ -551,6 +821,7 @@ router.get('/search-sn/:sn', auth, requireRole(ADMIN_ROLES), async (req, res) =>
 });
 
 // ── POST /api/inventory/dispatch ──
+// No-SN items: if the tech already has the same model in bag, add quantity into that row.
 router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { items, target_user_id } = req.body;
   if (!items || !items.length || !target_user_id) {
@@ -561,64 +832,174 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Fetch user team
     const [[user]] = await conn.query('SELECT team_id FROM users WHERE id = ?', [target_user_id]);
     const team_id = user ? user.team_id : null;
 
     const adminId = req.user.id;
     let dispatchedCount = 0;
+    const mergeNotes = [];
 
     for (const item of items) {
-      // item = { id: ..., quantity_to_dispatch: ... }
-      // For SN items, quantity is 1. For No-SN, it could be <= item.quantity in DB.
-      // But for simplicity in Phase 2, we assume we dispatch the whole item row.
-      // Wait, if it's wire, the admin might want to dispatch only a part of it? 
-      // The requirement: "เมื่อกดยืนยันระบบจะขึ้นหน้าต่างลอยคล้ายบิลใบเสร็จ และมี ดรอปดาวให้เลือกว่าจะเบิกให้คนไหน"
-      // If we just transfer the whole row:
-      
-      const [[dbItem]] = await conn.query('SELECT model_id, sn, quantity FROM inventory_items WHERE id = ? AND status = "in_stock" FOR UPDATE', [item.id]);
-      if (!dbItem) continue; // Skip if not found or not in_stock
+      const [[dbItem]] = await conn.query(
+        `SELECT ii.id, ii.model_id, ii.sn, ii.quantity, p.has_sn, p.name AS product_name, pm.model_name
+         FROM inventory_items ii
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         WHERE ii.id = ? AND ii.status = 'in_stock'
+         FOR UPDATE`,
+        [item.id]
+      );
+      if (!dbItem) continue;
 
+      const stockQty = parseFloat(dbItem.quantity) || 0;
       let dispatchQty = parseFloat(item.quantity_to_dispatch);
-      if (isNaN(dispatchQty) || dispatchQty <= 0 || dispatchQty > parseFloat(dbItem.quantity)) {
-        dispatchQty = parseFloat(dbItem.quantity);
+      if (isNaN(dispatchQty) || dispatchQty <= 0 || dispatchQty > stockQty) {
+        dispatchQty = stockQty;
       }
+      if (dispatchQty <= 0) continue;
 
-      if (dispatchQty < parseFloat(dbItem.quantity)) {
-        // Split the item
-        await conn.query('UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?', [dispatchQty, item.id]);
-        
-        const [insertRes] = await conn.query(
-          `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at) VALUES (?, ?, ?, 'dispatched', ?, ?, NOW())`,
-          [dbItem.model_id, dbItem.sn, dispatchQty, target_user_id, team_id]
+      const isNoSn = !Number(dbItem.has_sn);
+
+      if (isNoSn) {
+        // Find existing bag row(s) for this tech + same model (no-SN merges by model)
+        const [bagRows] = await conn.query(
+          `SELECT id, quantity FROM inventory_items
+           WHERE owner_id = ? AND model_id = ? AND status = 'dispatched'
+             AND (expires_at IS NULL OR expires_at > NOW())
+           ORDER BY id ASC
+           FOR UPDATE`,
+          [target_user_id, dbItem.model_id]
         );
-        
-        await conn.query('INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
-          [insertRes.insertId, adminId, target_user_id, dispatchQty]
-        );
+
+        if (bagRows.length > 0) {
+          // Deduct / consume warehouse stock, then merge into bag
+          if (dispatchQty < stockQty) {
+            await conn.query(
+              'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
+              [dispatchQty, item.id]
+            );
+          } else {
+            await conn.query(
+              `UPDATE inventory_items
+               SET status = 'used', quantity = 0, owner_id = NULL, team_id = NULL, dispatched_at = NULL
+               WHERE id = ?`,
+              [item.id]
+            );
+          }
+
+          const keepId = bagRows[0].id;
+          let extraFromDupes = 0;
+          for (let i = 1; i < bagRows.length; i++) {
+            extraFromDupes += parseFloat(bagRows[i].quantity) || 0;
+            await conn.query(
+              `UPDATE inventory_items
+               SET status = 'used', quantity = 0, owner_id = NULL, team_id = NULL
+               WHERE id = ?`,
+              [bagRows[i].id]
+            );
+          }
+          const addQty = dispatchQty + extraFromDupes;
+          await conn.query(
+            `UPDATE inventory_items
+             SET quantity = quantity + ?, team_id = COALESCE(?, team_id), dispatched_at = NOW()
+             WHERE id = ?`,
+            [addQty, team_id, keepId]
+          );
+          await conn.query(
+            `INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity, note)
+             VALUES (?, ?, ?, 'dispatch', ?, ?)`,
+            [
+              keepId,
+              adminId,
+              target_user_id,
+              dispatchQty,
+              `รวมเข้าของเดิมในกระเป๋า (+${dispatchQty}${extraFromDupes ? `, รวมแถวซ้ำ +${extraFromDupes}` : ''})`,
+            ]
+          );
+          const [[after]] = await conn.query(
+            'SELECT quantity FROM inventory_items WHERE id = ?',
+            [keepId]
+          );
+          mergeNotes.push(
+            `${dbItem.product_name || 'สินค้า'} ${dbItem.model_name || ''} รวมแล้วคงเหลือ ${Number(after?.quantity) || '?'}`.trim()
+          );
+        } else if (dispatchQty < stockQty) {
+          // First time — partial: leave remainder in stock, create bag row
+          await conn.query(
+            'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
+            [dispatchQty, item.id]
+          );
+          const splitSn = `${dbItem.sn || 'NOSN'}-D-${Date.now().toString().slice(-6)}`;
+          const [insertRes] = await conn.query(
+            `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at)
+             VALUES (?, ?, ?, 'dispatched', ?, ?, NOW())`,
+            [dbItem.model_id, splitSn, dispatchQty, target_user_id, team_id]
+          );
+          await conn.query(
+            `INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity)
+             VALUES (?, ?, ?, 'dispatch', ?)`,
+            [insertRes.insertId, adminId, target_user_id, dispatchQty]
+          );
+        } else {
+          // First time — whole stock row becomes the bag row (keeps unique SN)
+          await conn.query(
+            `UPDATE inventory_items
+             SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW()
+             WHERE id = ?`,
+            [target_user_id, team_id, item.id]
+          );
+          await conn.query(
+            `INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity)
+             VALUES (?, ?, ?, 'dispatch', ?)`,
+            [item.id, adminId, target_user_id, dispatchQty]
+          );
+        }
       } else {
-        // Dispatch the whole item
-        await conn.query(
-          `UPDATE inventory_items 
-           SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW() 
-           WHERE id = ?`,
-          [target_user_id, team_id, item.id]
-        );
-
-        await conn.query(
-          'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "dispatch", ?)',
-          [item.id, adminId, target_user_id, dispatchQty]
-        );
+        // SN items — keep separate rows (unique SN)
+        if (dispatchQty < stockQty) {
+          await conn.query(
+            'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
+            [dispatchQty, item.id]
+          );
+          const [insertRes] = await conn.query(
+            `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at)
+             VALUES (?, ?, ?, 'dispatched', ?, ?, NOW())`,
+            [dbItem.model_id, dbItem.sn, dispatchQty, target_user_id, team_id]
+          );
+          await conn.query(
+            `INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity)
+             VALUES (?, ?, ?, 'dispatch', ?)`,
+            [insertRes.insertId, adminId, target_user_id, dispatchQty]
+          );
+        } else {
+          await conn.query(
+            `UPDATE inventory_items
+             SET status = 'dispatched', owner_id = ?, team_id = ?, dispatched_at = NOW()
+             WHERE id = ?`,
+            [target_user_id, team_id, item.id]
+          );
+          await conn.query(
+            `INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity)
+             VALUES (?, ?, ?, 'dispatch', ?)`,
+            [item.id, adminId, target_user_id, dispatchQty]
+          );
+        }
       }
+
       dispatchedCount++;
     }
 
     await conn.commit();
-    res.json({ message: `Successfully dispatched ${dispatchedCount} items to technician.` });
+    res.json({
+      message: `เบิกสำเร็จ ${dispatchedCount} รายการ` +
+        (mergeNotes.length ? ` · รวมของเดิม: ${mergeNotes.join(', ')}` : ''),
+      dispatchedCount,
+      merged: mergeNotes,
+    });
   } catch (err) {
     await conn.rollback();
     console.error('Dispatch Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: err.message });
   } finally {
     conn.release();
   }
@@ -673,6 +1054,17 @@ router.get('/my-bag', auth, async (req, res) => {
     }
 
     const teamParam = bagTeamParam(scopeTeamId);
+    // Fold duplicate no-SN lines (same owner + model) so bag shows one remaining total
+    try {
+      if (scopeTeamId) {
+        await consolidateNoSnBagRows(pool, { teamId: scopeTeamId });
+      } else {
+        await consolidateNoSnBagRows(pool, { ownerId: scopeUserId });
+      }
+    } catch (e) {
+      console.warn('consolidateNoSnBagRows:', e.message);
+    }
+
     const [items] = await pool.query(
       `SELECT ii.id, ii.model_id, ii.sn, ii.quantity, ii.status, ii.owner_id, ii.team_id,
               ii.dispatched_at, ii.expires_at,
@@ -692,15 +1084,9 @@ router.get('/my-bag', auth, async (req, res) => {
       [scopeUserId, teamParam, teamParam]
     );
 
-    // Normalize has_sn to 0/1 for frontend filters
-    const normalized = items.map((row) => ({
-      ...row,
-      has_sn: Number(row.has_sn) ? 1 : 0,
-      quantity: Number(row.quantity) || 0,
-      product_name: row.product_name || 'สินค้า',
-      model_name: row.model_name || '-',
-      sn: row.sn || '',
-    }));
+    // Normalize + pool no-SN by model when team shares one bag
+    const poolByTeam = Boolean(scopeTeamId && Number(scopeTeamId) > 0);
+    const normalized = aggregateTeamNoSnBag(items, { poolByTeam });
 
     res.json(normalized);
   } catch (err) {
@@ -1035,72 +1421,47 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
       
       let usedItemsSummary = [];
 
-      // 2. Process each item
+      // 2. Process each item (no-SN can pull from shared team pool of same model)
       for (const reqItem of items) {
         const { item_id, quantity } = reqItem;
         if (!item_id || !quantity || quantity <= 0) continue;
-  
-        // Verify item is in personal or shared team bag
-        const [[invItem]] = await conn.query(
-          `SELECT ii.*, p.name AS product_name, m.model_name 
-           FROM inventory_items ii 
-           JOIN inventory_models m ON ii.model_id = m.id 
-           JOIN inventory_products p ON m.product_id = p.id 
-           WHERE ii.id = ? AND ii.status = "dispatched"
-             AND ${bagAccessSql('ii')}
-           FOR UPDATE`,
-          [item_id, bagOwnerId, bagTeamParam(actorTeamId), bagTeamParam(actorTeamId)]
-        );
-  
-        if (!invItem) {
-          await conn.rollback();
-          return res.status(400).json({
-            error: `ไม่พบสินค้าในกระเป๋าทีม (หรือยังไม่ได้เบิก)`,
-            tip: 'แจ้งแอดมินให้เติมสินค้าเข้ากระเป๋าทีม แล้วลองใหม่',
+
+        let used;
+        try {
+          used = await deductNoSnAcrossTeamBag(conn, {
+            itemId: item_id,
+            quantity,
+            bagOwnerId,
+            teamId: actorTeamId,
+            actorId: bagOwnerId,
+            note: `ใช้งานกับงาน ${job.access_no}${job.customer ? ` (ลูกค้า: ${job.customer})` : ''}`,
           });
-        }
-  
-        if (invItem.quantity < quantity) {
+        } catch (deductErr) {
           await conn.rollback();
           return res.status(400).json({
-            error: `สินค้า "${invItem.product_name}" ไม่พอในกระเป๋า (ต้องการ ${quantity} คงเหลือ ${invItem.quantity})`,
+            error: deductErr.message || 'หักสินค้าไม่สำเร็จ',
             tip: 'แจ้งแอดมินให้เติมสินค้าเข้ากระเป๋าทีม หรือลดจำนวนที่ใช้',
           });
         }
-  
-        // If full quantity is used
-        if (parseFloat(invItem.quantity) === parseFloat(quantity)) {
-          await conn.query(
-            'UPDATE inventory_items SET status = "used" WHERE id = ?',
-            [item_id]
-          );
-        } else {
-          // Partial quantity used (No SN items)
-          await conn.query(
-            'UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?',
-            [quantity, item_id]
-          );
-        }
-  
-        // Log the usage with customer name (from_user = bag owner)
-        const customerText = job.customer ? ` (ลูกค้า: ${job.customer})` : '';
-        const note = `ใช้งานกับงาน ${job.access_no}${customerText}`;
-        await conn.query(
-          'INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, "used", ?, ?)',
-          [item_id, bagOwnerId, quantity, note]
-        );
 
-        // Also insert into job_used_inventory to display reliably in customer page
+        // Record usage against primary / first deduction for job history
+        const primaryDeduction = used.deductions[0];
         await conn.query(
           `INSERT INTO job_used_inventory (job_id, inventory_item_id, device_role, sn, product_name, model_name, quantity, used_by)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [job_id, item_id, 'TechBag', invItem.sn || '-', invItem.product_name, invItem.model_name || '-', quantity, bagOwnerId]
+          [
+            job_id,
+            primaryDeduction?.item_id || item_id,
+            'TechBag',
+            used.sn || '-',
+            used.product_name,
+            used.model_name || '-',
+            quantity,
+            bagOwnerId,
+          ]
         );
 
-        // Build summary for the job's install_device field
-        const equipmentName = invItem.sn 
-          ? `${invItem.product_name} ${invItem.model_name} (SN: ${invItem.sn})` 
-          : `${invItem.product_name} ${invItem.model_name} จำนวน ${quantity} ชิ้น`;
+        const equipmentName = `${used.product_name} ${used.model_name} จำนวน ${quantity} ${used.unit || 'ชิ้น'}`;
         usedItemsSummary.push(equipmentName);
       }
   
@@ -1240,19 +1601,84 @@ router.post('/transfer', auth, async (req, res) => {
     const [[targetUser]] = await conn.query('SELECT team_id FROM users WHERE id = ?', [target_user_id]);
     const targetTeamId = targetUser ? targetUser.team_id : null;
 
-    if (tQty === iQty) {
-      // Transfer whole item
+    const [[prod]] = await conn.query(
+      `SELECT p.has_sn FROM inventory_models pm
+       JOIN inventory_products p ON p.id = pm.product_id
+       WHERE pm.id = ?`,
+      [item.model_id]
+    );
+    const isNoSn = prod && !Number(prod.has_sn);
+
+    // No-SN: merge into target's existing bag line for same model
+    let logItemId = item.id;
+    if (isNoSn && Number(target_user_id) !== Number(item.owner_id)) {
+      const [targetBags] = await conn.query(
+        `SELECT id, quantity FROM inventory_items
+         WHERE owner_id = ? AND model_id = ? AND status = 'dispatched'
+           AND id <> ?
+           AND (expires_at IS NULL OR expires_at > NOW())
+         ORDER BY id ASC
+         FOR UPDATE`,
+        [target_user_id, item.model_id, item.id]
+      );
+
+      if (targetBags.length > 0) {
+        const keepId = targetBags[0].id;
+        let dupExtra = 0;
+        for (let i = 1; i < targetBags.length; i++) {
+          dupExtra += parseFloat(targetBags[i].quantity) || 0;
+          await conn.query(
+            `UPDATE inventory_items
+             SET status = 'used', quantity = 0, owner_id = NULL, team_id = NULL
+             WHERE id = ?`,
+            [targetBags[i].id]
+          );
+        }
+        await conn.query(
+          `UPDATE inventory_items
+           SET quantity = quantity + ?, team_id = COALESCE(?, team_id), dispatched_at = NOW()
+           WHERE id = ?`,
+          [tQty + dupExtra, targetTeamId, keepId]
+        );
+        if (tQty === iQty) {
+          await conn.query(
+            `UPDATE inventory_items
+             SET status = 'used', quantity = 0, owner_id = NULL, team_id = NULL
+             WHERE id = ?`,
+            [item.id]
+          );
+        } else {
+          await conn.query(
+            `UPDATE inventory_items SET quantity = ? WHERE id = ?`,
+            [iQty - tQty, item.id]
+          );
+        }
+        logItemId = keepId;
+      } else if (tQty === iQty) {
+        await conn.query(
+          `UPDATE inventory_items SET owner_id = ?, team_id = ? WHERE id = ?`,
+          [target_user_id, targetTeamId, item.id]
+        );
+      } else {
+        const newQty = iQty - tQty;
+        await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
+        const newSn = `${item.sn}-SPLIT-${Date.now().toString().slice(-4)}`;
+        const [ins] = await conn.query(
+          `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at)
+           VALUES (?, ?, ?, 'dispatched', ?, ?, NOW(), ?)`,
+          [item.model_id, newSn, tQty, target_user_id, targetTeamId, item.expires_at]
+        );
+        logItemId = ins.insertId;
+      }
+    } else if (tQty === iQty) {
       await conn.query(
         `UPDATE inventory_items SET owner_id = ?, team_id = ? WHERE id = ?`,
         [target_user_id, targetTeamId, item.id]
       );
     } else {
-      // Split item
       const newQty = iQty - tQty;
       await conn.query(`UPDATE inventory_items SET quantity = ? WHERE id = ?`, [newQty, item.id]);
-
       const newSn = `${item.sn}-SPLIT-${Date.now().toString().slice(-4)}`;
-      
       await conn.query(
         `INSERT INTO inventory_items (model_id, sn, quantity, status, owner_id, team_id, dispatched_at, expires_at)
          VALUES (?, ?, ?, 'dispatched', ?, ?, NOW(), ?)`,
@@ -1263,7 +1689,7 @@ router.post('/transfer', auth, async (req, res) => {
     // Log the transfer (from = bag owner)
     await conn.query(
       'INSERT INTO inventory_logs (item_id, from_user_id, to_user_id, action, quantity) VALUES (?, ?, ?, "transfer", ?)',
-      [item.id, bagOwnerId, target_user_id, tQty]
+      [logItemId, bagOwnerId, target_user_id, tQty]
     );
 
     await conn.commit();

@@ -290,23 +290,57 @@ export default function InventoryReturnPage() {
   };
 
   const handleReturnAction = async (item) => {
+    let targetId = item.id;
+    let targetQty = item.quantity;
+    let holderLabel = item.owner_name || '-';
+
+    const holders = Array.isArray(item.holders) ? item.holders.filter((h) => Number(h.quantity) > 0) : [];
+    if (item.is_team_pooled && holders.length > 1) {
+      const inputOptions = Object.fromEntries(
+        holders.map((h) => [
+          String(h.item_id),
+          `${h.owner_name}: ${Number(h.quantity).toLocaleString()} ${item.unit || ''}`.trim(),
+        ])
+      );
+      const { value: holderId } = await Swal.fire({
+        title: 'เลือกผู้ถือของก่อนคืนคลัง',
+        text: `รวมทีม ${Number(item.quantity).toLocaleString()} ${item.unit || ''}`.trim(),
+        input: 'select',
+        inputOptions,
+        inputPlaceholder: '-- เลือกผู้ถือ --',
+        showCancelButton: true,
+        confirmButtonText: 'ถัดไป',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => (!value ? 'กรุณาเลือกผู้ถือ' : undefined),
+      });
+      if (!holderId) return;
+      const h = holders.find((x) => String(x.item_id) === String(holderId));
+      targetId = h.item_id;
+      targetQty = h.quantity;
+      holderLabel = h.owner_name;
+    } else if (holders.length === 1) {
+      targetId = holders[0].item_id;
+      targetQty = holders[0].quantity;
+      holderLabel = holders[0].owner_name;
+    }
+
     const { value: quantityStr } = await Swal.fire({
       title: 'ระบุจำนวนที่ต้องการคืนเข้าคลัง',
       html: `
         <div class="mb-2 text-left text-sm">
           <p><strong>ชื่อสินค้า:</strong> ${item.product_name}</p>
-          <p><strong>SN:</strong> ${item.sn}</p>
-          <p><strong>ผู้ถือสินค้า:</strong> ${item.owner_name || '-'}</p>
+          <p><strong>โมเดล:</strong> ${item.model_name || '-'}</p>
+          <p><strong>ผู้ถือสินค้า:</strong> ${holderLabel}</p>
           <hr class="my-2"/>
-          <p>จำนวนคงเหลือ: <span class="font-bold text-lg text-[#1F2937]">${item.quantity}</span> ${item.unit || ''}</p>
+          <p>จำนวนคงเหลือ: <span class="font-bold text-lg text-[#1F2937]">${targetQty}</span> ${item.unit || ''}</p>
         </div>
         <div class="text-sm text-red-500 font-bold bg-red-50 p-2 rounded-lg border border-red-100 mt-2">
           ⚠️ สินค้าจำนวนนี้จะนำกลับสู่สต๊อกทันที
         </div>
       `,
       input: 'number',
-      inputValue: Math.floor(item.quantity),
-      inputAttributes: { min: 1, max: Math.floor(item.quantity), step: 1 },
+      inputValue: Math.floor(targetQty),
+      inputAttributes: { min: 1, max: Math.floor(targetQty), step: 1 },
       showCancelButton: true,
       confirmButtonText: 'ยืนยันการคืน',
       cancelButtonText: 'ยกเลิก',
@@ -315,7 +349,7 @@ export default function InventoryReturnPage() {
         return new Promise((resolve) => {
           const num = parseInt(value, 10);
           if (!num || num <= 0) resolve('จำนวนต้องมากกว่า 0 และเป็นจำนวนเต็ม');
-          else if (num > parseFloat(item.quantity)) resolve('จำนวนเกินกว่าที่มีอยู่');
+          else if (num > parseFloat(targetQty)) resolve('จำนวนเกินกว่าที่มีอยู่');
           else resolve();
         });
       }
@@ -325,7 +359,7 @@ export default function InventoryReturnPage() {
       try {
         setLoading(true);
         await axios.post('/inventory/return', {
-          item_id: item.id,
+          item_id: targetId,
           return_quantity: parseInt(quantityStr, 10)
         });
         Swal.fire({ icon: 'success', title: 'คืนสินค้าสำเร็จ!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
@@ -524,12 +558,34 @@ export default function InventoryReturnPage() {
                           <p className="text-xs font-semibold text-[#6B7280]">{item.model_name}</p>
                         </div>
                       </div>
-                      <div className="bg-[#F9FAFB] p-2 rounded-lg mb-4 border border-[#E5E7EB]">
-                        <p className="text-xs font-semibold text-[#6B7280] mb-1">SN:</p>
-                        <p className="text-xs font-bold text-[#1F2937] break-all">{item.sn || '-'}</p>
-                      </div>
+                      {!item.has_sn && item.is_team_pooled && Array.isArray(item.holders) && item.holders.length > 0 ? (
+                        <div className="bg-sky-50 p-2 rounded-lg mb-4 border border-sky-100 space-y-1">
+                          <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wider">ผู้ถือในทีม</p>
+                          {item.holders.map((h) => (
+                            <div key={`${h.item_id}-${h.owner_id}`} className="flex justify-between text-xs gap-2">
+                              <span className="font-semibold text-[#374151] truncate">{h.owner_name}</span>
+                              <span className="font-bold text-[#042C53] shrink-0">
+                                {Number(h.quantity).toLocaleString()} {item.unit || ''}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-[#F9FAFB] p-2 rounded-lg mb-4 border border-[#E5E7EB]">
+                          <p className="text-xs font-semibold text-[#6B7280] mb-1">SN:</p>
+                          <p className="text-xs font-bold text-[#1F2937] break-all">{item.sn || '-'}</p>
+                          {item.owner_name && (
+                            <p className="text-[11px] text-teal-700 font-bold mt-1">ถือโดย {item.owner_name}</p>
+                          )}
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-[#1F2937]">{item.quantity} {item.unit}</span>
+                        <span className="text-sm font-black text-[#1F2937]">
+                          {Number(item.quantity).toLocaleString()} {item.unit}
+                          {item.is_team_pooled && item.holders?.length > 1 ? (
+                            <span className="ml-1 text-[10px] font-bold text-sky-600">รวมทีม</span>
+                          ) : null}
+                        </span>
                         <button
                           onClick={() => handleReturnAction(item)}
                           className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-[#374151] border border-amber-300/30 hover:border-amber-400 flex items-center gap-1.5 bg-amber-50"

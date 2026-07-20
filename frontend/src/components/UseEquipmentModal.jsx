@@ -181,8 +181,26 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
                           <div className="font-bold text-slate-800">{item.product_name}</div>
                           <div className="text-xs font-semibold text-slate-500 mt-0.5">
                             โมเดล: {item.model_name || '-'}
-                            {item.has_sn ? <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 border border-slate-200">SN: {item.serial_number}</span> : null}
+                            {item.has_sn ? (
+                              <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                                SN: {item.serial_number || item.sn}
+                              </span>
+                            ) : (
+                              <span className="ml-2 px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 border border-slate-200">
+                                คงเหลือ {Number(item.quantity).toLocaleString()} {item.unit || ''}
+                                {item.is_team_pooled && item.holders?.length > 1 ? ' (รวมทีม)' : ''}
+                              </span>
+                            )}
                           </div>
+                          {!item.has_sn && item.is_team_pooled && Array.isArray(item.holders) && item.holders.length > 1 && (
+                            <div className="mt-1.5 text-[11px] text-sky-700 font-semibold space-y-0.5">
+                              {item.holders.map((h) => (
+                                <div key={`${h.item_id}-${h.owner_id}`}>
+                                  {h.owner_name}: {Number(h.quantity).toLocaleString()} {item.unit || ''}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
