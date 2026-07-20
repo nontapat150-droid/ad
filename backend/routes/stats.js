@@ -112,7 +112,9 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 // ── GET /api/stats/super-admin-dashboard — Super Admin Homepage ──────
 router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (req, res) => {
   const now = Date.now();
-  if (cache.superAdmin.data && cache.superAdmin.expiry > now) {
+  // Skip short-lived cache when client asks for fresh numbers
+  const forceFresh = req.query.refresh === '1';
+  if (!forceFresh && cache.superAdmin.data && cache.superAdmin.expiry > now) {
     return res.json(cache.superAdmin.data);
   }
 
@@ -123,7 +125,29 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
     ] = await Promise.allSettled([
       pool.query(`SELECT COUNT(*) as cnt FROM users`),
       pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
-      pool.query(`SELECT COUNT(DISTINCT access_no) as cnt FROM jobs WHERE access_no LIKE 'NON%'`),
+      // NON customers live in ma_jobs / ma_customers — NOT jobs.access_no LIKE 'NON%'
+      (async () => {
+        try {
+          return await pool.query(`
+            SELECT COUNT(*) AS cnt FROM (
+              SELECT non_number FROM ma_jobs
+                WHERE non_number IS NOT NULL AND TRIM(non_number) <> ''
+              UNION
+              SELECT non_number FROM ma_customers
+                WHERE non_number IS NOT NULL AND TRIM(non_number) <> ''
+            ) non_all
+          `);
+        } catch {
+          try {
+            return await pool.query(`
+              SELECT COUNT(DISTINCT non_number) AS cnt FROM ma_jobs
+              WHERE non_number IS NOT NULL AND TRIM(non_number) <> ''
+            `);
+          } catch {
+            return [[{ cnt: 0 }]];
+          }
+        }
+      })(),
       pool.query(`SELECT COUNT(*) as cnt FROM oil_records WHERE date_recorded >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND date_recorded < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')`),
       pool.query(`SELECT COUNT(*) as cnt FROM entry_fees WHERE created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND created_at < DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01')`),
       // Feed: simplified with smaller limits per source

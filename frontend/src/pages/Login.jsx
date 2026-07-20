@@ -346,13 +346,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Forgot Password */}
-            <div className="flex items-center justify-end text-sm pt-0.5">
-              <a href="#" className="text-[#65a30d] font-semibold hover:text-[#1F2937] hover:underline transition-colors">
-                ลืมรหัสผ่าน?
-              </a>
-            </div>
-
             {/* Submit Button */}
             <button
               type="submit"
