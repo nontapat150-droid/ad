@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import { StatCard, ShortcutBtn, TechJobActionCard, AdminContactButton } from './SharedComponents';
 import { useBranding } from '../../context/BrandingContext';
 import { ACTIVE_JOB_STATUSES } from '../../constants/jobStatus';
+import { PostponeJobModal } from '../JobActionModals';
 
 export default function TechSection() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function TechSection() {
   const [jobs, setJobs] = useState([]);
   const [overdueJobs, setOverdueJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [rescheduleJob, setRescheduleJob] = useState(null);
 
   const todayISO = new Date().toLocaleDateString('en-CA');
 
@@ -128,7 +130,7 @@ export default function TechSection() {
           <p className="text-[11px] font-black text-[#4D7C0F] uppercase tracking-wide mb-3">
             {todayJobs.length ? 'งานถัดไปวันนี้' : 'งานถัดไป'}
           </p>
-          <TechJobActionCard job={nextJob} jobType="office" onOpen={openJob} />
+          <TechJobActionCard job={nextJob} jobType="office" onOpen={openJob} onReschedule={setRescheduleJob} />
         </div>
       )}
 
@@ -157,7 +159,7 @@ export default function TechSection() {
         ) : (
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-0.5">
             {jobs.slice(0, 8).map(job => (
-              <TechJobActionCard key={job.id} job={job} jobType="office" onOpen={openJob} />
+              <TechJobActionCard key={job.id} job={job} jobType="office" onOpen={openJob} onReschedule={setRescheduleJob} />
             ))}
           </div>
         )}
@@ -182,11 +184,22 @@ export default function TechSection() {
           </div>
           <div className="space-y-3 max-h-[360px] overflow-y-auto">
             {overdueJobs.slice(0, 6).map(job => (
-              <TechJobActionCard key={job.id} job={job} jobType="office" overdue onOpen={openJob} />
+              <TechJobActionCard key={job.id} job={job} jobType="office" overdue onOpen={openJob} onReschedule={setRescheduleJob} />
             ))}
           </div>
         </div>
       )}
+
+      <PostponeJobModal
+        job={rescheduleJob}
+        isOpen={Boolean(rescheduleJob)}
+        jobType="office"
+        onClose={() => setRescheduleJob(null)}
+        onSuccess={() => {
+          setRescheduleJob(null);
+          fetchData();
+        }}
+      />
     </div>
   );
 }

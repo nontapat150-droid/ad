@@ -144,7 +144,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
               <p className="text-xs text-[#6B7280] mt-0.5 line-clamp-2 leading-snug">{job.address}</p>
             )}
 
-            {/* Bottom row: team + date */}
+            {/* Bottom row: team / tech + date */}
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               {job.team_name && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#4F46E5] bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
@@ -152,10 +152,24 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
                   {job.team_name}
                 </span>
               )}
-              {!job.team_name && (
+              {/* ช่างรับผิดชอบรายคน (รับเหมา/ไม่มีทีม) หรือรายชื่อช่างในทีม */}
+              {(job.assignee_name || job.tech_names) && (
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100 max-w-full"
+                  title={job.assignee_name || job.tech_names}
+                >
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  <span className="truncate">
+                    {job.assignee_name
+                      ? job.assignee_name
+                      : String(job.tech_names).split(',').map((n) => n.trim()).filter(Boolean).join(', ')}
+                  </span>
+                </span>
+              )}
+              {!job.team_name && !job.assignee_name && !job.tech_names && (
                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${
                   isAdmin ? 'text-red-600 bg-red-50 border-red-200 font-bold' : 'text-[#9CA3AF] bg-[#F9FAFB] border-[#E5E7EB]'
-                }`}>{isAdmin ? '⚠️ ยังไม่ระบุทีม' : 'ยังไม่ระบุทีม'}</span>
+                }`}>{isAdmin ? '⚠️ ยังไม่มอบหมาย' : 'ยังไม่มอบหมาย'}</span>
               )}
               {job.plan_arrival_date && (
                 <span className="text-[11px] text-[#9CA3AF] font-medium flex items-center gap-1">
@@ -368,14 +382,24 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               </div>
               {/* Team name + tech list */}
               <div className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
-                <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">ทีมช่าง</p>
-                <p className="text-sm font-semibold text-[#1F2937]">{job.team_name || (isAdmin ? '⚠️ ยังไม่ระบุ' : '-')}</p>
-                {job.tech_names && (
+                <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">ทีม / ช่าง</p>
+                <p className="text-sm font-semibold text-[#1F2937]">
+                  {job.team_name
+                    || job.assignee_name
+                    || (isAdmin ? '⚠️ ยังไม่มอบหมาย' : '-')}
+                </p>
+                {job.assignee_name && job.team_name && (
+                  <p className="text-[11px] font-semibold text-teal-700 mt-1">👤 {job.assignee_name}</p>
+                )}
+                {!job.assignee_name && job.tech_names && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {job.tech_names.split(',').map((n, i) => (
                       <span key={i} className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md">{n.trim()}</span>
                     ))}
                   </div>
+                )}
+                {job.assignee_name && !job.team_name && (
+                  <p className="text-[10px] text-[#9CA3AF] mt-1">มอบหมายรายคน (ไม่มีทีม)</p>
                 )}
               </div>
               {[
@@ -484,12 +508,24 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
             )}
 
             {/* Tech names + admin bag deep-link */}
-            {(job.tech_names || (isAdmin && assigneeId)) && (
+            {(job.assignee_name || job.tech_names || (isAdmin && assigneeId)) && (
               <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1.5">👤 ช่างที่รับผิดชอบ</p>
-                {job.tech_names && (
+                {job.assignee_name && (
+                  <span className="inline-block text-xs font-semibold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-lg mb-1.5">{job.assignee_name}</span>
+                )}
+                {!job.assignee_name && job.tech_names && (
                   <div className="flex flex-wrap gap-1.5">
                     {job.tech_names.split(',').map((n, i) => <span key={i} className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg">{n.trim()}</span>)}
+                  </div>
+                )}
+                {job.assignee_name && job.tech_names && (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {job.tech_names.split(',').map((n, i) => {
+                      const name = n.trim();
+                      if (!name || name === job.assignee_name) return null;
+                      return <span key={i} className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg">{name}</span>;
+                    })}
                   </div>
                 )}
                 {isAdmin && assigneeId && (
@@ -520,7 +556,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                   <span className="text-lg">✕</span>ไม่จบ
                 </button>
                 <button onClick={() => { onClose(); onPostpone(job); }} className="py-3 bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white rounded-xl text-sm font-bold transition-colors flex flex-col items-center gap-0.5">
-                  <span className="text-lg">📅</span>เลื่อน
+                  <span className="text-lg">📅</span>นัดเวลาอีกครั้ง
                 </button>
               </div>
             )}
@@ -538,7 +574,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 </>}
                 {status === 'failed' && <>
                   <button onClick={() => { onClose(); onIncomplete(job); }} className="py-2.5 px-3 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold transition-colors">✕ ไม่จบ</button>
-                  <button onClick={() => { onClose(); onPostpone(job); }} className="py-2.5 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-colors">📅 เลื่อน</button>
+                  <button onClick={() => { onClose(); onPostpone(job); }} className="py-2.5 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-colors">📅 นัดเวลาอีกครั้ง</button>
                   <button onClick={() => { onChangeTeam(job); }} className="py-2.5 px-3 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-200">🔄 ทีม</button>
                 </>}
                 {(status === 'pending' || status === 'overdue') && (
@@ -597,9 +633,12 @@ export default function DispatchDashboardPage() {
   const [selectedJob, setSelectedJob] = useState(null); // for EditJobModal
 
   const [mainTab, setMainTab] = useState(initialMainTab);
-  const validQueues = ['all', 'unassigned', 'incomplete_data', 'assigned', 'completed', 'failed', 'postponed', 'postponed_unassigned', 'overdue', 'map'];
+  const validQueues = ['all', 'unassigned', 'incomplete_data', 'assigned', 'completed', 'failed', 'postponed', 'tech_reschedule', 'postponed_unassigned', 'overdue', 'map'];
   const initialQueue = searchParams.get('queue');
-  const [subTab, setSubTab] = useState(validQueues.includes(initialQueue) ? initialQueue : 'all');
+  const normalizeQueue = (q) => (q === 'tech_reschedule' || q === 'postponed' ? 'tech_reschedule' : q);
+  const [subTab, setSubTab] = useState(
+    validQueues.includes(initialQueue) ? normalizeQueue(initialQueue) : 'all'
+  );
   const [filterDate, setFilterDate] = useState(() => searchParams.get('date') || '');
   const [filterTeamId, setFilterTeamId] = useState('');
   const [filterUserId, setFilterUserId] = useState('');
@@ -649,7 +688,7 @@ export default function DispatchDashboardPage() {
     const tab = searchParams.get('tab');
     if (tab && ['office', 'ma'].includes(tab)) setMainTab(tab);
     const queue = searchParams.get('queue');
-    if (queue && validQueues.includes(queue)) setSubTab(queue);
+    if (queue && validQueues.includes(queue)) setSubTab(normalizeQueue(queue));
     if (searchParams.has('date')) setFilterDate(searchParams.get('date') || '');
   }, [location.search]);
   useEffect(() => { fetchJobs(); setSelectedJobIds([]); }, [mainTab, filterDate, filterTeamId, filterUserId, searchQuery]);
@@ -705,8 +744,9 @@ export default function DispatchDashboardPage() {
       case 'postponed_unassigned': return jobs.filter(j => trulyPostponed(j) && !j.team_id && !j.field_engineer_id && !j.assigned_user_id);
       case 'completed': return jobs.filter(j => j.status === 'completed');
       case 'failed':    return jobs.filter(j => j.status === 'failed');
-      // postponed tab: แสดงเฉพาะงานที่ยังยังอยู่ในสถานะเลื่อน (ยังไม่ถึงวันนัด)
-      case 'postponed': return jobs.filter(j => trulyPostponed(j));
+      // ช่างนัดเวลาอีกครั้ง / postponed: ยังไม่ถึงวันนัดใหม่
+      case 'postponed':
+      case 'tech_reschedule': return jobs.filter(j => trulyPostponed(j));
       // overdue: งานที่เลยกำหนด (รวม re-activated postponed)
       case 'overdue':   return jobs.filter(j => isOverdue(j));
       case 'map':       return jobs;
@@ -735,6 +775,7 @@ export default function DispatchDashboardPage() {
       completed: jobs.filter(j => j.status === 'completed').length,
       failed:    jobs.filter(j => j.status === 'failed').length,
       postponed: jobs.filter(j => trulyPostponed(j)).length,
+      tech_reschedule: jobs.filter(j => trulyPostponed(j)).length,
       overdue:   jobs.filter(j => isOverdue(j)).length,
       withMap:   jobs.filter(j => j.lat && j.lng).length,
     };
@@ -792,8 +833,8 @@ export default function DispatchDashboardPage() {
     { key:'incomplete_data', label:'ข้อมูลไม่ครบ', value: stats.incomplete_data, icon:'📝', activeClass:'bg-amber-600 text-white' },
     { key:'completed', label:'สำเร็จ', value: stats.completed, icon:'✅', activeClass:'bg-emerald-600 text-white' },
     { key:'failed', label:'ไม่สำเร็จ', value: stats.failed, icon:'❌', activeClass:'bg-red-600 text-white' },
-    { key:'postponed', label:'เลื่อน', value: stats.postponed, icon:'📅', activeClass:'bg-purple-600 text-white' },
     { key:'postponed_unassigned', label:'เลื่อนรอมอบหมาย', value: stats.postponed_unassigned, icon:'📆', activeClass:'bg-fuchsia-700 text-white' },
+    { key:'tech_reschedule', label:'ช่างนัดเวลาอีกครั้ง', value: stats.tech_reschedule, icon:'📅', activeClass:'bg-purple-600 text-white' },
     { key:'overdue', label:'เลยกำหนด', value: stats.overdue, icon:'⏰', activeClass:'bg-orange-600 text-white' },
     { key:'map', label:'แผนที่', value: stats.withMap, icon:'🗺️', activeClass:'bg-teal-600 text-white' },
   ];

@@ -177,14 +177,14 @@ export default function AdminSection() {
                 onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'incomplete_data' }))}
               />
               <StatCard
-                title="เลื่อนรอมอบหมาย"
+                title="ช่างนัดเวลาอีกครั้ง"
                 value={postponedUn}
                 suffix="งาน"
                 gradient="from-fuchsia-500 to-purple-600"
-                icon="📆"
+                icon="📅"
                 shadow="shadow-fuchsia-500/20"
                 urgent={postponedUn > 0}
-                onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'postponed_unassigned' }))}
+                onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'tech_reschedule' }))}
               />
               <div className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-4 flex flex-col justify-center gap-2">
                 <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide">แยกตามประเภท</p>
@@ -264,6 +264,9 @@ export default function AdminSection() {
               <ShortcutBtn icon="📝" label="ข้อมูลไม่ครบ" sublabel="แก้ก่อนจ่ายงาน"
                 onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'incomplete_data' }))}
                 gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
+              <ShortcutBtn icon="📅" label="ช่างนัดเวลาอีกครั้ง" sublabel="งานที่ช่างเลื่อนนัดใหม่"
+                onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'tech_reschedule' }))}
+                gradient="from-purple-500 to-violet-600" shadow="shadow-purple-500/25" />
               <ShortcutBtn icon="📆" label="เลื่อนรอมอบหมาย" sublabel="นัดใหม่ยังไม่มีทีม"
                 onClick={() => navigate(dispatchPath({ tab: 'office', queue: 'postponed_unassigned' }))}
                 gradient="from-fuchsia-500 to-purple-600" shadow="shadow-fuchsia-500/25" />

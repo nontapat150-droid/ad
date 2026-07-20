@@ -204,12 +204,13 @@ export function AdminContactButton({ phone, lineId, compact = false, className =
   );
 }
 
-/** Mobile-first job card with large Call / Map / Open actions */
+/** Mobile-first job card with large Call / Map / Open / Reschedule actions */
 export function TechJobActionCard({
   job,
   jobType = 'office',
   overdue = false,
   onOpen,
+  onReschedule,
 }) {
   const code = jobType === 'ma'
     ? (job.display_non || job.non_number || job.access_no || '-')
@@ -220,6 +221,7 @@ export function TechJobActionCard({
     : null;
   const canCall = Boolean(job.phone);
   const statusKey = overdue ? 'overdue' : (job.status || 'pending');
+  const canReschedule = typeof onReschedule === 'function' && !['completed', 'failed'].includes(job.status);
 
   return (
     <div className={`rounded-2xl border p-4 ${
@@ -253,7 +255,7 @@ export function TechJobActionCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${canReschedule ? 'grid-cols-2' : 'grid-cols-3'}`}>
         <button
           type="button"
           disabled={!canCall}
@@ -280,6 +282,16 @@ export function TechJobActionCard({
           <span className="text-base">▶️</span>
           เปิดงาน
         </button>
+        {canReschedule && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onReschedule(job); }}
+            className="min-h-[48px] rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border transition-all active:scale-[0.97] bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+          >
+            <span className="text-base">📅</span>
+            นัดเวลาอีกครั้ง
+          </button>
+        )}
       </div>
     </div>
   );

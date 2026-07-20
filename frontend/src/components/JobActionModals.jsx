@@ -312,13 +312,13 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess, jobType }) {
       <div className="absolute inset-0 bg-[#042C53]/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md glass border border-white/50 rounded-3xl shadow-2xl p-6 flex flex-col">
         <h2 className="text-purple-800 font-bold text-lg mb-4 flex items-center gap-2">
-          <span className="text-2xl">📅</span> เลื่อนนัด: {job.access_no || job.non_number || job.display_non}
+          <span className="text-2xl">📅</span> ช่างนัดเวลาอีกครั้ง: {job.access_no || job.non_number || job.display_non}
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex gap-3">
             <div className="flex-1">
               <AppDateField
-                label="วันที่ต้องการเลื่อนนัด"
+                label="วันนัดใหม่"
                 value={newDate}
                 onChange={setNewDate}
                 allowClear={false}
@@ -326,7 +326,7 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess, jobType }) {
             </div>
             <div className="flex-1">
               <AppTimeField
-                label="เวลา (ไม่บังคับ)"
+                label="เวลานัดใหม่"
                 value={newTime}
                 onChange={setNewTime}
               />
@@ -348,7 +348,7 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess, jobType }) {
               ยกเลิก
             </button>
             <button type="submit" disabled={loading} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-all flex justify-center items-center">
-              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'บันทึก'}
+              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'บันทึกนัดใหม่'}
             </button>
           </div>
         </form>

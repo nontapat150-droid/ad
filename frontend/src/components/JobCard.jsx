@@ -173,8 +173,8 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
                 {onPostpone && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onPostpone(job); }}
-                    className="flex-1 h-10 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 border border-amber-500/20 flex items-center justify-center gap-1 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 transition-all active:scale-[0.98]" title="เลื่อนงาน">
-                    📅 เลื่อน
+                    className="flex-1 h-10 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 border border-amber-500/20 flex items-center justify-center gap-1 text-xs font-bold text-white shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 transition-all active:scale-[0.98]" title="ช่างนัดเวลาอีกครั้ง">
+                    📅 นัดเวลาอีกครั้ง
                   </button>
                 )}
               </div>

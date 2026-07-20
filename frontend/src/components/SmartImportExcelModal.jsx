@@ -1348,25 +1348,43 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
     ];
 
     const dupCount = preflight?.duplicates?.length || 0;
+    const updateCount = preflight?.updateReady || 0;
+    const unchangedCount = preflight?.unchanged?.length || 0;
+    const insertCount = preflight ? (preflight.ready || 0) : validRows.length;
+    const actionableCount = insertCount + updateCount;
+    const keyLabel = jobType === 'ma' ? 'NON' : 'Access No';
 
     return (
       <div>
         <h3 className="text-base font-bold text-[#1F2937] mb-1">ตรวจสอบข้อมูลก่อนนำเข้า</h3>
+        <p className="text-[11px] text-[#6B7280] mb-3">
+          ถ้า{keyLabel}ตรงกับงานเดิม ระบบจะอัปเดตเฉพาะช่องที่มีการเปลี่ยนแปลง (ช่องว่างในไฟล์ไม่ทับข้อมูลเดิม) — ไม่เปลี่ยนจะข้าม
+        </p>
 
         {/* Summary badges */}
         <div className="flex gap-2 flex-wrap mb-4">
           <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
-            ✅ นำเข้าได้: {preflight ? preflight.ready : validRows.length} รายการ
+            ✅ งานใหม่: {insertCount} รายการ
           </span>
+          {updateCount > 0 && (
+            <span className="px-3 py-1 bg-sky-100 text-sky-700 text-xs font-bold rounded-full border border-sky-200">
+              ✏️ จะอัปเดต: {updateCount} รายการ
+            </span>
+          )}
+          {unchangedCount > 0 && (
+            <span className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full border border-slate-200">
+              ⏭️ ไม่เปลี่ยน (ข้าม): {unchangedCount} รายการ
+            </span>
+          )}
           {invalidRows.length > 0 && (
             <span className="px-3 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full border border-red-200">
-              ⚠️ ไม่มี{jobType === 'ma' ? 'เลข NON' : 'Access No'}: {invalidRows.length} รายการ
+              ⚠️ ไม่มี{keyLabel}: {invalidRows.length} รายการ
               {' '}(แถว Excel: {invalidRows.slice(0, 8).map(r => r._row_no).filter(Boolean).join(', ')}{invalidRows.length > 8 ? ', ...' : ''})
             </span>
           )}
           {dupCount > 0 && (
             <span className="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full border border-purple-200">
-              🔁 ซ้ำ (จะข้าม): {dupCount} รายการ
+              🔁 ข้าม (ซ้ำในไฟล์/ปิดงานแล้ว): {dupCount} รายการ
             </span>
           )}
           {unmatchedItems.length > 0 && (
@@ -1376,10 +1394,27 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           )}
         </div>
 
+        {updateCount > 0 && (
+          <div className="mb-3 p-3 bg-sky-50 rounded-xl border border-sky-200">
+            <p className="text-xs font-bold text-sky-800 mb-1.5">✏️ จะอัปเดตงานเดิม ({keyLabel} ตรงกัน):</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(preflight.updateJobs || []).slice(0, 12).map((d, i) => (
+                <span key={i} className="px-2 py-0.5 bg-white text-sky-700 text-[10px] font-semibold rounded-lg border border-sky-200">
+                  {d.access_no || d.non_number}
+                  {d.changed?.length ? <span className="text-sky-400"> ({d.changed.slice(0, 3).join(', ')}{d.changed.length > 3 ? '…' : ''})</span> : null}
+                </span>
+              ))}
+              {updateCount > 12 && (
+                <span className="text-[10px] text-sky-500 font-semibold">... อีก {updateCount - 12} รายการ</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Duplicate detail from preflight */}
         {dupCount > 0 && (
           <div className="mb-3 p-3 bg-purple-50 rounded-xl border border-purple-200">
-            <p className="text-xs font-bold text-purple-800 mb-1.5">🔁 รายการซ้ำในระบบ/ในไฟล์ (ระบบจะข้ามให้อัตโนมัติ):</p>
+            <p className="text-xs font-bold text-purple-800 mb-1.5">🔁 รายการที่จะข้าม (ซ้ำในไฟล์ หรืองานปิดแล้ว):</p>
             <div className="flex flex-wrap gap-1.5">
               {preflight.duplicates.slice(0, 12).map((d, i) => (
                 <span key={i} className="px-2 py-0.5 bg-white text-purple-700 text-[10px] font-semibold rounded-lg border border-purple-200">
@@ -1501,14 +1536,20 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
         </div>
 
         {importResult && (
-          <div className={`p-3 rounded-xl text-sm font-semibold mb-3 ${importResult.success > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            {importResult.success > 0
-              ? `✅ นำเข้าสำเร็จ ${importResult.success} รายการ${importResult.skipped > 0 ? `, ข้าม ${importResult.skipped} รายการ` : ''}`
+          <div className={`p-3 rounded-xl text-sm font-semibold mb-3 ${(importResult.success > 0 || importResult.updated > 0) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {(importResult.success > 0 || importResult.updated > 0)
+              ? `✅ งานใหม่ ${importResult.success || 0} · อัปเดต ${importResult.updated || 0}${importResult.skipped > 0 ? ` · ข้าม ${importResult.skipped}` : ''}`
               : `❌ ไม่สามารถนำเข้าได้: ${importResult.error || 'เกิดข้อผิดพลาด'}`
             }
+            {importResult.unchanged?.length > 0 && (
+              <p className="text-[11px] font-medium mt-1 text-slate-600">
+                ⏭️ ไม่เปลี่ยนแปลง: {importResult.unchanged.slice(0, 8).map(d => d.access_no || d.non_number).join(', ')}
+                {importResult.unchanged.length > 8 ? ` ... อีก ${importResult.unchanged.length - 8}` : ''}
+              </p>
+            )}
             {importResult.duplicates?.length > 0 && (
               <p className="text-[11px] font-medium mt-1 text-emerald-600">
-                🔁 ซ้ำ: {importResult.duplicates.slice(0, 8).map(d => d.access_no || d.non_number).join(', ')}
+                🔁 ข้าม: {importResult.duplicates.slice(0, 8).map(d => d.access_no || d.non_number).join(', ')}
                 {importResult.duplicates.length > 8 ? ` ... อีก ${importResult.duplicates.length - 8} รายการ` : ''}
               </p>
             )}
@@ -1525,12 +1566,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           <button onClick={() => setStep(3)} disabled={loading} className="px-4 py-2.5 rounded-xl border border-[#E5E7EB] text-[#6B7280] font-semibold hover:bg-[#F3F4F6] disabled:opacity-50">← แก้ไขจับคู่</button>
           <button
             onClick={handleImport}
-            disabled={loading || validRows.length === 0 || (preflight && preflight.ready === 0)}
+            disabled={loading || validRows.length === 0 || (preflight && actionableCount === 0)}
             className="px-6 py-2.5 rounded-xl font-bold text-[#1F2937] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
             style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: '0 2px 8px rgba(163,230,53,0.3)' }}
           >
             {loading ? <span className="w-4 h-4 border-2 border-[#1F2937]/30 border-t-[#1F2937] rounded-full animate-spin" /> : '📥'}
-            นำเข้า {preflight ? preflight.ready : validRows.length} รายการ
+            {preflight
+              ? (updateCount > 0 ? `นำเข้า/อัปเดต ${actionableCount} รายการ` : `นำเข้า ${insertCount} รายการ`)
+              : `นำเข้า ${validRows.length} รายการ`}
           </button>
         </div>
       </div>
@@ -1550,13 +1593,16 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       const endpoint = jobType === 'ma' ? '/dispatch/ma-jobs/bulk' : '/dispatch/jobs/bulk';
       const res = await axios.post(endpoint, { jobs: cleanRows });
 
-      const successCount = res.data.successCount || res.data.count || validRows.length;
+      const successCount = res.data.successCount ?? 0;
+      const updatedCount = res.data.updatedCount ?? 0;
       const skippedCount = res.data.skippedCount || 0;
 
       setImportResult({
         success: successCount,
+        updated: updatedCount,
         skipped: skippedCount,
         duplicates: res.data.duplicates || [],
+        unchanged: res.data.unchanged || [],
         errors: res.data.errors || [],
       });
       onSuccess();

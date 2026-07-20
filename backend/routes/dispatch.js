@@ -575,13 +575,20 @@ router.get('/jobs', auth, async (req, res) => {
          'ma' AS job_type`
       : `j.*, 'office' AS job_type`;
 
+    const assigneeJoinCol = type === 'ma' ? 'j.assigned_user_id' : 'j.field_engineer_id';
+
     const [rows] = await pool.query(
       `SELECT ${selectCols}, j.id AS id, t.team_name,
               u.full_name AS completed_by_name,
-              (SELECT GROUP_CONCAT(full_name SEPARATOR ', ') FROM users WHERE team_id = j.team_id) AS tech_names
+              assignee.full_name AS assignee_name,
+              (SELECT GROUP_CONCAT(m.full_name SEPARATOR ', ')
+                 FROM users m
+                WHERE m.team_id = j.team_id AND m.status = 'approved'
+              ) AS tech_names
        FROM ${table} j
        LEFT JOIN teams t ON t.id = j.team_id
        LEFT JOIN users u ON u.id = j.completed_by
+       LEFT JOIN users assignee ON assignee.id = ${assigneeJoinCol}
        ${whereClause}
        ORDER BY j.plan_arrival_date ASC, j.seq ASC, j.id ASC`,
       params
@@ -1651,8 +1658,71 @@ router.post('/import-aliases', auth, requireRole(ADMIN_ROLES), async (req, res) 
   }
 });
 
-// ── POST /api/dispatch/jobs/bulk — Admin imports multiple jobs from Excel ────
-// Supports ?preflight=1 → validate + detect duplicates only, no insert.
+// ── Bulk import helpers (re-upload upsert) ───────────────────────────────────
+function toDateKey(d) {
+  if (!d) return '';
+  if (d instanceof Date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  return String(d).slice(0, 10);
+}
+
+function isBlankImportVal(v) {
+  return v == null || String(v).trim() === '';
+}
+
+function normalizeImportTime(v) {
+  if (isBlankImportVal(v)) return null;
+  const s = String(v).trim();
+  const m = s.match(/(\d{1,2}):(\d{2})/);
+  if (m) return `${String(m[1]).padStart(2, '0')}:${m[2]}`;
+  return s.slice(0, 5);
+}
+
+function valuesEqualImport(a, b) {
+  const na = isBlankImportVal(a) ? '' : String(a).trim();
+  const nb = isBlankImportVal(b) ? '' : String(b).trim();
+  return na === nb;
+}
+
+/** Empty Excel cells never overwrite; only changed non-empty values are applied. */
+function buildImportFieldUpdates(existing, fieldMap) {
+  const sets = [];
+  const params = [];
+  const changed = [];
+  for (const [col, raw] of Object.entries(fieldMap)) {
+    if (isBlankImportVal(raw)) continue;
+    let next = typeof raw === 'string' ? raw.trim() : raw;
+    const prev = existing[col];
+    if (col === 'plan_arrival_date') {
+      if (toDateKey(prev) === toDateKey(next)) continue;
+      next = toDateKey(next) || next;
+    } else if (col === 'plan_arrival_time' || col === 'job_time') {
+      const nt = normalizeImportTime(next);
+      const pt = normalizeImportTime(prev);
+      if (!nt || nt === pt) continue;
+      next = col === 'job_time' ? nt : (nt.length === 5 ? `${nt}:00` : nt);
+    } else if (col === 'team_id' || col === 'assigned_user_id' || col === 'field_engineer_id') {
+      const nId = Number(next);
+      const pId = prev == null || prev === '' ? null : Number(prev);
+      if (!Number.isFinite(nId) || nId === pId) continue;
+      next = nId;
+    } else if (valuesEqualImport(prev, next)) {
+      continue;
+    }
+    sets.push(`${col} = ?`);
+    params.push(next);
+    changed.push(col);
+  }
+  return { sets, params, changed };
+}
+
+const OFFICE_IMPORT_CLOSED = new Set(['completed', 'failed', 'cancelled']);
+const MA_IMPORT_CLOSED = new Set(['completed', 'failed']);
+
+// ── POST /api/dispatch/jobs/bulk — Admin imports office jobs from Excel ────
+// Supports ?preflight=1. Re-upload same Access No → update changed fields; skip if unchanged.
 router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
   const preflight = String(req.query.preflight || '') === '1';
@@ -1660,9 +1730,10 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     return res.status(400).json({ error: 'No jobs data provided' });
   }
 
-  // Pass 1: validation + duplicate detection (in-file and in-DB)
-  const errors = [];     // { row, access_no, error }
-  const duplicates = []; // { row, access_no, reason }
+  const errors = [];
+  const duplicates = [];
+  const unchanged = [];
+  const updatesPreview = [];
   const seenInFile = new Set();
   let candidates = [];
   jobs.forEach((job, i) => {
@@ -1679,20 +1750,80 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     candidates.push({ row: i + 1, accessNo, job });
   });
 
+  let toInsert = [];
+  let toUpdate = [];
+
   try {
     if (candidates.length > 0) {
-      const [existing] = await pool.query(
-        'SELECT access_no FROM jobs WHERE access_no IN (?)',
+      const [existingRows] = await pool.query(
+        `SELECT id, access_no, status, customer, phone, package, address, lat, lng,
+                plan_arrival_date, plan_arrival_time, product, remark,
+                order_no, customer_order_no, province, area_code, area_name,
+                task_type, task_order, product_owner, order_type, service_note,
+                sla_status, region, map_link, team_id, field_engineer_id
+         FROM jobs WHERE access_no IN (?)`,
         [candidates.map((c) => c.accessNo)]
       );
-      const existingSet = new Set(existing.map((r) => String(r.access_no)));
-      candidates = candidates.filter((c) => {
-        if (existingSet.has(c.accessNo)) {
-          duplicates.push({ row: c.row, access_no: c.accessNo, reason: 'มีอยู่ในระบบแล้ว' });
-          return false;
+      const byAccess = new Map(existingRows.map((r) => [String(r.access_no), r]));
+
+      for (const c of candidates) {
+        const ex = byAccess.get(c.accessNo);
+        if (!ex) {
+          toInsert.push(c);
+          continue;
         }
-        return true;
-      });
+        if (OFFICE_IMPORT_CLOSED.has(String(ex.status || '').toLowerCase())) {
+          duplicates.push({
+            row: c.row,
+            access_no: c.accessNo,
+            reason: `งานสถานะ ${ex.status} แล้ว — ไม่แก้ด้วยการนำเข้า`,
+          });
+          continue;
+        }
+        const j = c.job;
+        let formatted_time = j.plan_arrival_time || null;
+        if (formatted_time && !String(formatted_time).includes('-') && j.plan_arrival_date) {
+          formatted_time = `${j.plan_arrival_date} ${String(formatted_time).slice(0, 5)}:00`;
+        }
+        const fieldMap = {
+          customer: j.customer,
+          phone: j.phone,
+          package: j.package,
+          address: j.address,
+          lat: j.lat,
+          lng: j.lng,
+          plan_arrival_date: j.plan_arrival_date,
+          plan_arrival_time: formatted_time,
+          product: j.product,
+          remark: j.remark,
+          order_no: j.order_no,
+          customer_order_no: j.customer_order_no,
+          province: j.province,
+          area_code: j.area_code,
+          area_name: j.area_name,
+          task_type: j.task_type,
+          task_order: j.task_order,
+          product_owner: j.product_owner,
+          order_type: j.order_type,
+          service_note: j.service_note,
+          sla_status: j.sla_status,
+          region: j.region,
+          map_link: j.map_link,
+          team_id: j.team_id,
+          field_engineer_id: j.field_engineer_id,
+        };
+        const built = buildImportFieldUpdates(ex, fieldMap);
+        if (built.changed.length === 0) {
+          unchanged.push({
+            row: c.row,
+            access_no: c.accessNo,
+            reason: 'Access No ตรงกันและข้อมูลไม่เปลี่ยนแปลง — ข้าม',
+          });
+          continue;
+        }
+        toUpdate.push({ ...c, jobId: ex.id, sets: built.sets, params: built.params, changed: built.changed });
+        updatesPreview.push({ row: c.row, access_no: c.accessNo, job_id: ex.id, changed: built.changed });
+      }
     }
   } catch (err) {
     console.error('Bulk duplicate check error:', err);
@@ -1700,16 +1831,24 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 
   if (preflight) {
-    return res.json({ ready: candidates.length, errors, duplicates, total: jobs.length });
+    return res.json({
+      ready: toInsert.length,
+      updateReady: toUpdate.length,
+      errors,
+      duplicates,
+      unchanged,
+      updateJobs: updatesPreview,
+      total: jobs.length,
+    });
   }
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
     let successCount = 0;
+    let updatedCount = 0;
 
-    for (const { row, accessNo, job } of candidates) {
+    for (const { row, accessNo, job } of toInsert) {
       const {
         customer, phone, package: pkg, address, lat, lng,
         plan_arrival_date, plan_arrival_time, product, remark,
@@ -1758,14 +1897,31 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       }
     }
 
+    for (const u of toUpdate) {
+      try {
+        await conn.query(
+          `UPDATE jobs SET ${u.sets.join(', ')} WHERE id = ?`,
+          [...u.params, u.jobId]
+        );
+        updatedCount++;
+        await safeSyncCustomer(conn, u.jobId);
+      } catch (err) {
+        console.error('Bulk update error for access_no:', u.accessNo, err);
+        errors.push({ row: u.row, access_no: u.accessNo, error: err.message });
+      }
+    }
+
     await conn.commit();
     res.json({
       message: 'Bulk import complete',
       successCount,
-      skippedCount: errors.length + duplicates.length,
+      updatedCount,
+      skippedCount: errors.length + duplicates.length + unchanged.length,
       total: jobs.length,
       errors,
       duplicates,
+      unchanged,
+      updateJobs: updatesPreview,
     });
   } catch (err) {
     await conn.rollback();
@@ -1777,16 +1933,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 // ── POST /api/dispatch/ma-jobs/bulk — Admin imports MA jobs from Excel ────
-// Supports ?preflight=1 → validate + detect duplicates only, no insert.
-function toDateKey(d) {
-  if (!d) return '';
-  if (d instanceof Date) {
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  }
-  return String(d).slice(0, 10);
-}
-
+// Supports ?preflight=1. Re-upload same NON + appointment date → update; skip if unchanged.
 router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
   const preflight = String(req.query.preflight || '') === '1';
@@ -1794,9 +1941,10 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
     return res.status(400).json({ error: 'No jobs data provided' });
   }
 
-  // Pass 1: validation + duplicate detection (same NON + same appointment date)
-  const errors = [];     // { row, non_number, error }
-  const duplicates = []; // { row, non_number, reason }
+  const errors = [];
+  const duplicates = [];
+  const unchanged = [];
+  const updatesPreview = [];
   const seenInFile = new Set();
   let candidates = [];
   jobs.forEach((job, i) => {
@@ -1814,33 +1962,94 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
     candidates.push({ row: i + 1, nonNumber, dupKey, job });
   });
 
+  let toInsert = [];
+  let toUpdate = [];
+
   try {
     if (candidates.length > 0) {
-      const [existing] = await pool.query(
-        'SELECT non_number, plan_arrival_date FROM ma_jobs WHERE non_number IN (?)',
+      await ensureMaJobSchema(pool);
+      const [existingRows] = await pool.query(
+        `SELECT id, non_number, plan_arrival_date, job_time, access_no, customer, phone,
+                symptoms, address, area_name, remark, team_id, assigned_user_id, status
+         FROM ma_jobs WHERE non_number IN (?)`,
         [candidates.map((c) => c.nonNumber)]
       );
-      const existingSet = new Set(
-        existing.map((r) => `${String(r.non_number).trim()}|${toDateKey(r.plan_arrival_date)}`)
+      const existingByKey = new Map(
+        existingRows.map((r) => [`${String(r.non_number).trim()}|${toDateKey(r.plan_arrival_date)}`, r])
       );
-      candidates = candidates.filter((c) => {
-        if (existingSet.has(c.dupKey)) {
-          duplicates.push({ row: c.row, non_number: c.nonNumber, reason: 'มีอยู่ในระบบแล้ว (NON + วันที่ซ้ำ)' });
-          return false;
+
+      for (const c of candidates) {
+        const ex = existingByKey.get(c.dupKey);
+        if (!ex) {
+          toInsert.push(c);
+          continue;
         }
-        return true;
-      });
+        if (MA_IMPORT_CLOSED.has(String(ex.status || '').toLowerCase())) {
+          duplicates.push({
+            row: c.row,
+            non_number: c.nonNumber,
+            reason: `งาน MA สถานะ ${ex.status} แล้ว — ไม่แก้ด้วยการนำเข้า`,
+          });
+          continue;
+        }
+        const j = c.job;
+        const timeVal = (j.job_time || j.plan_arrival_time || '').toString().trim() || null;
+        const assigneeId = j.assigned_user_id || j.field_engineer_id || null;
+        const fieldMap = {
+          customer: j.customer,
+          phone: j.phone,
+          access_no: j.access_no || c.nonNumber,
+          plan_arrival_date: j.plan_arrival_date,
+          job_time: timeVal,
+          symptoms: j.symptoms,
+          address: j.address,
+          area_name: j.area_name,
+          remark: j.remark,
+          team_id: j.team_id,
+          assigned_user_id: assigneeId,
+        };
+        const built = buildImportFieldUpdates(ex, fieldMap);
+        if (built.changed.length === 0) {
+          unchanged.push({
+            row: c.row,
+            non_number: c.nonNumber,
+            reason: 'NON ตรงกันและข้อมูลไม่เปลี่ยนแปลง — ข้าม',
+          });
+          continue;
+        }
+        // Keep team_match_status in sync when assignment columns change
+        if (built.changed.includes('team_id') || built.changed.includes('assigned_user_id')) {
+          const nextTeam = built.changed.includes('team_id')
+            ? built.params[built.changed.indexOf('team_id')]
+            : ex.team_id;
+          const nextAssignee = built.changed.includes('assigned_user_id')
+            ? built.params[built.changed.indexOf('assigned_user_id')]
+            : ex.assigned_user_id;
+          built.sets.push('team_match_status = ?');
+          built.params.push((nextTeam || nextAssignee) ? 'matched' : 'unmatched');
+        }
+        toUpdate.push({ ...c, jobId: ex.id, sets: built.sets, params: built.params, changed: built.changed });
+        updatesPreview.push({ row: c.row, non_number: c.nonNumber, job_id: ex.id, changed: built.changed });
+      }
     }
   } catch (err) {
-    // ma_jobs may not exist yet — treat as no duplicates
     if (!String(err.message || '').includes("doesn't exist")) {
       console.error('MA bulk duplicate check error:', err);
       return res.status(500).json({ error: 'Server error: ' + err.message });
     }
+    toInsert = candidates;
   }
 
   if (preflight) {
-    return res.json({ ready: candidates.length, errors, duplicates, total: jobs.length });
+    return res.json({
+      ready: toInsert.length,
+      updateReady: toUpdate.length,
+      errors,
+      duplicates,
+      unchanged,
+      updateJobs: updatesPreview,
+      total: jobs.length,
+    });
   }
 
   const conn = await pool.getConnection();
@@ -1849,8 +2058,9 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
     await ensureMaJobSchema(conn);
 
     let successCount = 0;
+    let updatedCount = 0;
 
-    for (const { row, nonNumber, job } of candidates) {
+    for (const { row, nonNumber, job } of toInsert) {
       const {
         job_time, plan_arrival_time, plan_arrival_date,
         customer, phone, symptoms, address,
@@ -1897,15 +2107,32 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
       }
     }
 
+    for (const u of toUpdate) {
+      try {
+        await conn.query(
+          `UPDATE ma_jobs SET ${u.sets.join(', ')} WHERE id = ?`,
+          [...u.params, u.jobId]
+        );
+        updatedCount++;
+        await syncMaCustomerFromJob(conn, u.jobId, { action: 'import_update' });
+      } catch (err) {
+        console.error('MA bulk update error for NON:', u.nonNumber, err.message);
+        errors.push({ row: u.row, non_number: u.nonNumber, error: err.message });
+      }
+    }
+
     await conn.commit();
     res.json({
       message: 'MA bulk import complete',
       successCount,
-      skippedCount: errors.length + duplicates.length,
+      updatedCount,
+      skippedCount: errors.length + duplicates.length + unchanged.length,
       total: jobs.length,
-      count: successCount,
+      count: successCount + updatedCount,
       errors,
       duplicates,
+      unchanged,
+      updateJobs: updatesPreview,
     });
   } catch (err) {
     await conn.rollback();

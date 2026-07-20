@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import { StatCard, ProgressCard, ShortcutBtn, TechJobActionCard, AdminContactButton } from './SharedComponents';
 import { useBranding } from '../../context/BrandingContext';
 import { ACTIVE_JOB_STATUSES } from '../../constants/jobStatus';
+import { PostponeJobModal } from '../JobActionModals';
 
 export default function MaTechSection() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function MaTechSection() {
   const [jobs, setJobs] = useState([]);
   const [overdueJobs, setOverdueJobs] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [rescheduleJob, setRescheduleJob] = useState(null);
 
   const todayISO = new Date().toLocaleDateString('en-CA');
 
@@ -156,7 +158,7 @@ export default function MaTechSection() {
           <p className="text-[11px] font-black text-[#4D7C0F] uppercase tracking-wide mb-3">
             {todayJobs.length ? 'งาน MA ถัดไปวันนี้' : 'งาน MA ถัดไป'}
           </p>
-          <TechJobActionCard job={nextJob} jobType="ma" onOpen={openJob} />
+          <TechJobActionCard job={nextJob} jobType="ma" onOpen={openJob} onReschedule={setRescheduleJob} />
         </div>
       )}
 
@@ -185,7 +187,7 @@ export default function MaTechSection() {
         ) : (
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-0.5">
             {jobs.slice(0, 8).map(job => (
-              <TechJobActionCard key={job.id} job={job} jobType="ma" onOpen={openJob} />
+              <TechJobActionCard key={job.id} job={job} jobType="ma" onOpen={openJob} onReschedule={setRescheduleJob} />
             ))}
           </div>
         )}
@@ -210,11 +212,22 @@ export default function MaTechSection() {
           </div>
           <div className="space-y-3 max-h-[360px] overflow-y-auto">
             {overdueJobs.slice(0, 6).map(job => (
-              <TechJobActionCard key={job.id} job={job} jobType="ma" overdue onOpen={openJob} />
+              <TechJobActionCard key={job.id} job={job} jobType="ma" overdue onOpen={openJob} onReschedule={setRescheduleJob} />
             ))}
           </div>
         </div>
       )}
+
+      <PostponeJobModal
+        job={rescheduleJob}
+        isOpen={Boolean(rescheduleJob)}
+        jobType="ma"
+        onClose={() => setRescheduleJob(null)}
+        onSuccess={() => {
+          setRescheduleJob(null);
+          fetchData();
+        }}
+      />
     </div>
   );
 }

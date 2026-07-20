@@ -38,7 +38,7 @@ export const JOB_STATUS = {
     map: '#ef4444',
   },
   postponed: {
-    label: 'เลื่อนนัด',
+    label: 'ช่างนัดเวลาอีกครั้ง',
     badge: 'bg-purple-100 text-purple-700 border-purple-200',
     text: 'text-purple-600',
     bg: 'bg-purple-100',
