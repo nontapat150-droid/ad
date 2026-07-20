@@ -1,6 +1,10 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const {
+  notifyInventoryDispatched,
+  notifyInventoryTransferred,
+} = require('../utils/inventoryNotifications');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -838,6 +842,7 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const adminId = req.user.id;
     let dispatchedCount = 0;
     const mergeNotes = [];
+    const dispatchLabels = [];
 
     for (const item of items) {
       const [[dbItem]] = await conn.query(
@@ -987,9 +992,28 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       }
 
       dispatchedCount++;
+      const label = `${dbItem.product_name || 'สินค้า'}${dbItem.model_name ? ` ${dbItem.model_name}` : ''}`.trim();
+      if (label) dispatchLabels.push(label);
     }
 
     await conn.commit();
+
+    if (dispatchedCount > 0) {
+      const [[targetUser]] = await pool.query(
+        'SELECT full_name FROM users WHERE id = ? LIMIT 1',
+        [target_user_id]
+      );
+      notifyInventoryDispatched({
+        targetUserId: target_user_id,
+        targetUserName: targetUser?.full_name || 'ช่าง',
+        teamId: team_id,
+        itemCount: dispatchedCount,
+        itemLabels: dispatchLabels,
+        actorId: adminId,
+        batchId: `${target_user_id}:${Date.now()}`,
+      }).catch((e) => console.error('notifyInventoryDispatched:', e.message));
+    }
+
     res.json({
       message: `เบิกสำเร็จ ${dispatchedCount} รายการ` +
         (mergeNotes.length ? ` · รวมของเดิม: ${mergeNotes.join(', ')}` : ''),
@@ -1779,6 +1803,32 @@ router.post('/transfer', auth, async (req, res) => {
     );
 
     await conn.commit();
+
+    if (Number(target_user_id) !== Number(actorId)) {
+      const [[fromUser]] = await pool.query(
+        'SELECT full_name FROM users WHERE id = ? LIMIT 1',
+        [bagOwnerId]
+      );
+      const [[prodRow]] = await pool.query(
+        `SELECT p.name AS product_name, pm.model_name
+         FROM inventory_models pm
+         JOIN inventory_products p ON p.id = pm.product_id
+         WHERE pm.id = ? LIMIT 1`,
+        [item.model_id]
+      );
+      const productLabel =
+        `${prodRow?.product_name || 'อุปกรณ์'}${prodRow?.model_name ? ` ${prodRow.model_name}` : ''}`.trim();
+
+      notifyInventoryTransferred({
+        targetUserId: target_user_id,
+        fromUserName: fromUser?.full_name || req.user.full_name || 'เพื่อนร่วมทีม',
+        productLabel,
+        quantity: tQty,
+        itemId: logItemId,
+        actorId,
+      }).catch((e) => console.error('notifyInventoryTransferred:', e.message));
+    }
+
     res.json({ message: 'Transfer successful' });
   } catch (err) {
     await conn.rollback();

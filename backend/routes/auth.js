@@ -4,6 +4,7 @@ const jwt      = require('jsonwebtoken');
 const pool     = require('../config/db');
 const { auth } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
+const { notifyUserRegistered } = require('../utils/accountNotifications');
 
 const router = express.Router();
 
@@ -132,6 +133,14 @@ router.post('/register', async (req, res) => {
     );
 
     await conn.commit();
+
+    notifyUserRegistered({
+      userId,
+      userName: String(full_name).trim(),
+      username: String(username).trim(),
+      role: primaryRole,
+    }).catch((e) => console.error('notifyUserRegistered:', e.message));
+
     res.status(201).json({
       message: 'ลงทะเบียนสำเร็จ รอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน',
       id: userId,

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import ManualCheckinModal from '../components/ManualCheckinModal';
@@ -89,6 +89,18 @@ export default function CheckinPage() {
   const [stats, setStats] = useState({ late: 0, ontime: 0 });
   const [filterUserId, setFilterUserId] = useState('ALL');
   const [usersList, setUsersList] = useState([]);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'leave' || tab === 'checkout' || tab === 'checkin') {
+      setHistoryTab(tab);
+    }
+    const uid = searchParams.get('userId');
+    if (isAdmin && uid) {
+      setFilterUserId(uid);
+    }
+  }, [searchParams, isAdmin]);
 
   // Admin date/month filter (default: today)
   const [filterMode, setFilterMode] = useState('day'); // 'day' | 'month' | 'all'

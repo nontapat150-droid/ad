@@ -704,11 +704,25 @@ export default function DispatchDashboardPage() {
   // Auto-open job from URL param ?openJob=<id>
   useEffect(() => {
     const openJobId = searchParams.get('openJob');
-    if (openJobId && jobs.length > 0) {
-      const found = jobs.find(j => String(j.id) === String(openJobId));
-      if (found) setDetailJob(found);
+    if (!openJobId) return;
+
+    const found = jobs.find((j) => String(j.id) === String(openJobId));
+    if (found) {
+      setDetailJob(found);
+      return;
     }
-  }, [location.search, jobs]);
+
+    let cancelled = false;
+    const tab = searchParams.get('tab') || mainTab;
+    const jobType = tab === 'ma' ? 'ma' : 'office';
+    axios.get(`/dispatch/jobs/${openJobId}/details?type=${jobType}`)
+      .then((r) => {
+        if (!cancelled && r.data) setDetailJob(r.data);
+      })
+      .catch((e) => console.error('openJob fetch failed', e));
+
+    return () => { cancelled = true; };
+  }, [location.search, jobs, mainTab]);
 
   const fetchTeams = async () => { try { const r = await axios.get('/users/teams'); setTeams(Array.isArray(r.data) ? r.data : []); } catch(e) {} };
   const fetchUsers = async () => { try { const r = await axios.get('/users'); setAllUsers(Array.isArray(r.data) ? r.data : []); } catch(e) {} };

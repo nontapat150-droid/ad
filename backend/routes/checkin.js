@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const { auth } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
+const { notifyLeaveRequested } = require('../utils/accountNotifications');
 
 const router = express.Router();
 
@@ -85,6 +86,16 @@ router.post(
          VALUES (?, ?, ?, ?, ?)`,
         [userId, leave_date, reasonText || null, imagePath, leave_type || 'general']
       );
+
+      notifyLeaveRequested({
+        leaveId: result.insertId,
+        userId,
+        userName: req.user.full_name || req.user.username || 'พนักงาน',
+        leaveDate: leave_date,
+        reason: reasonText,
+        leaveType: leave_type || 'general',
+        actorId: userId,
+      }).catch((e) => console.error('notifyLeaveRequested:', e.message));
 
       res.status(201).json({ message: 'บันทึกการลาสำเร็จ', id: result.insertId });
     } catch (err) {

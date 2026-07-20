@@ -2,6 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const bcrypt  = require('bcryptjs');
 const { auth, requireRole } = require('../middleware/auth');
+const { notifyUserApproved } = require('../utils/accountNotifications');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -176,6 +177,11 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    const [[oldUser]] = await conn.query(
+      'SELECT status, full_name FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+
     let query = 'UPDATE users SET username=?, full_name=?, role=?, status=?, team_id=?, allow_late_time=?';
     let params = [username, full_name, role, status, team_id || null, allow_late_time];
 
@@ -200,6 +206,15 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
+
+    if (status === 'approved' && oldUser?.status === 'pending') {
+      notifyUserApproved({
+        userId,
+        userName: full_name || oldUser?.full_name || '',
+        actorId: req.user?.id,
+      }).catch((e) => console.error('notifyUserApproved:', e.message));
+    }
+
     res.json({ message: 'User updated successfully' });
   } catch (err) {
     await conn.rollback();

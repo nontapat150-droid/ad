@@ -4,46 +4,77 @@ const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob, syncMaCustomerFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
+const { notifyEvent, getTeamMemberIds, getAdminIds, ensureNotificationsSchema } = require('../utils/notifyEvent');
+const {
+  notifyJobsAssignedToTeam,
+  notifyJobsAssignedToUser,
+  notifyJobsRemovedFromTeam,
+  notifyJobCompleted,
+  notifyJobFailed,
+  notifyJobPostponed,
+  notifyImportSummary,
+  dispatchDashboardPath,
+} = require('../utils/jobNotifications');
 
 const router = express.Router();
 
-// ── Push notification helper: send to all members of a team ──
+// ── Legacy wrappers (still used by a few call sites; prefer jobNotifications) ──
 async function notifyTeamMembers(teamId, title, body, data = {}, senderId = null) {
   try {
-    const [members] = await pool.query(
-      'SELECT id FROM users WHERE team_id = ? AND status = ?',
-      [teamId, 'approved']
-    );
-    for (const member of members) {
-      // 1. Send push notification
-      sendToUser(member.id, title, body, data).catch(e => console.error('Push to team member failed:', e.message));
-      
-      // 2. Save to inbox (messages table)
-      try {
-        await pool.query(
-          `INSERT INTO messages (sender_id, receiver_id, title, body, type, related_id) VALUES (?, ?, ?, ?, ?, ?)`,
-          [senderId || 1, member.id, title, body, data.type || 'system', data.related_id || null]
-        );
-      } catch (dbErr) {
-        console.error('Failed to save message for user', member.id, dbErr);
-      }
-    }
+    await ensureNotificationsSchema();
+    const memberIds = await getTeamMemberIds(teamId, { excludeUserId: senderId });
+    if (!memberIds.length) return;
+
+    const eventKey = data.event_key
+      || (data.type && data.related_id != null
+        ? `${data.type}:${data.related_id}:team:${teamId}`
+        : `${data.type || 'system'}:team:${teamId}:${Date.now()}`);
+
+    await notifyEvent({
+      eventKey,
+      actorId: senderId,
+      title,
+      body,
+      type: data.type || 'system',
+      data: {
+        related_id: data.related_id ?? null,
+        team_id: teamId,
+        path: data.path || dispatchDashboardPath({ kind: data.job_type || 'office' }),
+        ...data,
+      },
+      recipients: memberIds,
+      push: true,
+    });
   } catch (e) {
     console.error('notifyTeamMembers error:', e.message);
   }
 }
 
-// ── Push notification helper: send to all admins ──
-async function notifyAdmins(title, body, data = {}) {
+async function notifyAdmins(title, body, data = {}, senderId = null) {
   try {
-    const [admins] = await pool.query(
-      `SELECT DISTINCT u.id FROM users u
-       LEFT JOIN user_roles ur ON ur.user_id = u.id
-       WHERE u.status = 'approved' AND (u.role IN ('super_admin','admin') OR ur.role IN ('super_admin','admin'))`
-    );
-    for (const admin of admins) {
-      sendToUser(admin.id, title, body, data).catch(e => console.error('Push to admin failed:', e.message));
-    }
+    await ensureNotificationsSchema();
+    const adminIds = await getAdminIds();
+    if (!adminIds.length) return;
+
+    const eventKey = data.event_key
+      || (data.type && data.related_id != null
+        ? `${data.type}:${data.related_id}:admins`
+        : `${data.type || 'system'}:admins:${Date.now()}`);
+
+    await notifyEvent({
+      eventKey,
+      actorId: senderId,
+      title,
+      body,
+      type: data.type || 'system',
+      data: {
+        related_id: data.related_id ?? null,
+        path: data.path || dispatchDashboardPath({ kind: data.job_type || 'office' }),
+        ...data,
+      },
+      recipients: adminIds,
+      push: true,
+    });
   } catch (e) {
     console.error('notifyAdmins error:', e.message);
   }
@@ -1114,13 +1145,15 @@ router.put(
         actor_id: techId, remark: req.body.remark || null,
       });
 
-      // 🔔 Push notification to admins when tech completes a job
+      // 🔔 Phase 2: complete → admins (once)
       const techName = req.user.full_name || req.user.username || 'ช่าง';
-      notifyAdmins(
-        '✅ งานเสร็จสิ้น',
-        `${techName} ปิดงาน ${job.access_no || ''} - ${job.customer || 'ลูกค้า'} เรียบร้อยแล้ว`,
-        { type: 'job_completed', job_id: String(jobId) }
-      );
+      notifyJobCompleted({
+        job,
+        jobId,
+        actorId: techId,
+        actorName: techName,
+        kind: 'office',
+      }).catch((e) => console.error('notifyJobCompleted:', e.message));
 
       res.json({ message: 'Job completed successfully', job_id: jobId });
     } catch (err) {
@@ -1205,13 +1238,16 @@ router.put('/jobs/:id/incomplete', auth, async (req, res) => {
       actor_id: techId, remark: remark.trim(),
     });
 
-    // Push notification to admins
+    // Push notification to admins + team
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    notifyAdmins(
-      '❌ งานไม่จบ',
-      `${techName} รายงานงาน ${job.access_no || ''} ไม่สำเร็จ: ${remark.trim()}`,
-      { type: 'job_failed', job_id: String(jobId) }
-    );
+    notifyJobFailed({
+      job,
+      jobId,
+      actorId: techId,
+      actorName: techName,
+      remark: remark.trim(),
+      kind: 'office',
+    }).catch((e) => console.error('notifyJobFailed:', e.message));
 
     res.json({ message: 'บันทึกงานไม่จบสำเร็จ' });
   } catch (err) {
@@ -1266,11 +1302,14 @@ router.put('/ma-jobs/:id/incomplete', auth, async (req, res) => {
     });
 
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    notifyAdmins(
-      '❌ งาน MA ไม่จบ',
-      `${techName} รายงานงาน ${job.non_number || job.access_no || ''} ไม่สำเร็จ: ${remark.trim()}`,
-      { type: 'ma_job_failed', job_id: String(maJobId) }
-    );
+    notifyJobFailed({
+      job,
+      jobId: maJobId,
+      actorId: techId,
+      actorName: techName,
+      remark: remark.trim(),
+      kind: 'ma',
+    }).catch((e) => console.error('notifyJobFailed MA:', e.message));
 
     res.json({ message: 'บันทึกงาน MA ไม่จบสำเร็จ' });
   } catch (err) {
@@ -1344,11 +1383,15 @@ router.put('/ma-jobs/:id/postpone', auth, async (req, res) => {
     });
 
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    notifyAdmins(
-      '📅 เลื่อนนัดงาน MA',
-      `${techName} เลื่อนนัดงาน ${job.non_number || job.access_no || ''} ไปวันที่ ${new_date}${remark ? ': ' + String(remark).substring(0, 60) : ''}`,
-      { type: 'ma_job_postponed', job_id: String(maJobId) }
-    );
+    notifyJobPostponed({
+      job,
+      jobId: maJobId,
+      actorId: techId,
+      actorName: techName,
+      newDate: new_date,
+      remark,
+      kind: 'ma',
+    }).catch((e) => console.error('notifyJobPostponed MA:', e.message));
 
     res.json({ message: 'เลื่อนนัดงาน MA สำเร็จ' });
   } catch (err) {
@@ -1678,17 +1721,23 @@ router.post('/jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (team_id) {
       const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
       const teamName = team?.team_name || 'ทีม';
-      let firstJobTime = 'ไม่ได้ระบุเวลา';
-      if (formatted_time) {
-        firstJobTime = formatted_time.substring(11, 16) + ' น.';
-      }
-      notifyTeamMembers(
-        team_id,
-        '📋 มีงานใหม่เข้า!',
-        `${teamName} ได้รับมอบหมายงานใหม่ 1 งาน\nเวลาเข้างานแรก: ${firstJobTime}`,
-        { type: 'job_assigned', count: '1' },
-        req.user?.id
-      );
+      notifyJobsAssignedToTeam({
+        teamId: team_id,
+        teamName,
+        jobIds: [result.insertId],
+        jobs: [{
+          id: result.insertId,
+          access_no,
+          customer,
+          plan_arrival_date,
+          plan_arrival_time: formatted_time,
+        }],
+        count: 1,
+        actorId: req.user?.id,
+        kind: 'office',
+        source: 'create',
+        extraLine: formatted_time ? `เวลาเข้างาน: ${String(formatted_time).substring(11, 16)} น.` : '',
+      }).catch((e) => console.error('notifyJobsAssignedToTeam:', e.message));
     }
 
     res.status(201).json({ message: 'Job created', id: result.insertId });
@@ -2060,6 +2109,16 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     await conn.beginTransaction();
     let successCount = 0;
     let updatedCount = 0;
+    const teamStats = new Map();
+    const bumpTeam = (teamId, jobId, field) => {
+      if (!teamId) return;
+      const tid = Number(teamId);
+      if (!tid) return;
+      if (!teamStats.has(tid)) teamStats.set(tid, { created: 0, updated: 0, jobIds: [] });
+      const s = teamStats.get(tid);
+      s[field] += 1;
+      if (jobId) s.jobIds.push(jobId);
+    };
 
     for (const { row, accessNo, job } of toInsert) {
       const {
@@ -2101,6 +2160,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           ]
         );
         successCount++;
+        bumpTeam(team_id, result.insertId, 'created');
         await safeSyncCustomer(conn, result.insertId);
       } catch (err) {
         if (err.code === 'ER_DUP_ENTRY') {
@@ -2119,6 +2179,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           [...u.params, u.jobId]
         );
         updatedCount++;
+        const [[ex]] = await conn.query('SELECT team_id FROM jobs WHERE id = ?', [u.jobId]);
+        bumpTeam(ex?.team_id, u.jobId, 'updated');
         await safeSyncCustomer(conn, u.jobId);
       } catch (err) {
         console.error('Bulk update error for access_no:', u.accessNo, err);
@@ -2127,6 +2189,23 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     }
 
     await conn.commit();
+
+    try {
+      for (const [tid, stat] of teamStats.entries()) {
+        const [[t]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [tid]);
+        stat.name = t?.team_name || 'ทีม';
+      }
+      notifyImportSummary({
+        kind: 'office',
+        actorId: req.user?.id,
+        created: successCount,
+        updated: updatedCount,
+        teamStats,
+      }).catch((e) => console.error('notifyImportSummary office:', e.message));
+    } catch (ne) {
+      console.error('Import notify prep:', ne.message);
+    }
+
     res.json({
       message: 'Bulk import complete',
       successCount,
@@ -2332,6 +2411,16 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
 
     let successCount = 0;
     let updatedCount = 0;
+    const teamStats = new Map();
+    const bumpTeam = (teamId, jobId, field) => {
+      if (!teamId) return;
+      const tid = Number(teamId);
+      if (!tid) return;
+      if (!teamStats.has(tid)) teamStats.set(tid, { created: 0, updated: 0, jobIds: [] });
+      const s = teamStats.get(tid);
+      s[field] += 1;
+      if (jobId) s.jobIds.push(jobId);
+    };
 
     for (const { row, nonNumber, job } of toInsert) {
       const {
@@ -2370,6 +2459,7 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
         );
         if (result.insertId) {
           successCount++;
+          bumpTeam(team_id, result.insertId, 'created');
           await syncMaCustomerFromJob(conn, result.insertId, { action: 'imported' });
         } else {
           errors.push({ row, non_number: nonNumber, error: 'ไม่สามารถบันทึกได้' });
@@ -2387,6 +2477,8 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           [...u.params, u.jobId]
         );
         updatedCount++;
+        const [[ex]] = await conn.query('SELECT team_id FROM ma_jobs WHERE id = ?', [u.jobId]);
+        bumpTeam(ex?.team_id, u.jobId, 'updated');
         await syncMaCustomerFromJob(conn, u.jobId, { action: 'import_update' });
       } catch (err) {
         console.error('MA bulk update error for NON:', u.nonNumber, err.message);
@@ -2395,6 +2487,23 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
     }
 
     await conn.commit();
+
+    try {
+      for (const [tid, stat] of teamStats.entries()) {
+        const [[t]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [tid]);
+        stat.name = t?.team_name || 'ทีม';
+      }
+      notifyImportSummary({
+        kind: 'ma',
+        actorId: req.user?.id,
+        created: successCount,
+        updated: updatedCount,
+        teamStats,
+      }).catch((e) => console.error('notifyImportSummary MA:', e.message));
+    } catch (ne) {
+      console.error('MA import notify prep:', ne.message);
+    }
+
     res.json({
       message: 'MA bulk import complete',
       successCount,
@@ -2491,13 +2600,24 @@ router.post('/ma-jobs', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (team_id) {
       const [[team]] = await conn.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
       const teamName = team?.team_name || 'ทีม';
-      notifyTeamMembers(
-        team_id,
-        '🔧 มีงาน MA ใหม่เข้า!',
-        `${teamName} ได้รับมอบหมายงาน MA ใหม่ 1 งาน${timeVal ? `\nเวลานัด: ${timeVal} น.` : ''}`,
-        { type: 'job_assigned', count: '1' },
-        req.user?.id
-      );
+      notifyJobsAssignedToTeam({
+        teamId: team_id,
+        teamName,
+        jobIds: [result.insertId],
+        jobs: [{
+          id: result.insertId,
+          non_number: nonNumber,
+          access_no: accessKey,
+          customer,
+          plan_arrival_date,
+          job_time: timeVal,
+        }],
+        count: 1,
+        actorId: req.user?.id,
+        kind: 'ma',
+        source: 'create',
+        extraLine: timeVal ? `เวลานัด: ${String(timeVal).slice(0, 5)} น.` : '',
+      }).catch((e) => console.error('notifyJobsAssignedToTeam MA:', e.message));
     }
 
     res.status(201).json({ message: 'MA job created', id: result.insertId });
@@ -2648,6 +2768,15 @@ router.put(
         actor_id: techId, remark: remark || null,
       });
 
+      const techName = req.user.full_name || req.user.username || 'ช่าง';
+      notifyJobCompleted({
+        job,
+        jobId: maJobId,
+        actorId: techId,
+        actorName: techName,
+        kind: 'ma',
+      }).catch((e) => console.error('notifyJobCompleted MA:', e.message));
+
       res.json({ message: 'ปิดงาน MA สำเร็จ', id: maJobId });
     } catch (err) {
       await conn.rollback();
@@ -2734,13 +2863,15 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
       }
 
       if (result.affectedRows > 0) {
-        notifyTeamMembers(
-          target,
-          '📋 มีงานใหม่เข้า!',
-          `${team.team_name} ได้รับมอบหมายงานใหม่ ${result.affectedRows} งาน`,
-          { type: 'job_assigned', count: String(result.affectedRows) },
-          req.user?.id
-        );
+        notifyJobsAssignedToTeam({
+          teamId: target,
+          teamName: team.team_name,
+          jobIds: ids,
+          count: result.affectedRows,
+          actorId: req.user?.id,
+          kind: type === 'ma' ? 'ma' : 'office',
+          source: 'assign',
+        }).catch((e) => console.error('notifyJobsAssignedToTeam bulk:', e.message));
       }
     } else {
       const [[userRow]] = await pool.query(
@@ -2781,21 +2912,16 @@ router.put('/jobs/bulk-assign', auth, requireRole(ADMIN_ROLES), async (req, res)
       }
 
       if (results.updated > 0) {
-        sendToUser(
-          target,
-          '📋 มีงานใหม่เข้า!',
-          `คุณได้รับมอบหมายงานใหม่ ${results.updated} งาน`,
-          { type: 'job_assigned' }
-        ).catch(() => {});
-        if (userRow.team_id && !isContractor) {
-          notifyTeamMembers(
-            userRow.team_id,
-            '📋 มีงานใหม่เข้า!',
-            `${userRow.full_name} ได้รับมอบหมายงานใหม่ ${results.updated} งาน`,
-            { type: 'job_assigned' },
-            req.user?.id
-          );
-        }
+        notifyJobsAssignedToUser({
+          userId: target,
+          userName: userRow.full_name || 'ช่าง',
+          teamId: isContractor ? null : (userRow.team_id || null),
+          notifyTeam: !isContractor,
+          jobIds: results.successIds,
+          count: results.updated,
+          actorId: req.user?.id,
+          kind: type === 'ma' ? 'ma' : 'office',
+        }).catch((e) => console.error('notifyJobsAssignedToUser:', e.message));
       }
     }
 
@@ -2873,7 +2999,10 @@ router.put('/jobs/reorder-by-location', auth, async (req, res) => {
 router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const { team_id } = req.body;
   try {
-    const [[old]] = await pool.query('SELECT status, team_id, field_engineer_id FROM jobs WHERE id = ?', [req.params.id]);
+    const [[old]] = await pool.query(
+      'SELECT status, team_id, field_engineer_id, access_no, customer, plan_arrival_date, plan_arrival_time FROM jobs WHERE id = ?',
+      [req.params.id]
+    );
     await pool.query(`UPDATE jobs SET team_id = ? WHERE id = ?`, [team_id, req.params.id]);
     writeJobAudit(pool, {
       job_type: 'office', job_id: req.params.id, action: 'assign',
@@ -2882,6 +3011,42 @@ router.put('/jobs/:id/assign', auth, requireRole(ADMIN_ROLES), async (req, res) 
       old_assignee_id: old?.field_engineer_id, new_assignee_id: old?.field_engineer_id,
       actor_id: req.user?.id,
     });
+
+    const jobPreview = {
+      id: Number(req.params.id),
+      access_no: old?.access_no,
+      customer: old?.customer,
+      plan_arrival_date: old?.plan_arrival_date,
+      plan_arrival_time: old?.plan_arrival_time,
+    };
+
+    if (team_id && Number(team_id) !== Number(old?.team_id)) {
+      const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [team_id]);
+      notifyJobsAssignedToTeam({
+        teamId: team_id,
+        teamName: team?.team_name || 'ทีม',
+        jobIds: [req.params.id],
+        jobs: [jobPreview],
+        count: 1,
+        actorId: req.user?.id,
+        kind: 'office',
+        source: 'assign',
+      }).catch((e) => console.error('notify single assign:', e.message));
+
+      if (old?.team_id) {
+        const [[oldTeam]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [old.team_id]);
+        notifyJobsRemovedFromTeam({
+          teamId: old.team_id,
+          teamName: oldTeam?.team_name || 'ทีม',
+          jobIds: [req.params.id],
+          jobs: [jobPreview],
+          newTeamName: team?.team_name || 'ทีมใหม่',
+          actorId: req.user?.id,
+          kind: 'office',
+        }).catch((e) => console.error('notify team removed:', e.message));
+      }
+    }
+
     res.json({ message: 'Team assigned' });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -2977,27 +3142,33 @@ router.post('/auto-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => 
       }
 
       // 3. Update database with team_id and routing sequence
+      const assignedIds = [];
       for (let seq = 0; seq < assignedToTeam.length; seq++) {
         const jobId = assignedToTeam[seq].id;
         // Notice seq+1 to start sequences at 1
         await conn.query(`UPDATE jobs SET team_id = ?, seq = ? WHERE id = ?`, [team_id, (seq + 1).toString(), jobId]);
+        assignedIds.push(jobId);
         totalAssigned++;
       }
+      quota.jobIds = assignedIds;
     }
 
     await conn.commit();
 
-    // 🔔 Push notification to all teams that got jobs
+    // 🔔 Phase 2: one summary per team (deduped)
     for (const quota of teamQuotas) {
-      if (quota.count > 0) {
+      if (quota.count > 0 && (quota.jobIds || []).length > 0) {
         const [[team]] = await pool.query('SELECT team_name FROM teams WHERE id = ?', [quota.team_id]);
         const teamName = team?.team_name || 'ทีม';
-        notifyTeamMembers(
-          quota.team_id,
-          '📋 มีงานใหม่จากระบบจัดสรรอัตโนมัติ!',
-          `${teamName} ได้รับมอบหมายงาน ${quota.count} งาน`,
-          { type: 'auto_dispatch', count: String(quota.count) }
-        );
+        notifyJobsAssignedToTeam({
+          teamId: quota.team_id,
+          teamName,
+          jobIds: quota.jobIds,
+          count: quota.jobIds.length,
+          actorId: req.user?.id,
+          kind: 'office',
+          source: 'auto',
+        }).catch((e) => console.error('notify auto-assign:', e.message));
       }
     }
 
@@ -3392,13 +3563,17 @@ router.put('/jobs/:id/postpone', auth, async (req, res) => {
       remark: `เลื่อนเป็น ${new_date}${new_time ? ` ${new_time}` : ''}${remark ? ` — ${remark}` : ''}`,
     });
 
-    // 🔔 Push notification to admins when tech postpones a job
+    // 🔔 Push notification to admins + team when tech postpones a job
     const techName = req.user.full_name || req.user.username || 'ช่าง';
-    notifyAdmins(
-      '📅 เลื่อนนัดงาน',
-      `${techName} เลื่อนนัดงาน ${job.access_no || ''} ไปวันที่ ${new_date}${remark ? ': ' + remark.substring(0, 60) : ''}`,
-      { type: 'job_postponed', job_id: String(jobId) }
-    );
+    notifyJobPostponed({
+      job,
+      jobId,
+      actorId: techId,
+      actorName: techName,
+      newDate: new_date,
+      remark,
+      kind: 'office',
+    }).catch((e) => console.error('notifyJobPostponed:', e.message));
 
     res.json({ message: 'Job postponed' });
   } catch (err) {

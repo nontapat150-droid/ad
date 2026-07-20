@@ -78,6 +78,7 @@ apiRouter.use('/oil', oilRouter);
 apiRouter.use('/users', usersRouter);
 apiRouter.use('/stats', statsRouter);
 apiRouter.use('/messages', messagesRouter);
+apiRouter.use('/notifications', require('./routes/notifications'));
 apiRouter.use('/announcements', announcementsRouter);
 apiRouter.use('/reports', require('./routes/reports'));
 apiRouter.use('/settings', require('./routes/settings'));
@@ -107,6 +108,14 @@ async function startBackgroundJobs() {
   } catch (err) {
     console.error('Background jobs skipped — DB unavailable:', pool.formatError(err));
     return;
+  }
+
+  try {
+    const { ensureNotificationsSchema } = require('./utils/notifyEvent');
+    await ensureNotificationsSchema();
+    console.log('✅ notifications schema ready');
+  } catch (err) {
+    console.error('notifications schema:', err.message);
   }
 
   require('./cron/reminders');

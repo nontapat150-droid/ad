@@ -338,6 +338,12 @@ router.get('/migrate-entry-fee', async (req, res) => {
     } catch(e) { results.push('messages.is_automated: ' + e.message); }
 
     try {
+      const { ensureNotificationsSchema } = require('../utils/notifyEvent');
+      await ensureNotificationsSchema(pool);
+      results.push('✅ notifications table ensured');
+    } catch(e) { results.push('notifications: ' + e.message); }
+
+    try {
       await pool.query(`ALTER TABLE customers ADD COLUMN fail_reason TEXT NULL`);
       results.push('✅ customers.fail_reason added');
     } catch(e) { results.push('customers.fail_reason: ' + e.message); }
