@@ -4,6 +4,51 @@ const { sendToUser } = require('../config/firebase-admin');
 let schemaReady = false;
 let schemaPromise = null;
 
+async function tableExists(db, name) {
+  const [[row]] = await db.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = ?`,
+    [name]
+  );
+  return Number(row?.cnt) > 0;
+}
+
+async function columnExists(db, table, column) {
+  const [[row]] = await db.query(
+    `SELECT COUNT(*) AS cnt FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+    [table, column]
+  );
+  return Number(row?.cnt) > 0;
+}
+
+/**
+ * Old schema (bou_schema) used notifications for broadcast — no event_key.
+ * Archive it so the new per-user inbox table can be created.
+ */
+async function migrateLegacyNotificationsTable(db) {
+  if (!(await tableExists(db, 'notifications'))) return;
+  if (await columnExists(db, 'notifications', 'event_key')) return;
+
+  console.warn('[notifications] archiving legacy broadcast table');
+
+  if (await tableExists(db, 'notification_reads')) {
+    if (!(await tableExists(db, 'notifications_broadcast_reads'))) {
+      await db.query('RENAME TABLE notification_reads TO notifications_broadcast_reads');
+    } else {
+      await db.query('DROP TABLE IF EXISTS notification_reads');
+    }
+  }
+
+  if (!(await tableExists(db, 'notifications_broadcast_legacy'))) {
+    await db.query('RENAME TABLE notifications TO notifications_broadcast_legacy');
+  } else {
+    throw new Error(
+      'Table notifications has old schema and notifications_broadcast_legacy already exists. Run manual SQL migration.'
+    );
+  }
+}
+
 /**
  * Ensure notifications inbox table exists (idempotent, hosting-safe).
  * Create without FK first — shared hosting often blocks foreign keys.
@@ -13,6 +58,8 @@ async function ensureNotificationsSchema(db = pool) {
   if (schemaPromise) return schemaPromise;
 
   schemaPromise = (async () => {
+    await migrateLegacyNotificationsTable(db);
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS notifications (
         id INT AUTO_INCREMENT PRIMARY KEY,
