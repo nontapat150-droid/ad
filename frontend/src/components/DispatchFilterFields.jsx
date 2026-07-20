@@ -283,6 +283,7 @@ export function FilterSelectField({
   searchable = false,
   searchAlways = false,
   allowClear = true,
+  searchPlaceholder,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -293,10 +294,26 @@ export function FilterSelectField({
   const filtered = useMemo(() => {
     if (!searchable || !query.trim()) return options;
     const q = query.trim().toLowerCase();
-    return options.filter((o) => String(o.label || '').toLowerCase().includes(q));
+    const qCompact = q.replace(/[\s\-_/.:]/g, '');
+    return options.filter((o) => {
+      const hay = [
+        o.label,
+        o.searchText,
+        o.sublabel,
+        o.value,
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (hay.includes(q)) return true;
+      const hayCompact = hay.replace(/[\s\-_/.:]/g, '');
+      return qCompact.length > 0 && hayCompact.includes(qCompact);
+    });
   }, [options, query, searchable]);
 
   useOutsideClose(ref, open, () => { setOpen(false); setQuery(''); });
+
+  const inputPlaceholder = searchPlaceholder
+    || (String(label || '').toLowerCase().includes('sn')
+      ? `ค้นหา SN / รุ่น...`
+      : `ค้นหา${label ? ` ${label}` : ''}...`);
 
   return (
     <div ref={ref}>
@@ -329,7 +346,7 @@ export function FilterSelectField({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={`ค้นหา${label}...`}
+                placeholder={inputPlaceholder}
                 className="w-full px-3 py-2 text-xs rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
                 autoFocus
               />
@@ -352,7 +369,7 @@ export function FilterSelectField({
               </li>
             )}
             {filtered.length === 0 ? (
-              <li className="px-3 py-4 text-center text-xs text-[#9CA3AF]">ไม่พบรายการ</li>
+              <li className="px-3 py-4 text-center text-xs text-[#9CA3AF]">ไม่พบรายการ{query.trim() ? 'ที่ตรงกับ SN / คำค้น' : ''}</li>
             ) : (
               filtered.map((opt) => (
                 <li key={opt.value}>
@@ -382,7 +399,14 @@ export function FilterSelectField({
                     )}>
                       {String(opt.value) === String(value) ? '✓' : String(opt.label || '?').charAt(0)}
                     </span>
-                    <span className="truncate flex-1">{opt.label || '—'}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{opt.label || '—'}</span>
+                      {opt.sublabel && (
+                        <span className="block truncate text-[10px] font-semibold text-[#65a30d] mt-0.5">
+                          {opt.sublabel}
+                        </span>
+                      )}
+                    </span>
                     {opt.disabled && (
                       <span className="text-[10px] font-bold text-red-400 shrink-0">ไม่พอ</span>
                     )}

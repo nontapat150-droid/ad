@@ -79,15 +79,19 @@ function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere
 
   const options = available.map((item) => {
     const qty = Number(item.quantity) || 0;
+    const sn = item.sn || item.serial_number || '';
+    const isSn = isSnBagItem(item);
     return {
       value: String(item.id),
       label: bagItemLabel(item),
+      sublabel: isSn && sn ? `SN: ${sn}` : null,
+      searchText: [sn, item.product_name, item.model_name, item.unit].filter(Boolean).join(' '),
       disabled: qty < 1,
     };
   });
 
   if (dashOption) {
-    options.unshift({ value: 'dash', label: 'ไม่มี (-)' });
+    options.unshift({ value: 'dash', label: 'ไม่มี (-)', searchText: 'ไม่มี dash -' });
   }
 
   return (
@@ -99,6 +103,7 @@ function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere
       placeholder="เลือกจากกระเป๋าช่าง"
       searchable
       searchAlways
+      searchPlaceholder="ค้นหา SN / รุ่น / ชื่อสินค้า..."
       icon={
         <svg className="w-3.5 h-3.5 text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />

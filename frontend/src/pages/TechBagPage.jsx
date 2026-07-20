@@ -756,53 +756,41 @@ export default function TechBagPage() {
                         {/* Product picker */}
                         <div className="bg-white rounded-xl border border-[#E5E7EB] p-4 space-y-3"
                           style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                          <div className="flex flex-wrap items-end gap-3">
-                            <div className="flex-1 min-w-[220px]">
+                          <div className="flex flex-wrap items-stretch gap-3">
+                            <div className="flex-1 min-w-[260px]">
                               <label className="block text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-1.5">
                                 เลือกสินค้าเพื่อดูประวัติเบิก
                               </label>
-                              <select
-                                value={
-                                  dispatchProduct
-                                    ? (Number(dispatchProduct.has_sn) === 1
-                                        ? `item:${dispatchProduct.id}`
-                                        : `model:${dispatchProduct.model_id}`)
-                                    : ''
-                                }
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (!val) {
+                              <BagProductSelect
+                                items={bagItems}
+                                value={dispatchProduct}
+                                onChange={(item) => {
+                                  if (!item) {
                                     setDispatchProduct(null);
                                     setDispatchLogs([]);
                                     return;
                                   }
-                                  const [kind, id] = val.split(':');
-                                  const found = bagItems.find((it) =>
-                                    kind === 'item'
-                                      ? String(it.id) === id
-                                      : String(it.model_id) === id && !Number(it.has_sn)
-                                  );
-                                  setDispatchProduct(found || null);
+                                  setDispatchProduct(item);
                                 }}
-                                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-bold text-[#1F2937] bg-[#F9FAFB] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
-                              >
-                                <option value="">-- เลือกสินค้าในกระเป๋า --</option>
-                                {bagItems.map((it) => (
-                                  <option
-                                    key={Number(it.has_sn) === 1 ? `item-${it.id}` : `model-${it.model_id}`}
-                                    value={Number(it.has_sn) === 1 ? `item:${it.id}` : `model:${it.model_id}`}
-                                  >
-                                    {it.product_name} · {it.model_name}
-                                    {Number(it.has_sn) === 1 ? ` · SN ${it.sn}` : ` · คงเหลือ ${Number(it.quantity).toLocaleString()} ${it.unit || ''}`}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             </div>
                             {dispatchProduct && (
-                              <div className="px-3 py-2 rounded-xl bg-[#1F2937] text-white text-sm font-bold">
-                                คงเหลือตอนนี้{' '}
-                                {Number(dispatchProduct.quantity).toLocaleString()}{' '}
-                                {dispatchProduct.unit || (Number(dispatchProduct.has_sn) ? 'ชิ้น' : '')}
+                              <div className="flex items-center gap-3 self-end px-4 py-2.5 rounded-xl border border-[#1F2937]/10 min-w-[160px]"
+                                style={{ background: 'linear-gradient(135deg, #1F2937, #374151)' }}>
+                                <div className="w-9 h-9 rounded-lg bg-[#A3E635]/20 flex items-center justify-center shrink-0">
+                                  <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                  </svg>
+                                </div>
+                                <div className="text-white leading-tight">
+                                  <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider">คงเหลือตอนนี้</p>
+                                  <p className="text-sm font-black">
+                                    {Number(dispatchProduct.quantity).toLocaleString()}{' '}
+                                    <span className="font-bold text-[#A3E635]">
+                                      {dispatchProduct.unit || (Number(dispatchProduct.has_sn) ? 'ชิ้น' : '')}
+                                    </span>
+                                  </p>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1160,6 +1148,199 @@ function getRoleBadge(roleKey) {
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border shrink-0 ${cfg.color}`}>
       {cfg.label}
     </span>
+  );
+}
+
+function productSelectKey(item) {
+  if (!item) return '';
+  return Number(item.has_sn) === 1 ? `item:${item.id}` : `model:${item.model_id}`;
+}
+
+function BagProductSelect({ items, value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef(null);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && searchRef.current) {
+      searchRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const selectedKey = productSelectKey(value);
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((it) =>
+        `${it.product_name || ''} ${it.model_name || ''} ${it.sn || ''} ${it.unit || ''}`.toLowerCase().includes(q)
+      )
+    : items;
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        className={`w-full flex items-center justify-between bg-white border text-left text-sm rounded-xl px-3.5 py-2.5 transition-all outline-none group ${
+          isOpen
+            ? 'border-[#A3E635] ring-4 ring-[#A3E635]/20'
+            : 'border-[#E5E7EB] hover:border-[#A3E635]/50 hover:shadow-md'
+        }`}
+        style={{ boxShadow: isOpen ? '0 4px 12px rgba(163,230,53,0.15)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      >
+        <div className="flex items-center gap-3 min-w-0 pr-3 w-full">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+            value ? 'bg-[#A3E635]/15 text-[#65a30d]' : 'bg-[#F3F4F6] text-[#9CA3AF]'
+          }`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          {value ? (
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="truncate font-bold text-[#1F2937] leading-tight group-hover:text-[#65a30d] transition-colors">
+                  {value.product_name}
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border bg-[#A3E635]/10 text-[#65a30d] border-[#A3E635]/25 shrink-0">
+                  {Number(value.has_sn) === 1 ? 'มี SN' : (value.unit || 'นับจำนวน')}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#9CA3AF] font-medium mt-0.5 truncate">
+                {value.model_name}
+                {Number(value.has_sn) === 1 && value.sn ? ` · SN ${value.sn}` : ''}
+                {' · '}
+                คงเหลือ {Number(value.quantity).toLocaleString()} {value.unit || ''}
+              </p>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <span className="font-bold text-[#9CA3AF]">เลือกสินค้าในกระเป๋า</span>
+              <p className="text-[10px] text-[#D1D5DB] font-medium mt-0.5">{items.length} รายการที่เลือกได้</p>
+            </div>
+          )}
+        </div>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+          isOpen ? 'bg-[#A3E635]/20 text-[#65a30d]' : 'bg-[#F3F4F6] text-[#9CA3AF] group-hover:bg-[#A3E635]/10 group-hover:text-[#65a30d]'
+        }`}>
+          <svg className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      <div
+        className={`absolute top-[calc(100%+8px)] left-0 right-0 bg-white rounded-xl border border-[#E5E7EB] overflow-hidden transition-all duration-300 origin-top z-[60] ${
+          isOpen ? 'opacity-100 scale-100 visible translate-y-0' : 'opacity-0 scale-95 invisible -translate-y-2'
+        }`}
+        style={{ boxShadow: '0 12px 30px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05)' }}
+      >
+        <div className="p-2 border-b border-[#F3F4F6] bg-[#FAFAFA]">
+          <div className="relative">
+            <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาสินค้า / รุ่น / SN..."
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-[#E5E7EB] text-sm font-medium text-[#1F2937] outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20 bg-white"
+            />
+          </div>
+        </div>
+
+        <div className="max-h-[50vh] sm:max-h-72 overflow-y-auto p-1.5 space-y-0.5" style={{ scrollbarWidth: 'thin' }}>
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange(null);
+                setIsOpen(false);
+                setSearch('');
+              }}
+              className="w-full text-left px-3 py-2 rounded-lg text-xs font-bold text-[#9CA3AF] hover:bg-[#F9FAFB] hover:text-red-500 transition-colors"
+            >
+              ล้างการเลือก
+            </button>
+          )}
+
+          {filtered.length === 0 ? (
+            <p className="text-center text-sm text-[#9CA3AF] font-bold py-8">
+              {items.length === 0 ? 'ไม่มีสินค้าในกระเป๋า' : 'ไม่พบสินค้าที่ค้นหา'}
+            </p>
+          ) : (
+            filtered.map((it) => {
+              const key = productSelectKey(it);
+              const selected = selectedKey === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    onChange(it);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-3 group ${
+                    selected
+                      ? 'bg-[#A3E635]/15 border border-[#A3E635]/30 shadow-sm'
+                      : 'hover:bg-[#F9FAFB] border border-transparent'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                    selected ? 'bg-[#A3E635]/25 text-[#65a30d]' : 'bg-[#F3F4F6] text-[#9CA3AF] group-hover:bg-[#A3E635]/10 group-hover:text-[#65a30d]'
+                  }`}>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`truncate font-bold leading-tight ${selected ? 'text-[#1F2937]' : 'text-[#374151] group-hover:text-[#1F2937]'}`}>
+                        {it.product_name}
+                      </span>
+                      {it.is_team_pooled && it.holders?.length > 1 && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-100">ทีม</span>
+                      )}
+                    </div>
+                    <p className={`text-[11px] mt-0.5 truncate ${selected ? 'text-[#65a30d] font-semibold' : 'text-[#9CA3AF]'}`}>
+                      {it.model_name}
+                      {Number(it.has_sn) === 1 && it.sn ? ` · SN ${it.sn}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-sm font-black tabular-nums ${selected ? 'text-[#1F2937]' : 'text-[#374151]'}`}>
+                      {Number(it.quantity).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] font-bold text-[#9CA3AF]">{it.unit || (Number(it.has_sn) ? 'ชิ้น' : '')}</p>
+                  </div>
+                  {selected && (
+                    <div className="w-5 h-5 rounded-full bg-[#A3E635] flex items-center justify-center shrink-0 shadow-sm shadow-lime-500/30">
+                      <svg className="w-3.5 h-3.5 text-[#1F2937]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
