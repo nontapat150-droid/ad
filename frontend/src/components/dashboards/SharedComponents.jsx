@@ -2,6 +2,7 @@
 // Palette: Charcoal #1F2937 · Lime #A3E635 · Soft Gray #F3F4F6
 
 import { getJobStatusBadgeClass, getJobStatusLabel } from '../../constants/jobStatus';
+import { extractHHMM } from '../../utils/thaiDate';
 
 export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent, onClick }) {
   const interactive = typeof onClick === 'function';
@@ -203,9 +204,7 @@ export function TechJobActionCard({
   const code = jobType === 'ma'
     ? (job.display_non || job.non_number || job.access_no || '-')
     : (job.access_no || '-');
-  const timeLabel = job.plan_arrival_time
-    ? String(job.plan_arrival_time).slice(0, 5)
-    : (job.job_time ? String(job.job_time).slice(0, 5) : null);
+  const timeLabel = extractHHMM(job.plan_arrival_time || job.job_time);
   const dateLabel = job.plan_arrival_date
     ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
     : null;

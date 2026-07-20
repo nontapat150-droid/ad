@@ -23,6 +23,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
 import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from '../constants/jobStatus';
+import { thaiTime, extractHHMM } from '../utils/thaiDate';
 import { AdminContactButton } from '../components/dashboards/SharedComponents';
 import { useBranding } from '../context/BrandingContext';
 
@@ -160,7 +161,10 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
                 <span className="text-[11px] text-[#9CA3AF] font-medium flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                  {job.plan_arrival_time && ` ${typeof job.plan_arrival_time === 'string' ? job.plan_arrival_time.substring(0,5) : ''}`}
+                  {job.plan_arrival_time && (() => {
+                    const t = extractHHMM(job.plan_arrival_time);
+                    return t ? ` ${t} น.` : '';
+                  })()}
                 </span>
               )}
               {job.phone && (
@@ -383,11 +387,11 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 },
                 { 
                   label: 'เวลาเข้างาน', 
-                  value: job.plan_arrival_time 
-                    ? (typeof job.plan_arrival_time === 'string' 
-                        ? job.plan_arrival_time.substring(0,5) 
-                        : new Date(job.plan_arrival_time).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })) 
-                    : (job.assigned_time ? new Date(job.assigned_time).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-') 
+                  value: job.plan_arrival_time
+                    ? thaiTime(job.plan_arrival_time)
+                    : (job.job_time
+                      ? thaiTime(job.job_time)
+                      : (job.assigned_time ? thaiTime(job.assigned_time) : '-'))
                 },
                 { label: 'แพ็กเกจ', value: job.package || '-' },
                 { label: 'สินค้า', value: job.product || '-' },

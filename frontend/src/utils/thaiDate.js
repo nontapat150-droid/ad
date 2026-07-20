@@ -97,14 +97,45 @@ export function thaiDateTimeShort(value) {
 }
 
 /**
+ * Extract HH:MM from TIME ("12:00:00"), ISO datetime, or Date.
+ * Returns null if unparseable.
+ */
+export function extractHHMM(value) {
+  if (value == null || value === '') return null;
+
+  if (value instanceof Date) {
+    if (isNaN(value.getTime())) return null;
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  // Pure time: "12:00", "12:00:00", "12:00:00.000"
+  const timeOnly = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
+  if (timeOnly) {
+    return `${timeOnly[1].padStart(2, '0')}:${timeOnly[2]}`;
+  }
+
+  // ISO / SQL datetime: "...T12:00:00" or "... 12:00:00"
+  const fromDateTime = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (fromDateTime) {
+    return `${fromDateTime[1].padStart(2, '0')}:${fromDateTime[2]}`;
+  }
+
+  const d = parseDate(raw);
+  if (!d) return null;
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
  * Format time only: "14:30 น."
+ * Accepts TIME strings, ISO datetimes, or Date objects.
  */
 export function thaiTime(value) {
-  const d = parseDate(value);
-  if (!d) return '-';
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  return `${h}:${m} น.`;
+  const hhmm = extractHHMM(value);
+  if (!hhmm) return '-';
+  return `${hhmm} น.`;
 }
 
 /**
@@ -138,6 +169,7 @@ export default {
   thaiDateTime,
   thaiDateWithWeekday,
   thaiDateTimeShort,
+  extractHHMM,
   thaiTime,
   thaiMonthYear,
   thaiTimeAgo,
