@@ -18,6 +18,7 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [notifUnread, setNotifUnread] = useState(0);
+  const [notifFetchError, setNotifFetchError] = useState(null);
 
   const [receiverId, setReceiverId] = useState('');
   const [messageText, setMessageText] = useState('');
@@ -40,14 +41,28 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const [listRes, countRes] = await Promise.all([
+      setNotifFetchError(null);
+      const [listRes, countRes] = await Promise.allSettled([
         api.get('/notifications?limit=50'),
         api.get('/notifications/unread-count'),
       ]);
-      setNotifications(Array.isArray(listRes.data) ? listRes.data : []);
-      setNotifUnread(Number(countRes.data?.count) || 0);
+
+      if (listRes.status === 'fulfilled') {
+        setNotifications(Array.isArray(listRes.value.data) ? listRes.value.data : []);
+      } else {
+        const msg = listRes.reason?.response?.data?.detail
+          || listRes.reason?.response?.data?.error
+          || listRes.reason?.message;
+        setNotifFetchError(msg ? `ไม่สามารถดึงการแจ้งเตือนได้: ${msg}` : 'ไม่สามารถดึงการแจ้งเตือนได้');
+        setNotifications([]);
+      }
+
+      if (countRes.status === 'fulfilled') {
+        setNotifUnread(Number(countRes.value.data?.count) || 0);
+      }
     } catch (err) {
-      setError('ไม่สามารถดึงการแจ้งเตือนได้');
+      setNotifFetchError('ไม่สามารถดึงการแจ้งเตือนได้');
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
@@ -280,6 +295,11 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
 
           {activeTab === 'alerts' && (
             <>
+              {notifFetchError && (
+                <div className="mb-4 p-3 rounded-xl bg-red-100/80 border border-red-200 text-red-600 text-sm font-medium">
+                  {notifFetchError}
+                </div>
+              )}
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   ระบบแจ้งเหตุการณ์ · ไม่ซ้ำ
@@ -296,11 +316,16 @@ export default function InboxModal({ open, onClose, onReadMessage }) {
               </div>
               {loading ? (
                 <div className="flex justify-center py-10"><span className="loading loading-spinner text-brand-500"></span></div>
-              ) : notifications.length === 0 ? (
+              ) : notifFetchError ? null : notifications.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 mx-auto mb-4 bg-white/50 rounded-full flex items-center justify-center text-2xl shadow-sm border border-white/60">🔔</div>
-                  <p className="text-[#042C53] font-semibold">ยังไม่มีการแจ้งเตือน</p>
+                  <p className="text-[#042C53] font-semibold">ไม่มีการแจ้งเตือน</p>
                   <p className="text-xs text-slate-500 mt-1">เมื่อมีงานหรือเหตุการณ์ที่เกี่ยวข้อง จะแสดงที่นี่</p>
+                  {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
+                    <p className="text-[11px] text-amber-700 mt-3 px-4">
+                      เปิดสิทธิ์การแจ้งเตือนในเบราว์เซอร์ เพื่อรับแจ้งบนมือถือแม้ปิดเว็บ
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">

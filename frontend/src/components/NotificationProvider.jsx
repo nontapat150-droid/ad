@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { requestNotificationPermission, onForegroundMessage } from '../lib/firebase';
+import { resolveNotificationPath } from '../utils/notificationUi';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 
-// ── Toast Notification Component ────────────────────────────
 function NotificationToast({ notification, onClose }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 6000);
@@ -23,37 +24,26 @@ function NotificationToast({ notification, onClose }) {
           boxShadow: '0 20px 60px rgba(4,44,83,0.15), 0 0 0 1px rgba(55,138,221,0.1)',
         }}
       >
-        {/* Gradient accent bar */}
         <div className="h-1" style={{ background: 'linear-gradient(90deg, #378ADD, #185FA5, #042C53)' }} />
-        
         <div className="p-4 flex items-start gap-3">
-          {/* Bell icon with pulse */}
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 relative"
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: 'linear-gradient(135deg, #378ADD, #185FA5)' }}
           >
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
             </svg>
-            {/* Pulse ring */}
-            <div
-              className="absolute inset-0 rounded-xl animate-ping"
-              style={{ background: 'rgba(55,138,221,0.3)', animationDuration: '1.5s', animationIterationCount: '2' }}
-            />
           </div>
-
-          {/* Content */}
           <div className="flex-1 min-w-0">
             <p className="font-bold text-sm text-[#042C53] truncate">
               {notification.title || 'แจ้งเตือนใหม่'}
             </p>
-            <p className="text-xs text-[#378ADD] mt-0.5 line-clamp-2">
+            <p className="text-xs text-[#378ADD] mt-0.5 line-clamp-2 whitespace-pre-line">
               {notification.body || ''}
             </p>
           </div>
-
-          {/* Close button */}
           <button
+            type="button"
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#042C53] hover:bg-slate-100 transition-colors shrink-0"
           >
@@ -63,8 +53,6 @@ function NotificationToast({ notification, onClose }) {
           </button>
         </div>
       </div>
-
-      {/* Inline animation keyframes */}
       <style>{`
         @keyframes slideInRight {
           from { transform: translateX(120%); opacity: 0; }
@@ -75,99 +63,101 @@ function NotificationToast({ notification, onClose }) {
   );
 }
 
-// ── Notification Provider ───────────────────────────────────
-export default function NotificationProvider({ children }) {
-  const [toast, setToast] = useState(null);
-  const fcmTokenRef = useRef(null);
-  const registeredRef = useRef(false);
+function hasAuthToken() {
+  return Boolean(localStorage.getItem('bou_token') || sessionStorage.getItem('bou_token'));
+}
 
-  // Register FCM token with backend
+export default function NotificationProvider({ children }) {
+  const navigate = useNavigate();
+  const [toast, setToast] = useState(null);
+
+  const bumpBell = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('new_message_alert'));
+  }, []);
+
   const registerToken = useCallback(async (token) => {
-    if (!token || registeredRef.current) return;
-    
+    if (!token || !hasAuthToken()) return;
     try {
       await api.post('/fcm/register-token', {
         fcm_token: token,
         device_info: navigator.userAgent.substring(0, 200),
       });
-      registeredRef.current = true;
-      console.log('FCM token registered with backend');
     } catch (err) {
       console.error('Failed to register FCM token:', err);
     }
   }, []);
 
-  // Initialize: request permission + register token
-  useEffect(() => {
-    const init = async () => {
-      // Check if user is logged in
-      const token = localStorage.getItem('bou_token');
-      if (!token) return;
+  const ensurePushReady = useCallback(async ({ promptIfNeeded = false } = {}) => {
+    if (!hasAuthToken()) return;
+    if (typeof Notification === 'undefined') return;
 
-      // Small delay to not block initial render
-      await new Promise(r => setTimeout(r, 2000));
+    if (Notification.permission === 'default' && promptIfNeeded) {
+      const result = await Swal.fire({
+        title: 'เปิดรับการแจ้งเตือนบนมือถือ',
+        text: 'อนุญาตการแจ้งเตือนเพื่อรับงานและเหตุการณ์สำคัญ แม้ปิดเว็บไปแล้ว',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'อนุญาต',
+        cancelButtonText: 'ไว้ทีหลัง',
+        confirmButtonColor: '#185FA5',
+        cancelButtonColor: '#9CA3AF',
+      });
+      if (!result.isConfirmed) return;
+    }
 
-      // If notification permission is default (not asked yet), prompt with SweetAlert first
-      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        const result = await Swal.fire({
-          title: 'เปิดรับการแจ้งเตือน',
-          text: 'กรุณากดอนุญาตเพื่อรับแจ้งเตือนงานและข้อความใหม่ๆ ได้ทันที',
-          icon: 'info',
-          showCancelButton: true,
-          confirmButtonText: 'อนุญาต',
-          cancelButtonText: 'ไว้ทีหลัง',
-          confirmButtonColor: '#3B82F6',
-          cancelButtonColor: '#9CA3AF',
-        });
+    if (Notification.permission === 'denied') return;
 
-        if (result.isConfirmed) {
-          const fcmToken = await requestNotificationPermission();
-          if (fcmToken) {
-            fcmTokenRef.current = fcmToken;
-            await registerToken(fcmToken);
-            Swal.fire({
-              title: 'สำเร็จ!',
-              text: 'เปิดการแจ้งเตือนเรียบร้อยแล้ว',
-              icon: 'success',
-              timer: 2000,
-              showConfirmButton: false
-            });
-          }
-        }
-      } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        // Already granted, just fetch token silently
-        const fcmToken = await requestNotificationPermission();
-        if (fcmToken) {
-          fcmTokenRef.current = fcmToken;
-          await registerToken(fcmToken);
-        }
-      }
-    };
-
-    init();
+    const fcmToken = await requestNotificationPermission();
+    if (fcmToken) await registerToken(fcmToken);
   }, [registerToken]);
 
-  // Listen for foreground messages
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      ensurePushReady({ promptIfNeeded: true });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [ensurePushReady]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && hasAuthToken()) {
+        ensurePushReady({ promptIfNeeded: false });
+        bumpBell();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [ensurePushReady, bumpBell]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+    const onMessage = (event) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK') {
+        const path = resolveNotificationPath(event.data.path);
+        if (path) navigate(path);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [navigate]);
+
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
-      console.log('[NotificationProvider] FCM Foreground message received:', payload);
       const title = payload.notification?.title || payload.data?.title || 'แจ้งเตือนใหม่';
       const body = payload.notification?.body || payload.data?.body || '';
-      
-      // 1. Show in-app toast
-      setToast({ title, body });
 
-      // 2. ALSO trigger a native system notification (so it shows in the mobile notification bar even when app is open)
+      setToast({ title, body });
+      bumpBell();
+
       if ('serviceWorker' in navigator && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then((registration) => {
-          const icon = payload.notification?.icon || payload.data?.icon;
           registration.showNotification(title, {
-            body: body,
-            icon: icon,
-            tag: payload.collapseKey || 'bou-notification-fg-' + Date.now(),
+            body,
+            icon: payload.notification?.icon || '/favicon.ico',
+            tag: payload.data?.event_key || `bou-fg-${Date.now()}`,
             data: payload.data || {},
-            vibrate: [200, 100, 200]
-          }).catch(err => console.error('Error showing foreground native notification:', err));
+            vibrate: [200, 100, 200],
+          }).catch((err) => console.error('foreground native notification:', err));
         });
       }
     });
@@ -175,20 +165,18 @@ export default function NotificationProvider({ children }) {
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, []);
+  }, [bumpBell]);
 
-  // Listen for local test alerts
   useEffect(() => {
     const handleLocalAlert = (e) => {
-      console.log('[NotificationProvider] Local alert triggered:', e.detail);
       if (e.detail) {
-        setToast({ 
-          title: e.detail.title, 
-          body: e.detail.body 
+        setToast({
+          title: e.detail.title,
+          body: e.detail.body,
         });
       }
     };
-    
+
     window.addEventListener('new_message_alert', handleLocalAlert);
     return () => window.removeEventListener('new_message_alert', handleLocalAlert);
   }, []);

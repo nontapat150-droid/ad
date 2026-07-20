@@ -36,6 +36,12 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
   }
 
   try {
+    const origin = process.env.FRONTEND_ORIGIN || 'https://bonusais.com';
+    const linkPath = data?.path && String(data.path).startsWith('/')
+      ? String(data.path).replace(/^\/dispatch/, '/dispatch-dashboard')
+      : '';
+    const link = linkPath ? `${origin}${linkPath}` : undefined;
+
     const message = {
       token: fcmToken,
       notification: {
@@ -52,8 +58,10 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
       webpush: {
         headers: { Urgency: 'high' },
         notification: {
-          vibrate: [200, 100, 200]
-        }
+          icon: '/favicon.ico',
+          vibrate: [200, 100, 200],
+        },
+        fcmOptions: link ? { link } : undefined,
       },
       android: {
         priority: 'high',

@@ -9,12 +9,16 @@ export default function NotificationBell() {
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const [msgRes, notifRes] = await Promise.all([
+      const [msgRes, notifRes] = await Promise.allSettled([
         api.get('/messages/unread-count'),
         api.get('/notifications/unread-count'),
       ]);
-      const msgCount = Number(msgRes.data?.count) || 0;
-      const notifCount = Number(notifRes.data?.count) || 0;
+      const msgCount = msgRes.status === 'fulfilled'
+        ? Number(msgRes.value.data?.count) || 0
+        : 0;
+      const notifCount = notifRes.status === 'fulfilled'
+        ? Number(notifRes.value.data?.count) || 0
+        : 0;
       setUnreadCount(msgCount + notifCount);
     } catch (err) {
       console.error('Failed to fetch unread count', err);

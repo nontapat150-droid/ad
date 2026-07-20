@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
-import NotificationProvider from './NotificationProvider';
 import ManualModal from './ManualModal';
 import ManualHelpButton from './ManualHelpButton';
 import api from '../api/axios';
@@ -43,7 +42,6 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle, man
   }, []);
 
   return (
-    <NotificationProvider>
     <div className="flex min-h-dvh ">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
@@ -174,6 +172,5 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle, man
         pageName={normalizePageKey(manualPage || activeKey)}
       />
     </div>
-    </NotificationProvider>
   );
 }

@@ -110,14 +110,6 @@ async function startBackgroundJobs() {
     return;
   }
 
-  try {
-    const { ensureNotificationsSchema } = require('./utils/notifyEvent');
-    await ensureNotificationsSchema();
-    console.log('✅ notifications schema ready');
-  } catch (err) {
-    console.error('notifications schema:', err.message);
-  }
-
   require('./cron/reminders');
 
   try {
@@ -129,6 +121,19 @@ async function startBackgroundJobs() {
 }
 
 startBackgroundJobs();
+
+async function ensureAppSchema() {
+  try {
+    await pool.checkConnection();
+    const { ensureNotificationsSchema } = require('./utils/notifyEvent');
+    await ensureNotificationsSchema();
+    console.log('✅ notifications schema ready');
+  } catch (err) {
+    console.error('App schema bootstrap failed:', pool.formatError(err));
+  }
+}
+
+ensureAppSchema();
 
 function shutdown(signal) {
   console.log(`Shutting down (${signal})`);

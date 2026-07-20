@@ -5,14 +5,15 @@ let schemaReady = false;
 let schemaPromise = null;
 
 /**
- * Ensure notifications inbox table exists (idempotent).
+ * Ensure notifications inbox table exists (idempotent, hosting-safe).
  */
 async function ensureNotificationsSchema(db = pool) {
   if (schemaReady) return;
   if (schemaPromise) return schemaPromise;
 
   schemaPromise = (async () => {
-    await db.query(`
+    // Prefer FK when allowed; fall back without FK on shared hosting.
+    const baseDdl = `
       CREATE TABLE IF NOT EXISTS notifications (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NOT NULL,
@@ -20,17 +21,35 @@ async function ensureNotificationsSchema(db = pool) {
         type VARCHAR(50) NOT NULL DEFAULT 'system',
         title VARCHAR(255) NOT NULL,
         body TEXT NULL,
-        data_json JSON NULL,
+        data_json LONGTEXT NULL,
         actor_id INT NULL,
         is_read TINYINT(1) NOT NULL DEFAULT 0,
         read_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_notifications_user_event (user_id, event_key),
         KEY idx_notifications_user_unread (user_id, is_read, created_at),
-        KEY idx_notifications_created (created_at),
+        KEY idx_notifications_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`;
+
+    try {
+      await db.query(`${baseDdl},
         CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
+      )`);
+    } catch (err) {
+      const fkBlocked =
+        err.code === 'ER_CANNOT_ADD_FOREIGN'
+        || err.code === 'ER_FK_INCOMPATIBLE_COLUMNS'
+        || err.errno === 1005
+        || err.errno === 1215
+        || err.errno === 3780
+        || /foreign key/i.test(String(err.message || ''));
+      if (fkBlocked) {
+        await db.query(`${baseDdl})`);
+      } else if (err.code !== 'ER_TABLE_EXISTS_ERROR') {
+        throw err;
+      }
+    }
+
     schemaReady = true;
   })().catch((err) => {
     schemaPromise = null;

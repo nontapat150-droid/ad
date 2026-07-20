@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import NotificationProvider from './components/NotificationProvider';
 import Login from './pages/Login';
 import CheckinPage from './pages/CheckinPage';
 import OilDashboardPage from './pages/OilDashboardPage';
@@ -150,7 +151,9 @@ export default function App() {
     <AuthProvider>
       <BrandingProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <NotificationProvider>
+            <AppRoutes />
+          </NotificationProvider>
         </BrowserRouter>
       </BrandingProvider>
     </AuthProvider>

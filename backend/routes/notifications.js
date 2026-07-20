@@ -36,7 +36,7 @@ router.get('/unread-count', auth, async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     await ensureNotificationsSchema();
-    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
     const unreadOnly = String(req.query.unread || '') === '1';
 
     const [rows] = await pool.query(
@@ -48,8 +48,8 @@ router.get('/', auth, async (req, res) => {
        WHERE n.user_id = ?
          ${unreadOnly ? 'AND n.is_read = 0' : ''}
        ORDER BY n.created_at DESC
-       LIMIT ?`,
-      [req.user.id, limit]
+       LIMIT ${limit}`,
+      [req.user.id]
     );
 
     res.json(
@@ -61,7 +61,7 @@ router.get('/', auth, async (req, res) => {
     );
   } catch (err) {
     console.error('notifications list:', err);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
+    res.status(500).json({ error: 'Failed to fetch notifications', detail: err.message });
   }
 });
 
