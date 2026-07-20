@@ -1,8 +1,9 @@
-// ─── Shared Dashboard Components ────────────────────────────────────────────
-// Palette: Charcoal #1F2937 · Lime #A3E635 · Soft Gray #F3F4F6
-
 import { getJobStatusBadgeClass, getJobStatusLabel } from '../../constants/jobStatus';
 import { extractHHMM } from '../../utils/thaiDate';
+import Swal from 'sweetalert2';
+
+// ─── Shared Dashboard Components ────────────────────────────────────────────
+// Palette: Charcoal #1F2937 · Lime #A3E635 · Soft Gray #F3F4F6
 
 export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent, onClick }) {
   const interactive = typeof onClick === 'function';
@@ -94,15 +95,24 @@ export function ProgressCard({ title, icon, current, target, suffix, pct, gradie
 function openJobMaps(job) {
   if (job?.lat && job?.lng) {
     window.open(`https://www.google.com/maps?q=${job.lat},${job.lng}`, '_blank', 'noopener,noreferrer');
-    return;
+    return true;
   }
   if (job?.map_link) {
     window.open(job.map_link, '_blank', 'noopener,noreferrer');
-    return;
+    return true;
   }
   if (job?.address) {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`, '_blank', 'noopener,noreferrer');
+    return true;
   }
+  Swal.fire({
+    icon: 'warning',
+    title: 'ยังไม่มีตำแหน่ง',
+    text: 'งานนี้ยังไม่มีพิกัดหรือที่อยู่สำหรับนำทาง กรุณาติดต่อแอดมินให้เพิ่มตำแหน่ง',
+    confirmButtonText: 'เข้าใจแล้ว',
+    confirmButtonColor: '#1F2937',
+  });
+  return false;
 }
 
 function callJobPhone(phone) {
@@ -209,7 +219,6 @@ export function TechJobActionCard({
     ? new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
     : null;
   const canCall = Boolean(job.phone);
-  const canMap = Boolean((job.lat && job.lng) || job.map_link || job.address);
   const statusKey = overdue ? 'overdue' : (job.status || 'pending');
 
   return (
@@ -256,9 +265,8 @@ export function TechJobActionCard({
         </button>
         <button
           type="button"
-          disabled={!canMap}
           onClick={(e) => { e.stopPropagation(); openJobMaps(job); }}
-          className="min-h-[48px] rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border transition-all active:scale-[0.97] disabled:opacity-35 disabled:cursor-not-allowed bg-white border-[#E5E7EB] text-[#1F2937] hover:border-[#A3E635]"
+          className="min-h-[48px] rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-0.5 border transition-all active:scale-[0.97] bg-white border-[#E5E7EB] text-[#1F2937] hover:border-[#A3E635]"
         >
           <span className="text-base">🗺️</span>
           นำทาง

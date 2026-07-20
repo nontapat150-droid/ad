@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Swal from 'sweetalert2';
 import { getJobStatusMeta } from '../constants/jobStatus';
+import { thaiTime } from '../utils/thaiDate';
 
 export default function JobCard({ job, index, onComplete, onIncomplete, onPostpone, onCancelCompletion, isSelected, onToggleSelect, onEdit, onDelete, onSetOff, onArrive, onCardClick }) {
   const [expanded, setExpanded] = useState(false);
@@ -9,13 +10,8 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
 
   const formatTime = (iso) => {
     if (!iso) return '';
-    try {
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return '-';
-      return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-    } catch (err) {
-      return '-';
-    }
+    const t = thaiTime(iso);
+    return t === '-' ? '' : t;
   };
 
   const handleStatusClick = (e) => {
@@ -141,9 +137,21 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
           {/* Action Buttons always visible */}
           <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full mt-3 pt-3 border-t border-white/30">
             <button
-              onClick={(e) => { e.stopPropagation(); window.open(`https://maps.google.com/?q=${job.lat},${job.lng}`, '_blank'); }}
-              disabled={!job.lat}
-              className="flex-1 h-10 rounded-xl glass border border-white/50 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#185FA5] hover:bg-white/50 transition-colors disabled:opacity-50">
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!job.lat || !job.lng) {
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'ยังไม่มีตำแหน่ง',
+                    text: 'งานนี้ยังไม่มีพิกัดสำหรับนำทาง กรุณาติดต่อแอดมินให้เพิ่มตำแหน่ง',
+                    confirmButtonText: 'เข้าใจแล้ว',
+                    confirmButtonColor: '#1F2937',
+                  });
+                  return;
+                }
+                window.open(`https://maps.google.com/?q=${job.lat},${job.lng}`, '_blank');
+              }}
+              className="flex-1 h-10 rounded-xl glass border border-white/50 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#185FA5] hover:bg-white/50 transition-colors">
               <svg className="w-4 h-4 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
               นำทาง
             </button>
