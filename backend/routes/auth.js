@@ -15,6 +15,18 @@ router.post('/login', async (req, res) => {
   }
 
   try {
+    // Check if account exists but not yet approved
+    const [[pendingUser]] = await pool.query(
+      `SELECT id, status FROM users WHERE username = ? LIMIT 1`,
+      [username]
+    );
+    if (pendingUser && pendingUser.status === 'pending') {
+      return res.status(403).json({ error: 'บัญชีของคุณรอผู้ดูแลระบบอนุมัติ กรุณารอสักครู่แล้วลองใหม่' });
+    }
+    if (pendingUser && pendingUser.status === 'rejected') {
+      return res.status(403).json({ error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
+    }
+
     // Fetch user + all roles from user_roles
     const [users] = await pool.query(
       `SELECT u.*, t.team_name,
@@ -82,6 +94,57 @@ router.post('/login', async (req, res) => {
       console.error('Login error:', err);
     }
     res.status(isDbConnectionError ? 503 : 500).json({ error: 'Database Error: ' + detail });
+  }
+});
+
+// ── POST /api/auth/register — Employee self-registration (pending approval) ──
+router.post('/register', async (req, res) => {
+  const { username, password, full_name, role } = req.body;
+
+  if (!username || !password || !full_name) {
+    return res.status(400).json({ error: 'กรุณากรอกชื่อ-นามสกุล ชื่อผู้ใช้ และรหัสผ่านให้ครบ' });
+  }
+  if (String(username).trim().length < 3) {
+    return res.status(400).json({ error: 'ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร' });
+  }
+  if (String(password).length < 4) {
+    return res.status(400).json({ error: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร' });
+  }
+
+  const allowedRoles = ['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'sales'];
+  const primaryRole = allowedRoles.includes(role) ? role : 'technician';
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const hash = await bcrypt.hash(password, 10);
+    const [result] = await conn.query(
+      `INSERT INTO users (username, password_hash, full_name, role, status, team_id)
+       VALUES (?, ?, ?, ?, 'pending', NULL)`,
+      [String(username).trim(), hash, String(full_name).trim(), primaryRole]
+    );
+    const userId = result.insertId;
+
+    await conn.query(
+      `INSERT IGNORE INTO user_roles (user_id, role) VALUES (?, ?)`,
+      [userId, primaryRole]
+    );
+
+    await conn.commit();
+    res.status(201).json({
+      message: 'ลงทะเบียนสำเร็จ รอผู้ดูแลระบบอนุมัติก่อนเข้าใช้งาน',
+      id: userId,
+    });
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น' });
+    }
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์' });
+  } finally {
+    conn.release();
   }
 });
 

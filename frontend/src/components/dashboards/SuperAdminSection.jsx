@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
-import { StatCard } from './SharedComponents';
+import { StatCard, ShortcutBtn } from './SharedComponents';
 
 const FEED_CONFIG = {
   oil:       { icon: '⛽', label: 'น้ำมัน',  color: 'bg-amber-100 text-amber-600',  dot: 'bg-amber-400' },
@@ -62,13 +62,16 @@ function timeOffline(dateStr) {
   return `ออฟไลน์ไปแล้ว ${Math.floor(diff / 86400)} วัน`;
 }
 
-function SectionHeader({ icon, title }) {
+function SectionHeader({ icon, title, subtitle }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
-      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center text-base shadow-md shadow-lime-500/20">
+      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center text-base shadow-md shadow-lime-500/20 shrink-0">
         {icon}
       </div>
-      <h3 className="text-[#1F2937] dark:text-slate-100 font-black text-lg">{title}</h3>
+      <div className="min-w-0">
+        <h3 className="text-[#1F2937] dark:text-slate-100 font-black text-lg leading-tight">{title}</h3>
+        {subtitle && <p className="text-xs text-[#6B7280] font-medium truncate">{subtitle}</p>}
+      </div>
     </div>
   );
 }
@@ -95,7 +98,7 @@ export default function SuperAdminSection() {
 
     let animationFrameId;
     let lastTime = performance.now();
-    const speed = 20; // pixels per second
+    const speed = 20;
 
     const scroll = (time) => {
       const delta = (time - lastTime) / 1000;
@@ -119,7 +122,7 @@ export default function SuperAdminSection() {
   }, [isHovered, isTabVisible]);
 
   const fetchData = () => {
-    api.get('/stats/super-admin-dashboard')
+    api.get('/stats/super-admin-dashboard?refresh=1')
       .then(res => setData(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
@@ -131,7 +134,7 @@ export default function SuperAdminSection() {
       if (document.visibilityState === 'visible') {
         fetchData();
       }
-    }, 3 * 60 * 1000); // 3 minutes
+    }, 3 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -141,7 +144,6 @@ export default function SuperAdminSection() {
     return acc;
   }, {}) || {};
 
-  // Map each team to a consistent color
   const teamColorMap = {};
   let colorIdx = 0;
   if (data?.onlineStatus) {
@@ -153,6 +155,13 @@ export default function SuperAdminSection() {
       }
     });
   }
+
+  const s = data?.summary || {};
+  const pendingUsers = Number(s.pendingUsers || 0);
+  const openReports = Number(s.openReports || 0);
+  const unassigned = Number(s.unassignedToday || 0);
+  const onlineUsers = Number(s.onlineUsers || 0);
+  const totalUsers = Number(s.totalUsers || 0);
 
   if (loading) return (
     <div className="space-y-4 animate-pulse">
@@ -166,43 +175,122 @@ export default function SuperAdminSection() {
   return (
     <div className="space-y-6 animate-fade-in-up">
       <style>{`
-        @keyframes scroll-feed {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-50%); }
-        }
-        .animate-scroll-feed {
-          animation: scroll-feed 30s linear infinite;
-        }
-        .animate-scroll-feed:hover { animation-play-state: paused; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* ── KPI Stats ── */}
+      {/* Title */}
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#E5E7EB] dark:border-slate-700">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1F2937] to-[#374151] flex items-center justify-center shadow-md shrink-0">
+            <span className="text-[#A3E635] text-sm">🛡️</span>
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-[#1F2937] dark:text-slate-100 font-extrabold text-lg leading-tight">ดูแลระบบ</h2>
+            <p className="text-xs text-[#6B7280] font-medium truncate">จัดการผู้ใช้ ตั้งค่า และดูภาพรวม — ช่วยแอดมินเมื่อมีปัญหา</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/users')}
+          className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold bg-[#1F2937] text-white hover:bg-[#374151] transition-colors"
+        >
+          จัดการผู้ใช้
+        </button>
+      </div>
+
+      {/* System KPIs */}
       <div>
-        <SectionHeader icon="📊" title="ภาพรวมระบบ" />
+        <SectionHeader icon="📊" title="ภาพรวมระบบ" subtitle="ตัวเลขระดับองค์กร / เดือนนี้" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="สินค้าในคลังทั้งหมด"
-            value={Number(data?.summary?.totalInventory || 0).toLocaleString()}
-            suffix="ชิ้น" gradient="from-[#374151] to-[#1F2937]" icon="📦" shadow="shadow-slate-500/20" />
+            value={Number(s.totalInventory || 0).toLocaleString()}
+            suffix="ชิ้น" gradient="from-[#374151] to-[#1F2937]" icon="📦" shadow="shadow-slate-500/20"
+            onClick={() => navigate('/inventory')} />
           <StatCard title="ลูกค้า NON ทั้งหมด"
-            value={Number(data?.summary?.totalNonCustomers || 0).toLocaleString()}
-            suffix="ราย" gradient="from-violet-500 to-purple-700" icon="🏢" shadow="shadow-violet-500/20" />
+            value={Number(s.totalNonCustomers || 0).toLocaleString()}
+            suffix="ราย" gradient="from-violet-500 to-purple-700" icon="🏢" shadow="shadow-violet-500/20"
+            onClick={() => navigate('/customers')} />
           <StatCard title="บิลน้ำมันเดือนนี้"
-            value={data?.summary?.monthlyOilBills || 0}
-            suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20" />
+            value={s.monthlyOilBills || 0}
+            suffix="บิล" gradient="from-amber-500 to-orange-500" icon="⛽" shadow="shadow-amber-500/20"
+            onClick={() => navigate('/oil')} />
           <StatCard title="ค่าแรกเข้าเดือนนี้"
-            value={data?.summary?.monthlyEntryFees || 0}
-            suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20" />
+            value={s.monthlyEntryFees || 0}
+            suffix="รายการ" gradient="from-teal-500 to-cyan-500" icon="💰" shadow="shadow-teal-500/20"
+            onClick={() => navigate('/entry-fee')} />
         </div>
       </div>
 
-      {/* ── Two Columns ── */}
+      {/* Help admin / system alerts — secondary, not full dispatch UI */}
+      <div>
+        <SectionHeader icon="🛟" title="ช่วยแอดมิน / สิ่งที่ต้องดู" subtitle="จุดที่อาจติดขัด — ไม่ใช่คิวจ่ายงานหลัก" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            title="ผู้ใช้รออนุมัติ"
+            value={pendingUsers}
+            suffix="คน"
+            gradient="from-amber-500 to-orange-500"
+            icon="👤"
+            shadow="shadow-amber-500/20"
+            urgent={pendingUsers > 0}
+            onClick={() => navigate('/users?status=pending')}
+          />
+          <StatCard
+            title="รายการแจ้งปัญหา"
+            value={openReports}
+            suffix="รายการ"
+            gradient="from-rose-500 to-pink-600"
+            icon="🆘"
+            shadow="shadow-rose-500/20"
+            urgent={openReports > 0}
+            onClick={() => navigate('/report')}
+          />
+          <StatCard
+            title="งานยังไม่มอบหมาย"
+            value={unassigned}
+            suffix="งาน"
+            gradient="from-slate-600 to-slate-800"
+            icon="📭"
+            shadow="shadow-slate-500/20"
+            urgent={unassigned > 0}
+            onClick={() => navigate('/dispatch-dashboard?tab=office&queue=unassigned')}
+          />
+          <StatCard
+            title="ผู้ใช้ออนไลน์ตอนนี้"
+            value={onlineUsers}
+            suffix={`/ ${totalUsers} คน`}
+            gradient="from-emerald-500 to-teal-500"
+            icon="🟢"
+            shadow="shadow-emerald-500/20"
+          />
+        </div>
+      </div>
+
+      {/* System stewardship shortcuts */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-[#E5E7EB] dark:border-slate-700"
+        style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <SectionHeader icon="⚡" title="ทางลัดดูแลระบบ" subtitle="หน้าที่แอดมินเข้าไม่ได้ หรือใช้แก้ปัญหา" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <ShortcutBtn icon="👥" label="จัดการผู้ใช้" sublabel="อนุมัติ / บทบาท / ทีม"
+            onClick={() => navigate('/users')} gradient="from-[#1F2937] to-[#374151]" shadow="shadow-slate-500/25" />
+          <ShortcutBtn icon="⚙️" label="ตั้งค่าระบบ" sublabel="แบรนด์ / ค่าคอนฟิก"
+            onClick={() => navigate('/settings')} gradient="from-slate-600 to-slate-800" shadow="shadow-slate-500/25" />
+          <ShortcutBtn icon="📈" label="สรุปผล MA" sublabel="ประสิทธิภาพงาน MA"
+            onClick={() => navigate('/ma-performance')} gradient="from-violet-500 to-purple-600" shadow="shadow-violet-500/25" />
+          <ShortcutBtn icon="🆘" label="รายการแจ้งปัญหา" sublabel="ติดตามเคสจากผู้ใช้"
+            onClick={() => navigate('/report')} gradient="from-rose-500 to-pink-600" shadow="shadow-rose-500/25" />
+          <ShortcutBtn icon="📢" label="ระบบประกาศ" sublabel="ประกาศถึงพนักงาน"
+            onClick={() => navigate('/announcements')} gradient="from-amber-500 to-orange-500" shadow="shadow-amber-500/25" />
+          <ShortcutBtn icon="📋" label="ช่วยจ่ายงาน" sublabel="เปิด Dispatch เมื่อแอดมินติด"
+            onClick={() => navigate('/dispatch-dashboard')} gradient="from-[#65a30d] to-[#A3E635]" shadow="shadow-lime-500/25" />
+        </div>
+      </div>
+
+      {/* Feed + Online */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* ── Activity Feed ── */}
         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-[#E5E7EB] dark:border-slate-700 overflow-hidden flex flex-col h-[480px] shadow-sm">
-          {/* Header */}
           <div className="px-6 py-5 border-b border-[#F3F4F6] dark:border-slate-700 flex items-center justify-between shrink-0 bg-[#F9FAFB] dark:bg-slate-900/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#A3E635] to-[#65a30d] flex items-center justify-center shadow-md shadow-lime-500/20">
@@ -210,7 +298,7 @@ export default function SuperAdminSection() {
               </div>
               <div>
                 <h2 className="text-[#1F2937] dark:text-slate-100 font-black text-base">Activity Feed</h2>
-                <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">การทำรายการล่าสุด</p>
+                <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">การทำรายการล่าสุดวันนี้</p>
               </div>
             </div>
             <span className="flex items-center gap-1.5 text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm">
@@ -219,9 +307,7 @@ export default function SuperAdminSection() {
             </span>
           </div>
 
-          {/* Feed Items */}
-          {/* Feed Items */}
-          <div 
+          <div
             ref={feedRef}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -274,28 +360,25 @@ export default function SuperAdminSection() {
           </div>
         </div>
 
-        {/* ── User Online Status ── */}
         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-[#E5E7EB] dark:border-slate-700 overflow-hidden flex flex-col h-[480px] shadow-sm">
-          {/* Header */}
           <div className="px-6 py-5 border-b border-[#F3F4F6] dark:border-slate-700 flex items-center gap-3 shrink-0 bg-[#F9FAFB] dark:bg-slate-900/50">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-500/20">
               <span className="text-white text-lg">👥</span>
             </div>
             <div>
               <h2 className="text-[#1F2937] dark:text-slate-100 font-black text-base">สถานะการทำงาน</h2>
-              <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">ผู้ใช้งานแยกตามทีม</p>
+              <p className="text-[#6B7280] dark:text-slate-400 text-xs font-bold mt-0.5">
+                ออนไลน์ {onlineUsers} / {totalUsers} คน · แยกตามทีม
+              </p>
             </div>
           </div>
-          
-          {/* Status List */}
+
           <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar bg-[#F9FAFB] dark:bg-slate-900/30">
             {Object.keys(onlineGroups).length > 0 ? (
               Object.entries(onlineGroups).map(([teamName, users]) => {
                 const tc = teamColorMap[teamName === 'ไม่มีทีม' ? '__none__' : teamName];
                 return (
                   <div key={teamName} className={`bg-white dark:bg-slate-700 rounded-2xl p-4 border ${tc?.border || 'border-[#E5E7EB]'} dark:border-slate-600 shadow-[0_2px_12px_rgba(0,0,0,0.03)]`}>
-                    
-                    {/* Team Header */}
                     <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#F3F4F6] dark:border-slate-600">
                       <h3 className="font-black text-[#1F2937] dark:text-slate-100 flex items-center gap-2 text-sm uppercase tracking-wide">
                         <span className={`w-3 h-3 rounded-full ${tc?.dot || 'bg-[#D1D5DB]'}`} />
@@ -306,14 +389,11 @@ export default function SuperAdminSection() {
                       </span>
                     </div>
 
-                    {/* Users Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {users.map(u => {
                         const roles = u.roles_csv ? u.roles_csv.split(',') : [u.role];
                         return (
                           <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#F9FAFB] dark:bg-slate-800 border border-[#E5E7EB] dark:border-slate-600 hover:border-[#A3E635]/50 hover:shadow-sm transition-all group">
-                            
-                            {/* Avatar */}
                             <div className="relative shrink-0">
                               <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black overflow-hidden shadow-sm transition-transform group-hover:scale-105 relative ${tc?.bg || 'bg-[#F3F4F6]'} ${tc?.text || 'text-[#374151]'}`}>
                                 <span className="absolute inset-0 flex items-center justify-center">{u.full_name.charAt(0)}</span>
@@ -325,15 +405,11 @@ export default function SuperAdminSection() {
                               </div>
                               <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-[2.5px] border-white shadow-sm ${u.is_online ? 'bg-[#A3E635]' : 'bg-[#D1D5DB]'}`} />
                             </div>
-
-                            {/* Info */}
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-black text-[#1F2937] dark:text-slate-100 truncate leading-tight">{u.full_name}</p>
                               <p className={`text-[10px] ${u.is_online ? 'text-[#65a30d] font-bold' : 'text-[#9CA3AF] font-medium'}`}>
                                 {u.is_online ? '● กำลังใช้งาน' : `○ ${timeOffline(u.last_active)}`}
                               </p>
-                              
-                              {/* Multi-roles display */}
                               <div className="flex gap-1 flex-wrap mt-1">
                                 {roles.map(r => <RoleBadge key={r} role={r} />)}
                               </div>
@@ -349,12 +425,10 @@ export default function SuperAdminSection() {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 bg-white shadow-sm border border-[#E5E7EB] rounded-full flex items-center justify-center text-3xl mb-4">👥</div>
                 <p className="text-[#1F2937] font-black text-base">ไม่มีข้อมูลผู้ใช้งาน</p>
-                <p className="text-[#9CA3AF] text-xs font-bold mt-1">ยังไม่มีผู้ใช้ออนไลน์หรือออฟไลน์</p>
               </div>
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

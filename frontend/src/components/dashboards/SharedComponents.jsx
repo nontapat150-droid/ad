@@ -3,12 +3,20 @@
 
 import { getJobStatusBadgeClass, getJobStatusLabel } from '../../constants/jobStatus';
 
-export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent }) {
+export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent, onClick }) {
+  const interactive = typeof onClick === 'function';
+  const Tag = interactive ? 'button' : 'div';
   return (
-    <div className={`rounded-2xl overflow-hidden border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group cursor-default ${
-      urgent ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-[#E5E7EB] dark:border-slate-700 bg-white dark:bg-slate-800'
-    }`}
-      style={urgent ? {} : { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+    <Tag
+      type={interactive ? 'button' : undefined}
+      onClick={onClick}
+      className={`rounded-2xl overflow-hidden border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group text-left w-full ${
+        interactive ? 'cursor-pointer' : 'cursor-default'
+      } ${
+        urgent ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-[#E5E7EB] dark:border-slate-700 bg-white dark:bg-slate-800'
+      }`}
+      style={urgent ? {} : { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+    >
       {/* Lime top accent bar */}
       <div className={`h-1 w-full ${urgent ? 'bg-red-400' : 'bg-gradient-to-r from-[#A3E635] to-[#65a30d]'}`} />
       <div className="p-5">
@@ -27,8 +35,13 @@ export function StatCard({ title, value, suffix, gradient, icon, shadow, urgent 
           <span className="text-sm font-medium text-[#6B7280] dark:text-slate-400">{suffix}</span>
         </div>
         <p className="text-xs font-medium text-[#6B7280] dark:text-slate-400 mt-1 truncate">{title}</p>
+        {interactive && (
+          <p className="text-[10px] font-bold text-[#65a30d] mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            แตะเพื่อเปิดคิว →
+          </p>
+        )}
       </div>
-    </div>
+    </Tag>
   );
 }
 

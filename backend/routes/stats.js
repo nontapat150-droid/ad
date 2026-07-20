@@ -45,21 +45,47 @@ router.get('/dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   }
 });
 
-// ── GET /api/stats/admin-dashboard — Admin Homepage ──────
+// ── GET /api/stats/admin-dashboard — Admin Homepage (job-assignment focus) ──────
+// Assigned = มี team_id หรือ assignee รายคน (field_engineer_id / assigned_user_id)
 router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const now = Date.now();
-  if (cache.admin.data && cache.admin.expiry > now) {
+  const forceFresh = req.query.refresh === '1';
+  if (!forceFresh && cache.admin.data && cache.admin.expiry > now) {
     return res.json(cache.admin.data);
   }
 
   try {
-    // Run all queries in parallel
-    const [inventoryRes, officeRes, maRes, officeUnRes, maUnRes, announcementsRes, onlineRes] = await Promise.allSettled([
-      pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
-      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE create_time >= CURDATE() AND create_time < CURDATE() + INTERVAL 1 DAY AND team_id IS NOT NULL`),
-      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NOT NULL`),
-      pool.query(`SELECT COUNT(*) as cnt FROM jobs WHERE create_time >= CURDATE() AND create_time < CURDATE() + INTERVAL 1 DAY AND team_id IS NULL`),
-      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs WHERE plan_arrival_date = CURDATE() AND team_id IS NULL`),
+    // Active (not truly postponed): status != postponed OR plan date already due
+    const officeActive = `(j.status != 'postponed' OR j.plan_arrival_date IS NULL OR j.plan_arrival_date <= CURDATE())`;
+    const maActive = `(j.status != 'postponed' OR j.plan_arrival_date IS NULL OR j.plan_arrival_date <= CURDATE())`;
+    const officeUnassigned = `(j.team_id IS NULL AND j.field_engineer_id IS NULL)`;
+    const maUnassigned = `(j.team_id IS NULL AND j.assigned_user_id IS NULL)`;
+    const officeAssigned = `(j.team_id IS NOT NULL OR j.field_engineer_id IS NOT NULL)`;
+    const maAssigned = `(j.team_id IS NOT NULL OR j.assigned_user_id IS NOT NULL)`;
+    const officeIncomplete = `(j.customer IS NULL OR TRIM(j.customer) = '' OR j.phone IS NULL OR TRIM(j.phone) = '' OR j.access_no IS NULL OR TRIM(j.access_no) = '' OR j.address IS NULL OR TRIM(j.address) = '')`;
+    const maIncomplete = `(j.customer IS NULL OR TRIM(j.customer) = '' OR j.phone IS NULL OR TRIM(j.phone) = '' OR COALESCE(NULLIF(TRIM(j.non_number), ''), NULLIF(TRIM(j.access_no), '')) IS NULL OR j.address IS NULL OR TRIM(j.address) = '')`;
+    const trulyPostponed = `(j.status = 'postponed' AND (j.plan_arrival_date IS NULL OR j.plan_arrival_date > CURDATE()))`;
+
+    const [
+      officeTodayRes, maTodayRes,
+      officeUnRes, maUnRes,
+      incompleteOfficeRes, incompleteMaRes,
+      postponedUnOfficeRes, postponedUnMaRes,
+      announcementsRes, onlineRes,
+    ] = await Promise.allSettled([
+      // งานติดตั้งวันนี้ (นัดวันนี้) ที่มอบหมายแล้ว
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs j WHERE j.plan_arrival_date = CURDATE() AND ${officeAssigned}`),
+      // งาน MA วันนี้ ที่มอบหมายแล้ว
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs j WHERE j.plan_arrival_date = CURDATE() AND ${maAssigned}`),
+      // ยังไม่มอบหมาย — งาน active (รวมนัดวันนี้/ค้าง) ไม่นับ completed/failed และไม่นับเลื่อนอนาคต
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs j WHERE j.status NOT IN ('completed','failed') AND ${officeActive} AND ${officeUnassigned}`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs j WHERE j.status NOT IN ('completed','failed') AND ${maActive} AND ${maUnassigned}`),
+      // ข้อมูลไม่ครบ (active)
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs j WHERE j.status NOT IN ('completed','failed') AND ${officeActive} AND ${officeIncomplete}`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs j WHERE j.status NOT IN ('completed','failed') AND ${maActive} AND ${maIncomplete}`),
+      // เลื่อนแล้วรอมอบหมาย
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs j WHERE ${trulyPostponed} AND ${officeUnassigned}`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs j WHERE ${trulyPostponed} AND ${maUnassigned}`),
       pool.query(`SELECT * FROM announcements WHERE (expires_at IS NULL OR expires_at > NOW()) ORDER BY created_at DESC LIMIT 5`),
       pool.query(`
         SELECT u.id, u.full_name, u.role, COALESCE(t.team_name, 'ไม่มีทีม') as team_name,
@@ -73,14 +99,16 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
         WHERE u.status = 'approved'
         GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image, u.last_active
         ORDER BY t.team_name, u.full_name
-      `)
+      `),
     ]);
 
     const getVal = (result) => result.status === 'fulfilled' ? (result.value[0]?.[0]?.cnt ?? 0) : 0;
     const getRows = (result) => result.status === 'fulfilled' ? result.value[0] : [];
 
-    const officeUnassigned = getVal(officeUnRes);
-    const maUnassigned = getVal(maUnRes);
+    const officeUnassignedCnt = getVal(officeUnRes);
+    const maUnassignedCnt = getVal(maUnRes);
+    const incompleteData = getVal(incompleteOfficeRes) + getVal(incompleteMaRes);
+    const postponedUnassigned = getVal(postponedUnOfficeRes) + getVal(postponedUnMaRes);
 
     const onlineStatus = onlineRes.status === 'fulfilled'
       ? onlineRes.value[0].map(r => ({
@@ -92,15 +120,18 @@ router.get('/admin-dashboard', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
     const responseData = {
       summary: {
-        totalInventory: getVal(inventoryRes),
-        officeAssignedToday: getVal(officeRes),
-        maAssignedToday: getVal(maRes),
-        unassignedToday: officeUnassigned + maUnassigned
+        officeAssignedToday: getVal(officeTodayRes),
+        maAssignedToday: getVal(maTodayRes),
+        unassignedToday: officeUnassignedCnt + maUnassignedCnt,
+        officeUnassigned: officeUnassignedCnt,
+        maUnassigned: maUnassignedCnt,
+        incompleteData,
+        postponedUnassigned,
       },
       announcements: getRows(announcementsRes),
       onlineStatus
     };
-    
+
     cache.admin = { data: responseData, expiry: Date.now() + CACHE_TTL };
     res.json(responseData);
   } catch (err) {
@@ -120,10 +151,16 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
 
   try {
     // Run ALL queries in parallel instead of sequentially
+    const officeActive = `(j.status != 'postponed' OR j.plan_arrival_date IS NULL OR j.plan_arrival_date <= CURDATE())`;
+    const maActive = `(j.status != 'postponed' OR j.plan_arrival_date IS NULL OR j.plan_arrival_date <= CURDATE())`;
+    const officeUnassigned = `(j.team_id IS NULL AND j.field_engineer_id IS NULL)`;
+    const maUnassigned = `(j.team_id IS NULL AND j.assigned_user_id IS NULL)`;
+
     const [
-      usersRes, inventoryRes, nonRes, oilRes, entryRes, feedRes, onlineRes
+      usersRes, inventoryRes, nonRes, oilRes, entryRes, feedRes, onlineRes,
+      pendingUsersRes, openReportsRes, officeUnRes, maUnRes,
     ] = await Promise.allSettled([
-      pool.query(`SELECT COUNT(*) as cnt FROM users`),
+      pool.query(`SELECT COUNT(*) as cnt FROM users WHERE status = 'approved'`),
       pool.query(`SELECT COALESCE(SUM(quantity), 0) as cnt FROM inventory_items`),
       // NON customers live in ma_jobs / ma_customers — NOT jobs.access_no LIKE 'NON%'
       (async () => {
@@ -181,7 +218,21 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         WHERE u.status = 'approved'
         GROUP BY u.id, u.full_name, u.role, t.team_name, u.profile_image, u.last_active
         ORDER BY t.team_name, u.full_name
-      `)
+      `),
+      pool.query(`SELECT COUNT(*) as cnt FROM users WHERE status = 'pending'`),
+      (async () => {
+        try {
+          return await pool.query(`SELECT COUNT(*) as cnt FROM issue_reports WHERE status IN ('pending','open','in_progress') OR status IS NULL OR status = ''`);
+        } catch {
+          try {
+            return await pool.query(`SELECT COUNT(*) as cnt FROM issue_reports WHERE status = 'pending'`);
+          } catch {
+            return [[{ cnt: 0 }]];
+          }
+        }
+      })(),
+      pool.query(`SELECT COUNT(*) as cnt FROM jobs j WHERE j.status NOT IN ('completed','failed') AND ${officeActive} AND ${officeUnassigned}`),
+      pool.query(`SELECT COUNT(*) as cnt FROM ma_jobs j WHERE j.status NOT IN ('completed','failed') AND ${maActive} AND ${maUnassigned}`),
     ]);
 
     // Extract results safely
@@ -207,10 +258,16 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
         }))
       : [];
 
+    const onlineUsers = onlineStatus.filter(u => u.is_online).length;
+    const unassignedToday = getVal(officeUnRes) + getVal(maUnRes);
+
     const responseData = {
       summary: {
         totalUsers: getVal(usersRes),
-        onlineUsers: 0,
+        onlineUsers,
+        pendingUsers: getVal(pendingUsersRes),
+        openReports: getVal(openReportsRes),
+        unassignedToday,
         totalInventory: getVal(inventoryRes),
         totalNonCustomers: getVal(nonRes),
         monthlyOilBills: getVal(oilRes),

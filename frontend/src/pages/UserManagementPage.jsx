@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import Sidebar from '../components/Sidebar';
 import { useAuth } from '../context/AuthContext';
@@ -55,7 +55,16 @@ export default function UserManagementPage() {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [searchParams] = useSearchParams();
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const s = searchParams.get('status');
+    return ['pending', 'approved', 'rejected'].includes(s) ? s : '';
+  });
+
+  useEffect(() => {
+    const s = searchParams.get('status');
+    if (['pending', 'approved', 'rejected'].includes(s)) setFilterStatus(s);
+  }, [searchParams]);
 
   const hasActiveFilter = Boolean(search.trim() || filterRole || filterTeam || filterStatus);
 

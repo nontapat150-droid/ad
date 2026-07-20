@@ -592,8 +592,10 @@ export default function DispatchDashboardPage() {
   const [selectedJob, setSelectedJob] = useState(null); // for EditJobModal
 
   const [mainTab, setMainTab] = useState(initialMainTab);
-  const [subTab, setSubTab] = useState('all');
-  const [filterDate, setFilterDate] = useState('');
+  const validQueues = ['all', 'unassigned', 'incomplete_data', 'assigned', 'completed', 'failed', 'postponed', 'postponed_unassigned', 'overdue', 'map'];
+  const initialQueue = searchParams.get('queue');
+  const [subTab, setSubTab] = useState(validQueues.includes(initialQueue) ? initialQueue : 'all');
+  const [filterDate, setFilterDate] = useState(() => searchParams.get('date') || '');
   const [filterTeamId, setFilterTeamId] = useState('');
   const [filterUserId, setFilterUserId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -638,7 +640,13 @@ export default function DispatchDashboardPage() {
   }, []);
 
   useEffect(() => { fetchJobs(); fetchTeams(); fetchUsers(); }, []);
-  useEffect(() => { const tab = searchParams.get('tab'); if (tab && ['office', 'ma'].includes(tab)) setMainTab(tab); }, [location.search]);
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['office', 'ma'].includes(tab)) setMainTab(tab);
+    const queue = searchParams.get('queue');
+    if (queue && validQueues.includes(queue)) setSubTab(queue);
+    if (searchParams.has('date')) setFilterDate(searchParams.get('date') || '');
+  }, [location.search]);
   useEffect(() => { fetchJobs(); setSelectedJobIds([]); }, [mainTab, filterDate, filterTeamId, filterUserId, searchQuery]);
 
   useEffect(() => {
