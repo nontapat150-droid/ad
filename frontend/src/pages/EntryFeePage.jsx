@@ -13,6 +13,8 @@ import { th } from 'date-fns/locale';
 import EntryFeeEditModal from '../components/EntryFeeEditModal';
 import { getImageUrl } from '../utils/imageUtils';
 import { AppSelectField } from '../components/DispatchFilterFields';
+import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -136,6 +138,7 @@ export default function EntryFeePage() {
   const isOfficeTech = user?.role === 'technician' || user?.roles?.includes('technician') || user?.role === 'office_technician' || user?.role === 'contractor_office' || user?.roles?.includes('contractor_office');
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const [activeTab, setActiveTab] = useState('record'); // 'record' | 'history'
 
   // --- RECORD STATE ---
@@ -351,8 +354,11 @@ export default function EntryFeePage() {
               <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">ระบบบันทึกค่าแรกเข้า</h1>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ManualHelpButton onClick={() => setShowManualModal(true)} />
+            <ThemeToggle />
             <NotificationBell />
+          </div>
         </header>
 
         {/* ── Tabs ───────────────────────────────────────── */}
@@ -980,6 +986,12 @@ export default function EntryFeePage() {
           }}
         />
       )}
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={user?.roles || [user?.role]}
+        pageName="entry_fee"
+      />
     </div>
   );
 }

@@ -2,12 +2,18 @@ import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
+import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
+import { useAuth } from '../context/AuthContext';
 import axios from '../api/axios';
 import { getImageUrl } from '../utils/imageUtils';
 import { getJobStatusBadgeClass, getJobStatusLabel } from '../constants/jobStatus';
 
 export default function CustomersPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const { user } = useAuth();
+  const userRoles = user?.roles || [user?.role];
   const [accessNo, setAccessNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [customerData, setCustomerData] = useState(null);
@@ -73,8 +79,11 @@ export default function CustomersPage() {
               <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">ข้อมูลลูกค้าและประวัติงาน</h1>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ManualHelpButton onClick={() => setShowManualModal(true)} />
+            <ThemeToggle />
             <NotificationBell />
+          </div>
         </header>
 
         {/* ── Main Content ────────────────────────────────── */}
@@ -468,6 +477,13 @@ export default function CustomersPage() {
           </div>
         </main>
       </div>
+
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={userRoles}
+        pageName="customers"
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import { getImageUrl } from '../utils/imageUtils';
+import ManualModal from '../components/ManualModal';
 
 const SAVED_LOGIN_KEY = 'bou_saved_login';
 
@@ -65,6 +66,7 @@ export default function Login() {
   const [isFailed, setIsFailed] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [showRegPass, setShowRegPass] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const { login } = useAuth();
   const { branding } = useBranding();
   const navigate = useNavigate();
@@ -561,12 +563,28 @@ export default function Login() {
             </>
           )}
 
-          <div className="mt-auto pt-6 flex items-center justify-center gap-2 text-[#9CA3AF] text-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#A3E635]" />
-            <span>{brandName} · เข้าสู่ระบบอย่างปลอดภัย</span>
+          <div className="mt-auto pt-6 flex flex-col items-center gap-3 text-[#9CA3AF] text-xs">
+            <button
+              type="button"
+              onClick={() => setShowManualModal(true)}
+              className="text-sm font-semibold text-[#65a30d] hover:text-[#1F2937] hover:underline"
+            >
+              วิธีเข้าสู่ระบบ / ลงทะเบียน
+            </button>
+            <div className="flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#A3E635]" />
+              <span>{brandName} · เข้าสู่ระบบอย่างปลอดภัย</span>
+            </div>
           </div>
         </div>
       </div>
+
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={[]}
+        pageName="login"
+      />
     </div>
   );
 }

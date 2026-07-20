@@ -4,15 +4,19 @@ import Sidebar from '../components/Sidebar';
 import api from '../api/axios';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
+import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 
 export default function ReportIssuePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const isAdmin = user?.roles?.includes('super_admin') || user?.roles?.includes('admin') || user?.role === 'admin' || user?.role === 'super_admin';
+  const userRoles = user?.roles || [user?.role];
 
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
@@ -125,9 +129,12 @@ export default function ReportIssuePage() {
                 <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">พบปัญหาหรือมีข้อเสนอแนะ แจ้งเราได้เลย</p>
               </div>
             </div>
-            <button onClick={() => navigate(-1)} className="px-5 py-2.5 text-sm font-bold text-[#4B5563] bg-white border-2 border-[#E5E7EB] rounded-2xl hover:bg-[#F9FAFB] transition-all active:scale-95 shadow-sm">
-              ย้อนกลับ
-            </button>
+            <div className="flex items-center gap-2">
+              <ManualHelpButton onClick={() => setShowManualModal(true)} />
+              <button onClick={() => navigate(-1)} className="px-5 py-2.5 text-sm font-bold text-[#4B5563] bg-white border-2 border-[#E5E7EB] rounded-2xl hover:bg-[#F9FAFB] transition-all active:scale-95 shadow-sm">
+                ย้อนกลับ
+              </button>
+            </div>
           </div>
         </header>
 
@@ -291,6 +298,13 @@ export default function ReportIssuePage() {
           </div>
         </main>
       </div>
+
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={userRoles}
+        pageName="report"
+      />
     </div>
   );
 }

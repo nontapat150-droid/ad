@@ -1,172 +1,105 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { filterManualSections, getManual } from '../manuals';
+
+function SectionBlock({ section }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-black text-[#1F2937] dark:text-slate-100">{section.heading}</h3>
+      {section.body && (
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{section.body}</p>
+      )}
+      {section.steps?.length > 0 && (
+        <ol className="list-decimal pl-5 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
+          {section.steps.map((step, i) => (
+            <li key={i}>{step}</li>
+          ))}
+        </ol>
+      )}
+      {section.tips?.length > 0 && (
+        <ul className="space-y-1.5">
+          {section.tips.map((tip, i) => (
+            <li
+              key={i}
+              className="text-sm text-slate-600 dark:text-slate-300 bg-[#A3E635]/10 border border-[#A3E635]/25 rounded-xl px-3 py-2"
+            >
+              <span className="font-bold text-[#65a30d]">เทคนิค: </span>
+              {tip}
+            </li>
+          ))}
+        </ul>
+      )}
+      {section.faqs?.length > 0 && (
+        <div className="space-y-2">
+          {section.faqs.map((faq, i) => (
+            <div key={i} className="rounded-xl border border-[#E5E7EB] dark:border-slate-600 bg-[#F9FAFB] dark:bg-slate-700/50 p-3">
+              <p className="text-sm font-bold text-[#1F2937] dark:text-slate-100">ถาม: {faq.q}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">ตอบ: {faq.a}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ManualModal({ isOpen, onClose, userRoles = [], pageName = 'dashboard' }) {
-  // Determine primary role to display manual for
-  const isSuperAdmin = userRoles.includes('super_admin');
-  const isAdmin = userRoles.includes('admin') && !isSuperAdmin;
-  const isSales = userRoles.includes('sales');
-  const isTech = userRoles.includes('technician') || userRoles.includes('office_technician');
-  const isMaTech = userRoles.includes('ma_technician');
+  const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
 
-  // Prevent scroll when modal is open
+  const bundle = useMemo(
+    () => getManual(userRoles, pageName),
+    [userRoles, pageName]
+  );
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      setSearch('');
+      setActiveTab(0);
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, pageName]);
 
   if (!isOpen) return null;
 
-  // Content for Dashboard Page
-  const renderDashboardManual = () => {
-    if (isSuperAdmin) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดี Super Admin,</strong> หน้าภาพรวมระบบ (Dashboard) ถูกออกแบบมาเพื่อให้คุณเห็นข้อมูลทุกอย่างในบริษัทแบบ Real-time</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>สถิติรายวัน:</strong> ดูยอดงานทั้งหมด, งานที่สำเร็จ, และงานที่รอดำเนินการของวันนี้</li>
-            <li><strong>สถานะช่าง:</strong> ตรวจสอบว่าช่างคนไหนเข้างานแล้ว และคนไหนกำลังปฏิบัติงานอยู่บ้าง</li>
-            <li><strong>การแจ้งเตือนระบบ:</strong> ดูปัญหาที่ถูกแจ้งเข้ามาจากผู้ใช้งานในระบบ</li>
-            <li><strong>ปุ่มทางลัด:</strong> สามารถไปยังหน้าตั้งค่าระบบ, จัดการผู้ใช้, หรือจัดการงานได้อย่างรวดเร็ว</li>
-          </ul>
-        </div>
-      );
-    }
-    if (isAdmin) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดี Admin,</strong> นี่คือหน้าจอหลักสำหรับตรวจสอบและจัดการงานประจำวัน</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>ยอดงานรวม:</strong> สรุปจำนวนงานของแต่ละแผนก เพื่อประเมินความหนาแน่นของงาน</li>
-            <li><strong>ความเคลื่อนไหว:</strong> ดูการอัปเดตสถานะงานล่าสุดจากทีมช่างและเซลส์</li>
-            <li><strong>การควบคุม:</strong> ใช้ปุ่มในแถบด้านข้างเพื่อไปจ่ายงานให้ช่าง หรือตรวจสอบสินค้าคงคลัง</li>
-          </ul>
-        </div>
-      );
-    }
-    if (isSales) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดีทีมเซลส์,</strong> หน้านี้คือศูนย์รวมข้อมูลเพื่อติดตามความคืบหน้าของงานลูกค้า</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>งานที่เปิด:</strong> ตรวจสอบงานที่คุณเปิดไว้ว่าช่างดำเนินการถึงไหนแล้ว</li>
-            <li><strong>เพิ่มงานใหม่:</strong> เข้าถึงเมนูเพิ่มงานได้อย่างรวดเร็ว เพื่อส่งงานต่อให้ช่างทันที</li>
-            <li><strong>ประกาศ:</strong> ติดตามข่าวสารใหม่ๆ ของบริษัทที่อาจส่งผลต่อการขายหรือบริการ</li>
-          </ul>
-        </div>
-      );
-    }
-    if (isTech || isMaTech) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดีทีมช่าง,</strong> หน้านี้จะช่วยให้คุณทำงานและลงเวลาง่ายขึ้นในแต่ละวัน</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>งานของฉันวันนี้:</strong> แสดงรายการงานทั้งหมดที่คุณต้องรับผิดชอบในวันนี้</li>
-            <li><strong>การรับงาน:</strong> เมื่อถึงหน้างาน ให้กด <em>เช็คอิน</em> เพื่อเริ่มงาน และเมื่อเสร็จให้กด <em>อัปเดตสถานะ</em> เพื่อปิดงาน</li>
-            <li><strong>บันทึกเบิกน้ำมัน:</strong> ดูประวัติและยอดการเบิกค่าน้ำมันของคุณในเดือนนี้ได้อย่างรวดเร็ว</li>
-            <li><strong>ประกาศสำคัญ:</strong> อ่านประกาศจากบริษัทก่อนเริ่มงานทุกเช้า</li>
-          </ul>
-        </div>
-      );
-    }
-    return (
-      <div className="text-sm text-slate-500">
-        ยังไม่มีคู่มือสำหรับบทบาทของคุณในหน้านี้
-      </div>
-    );
-  };
-
-  // Content for Dispatch Page
-  const renderDispatchManual = () => {
-    if (isSuperAdmin || isAdmin) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดี {isSuperAdmin ? 'Super Admin' : 'Admin'},</strong> หน้านี้คือศูนย์กลางการควบคุมและแจกจ่ายงานให้กับทีมช่าง</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>แท็บต่างๆ:</strong> แยกงานตามประเภท (Office, MA, แผนที่) เพื่อความสะดวกในการจัดการ</li>
-            <li><strong>การแจกจ่ายงาน:</strong> คุณสามารถใช้ "แจกจ่ายอัตโนมัติ" หรือเลือกงานหลายๆ รายการแล้วเลือกช่างเพื่อจ่ายงานทีละมากๆ ได้ (Bulk Assign)</li>
-            <li><strong>มุมมองแผนที่:</strong> แท็บ "แผนที่" ช่วยให้คุณเห็นตำแหน่งของงานทั้งหมดที่ค้างอยู่ และเส้นทางการเดินรถของช่างในแต่ละทีม</li>
-            <li><strong>การนำเข้า Excel:</strong> สามารถเพิ่มงานทีละมากๆ ได้ด้วยปุ่ม "นำเข้า Excel" มุมขวาบน</li>
-          </ul>
-        </div>
-      );
-    }
-    if (isTech || isMaTech) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดีทีมช่าง,</strong> หน้านี้จะแสดงแผนที่และคิวงานทั้งหมดของคุณ</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>เรียงคิวจากตำแหน่งปัจจุบัน:</strong> กดปุ่มเพื่อเรียงลำดับงานตามระยะทางที่ใกล้ที่สุดจากจุดที่คุณอยู่</li>
-            <li><strong>การรับงาน:</strong> เมื่อถึงหน้างาน ให้กด <em>ถึงแล้ว</em> เพื่อบันทึกเวลา และเมื่อเสร็จให้กด <em>จบงาน</em></li>
-            <li><strong>แผนที่:</strong> คุณสามารถดูเส้นทางการเดินรถของงานคุณได้ในแท็บ "แผนที่"</li>
-            <li><strong>รายละเอียด:</strong> กด "รายละเอียด / อัปเดต" บนตัวงาน เพื่อดูข้อมูลเพิ่มเติมหรือกรอกแบบฟอร์มปิดงาน</li>
-          </ul>
-        </div>
-      );
-    }
-    return (
-      <div className="text-sm text-slate-500">
-        คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลในหน้านี้
-      </div>
-    );
-  };
-
-  // Content for TechBag Page
-  const renderTechBagManual = () => {
-    if (isSuperAdmin || isAdmin) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดี {isSuperAdmin ? 'Super Admin' : 'Admin'},</strong> หน้านี้คือระบบจัดการกระเป๋าช่าง</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>เลือกช่าง:</strong> ใช้ช่องค้นหาด้านบนเพื่อสลับดูข้อมูลกระเป๋าของช่างแต่ละคน</li>
-            <li><strong>การจัดการสินค้า:</strong> สามารถแก้ไขจำนวนสินค้าในกระเป๋า หรือนำสินค้าออกจากกระเป๋าช่างได้โดยตรง</li>
-            <li><strong>ประวัติการรับ/โอน:</strong> ตรวจสอบว่าช่างได้รับของเมื่อไหร่ ยืมหรือให้ใครยืมไปบ้าง</li>
-            <li><strong>การลบประวัติ:</strong> ในฐานะแอดมิน คุณสามารถลบประวัติการรับ/โอนที่ผิดพลาดได้จากแท็บประวัติ</li>
-          </ul>
-        </div>
-      );
-    }
-    if (isTech || isMaTech) {
-      return (
-        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
-          <p><strong>สวัสดีทีมช่าง,</strong> หน้านี้คือกระเป๋าสินค้าของคุณ</p>
-          <ul className="list-disc pl-5 space-y-2">
-            <li><strong>สินค้าในกระเป๋า:</strong> แสดงรายการอุปกรณ์และสินค้าที่คุณเบิกมาทั้งหมด พร้อมจำนวนคงเหลือ</li>
-            <li><strong>ให้ยืม/โอนของ:</strong> หากเพื่อนช่างต้องการอุปกรณ์ คุณสามารถกด "ให้ยืม" ระบุชื่อและจำนวน ระบบจะโอนของจากกระเป๋าคุณไปยังกระเป๋าเพื่อนทันที</li>
-            <li><strong>ประวัติ:</strong> ตรวจสอบประวัติได้ว่าคุณรับอะไรมาบ้าง และจ่ายอะไรออกไปบ้าง</li>
-          </ul>
-        </div>
-      );
-    }
-    return (
-      <div className="text-sm text-slate-500">
-        คุณไม่มีสิทธิ์เข้าถึงหรือจัดการข้อมูลในหน้านี้
-      </div>
-    );
-  };
+  const tab = bundle.tabs[activeTab] || bundle.tabs[0];
+  const filtered = filterManualSections(tab?.manual, search);
+  const hasMultipleTabs = bundle.tabs.length > 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-slide-up">
-        {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-800/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-900/30 text-brand-600 flex items-center justify-center shadow-inner">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div
+        className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="manual-title"
+      >
+        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-start gap-3 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-800/80 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#A3E635]/20 text-[#65a30d] flex items-center justify-center shrink-0">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">คู่มือการใช้งาน</h2>
-              <p className="text-xs text-brand-600 dark:text-brand-400 font-medium">สำหรับ{pageName === 'dashboard' ? 'หน้าภาพรวมระบบ' : 'หน้านี้'}</p>
+            <div className="min-w-0">
+              <h2 id="manual-title" className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 truncate">
+                คู่มือการใช้งาน
+              </h2>
+              <p className="text-xs text-[#65a30d] font-medium truncate">
+                {bundle.pageTitle}
+                {tab?.label ? ` · ${tab.label}` : ''}
+              </p>
             </div>
           </div>
-          <button 
+          <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors shrink-0"
+            aria-label="ปิด"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -174,25 +107,72 @@ export default function ManualModal({ isOpen, onClose, userRoles = [], pageName 
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 md:p-8 max-h-[60vh] overflow-y-auto">
-          {pageName === 'dashboard' && renderDashboardManual()}
-          {pageName === 'dispatch' && renderDispatchManual()}
-          {pageName === 'techbag' && renderTechBagManual()}
-          
-          {/* Future expansion for other pages */}
-          {pageName !== 'dashboard' && pageName !== 'dispatch' && pageName !== 'techbag' && (
-             <div className="text-sm text-slate-500 text-center py-8">
-               กำลังจัดทำคู่มือสำหรับหน้านี้...
-             </div>
+        {hasMultipleTabs && (
+          <div className="px-4 pt-3 flex gap-1.5 overflow-x-auto shrink-0" style={{ scrollbarWidth: 'none' }}>
+            {bundle.tabs.map((t, i) => (
+              <button
+                key={t.roleKey}
+                type="button"
+                onClick={() => setActiveTab(i)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                  activeTab === i
+                    ? 'bg-[#1F2937] text-white'
+                    : 'bg-[#F3F4F6] dark:bg-slate-700 text-[#6B7280] dark:text-slate-300'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="px-4 sm:px-6 pt-3 shrink-0">
+          <div className="relative">
+            <svg className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+            </svg>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="ค้นหาในคู่มือ เช่น จบงาน, Excel, แผนที่..."
+              className="w-full h-10 pl-9 pr-3 rounded-xl text-sm border border-[#E5E7EB] dark:border-slate-600 bg-white dark:bg-slate-900 text-[#1F2937] dark:text-slate-100 outline-none focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
+            />
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
+          {!filtered ? (
+            <div className="text-center py-10 space-y-2">
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">ยังไม่มีคู่มือสำหรับหน้านี้</p>
+              <p className="text-xs text-slate-500">
+                ลองเปิดคู่มือที่หน้าแรก หรือใช้เมนูแจ้งปัญหาหากติดขัด
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-base font-black text-[#1F2937] dark:text-slate-100">{filtered.title}</h3>
+                {filtered.summary && (
+                  <p className="text-sm text-[#6B7280] dark:text-slate-400 mt-1 leading-relaxed">{filtered.summary}</p>
+                )}
+              </div>
+              {filtered.sections?.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-6">ไม่พบหัวข้อที่ตรงกับคำค้นหา</p>
+              ) : (
+                filtered.sections.map((section, i) => (
+                  <SectionBlock key={`${section.heading}-${i}`} section={section} />
+                ))
+              )}
+            </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
-          <button 
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-end shrink-0">
+          <button
+            type="button"
             onClick={onClose}
-            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl font-medium transition-colors shadow-sm active:scale-95"
+            className="px-6 py-2.5 bg-[#1F2937] hover:bg-slate-700 text-white rounded-xl font-medium transition-colors shadow-sm active:scale-95"
           >
             เข้าใจแล้ว
           </button>

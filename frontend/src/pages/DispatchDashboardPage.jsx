@@ -13,6 +13,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
 import Swal from 'sweetalert2';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -835,6 +836,7 @@ export default function DispatchDashboardPage() {
             </div>
             {/* Action buttons — collapsed on mobile */}
             <div className="flex items-center gap-1.5">
+              <ManualHelpButton onClick={() => setShowManualModal(true)} />
               {!isAdmin && (
                 <AdminContactButton
                   phone={branding?.admin_phone}

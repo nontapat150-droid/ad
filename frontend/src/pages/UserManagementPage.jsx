@@ -7,6 +7,8 @@ import Swal from 'sweetalert2';
 import TeamManagementModal from '../components/TeamManagementModal';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
+import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
 import { AppSelectField, AppTimeField } from '../components/DispatchFilterFields';
 
 const ROLE_OPTIONS = [
@@ -38,6 +40,7 @@ function TimeFieldWithSeconds({ value, onChange, placeholder }) {
 
 export default function UserManagementPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -209,8 +212,11 @@ export default function UserManagementPage() {
                 <p className="text-sm font-medium text-[#9CA3AF] hidden sm:block">เพิ่ม แก้ไข ลบบัญชี และตั้งค่าเวลาเข้างาน</p>
               </div>
             </div>
-            <ThemeToggle />
-            <NotificationBell />
+            <div className="flex items-center gap-2">
+              <ManualHelpButton onClick={() => setShowManualModal(true)} />
+              <ThemeToggle />
+              <NotificationBell />
+            </div>
           </div>
         </header>
 
@@ -490,6 +496,12 @@ export default function UserManagementPage() {
           refreshParent={fetchData} 
         />
       )}
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={user?.roles || [user?.role]}
+        pageName="users"
+      />
     </div>
   );
 }

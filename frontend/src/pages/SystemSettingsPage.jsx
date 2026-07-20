@@ -3,11 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useBranding } from '../context/BrandingContext';
+import { useAuth } from '../context/AuthContext';
 import { getImageUrl } from '../utils/imageUtils';
+import ManualModal from '../components/ManualModal';
+import ManualHelpButton from '../components/ManualHelpButton';
 
 export default function SystemSettingsPage() {
   const navigate = useNavigate();
   const { branding, fetchBranding } = useBranding();
+  const { user } = useAuth();
+  const [showManualModal, setShowManualModal] = useState(false);
 
   const [brandingForm, setBrandingForm] = useState({
     website_name: '',
@@ -95,10 +100,11 @@ export default function SystemSettingsPage() {
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-black text-slate-800 drop-shadow-sm">ตั้งค่าระบบ</h1>
           <p className="text-slate-500 mt-2 font-medium">จัดการตั้งค่าการแสดงผล (Branding)</p>
         </div>
+        <ManualHelpButton onClick={() => setShowManualModal(true)} />
       </div>
 
       <div className="glass rounded-3xl p-6 md:p-8 shadow-xl border border-white/40">
@@ -202,6 +208,13 @@ export default function SystemSettingsPage() {
           </div>
         </form>
       </div>
+
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={user?.roles || [user?.role]}
+        pageName="settings"
+      />
     </div>
   );
 }

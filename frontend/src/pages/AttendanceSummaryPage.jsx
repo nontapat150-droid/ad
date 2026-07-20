@@ -65,7 +65,7 @@ export default function AttendanceSummaryPage() {
   };
 
   return (
-    <Layout activeKey="checkin" pageTitle="สรุปภาพรวมการเข้างาน">
+    <Layout activeKey="checkin" pageTitle="สรุปภาพรวมการเข้างาน" manualPage="attendance_summary">
       <div className="pb-12 space-y-6 animate-[fadeIn_0.4s_ease-out]">
         
         {/* Header Actions */}

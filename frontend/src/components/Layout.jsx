@@ -1,14 +1,19 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import NotificationProvider from './NotificationProvider';
+import ManualModal from './ManualModal';
+import ManualHelpButton from './ManualHelpButton';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { normalizePageKey } from '../manuals';
 
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
-export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
+export default function Layout({ children, activeKey, onNavigate, pageTitle, manualPage }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
   const [testingSend, setTestingSend] = useState(false);
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('color-theme') || 
@@ -75,6 +80,8 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            <ManualHelpButton onClick={() => setShowManualModal(true)} />
+
             {/* Map Button */}
             <button 
               onClick={() => {
@@ -159,6 +166,13 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle }) {
           </div>
         </main>
       </div>
+
+      <ManualModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        userRoles={userRoles}
+        pageName={normalizePageKey(manualPage || activeKey)}
+      />
     </div>
     </NotificationProvider>
   );
