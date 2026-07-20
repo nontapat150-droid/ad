@@ -6,7 +6,7 @@ import { AppSelectField } from './DispatchFilterFields';
 // ─── Field definitions for the system ─────────────────────────────────────────
 // group: 'required' (จำเป็น) | 'recommended' (แนะนำ) | 'extra' (เพิ่มเติม)
 const OFFICE_SYSTEM_FIELDS = [
-  { key: 'access_no',         label: 'Access No / รหัสงาน',       required: true,  group: 'required' },
+  { key: 'access_no',         label: 'Access No / NON / รหัสงาน',  required: true,  group: 'required' },
   { key: 'customer',          label: 'ชื่อลูกค้า',                 required: false, group: 'recommended' },
   { key: 'phone',             label: 'เบอร์โทร',                   required: false, group: 'recommended' },
   { key: 'plan_arrival_date', label: 'วันที่เข้างาน (YYYY-MM-DD)', required: false, group: 'recommended' },
@@ -47,12 +47,12 @@ const PROFILE_LS_KEY = 'excel-mapping-profiles';
 
 // ─── Keyword heuristics for auto-matching Excel headers to system fields ──────
 const FIELD_KEYWORDS = {
-  access_no:         ['access', 'เลขที่', 'access no', 'รหัส'],
+  access_no:         ['access', 'เลขที่', 'access no', 'รหัส', 'non', 'เลขnon', 'เลข non'],
   non_number:        ['non', 'เลขnon', 'เลข non', 'เลข NON', 'non number'],
   customer:          ['customer', 'ชื่อลูกค้า', 'ลูกค้า'],
   phone:             ['phone', 'เบอร์', 'โทร', 'tel'],
   plan_arrival_date: ['date', 'วัน', 'plan date', 'วันที่นัด', 'plan_date', 'plan_arrival_date'],
-  plan_arrival_time: ['plan time', 'plan_time', 'เวลาเข้า'],
+  plan_arrival_time: ['plan time', 'plan_time', 'เวลาเข้า', 'time', 'เวลา', 'job time'],
   job_time:          ['time', 'เวลา', 'job time', 'job_time'],
   address:           ['address', 'ที่อยู่'],
   symptoms:          ['symptoms', 'อาการ', 'ปัญหา'],
@@ -1596,16 +1596,24 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       const successCount = res.data.successCount ?? 0;
       const updatedCount = res.data.updatedCount ?? 0;
       const skippedCount = res.data.skippedCount || 0;
+      const unchangedList = res.data.unchanged || [];
+      const updateJobs = res.data.updateJobs || [];
+      const dateChanged = updateJobs.some((u) => (u.changed || []).includes('plan_arrival_date'));
 
       setImportResult({
         success: successCount,
         updated: updatedCount,
         skipped: skippedCount,
         duplicates: res.data.duplicates || [],
-        unchanged: res.data.unchanged || [],
+        unchanged: unchangedList,
         errors: res.data.errors || [],
       });
-      onSuccess();
+      onSuccess?.({
+        created: successCount,
+        updated: updatedCount,
+        unchanged: unchangedList.length,
+        clearDateFilter: dateChanged || updatedCount > 0,
+      });
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'เกิดข้อผิดพลาด';
       setImportResult({ success: 0, error: msg });

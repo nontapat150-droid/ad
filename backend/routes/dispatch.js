@@ -593,7 +593,8 @@ router.get('/jobs', auth, async (req, res) => {
        ORDER BY j.plan_arrival_date ASC, j.seq ASC, j.id ASC`,
       params
     );
-    res.json(rows);
+    // Normalize DATE/TIME to Bangkok calendar strings so UI does not shift or stale-cache oddly
+    res.json(rows.map((row) => normalizeJobRowForClient(row, type)));
   } catch (err) {
     console.error('Get jobs error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -1660,12 +1661,31 @@ router.post('/import-aliases', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
 // ── Bulk import helpers (re-upload upsert) ───────────────────────────────────
 function toDateKey(d) {
-  if (!d) return '';
-  if (d instanceof Date) {
+  if (!d && d !== 0) return '';
+  if (typeof d === 'string') {
+    const m = d.trim().match(/(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  if (d instanceof Date && !Number.isNaN(d.getTime())) {
+    // Use Asia/Bangkok calendar date — avoids UTC midnight shifting DATE values
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Bangkok',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(d);
+      const y = parts.find((p) => p.type === 'year')?.value;
+      const mo = parts.find((p) => p.type === 'month')?.value;
+      const da = parts.find((p) => p.type === 'day')?.value;
+      if (y && mo && da) return `${y}-${mo}-${da}`;
+    } catch { /* fall through */ }
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
-  return String(d).slice(0, 10);
+  const s = String(d);
+  const m = s.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : '';
 }
 
 function isBlankImportVal(v) {
@@ -1674,10 +1694,24 @@ function isBlankImportVal(v) {
 
 function normalizeImportTime(v) {
   if (isBlankImportVal(v)) return null;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Bangkok',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(v);
+      const hh = parts.find((p) => p.type === 'hour')?.value;
+      const mm = parts.find((p) => p.type === 'minute')?.value;
+      if (hh != null && mm != null) return `${hh}:${mm}`;
+    } catch { /* fall through */ }
+  }
   const s = String(v).trim();
   const m = s.match(/(\d{1,2}):(\d{2})/);
   if (m) return `${String(m[1]).padStart(2, '0')}:${m[2]}`;
-  return s.slice(0, 5);
+  // Excel-style decimal day fraction already parsed on FE; plain "930" → skip
+  return null;
 }
 
 function valuesEqualImport(a, b) {
@@ -1686,23 +1720,47 @@ function valuesEqualImport(a, b) {
   return na === nb;
 }
 
+function formatOfficePlanTime(dateKey, timeHm) {
+  if (!timeHm) return null;
+  const hm = normalizeImportTime(timeHm);
+  if (!hm) return null;
+  if (dateKey) return `${dateKey} ${hm}:00`;
+  return `${hm}:00`;
+}
+
 /** Empty Excel cells never overwrite; only changed non-empty values are applied. */
 function buildImportFieldUpdates(existing, fieldMap) {
   const sets = [];
   const params = [];
   const changed = [];
+  const incomingDate = toDateKey(fieldMap.plan_arrival_date) || toDateKey(existing.plan_arrival_date);
+
   for (const [col, raw] of Object.entries(fieldMap)) {
     if (isBlankImportVal(raw)) continue;
     let next = typeof raw === 'string' ? raw.trim() : raw;
     const prev = existing[col];
+
     if (col === 'plan_arrival_date') {
-      if (toDateKey(prev) === toDateKey(next)) continue;
-      next = toDateKey(next) || next;
-    } else if (col === 'plan_arrival_time' || col === 'job_time') {
+      const nextDate = toDateKey(next);
+      if (!nextDate || nextDate === toDateKey(prev)) continue;
+      next = nextDate;
+    } else if (col === 'job_time') {
       const nt = normalizeImportTime(next);
       const pt = normalizeImportTime(prev);
       if (!nt || nt === pt) continue;
-      next = col === 'job_time' ? nt : (nt.length === 5 ? `${nt}:00` : nt);
+      // ma_jobs.job_time is TIME / HH:MM — store HH:MM:SS for MySQL TIME
+      next = `${nt}:00`;
+    } else if (col === 'plan_arrival_time') {
+      const nt = normalizeImportTime(next);
+      if (!nt) continue;
+      const dateKey = toDateKey(next) || incomingDate || toDateKey(prev);
+      const nextStore = formatOfficePlanTime(dateKey, nt);
+      const prevStore = formatOfficePlanTime(
+        toDateKey(prev) || toDateKey(existing.plan_arrival_date),
+        prev
+      );
+      if (!nextStore || nextStore === prevStore) continue;
+      next = nextStore;
     } else if (col === 'team_id' || col === 'assigned_user_id' || col === 'field_engineer_id') {
       const nId = Number(next);
       const pId = prev == null || prev === '' ? null : Number(prev);
@@ -1716,6 +1774,60 @@ function buildImportFieldUpdates(existing, fieldMap) {
     changed.push(col);
   }
   return { sets, params, changed };
+}
+
+/** When appointment date changes, keep office plan_arrival_time date part in sync. */
+function ensureOfficeTimeFollowsDate(built, existing, incoming) {
+  if (!built.changed.includes('plan_arrival_date')) return built;
+  if (built.changed.includes('plan_arrival_time')) return built;
+  const newDate = toDateKey(incoming.plan_arrival_date);
+  const timeHm = normalizeImportTime(incoming.plan_arrival_time) || normalizeImportTime(existing.plan_arrival_time);
+  if (!newDate || !timeHm) return built;
+  const nextStore = formatOfficePlanTime(newDate, timeHm);
+  const prevStore = formatOfficePlanTime(
+    toDateKey(existing.plan_arrival_time) || toDateKey(existing.plan_arrival_date),
+    existing.plan_arrival_time
+  );
+  if (!nextStore || nextStore === prevStore) return built;
+  built.sets.push('plan_arrival_time = ?');
+  built.params.push(nextStore);
+  built.changed.push('plan_arrival_time');
+  return built;
+}
+
+function pickLatestOpenMaJob(rows) {
+  if (!rows?.length) return null;
+  return [...rows].sort((a, b) => {
+    const da = toDateKey(a.plan_arrival_date);
+    const db = toDateKey(b.plan_arrival_date);
+    if (da !== db) return db.localeCompare(da);
+    return Number(b.id) - Number(a.id);
+  })[0];
+}
+
+/** Ensure API returns calendar DATE / wall-clock TIME strings (Asia/Bangkok). */
+function normalizeJobRowForClient(row, type) {
+  if (!row || typeof row !== 'object') return row;
+  const out = { ...row };
+  const dateKey = toDateKey(out.plan_arrival_date);
+  if (dateKey) out.plan_arrival_date = dateKey;
+
+  if (type === 'ma') {
+    const t = normalizeImportTime(out.job_time) || normalizeImportTime(out.plan_arrival_time);
+    if (t) {
+      out.job_time = t;
+      out.plan_arrival_time = t;
+    }
+  } else {
+    const t = normalizeImportTime(out.plan_arrival_time);
+    if (t) {
+      const d = toDateKey(out.plan_arrival_time) || dateKey;
+      out.plan_arrival_time = d ? `${d} ${t}:00` : `${t}:00`;
+    }
+  }
+  if (out.access_no != null) out.access_no = String(out.access_no);
+  if (out.non_number != null) out.non_number = String(out.non_number);
+  return out;
 }
 
 const OFFICE_IMPORT_CLOSED = new Set(['completed', 'failed', 'cancelled']);
@@ -1737,9 +1849,10 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const seenInFile = new Set();
   let candidates = [];
   jobs.forEach((job, i) => {
-    const accessNo = String(job.access_no || '').trim();
+    // Install jobs: Access No is the identity key (Excel may label it NON)
+    const accessNo = String(job.access_no || job.non_number || '').trim();
     if (!accessNo) {
-      errors.push({ row: i + 1, access_no: null, error: 'ไม่มี Access No' });
+      errors.push({ row: i + 1, access_no: null, error: 'ไม่มี Access No / NON' });
       return;
     }
     if (seenInFile.has(accessNo)) {
@@ -1747,7 +1860,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       return;
     }
     seenInFile.add(accessNo);
-    candidates.push({ row: i + 1, accessNo, job });
+    candidates.push({ row: i + 1, accessNo, job: { ...job, access_no: accessNo } });
   });
 
   let toInsert = [];
@@ -1764,7 +1877,15 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
          FROM jobs WHERE access_no IN (?)`,
         [candidates.map((c) => c.accessNo)]
       );
-      const byAccess = new Map(existingRows.map((r) => [String(r.access_no), r]));
+      const byAccess = new Map(existingRows.map((raw) => {
+        const r = {
+          ...raw,
+          access_no: String(raw.access_no),
+          plan_arrival_date: toDateKey(raw.plan_arrival_date) || raw.plan_arrival_date,
+          plan_arrival_time: raw.plan_arrival_time,
+        };
+        return [String(r.access_no), r];
+      }));
 
       for (const c of candidates) {
         const ex = byAccess.get(c.accessNo);
@@ -1781,10 +1902,11 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           continue;
         }
         const j = c.job;
-        let formatted_time = j.plan_arrival_time || null;
-        if (formatted_time && !String(formatted_time).includes('-') && j.plan_arrival_date) {
-          formatted_time = `${j.plan_arrival_date} ${String(formatted_time).slice(0, 5)}:00`;
-        }
+        const dateKey = toDateKey(j.plan_arrival_date);
+        const timeHm = normalizeImportTime(j.plan_arrival_time);
+        const formatted_time = timeHm
+          ? (dateKey ? `${dateKey} ${timeHm}:00` : `${timeHm}:00`)
+          : null;
         const fieldMap = {
           customer: j.customer,
           phone: j.phone,
@@ -1812,7 +1934,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           team_id: j.team_id,
           field_engineer_id: j.field_engineer_id,
         };
-        const built = buildImportFieldUpdates(ex, fieldMap);
+        const built = ensureOfficeTimeFollowsDate(buildImportFieldUpdates(ex, fieldMap), ex, j);
         if (built.changed.length === 0) {
           unchanged.push({
             row: c.row,
@@ -1858,8 +1980,10 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       } = job;
 
       let formatted_time = plan_arrival_time || null;
-      if (formatted_time && !String(formatted_time).includes('-') && plan_arrival_date) {
-        formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
+      const insertDate = toDateKey(plan_arrival_date);
+      const insertHm = normalizeImportTime(plan_arrival_time);
+      if (insertHm) {
+        formatted_time = insertDate ? `${insertDate} ${insertHm}:00` : `${insertHm}:00`;
       }
 
       try {
@@ -1933,7 +2057,7 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 // ── POST /api/dispatch/ma-jobs/bulk — Admin imports MA jobs from Excel ────
-// Supports ?preflight=1. Re-upload same NON + appointment date → update; skip if unchanged.
+// Supports ?preflight=1. Same NON → update open job (รวมเปลี่ยนวัน/เวลา); skip if unchanged.
 router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
   const preflight = String(req.query.preflight || '') === '1';
@@ -1968,18 +2092,65 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
   try {
     if (candidates.length > 0) {
       await ensureMaJobSchema(pool);
+      const nons = [...new Set(candidates.map((c) => c.nonNumber))];
       const [existingRows] = await pool.query(
         `SELECT id, non_number, plan_arrival_date, job_time, access_no, customer, phone,
                 symptoms, address, area_name, remark, team_id, assigned_user_id, status
-         FROM ma_jobs WHERE non_number IN (?)`,
-        [candidates.map((c) => c.nonNumber)]
-      );
-      const existingByKey = new Map(
-        existingRows.map((r) => [`${String(r.non_number).trim()}|${toDateKey(r.plan_arrival_date)}`, r])
+         FROM ma_jobs
+         WHERE non_number IN (?) OR access_no IN (?)`,
+        [nons, nons]
       );
 
+      const existingByKey = new Map();
+      const openByIdentity = new Map();
+
+      const addOpen = (identity, row) => {
+        if (!identity) return;
+        if (!openByIdentity.has(identity)) openByIdentity.set(identity, []);
+        openByIdentity.get(identity).push(row);
+      };
+
+      for (const raw of existingRows) {
+        // Normalize DATE/TIME before compare so Date objects do not false-match / false-skip
+        const r = {
+          ...raw,
+          plan_arrival_date: toDateKey(raw.plan_arrival_date) || raw.plan_arrival_date,
+          job_time: normalizeImportTime(raw.job_time) || raw.job_time,
+          non_number: raw.non_number != null ? String(raw.non_number).trim() : '',
+          access_no: raw.access_no != null ? String(raw.access_no).trim() : '',
+        };
+        const dateKey = toDateKey(r.plan_arrival_date);
+        if (r.non_number) existingByKey.set(`${r.non_number}|${dateKey}`, r);
+        if (r.access_no) existingByKey.set(`${r.access_no}|${dateKey}`, r);
+
+        if (!MA_IMPORT_CLOSED.has(String(r.status || '').toLowerCase())) {
+          addOpen(r.non_number, r);
+          if (r.access_no && r.access_no !== r.non_number) addOpen(r.access_no, r);
+        }
+      }
+
+      const claimedJobIds = new Set();
+
       for (const c of candidates) {
-        const ex = existingByKey.get(c.dupKey);
+        let ex = existingByKey.get(c.dupKey);
+
+        // Same NON/Access with different appointment date → update the open job
+        if (!ex) {
+          const openList = (openByIdentity.get(c.nonNumber) || []).filter((r) => !claimedJobIds.has(r.id));
+          ex = pickLatestOpenMaJob(openList);
+          if (ex) {
+            const conflict = existingByKey.get(c.dupKey);
+            if (conflict && conflict.id !== ex.id) {
+              duplicates.push({
+                row: c.row,
+                non_number: c.nonNumber,
+                reason: 'วันที่นัดใหม่ซ้ำกับงาน MA อื่นที่มี NON เดียวกัน',
+              });
+              continue;
+            }
+          }
+        }
+
         if (!ex) {
           toInsert.push(c);
           continue;
@@ -1992,12 +2163,23 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           });
           continue;
         }
+        if (claimedJobIds.has(ex.id)) {
+          duplicates.push({
+            row: c.row,
+            non_number: c.nonNumber,
+            reason: 'NON นี้ถูกอัปเดตจากแถวอื่นในไฟล์แล้ว',
+          });
+          continue;
+        }
+
         const j = c.job;
-        const timeVal = (j.job_time || j.plan_arrival_time || '').toString().trim() || null;
+        const timeVal = normalizeImportTime(j.job_time || j.plan_arrival_time);
         const assigneeId = j.assigned_user_id || j.field_engineer_id || null;
         const fieldMap = {
           customer: j.customer,
           phone: j.phone,
+          // Keep identity in sync: always write NON when provided
+          non_number: c.nonNumber,
           access_no: j.access_no || c.nonNumber,
           plan_arrival_date: j.plan_arrival_date,
           job_time: timeVal,
@@ -2017,7 +2199,6 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           });
           continue;
         }
-        // Keep team_match_status in sync when assignment columns change
         if (built.changed.includes('team_id') || built.changed.includes('assigned_user_id')) {
           const nextTeam = built.changed.includes('team_id')
             ? built.params[built.changed.indexOf('team_id')]
@@ -2028,6 +2209,7 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           built.sets.push('team_match_status = ?');
           built.params.push((nextTeam || nextAssignee) ? 'matched' : 'unmatched');
         }
+        claimedJobIds.add(ex.id);
         toUpdate.push({ ...c, jobId: ex.id, sets: built.sets, params: built.params, changed: built.changed });
         updatesPreview.push({ row: c.row, non_number: c.nonNumber, job_id: ex.id, changed: built.changed });
       }
@@ -2069,7 +2251,7 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
       } = job;
 
       const accessKey = (access_no || nonNumber).toString().trim();
-      const timeVal = (job_time || plan_arrival_time || '').toString().trim() || null;
+      const timeVal = normalizeImportTime(job_time || plan_arrival_time);
       const assigneeId = assigned_user_id || field_engineer_id || null;
 
       try {
@@ -2080,8 +2262,8 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
               team_match_status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
           [
-            plan_arrival_date || null,
-            timeVal,
+            toDateKey(plan_arrival_date) || plan_arrival_date || null,
+            timeVal ? `${timeVal}:00` : null,
             accessKey,
             nonNumber,
             customer || null,

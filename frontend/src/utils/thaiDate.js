@@ -99,6 +99,45 @@ export function thaiDateTimeShort(value) {
 const BANGKOK_TZ = 'Asia/Bangkok';
 
 /**
+ * Calendar date key YYYY-MM-DD in Asia/Bangkok (avoids UTC off-by-one from ISO DATE).
+ */
+export function calendarDateKey(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') {
+    const m = value.trim().match(/(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  const d = parseDate(value);
+  if (!d) return '';
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: BANGKOK_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const mo = parts.find((p) => p.type === 'month')?.value;
+    const da = parts.find((p) => p.type === 'day')?.value;
+    if (y && mo && da) return `${y}-${mo}-${da}`;
+  } catch { /* fall through */ }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Short day+month for job cards using calendar date (not UTC-shifted Date).
+ * e.g. "20 ก.ค."
+ */
+export function thaiJobDayMonth(value) {
+  const key = calendarDateKey(value);
+  if (!key) return '-';
+  const [y, m, d] = key.split('-').map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return '-';
+  return `${d} ${THAI_MONTHS_SHORT[m - 1]}`;
+}
+
+/**
  * Format a Date as HH:MM in Asia/Bangkok.
  */
 function bangkokHHMM(date) {
@@ -201,6 +240,8 @@ export default {
   thaiDateTime,
   thaiDateWithWeekday,
   thaiDateTimeShort,
+  calendarDateKey,
+  thaiJobDayMonth,
   extractHHMM,
   thaiTime,
   thaiMonthYear,

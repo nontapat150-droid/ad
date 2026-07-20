@@ -23,7 +23,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
 import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from '../constants/jobStatus';
-import { thaiTime, extractHHMM } from '../utils/thaiDate';
+import { thaiTime, extractHHMM, calendarDateKey, thaiJobDayMonth } from '../utils/thaiDate';
 import { AdminContactButton } from '../components/dashboards/SharedComponents';
 import { useBranding } from '../context/BrandingContext';
 
@@ -46,7 +46,8 @@ function isLateCompletion(job) {
   const targetDateStr = job.plan_arrival_date || job.assigned_time;
   if (!targetDateStr) return false;
   
-  const datePart = targetDateStr.split('T')[0]; // YYYY-MM-DD
+  const datePart = calendarDateKey(targetDateStr);
+  if (!datePart) return false;
   const [y, m, d] = datePart.split('-');
   const deadline = new Date(y, m - 1, d); // 00:00:00 local time of the plan date
   deadline.setDate(deadline.getDate() + 2); // 00:00:00 of 2 days later
@@ -68,12 +69,12 @@ function isPostponedUnassigned(job) {
  */
 function getEffectiveStatus(job, today) {
   if (!job.status || job.status === 'pending') {
-    if (job.plan_arrival_date && job.plan_arrival_date.split('T')[0] < today) return 'overdue';
+    if (job.plan_arrival_date && calendarDateKey(job.plan_arrival_date) < today) return 'overdue';
     return 'pending';
   }
   // งาน postponed ที่ถึงวันนัดใหม่แล้ว → ถือว่ากลับมาเป็น pending/overdue
   if (job.status === 'postponed' && job.plan_arrival_date) {
-    const reschedDate = job.plan_arrival_date.split('T')[0];
+    const reschedDate = calendarDateKey(job.plan_arrival_date);
     if (reschedDate <= today) {
       // ถึงวันนัดแล้ว — re-activate
       return reschedDate < today ? 'overdue' : 'pending';
@@ -91,7 +92,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
   // งาน postponed ที่ยังไม่ได้รับมอบหมายทีม = แสดงการ์ดแดง
   const isPostponeNoTeam = isPostponedUnassigned(job);
   // งาน postponed ที่ถึงวันแล้ว (re-activated)
-  const isReactivated = job.status === 'postponed' && job.plan_arrival_date && job.plan_arrival_date.split('T')[0] <= today;
+  const isReactivated = job.status === 'postponed' && job.plan_arrival_date && calendarDateKey(job.plan_arrival_date) <= today;
 
   // card border / bg
   let cardBorder = 'border-[#E5E7EB] hover:border-[#A3E635]/50';
@@ -174,7 +175,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
               {job.plan_arrival_date && (
                 <span className="text-[11px] text-[#9CA3AF] font-medium flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                  {thaiJobDayMonth(job.plan_arrival_date)}
                   {job.plan_arrival_time && (() => {
                     const t = extractHHMM(job.plan_arrival_time);
                     return t ? ` ${t} น.` : '';
@@ -194,12 +195,12 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {isReactivated ? (
                   <div className="text-[11px] font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-2 py-1 inline-flex items-center gap-1">
-                    ⏰ ถึงวันนัดแล้ว — {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    ⏰ ถึงวันนัดแล้ว — {thaiJobDayMonth(job.plan_arrival_date)}
                     {isPostponeNoTeam && isAdmin && <span className="ml-1 text-red-600">(รอมอบหมาย!)</span>}
                   </div>
                 ) : (
                   <div className="text-[11px] font-semibold text-purple-600 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 inline-block">
-                    📅 นัดใหม่: {new Date(job.plan_arrival_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                    📅 นัดใหม่: {thaiJobDayMonth(job.plan_arrival_date)}
                   </div>
                 )}
               </div>
@@ -658,7 +659,7 @@ export default function DispatchDashboardPage() {
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = calendarDateKey(new Date());
 
   useEffect(() => {
     if (!showFilters) return;
@@ -725,11 +726,11 @@ export default function DispatchDashboardPage() {
 
   const filteredJobs = useMemo(() => {
     // งาน postponed ที่ "re-activated" (ถึงวันนัดใหม่แล้ว) — ถือเป็น active job ไม่ใช่เลื่อนอีกต่อไป
-    const trulyPostponed  = (j) => j.status === 'postponed' && (!j.plan_arrival_date || j.plan_arrival_date.split('T')[0] > today);
+    const trulyPostponed  = (j) => j.status === 'postponed' && (!j.plan_arrival_date || calendarDateKey(j.plan_arrival_date) > today);
     const isOverdue       = (j) => {
       if (['completed','failed'].includes(j.status)) return false;
       if (!j.plan_arrival_date) return false;
-      return j.plan_arrival_date.split('T')[0] < today;
+      return calendarDateKey(j.plan_arrival_date) < today;
     };
     const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
 
@@ -755,11 +756,11 @@ export default function DispatchDashboardPage() {
   }, [jobs, subTab, today, mainTab]);
 
   const stats = useMemo(() => {
-    const trulyPostponed = (j) => j.status === 'postponed' && (!j.plan_arrival_date || j.plan_arrival_date.split('T')[0] > today);
+    const trulyPostponed = (j) => j.status === 'postponed' && (!j.plan_arrival_date || calendarDateKey(j.plan_arrival_date) > today);
     const isOverdue = (j) => {
       if (['completed','failed'].includes(j.status)) return false;
       if (!j.plan_arrival_date) return false;
-      return j.plan_arrival_date.split('T')[0] < today;
+      return calendarDateKey(j.plan_arrival_date) < today;
     };
     const isActive = (j) => !['completed','failed'].includes(j.status) && !trulyPostponed(j);
     return {
@@ -1207,7 +1208,18 @@ export default function DispatchDashboardPage() {
       <SmartImportExcelModal
         isOpen={isSmartImportOpen}
         onClose={() => setIsSmartImportOpen(false)}
-        onSuccess={handleActionComplete}
+        onSuccess={(result) => {
+          // After upsert, clear date filter so updated appointment dates remain visible
+          if (result?.clearDateFilter) setFilterDate('');
+          handleActionComplete();
+          if (result?.updated > 0 || result?.created > 0) {
+            const parts = [];
+            if (result.created > 0) parts.push(`งานใหม่ ${result.created}`);
+            if (result.updated > 0) parts.push(`อัปเดต ${result.updated}`);
+            if (result.unchanged > 0) parts.push(`ข้าม ${result.unchanged}`);
+            showNotification(parts.join(' · ') || 'นำเข้าสำเร็จ');
+          }
+        }}
         defaultJobType={smartImportJobType}
       />
       {selectedJob && <EditJobModal job={selectedJob} isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} onSuccess={handleActionComplete} type={mainTab} />}
