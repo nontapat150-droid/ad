@@ -4,7 +4,7 @@ import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { NoSnEquipmentModal } from './JobActionModals';
-import { friendlyJobError, PresetChips } from './dashboards/SharedComponents';
+import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import {
   MA_FAIL_CAUSE_PRESETS,
   MA_FIX_METHOD_PRESETS,
@@ -131,13 +131,17 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
     }
 
     setBagLoading(true);
-    const assigneeId = job.assigned_user_id || job.field_engineer_id;
-    const bagUrl = assigneeId ? `/inventory/my-bag?user_id=${assigneeId}` : '/inventory/my-bag';
+    const bagUrl = job.team_id
+      ? `/inventory/my-bag?team_id=${job.team_id}`
+      : (isAdmin && (job.assigned_user_id || job.field_engineer_id)
+        ? `/inventory/my-bag?user_id=${job.assigned_user_id || job.field_engineer_id}`
+        : '/inventory/my-bag');
     api.get(bagUrl)
       .then((res) => {
-        const all = res.data || [];
-        setSnBagItems(all.filter((item) => item.has_sn !== 0 && item.has_sn !== false && item.sn));
-        setNoSnItems(all.filter((item) => item.has_sn === 0 || item.has_sn === false || !item.sn));
+        const all = Array.isArray(res.data) ? res.data : [];
+        const isSn = (item) => Number(item.has_sn) === 1 || item.has_sn === true;
+        setSnBagItems(all.filter((item) => isSn(item) && item.sn));
+        setNoSnItems(all.filter((item) => !isSn(item) || !item.sn));
       })
       .catch(() => { setSnBagItems([]); setNoSnItems([]); })
       .finally(() => setBagLoading(false));
@@ -264,13 +268,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         navigate(isAdmin && assigneeId ? `/bag?user_id=${assigneeId}` : '/bag');
       }
     } catch (err) {
-      const friendly = friendlyJobError(err);
-      Swal.fire({
-        icon: 'error',
-        title: friendly.title,
-        text: friendly.text,
-        confirmButtonColor: '#1F2937',
-      });
+      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการปิดงาน MA');
     } finally {
       setLoading(false);
     }
@@ -449,7 +447,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
               <div className="p-4 rounded-2xl border border-[#E5E7EB] bg-white space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-black text-[#1F2937]">อุปกรณ์มี SN จากกระเป๋า</h3>
+                    <h3 className="text-sm font-black text-[#1F2937]">อุปกรณ์มี SN จากกระเป๋าทีม (ใช้ร่วมกันได้)</h3>
                     <p className="text-[11px] text-[#9CA3AF]">ติ๊กเลือกเพื่อตัดสต๊อก (ไม่บังคับ)</p>
                   </div>
                   {isAdmin && (job.assigned_user_id || job.field_engineer_id) && (

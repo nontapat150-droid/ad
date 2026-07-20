@@ -46,9 +46,10 @@ export default function TechBagPage() {
     setLoading(true);
     try {
       const res = await axios.get(`/inventory/my-bag?user_id=${uid}`);
-      setBagItems(res.data);
+      setBagItems(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to load bag', err);
+      setBagItems([]);
     } finally {
       setLoading(false);
     }
@@ -299,7 +300,9 @@ export default function TechBagPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z" />
                 </svg>
               </div>
-              <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">กระเป๋าช่าง</h1>
+              <h1 className="font-bold text-[#1F2937] text-lg tracking-tight">
+                {user?.team_id ? 'กระเป๋าทีม (ใช้ร่วมกัน)' : 'กระเป๋าช่าง'}
+              </h1>
             </div>
           </div>
           
@@ -532,6 +535,11 @@ export default function TechBagPage() {
                               <span className="inline-block px-2 py-0.5 bg-[#A3E635]/10 text-[#65a30d] text-[10px] font-bold rounded-md uppercase tracking-wider mb-2 border border-[#A3E635]/20">
                                 {item.product_name}
                               </span>
+                              {item.owner_name && (
+                                <span className="ml-1.5 inline-block px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-bold rounded-md border border-teal-100 mb-2">
+                                  ถือโดย {item.owner_name}
+                                </span>
+                              )}
                               <h3 className="font-bold text-[#1F2937] text-base leading-tight break-all">{item.sn}</h3>
                               <p className="text-xs text-[#9CA3AF] mt-1 flex flex-wrap items-center gap-1">
                                 <span className="w-1 h-1 rounded-full bg-[#D1D5DB] inline-block" />

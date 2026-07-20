@@ -5,6 +5,43 @@ const { auth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
+/** Backfill team_id on dispatched items from current owner (one-shot opportunistic). */
+async function syncDispatchedItemTeams(db) {
+  try {
+    await db.query(
+      `UPDATE inventory_items ii
+       JOIN users u ON u.id = ii.owner_id
+       SET ii.team_id = u.team_id
+       WHERE ii.status = 'dispatched'
+         AND u.team_id IS NOT NULL
+         AND (ii.team_id IS NULL OR ii.team_id <> u.team_id)`
+    );
+  } catch (e) {
+    /* ignore if schema missing team_id */
+  }
+}
+
+/** SQL fragment: item is in personal bag OR shared team bag.
+ * Pass teamId as a real id, or -1 when the user has no team (matches nothing).
+ */
+function bagAccessSql(alias = 'ii') {
+  return `(
+    ${alias}.owner_id = ?
+    OR ${alias}.team_id = ?
+    OR ${alias}.owner_id IN (SELECT id FROM users WHERE team_id = ?)
+  )`;
+}
+
+function bagTeamParam(teamId) {
+  const n = Number(teamId);
+  return Number.isFinite(n) && n > 0 ? n : -1;
+}
+
+async function getUserTeamId(db, userId) {
+  const [[u]] = await db.query('SELECT team_id FROM users WHERE id = ? LIMIT 1', [userId]);
+  return u?.team_id || null;
+}
+
 // ==========================================
 // PHASE 1: ADMIN - PRODUCTS & MODELS
 // ==========================================
@@ -592,33 +629,83 @@ router.post('/dispatch', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 // ==========================================
 
 // ── GET /api/inventory/my-bag ──
+// Team members share one bag: returns all dispatched items for the team.
+// Query: ?user_id= / ?team_id=
 router.get('/my-bag', auth, async (req, res) => {
-  const targetUserId = req.query.user_id || req.user.id;
+  const viewerId = req.user.id;
+  const requestedId = parseInt(req.query.user_id || viewerId, 10) || viewerId;
+  const requestedTeamId = req.query.team_id != null && req.query.team_id !== ''
+    ? parseInt(req.query.team_id, 10)
+    : null;
 
-  // Non-admins can only see their own bag
   const userRoles = req.user.roles || [req.user.role];
-  const isAdmin   = userRoles.some((r) => ADMIN_ROLES.includes(r));
-  if (!isAdmin && parseInt(targetUserId) !== req.user.id) {
-    return res.status(403).json({ error: 'Access denied' });
-  }
+  const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
 
   try {
+    await syncDispatchedItemTeams(pool);
+
+    const viewerTeamId = await getUserTeamId(pool, viewerId);
+    let scopeUserId = viewerId;
+    let scopeTeamId = viewerTeamId;
+
+    if (requestedTeamId && Number.isFinite(requestedTeamId)) {
+      if (!isAdmin && Number(viewerTeamId) !== Number(requestedTeamId)) {
+        return res.status(403).json({
+          error: 'ดูกระเป๋าได้เฉพาะทีมของตัวเองเท่านั้น',
+          tip: 'หากต้องการดูกระเป๋าทีมอื่น ให้แจ้งแอดมิน',
+        });
+      }
+      scopeTeamId = requestedTeamId;
+      // Keep viewer as scope user so personal items without team_id still show for techs
+      scopeUserId = isAdmin ? viewerId : viewerId;
+    } else if (requestedId !== viewerId) {
+      const targetTeamId = await getUserTeamId(pool, requestedId);
+      if (!isAdmin) {
+        if (!viewerTeamId || !targetTeamId || Number(viewerTeamId) !== Number(targetTeamId)) {
+          return res.status(403).json({
+            error: 'ดูกระเป๋าได้เฉพาะของตัวเองหรือทีมเดียวกันเท่านั้น',
+            tip: 'หากต้องการดูกระเป๋าคนอื่นนอกทีม ให้แจ้งแอดมิน',
+          });
+        }
+      }
+      scopeUserId = requestedId;
+      scopeTeamId = targetTeamId || viewerTeamId;
+    }
+
+    const teamParam = bagTeamParam(scopeTeamId);
     const [items] = await pool.query(
-      `SELECT ii.*, pm.model_name, p.name AS product_name, p.has_sn, p.unit
+      `SELECT ii.id, ii.model_id, ii.sn, ii.quantity, ii.status, ii.owner_id, ii.team_id,
+              ii.dispatched_at, ii.expires_at,
+              pm.model_name,
+              p.name AS product_name,
+              p.has_sn,
+              p.unit,
+              u.full_name AS owner_name
        FROM inventory_items ii
        JOIN inventory_models pm ON pm.id = ii.model_id
        JOIN inventory_products p ON p.id = pm.product_id
-       WHERE ii.owner_id = ? 
-         AND ii.status = 'dispatched' 
+       LEFT JOIN users u ON u.id = ii.owner_id
+       WHERE ii.status = 'dispatched'
          AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+         AND ${bagAccessSql('ii')}
        ORDER BY ii.dispatched_at DESC`,
-      [targetUserId]
+      [scopeUserId, teamParam, teamParam]
     );
 
-    res.json(items);
+    // Normalize has_sn to 0/1 for frontend filters
+    const normalized = items.map((row) => ({
+      ...row,
+      has_sn: Number(row.has_sn) ? 1 : 0,
+      quantity: Number(row.quantity) || 0,
+      product_name: row.product_name || 'สินค้า',
+      model_name: row.model_name || '-',
+      sn: row.sn || '',
+    }));
+
+    res.json(normalized);
   } catch (err) {
     console.error('My Bag Error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
@@ -909,17 +996,22 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
     const userRoles = req.user.roles || [req.user.role];
     const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
 
-    // Admin may act on another user's bag via user_id
+    // Admin or teammate may act on shared team bag via user_id
     let bagOwnerId = actorId;
+    let actorTeamId = await getUserTeamId(pool, actorId);
     if (user_id != null && user_id !== '') {
       const requestedOwner = parseInt(user_id, 10);
       if (!requestedOwner) {
         return res.status(400).json({ error: 'user_id ไม่ถูกต้อง' });
       }
       if (!isAdmin && requestedOwner !== actorId) {
-        return res.status(403).json({ error: 'Access denied' });
+        const targetTeamId = await getUserTeamId(pool, requestedOwner);
+        if (!actorTeamId || !targetTeamId || Number(actorTeamId) !== Number(targetTeamId)) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
       }
       bagOwnerId = requestedOwner;
+      actorTeamId = (await getUserTeamId(pool, bagOwnerId)) || actorTeamId;
     }
     
     if (!job_id || !items || !Array.isArray(items) || items.length === 0) {
@@ -929,6 +1021,7 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+      await syncDispatchedItemTeams(conn);
   
       // 1. Verify job exists
       const [[job]] = await conn.query(
@@ -947,24 +1040,32 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
         const { item_id, quantity } = reqItem;
         if (!item_id || !quantity || quantity <= 0) continue;
   
-        // Verify item is in bag owner's bag and dispatched
+        // Verify item is in personal or shared team bag
         const [[invItem]] = await conn.query(
           `SELECT ii.*, p.name AS product_name, m.model_name 
            FROM inventory_items ii 
            JOIN inventory_models m ON ii.model_id = m.id 
            JOIN inventory_products p ON m.product_id = p.id 
-           WHERE ii.id = ? AND ii.owner_id = ? AND ii.status = "dispatched"`,
-          [item_id, bagOwnerId]
+           WHERE ii.id = ? AND ii.status = "dispatched"
+             AND ${bagAccessSql('ii')}
+           FOR UPDATE`,
+          [item_id, bagOwnerId, bagTeamParam(actorTeamId), bagTeamParam(actorTeamId)]
         );
   
         if (!invItem) {
           await conn.rollback();
-          return res.status(400).json({ error: `ไม่พบอุปกรณ์ ID: ${item_id} ในกระเป๋าหรืออุปกรณ์ไม่ได้ถูกเบิก` });
+          return res.status(400).json({
+            error: `ไม่พบสินค้าในกระเป๋าทีม (หรือยังไม่ได้เบิก)`,
+            tip: 'แจ้งแอดมินให้เติมสินค้าเข้ากระเป๋าทีม แล้วลองใหม่',
+          });
         }
   
         if (invItem.quantity < quantity) {
           await conn.rollback();
-          return res.status(400).json({ error: `จำนวนอุปกรณ์ ${item_id} ไม่เพียงพอ` });
+          return res.status(400).json({
+            error: `สินค้า "${invItem.product_name}" ไม่พอในกระเป๋า (ต้องการ ${quantity} คงเหลือ ${invItem.quantity})`,
+            tip: 'แจ้งแอดมินให้เติมสินค้าเข้ากระเป๋าทีม หรือลดจำนวนที่ใช้',
+          });
         }
   
         // If full quantity is used
@@ -1079,8 +1180,9 @@ router.post('/transfer', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some((r) => ADMIN_ROLES.includes(r));
 
-  // Admin may transfer from another user's bag via user_id / from_user_id
+  // Admin or teammate may transfer from shared team bag
   let bagOwnerId = actorId;
+  let actorTeamId = await getUserTeamId(pool, actorId);
   const explicitOwner = user_id ?? from_user_id;
   if (explicitOwner != null && explicitOwner !== '') {
     const requestedOwner = parseInt(explicitOwner, 10);
@@ -1088,9 +1190,13 @@ router.post('/transfer', auth, async (req, res) => {
       return res.status(400).json({ error: 'user_id ไม่ถูกต้อง' });
     }
     if (!isAdmin && requestedOwner !== actorId) {
-      return res.status(403).json({ error: 'Access denied' });
+      const targetTeamId = await getUserTeamId(pool, requestedOwner);
+      if (!actorTeamId || !targetTeamId || Number(actorTeamId) !== Number(targetTeamId)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
     }
     bagOwnerId = requestedOwner;
+    actorTeamId = (await getUserTeamId(pool, bagOwnerId)) || actorTeamId;
   }
   
   if (!item_id || !target_user_id || !transfer_quantity) {
@@ -1100,12 +1206,21 @@ router.post('/transfer', auth, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    await syncDispatchedItemTeams(conn);
 
-    // 1. Validate item belongs to bag owner and has enough quantity
+    // 1. Validate item is in personal or shared team bag
     const [[item]] = await conn.query(
       `SELECT * FROM inventory_items 
-       WHERE id = ? AND owner_id = ? AND status = 'dispatched' AND (expires_at IS NULL OR expires_at > NOW()) FOR UPDATE`,
-      [item_id, bagOwnerId]
+       WHERE id = ?
+         AND status = 'dispatched'
+         AND (expires_at IS NULL OR expires_at > NOW())
+         AND (
+           owner_id = ?
+           OR team_id = ?
+           OR owner_id IN (SELECT id FROM users WHERE team_id = ?)
+         )
+       FOR UPDATE`,
+      [item_id, bagOwnerId, bagTeamParam(actorTeamId), bagTeamParam(actorTeamId)]
     );
 
     if (!item) {

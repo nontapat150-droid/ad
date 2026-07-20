@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api/axios';
+import { showFriendlyError } from './dashboards/SharedComponents';
 
 export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageComplete, initialSelectedItem, selectedUserId }) {
   const [step, setStep] = useState(1);
@@ -113,8 +114,7 @@ export default function UseEquipmentModal({ isOpen, onClose, bagItems, onUsageCo
         onUsageComplete();
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
-      alert(errorMsg);
+      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการใช้อุปกรณ์');
     } finally {
       setIsLoading(false);
     }

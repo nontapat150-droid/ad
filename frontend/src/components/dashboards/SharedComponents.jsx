@@ -92,23 +92,25 @@ export function ProgressCard({ title, icon, current, target, suffix, pct, gradie
   );
 }
 
+function hasJobCoords(job) {
+  const lat = parseFloat(job?.lat);
+  const lng = parseFloat(job?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
 function openJobMaps(job) {
-  if (job?.lat && job?.lng) {
-    window.open(`https://www.google.com/maps?q=${job.lat},${job.lng}`, '_blank', 'noopener,noreferrer');
-    return true;
-  }
-  if (job?.map_link) {
-    window.open(job.map_link, '_blank', 'noopener,noreferrer');
-    return true;
-  }
-  if (job?.address) {
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`, '_blank', 'noopener,noreferrer');
+  if (hasJobCoords(job)) {
+    window.open(
+      `https://www.google.com/maps?q=${parseFloat(job.lat)},${parseFloat(job.lng)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
     return true;
   }
   Swal.fire({
     icon: 'warning',
     title: 'ยังไม่มีตำแหน่ง',
-    text: 'งานนี้ยังไม่มีพิกัดหรือที่อยู่สำหรับนำทาง กรุณาติดต่อแอดมินให้เพิ่มตำแหน่ง',
+    text: 'แอดมินยังไม่ได้ลงตำแหน่ง (ละติจูด/ลองจิจูด) สำหรับงานนี้',
     confirmButtonText: 'เข้าใจแล้ว',
     confirmButtonColor: '#1F2937',
   });
@@ -297,27 +299,126 @@ export function TechJobActionCard({
   );
 }
 
-/** Friendly API error → actionable Thai message for techs */
+/** Friendly API error → title / message / tip for techs & admins */
 export function friendlyJobError(err, fallback = 'เกิดข้อผิดพลาด กรุณาลองใหม่') {
-  const raw = err?.response?.data?.error || err?.message || '';
-  const msg = String(raw);
-  if (/ไม่เพียงพอ|insufficient|quantity/i.test(msg)) {
-    return { title: 'อุปกรณ์ไม่พอในกระเป๋า', text: msg.includes('อุปกรณ์') ? msg : `${msg}\nกรุณาติดต่อคลังหรือเบิกอุปกรณ์เพิ่ม` };
+  const data = err?.response?.data || {};
+  const raw = data.error || data.details || data.message || err?.message || '';
+  const msg = String(raw).replace(/^DB Error:\s*/i, '').trim();
+  const tipFromApi = data.tip ? String(data.tip).trim() : '';
+  const status = err?.response?.status;
+
+  const pack = (title, text, tip) => ({
+    title,
+    text: text || fallback,
+    tip: tipFromApi || tip || '',
+  });
+
+  if (/ไม่เพียงพอ|สินค้า.*ไม่พอ|อุปกรณ์.*ไม่พอ|insufficient|quantity/i.test(msg)) {
+    return pack(
+      'สินค้าในกระเป๋าไม่พอ',
+      msg || 'จำนวนสินค้าในกระเป๋าไม่พอสำหรับปิดงานนี้',
+      'แจ้งแอดมินให้เติมสินค้าเข้ากระเป๋าทีม หรือลดจำนวนที่ใช้ แล้วลองปิดงานอีกครั้ง'
+    );
   }
-  if (/ไม่พบอุปกรณ์|ไม่พบ.*กระเป๋า|bag/i.test(msg)) {
-    return { title: 'ไม่พบอุปกรณ์ในกระเป๋า', text: 'อุปกรณ์อาจถูกใช้ไปแล้วหรือยังไม่ได้เบิก — รีเฟรชแล้วเลือกใหม่ หรือติดต่อคลัง' };
+  if (/ไม่พบอุปกรณ์|ไม่พบสินค้า|ไม่พบ.*กระเป๋า|ไม่อยู่ในกระเป๋า/i.test(msg)) {
+    return pack(
+      'ไม่พบสินค้าในกระเป๋า',
+      msg || 'ไม่พบสินค้าที่เลือกในกระเป๋าช่าง',
+      'รีเฟรชแล้วเลือกสินค้าใหม่ หากยังไม่มี ให้แจ้งแอดมินเบิก/จ่ายสินค้าเข้ากระเป๋าทีมก่อนปิดงาน'
+    );
   }
-  if (/รูป|image|upload/i.test(msg)) {
-    return { title: 'อัปโหลดรูปไม่สำเร็จ', text: msg || 'ตรวจสอบการเชื่อมต่อแล้วลองเลือกรูปใหม่ (สูงสุด 40 รูป)' };
+  if (/เลือกอุปกรณ์ซ้ำ|ซ้ำกันในรายการ/i.test(msg)) {
+    return pack(
+      'เลือกสินค้าซ้ำ',
+      msg || 'มีสินค้าถูกเลือกซ้ำในรายการ',
+      'ตรวจสอบรายการอุปกรณ์ที่เลือก เอาชิ้นที่ซ้ำออก แล้วบันทึกอีกครั้ง'
+    );
   }
-  if (/สิทธิ์|403|forbidden|ไม่อยู่ในความรับผิดชอบ/i.test(msg)) {
-    return { title: 'ไม่มีสิทธิ์ปิดงานนี้', text: 'งานนี้อาจยังไม่ถูกมอบหมายให้คุณ — ติดต่อแอดมิน' };
+  if (/รูป|image|upload|file too large|payload/i.test(msg) || status === 413) {
+    return pack(
+      'อัปโหลดรูปไม่สำเร็จ',
+      msg || 'ไม่สามารถอัปโหลดรูปหลักฐานได้',
+      'ลดขนาดรูปหรือจำนวนรูป แล้วลองใหม่ (สูงสุด 40 รูป) ตรวจสัญญาณอินเทอร์เน็ตด้วย'
+    );
   }
-  if (/ปิดแล้ว|already completed|409/i.test(msg)) {
-    return { title: 'งานนี้ปิดไปแล้ว', text: 'รีเฟรชหน้ารายการงานเพื่อดูสถานะล่าสุด' };
+  if (/สิทธิ์|403|forbidden|ไม่อยู่ในความรับผิดชอบ|does not belong/i.test(msg) || status === 403) {
+    return pack(
+      'ไม่มีสิทธิ์ทำรายการนี้',
+      msg || 'งานนี้อาจยังไม่ถูกมอบหมายให้คุณ',
+      'แจ้งแอดมินตรวจสอบการมอบหมายทีม/ช่าง แล้วลองใหม่'
+    );
   }
-  if (/network|timeout|Failed to fetch|ERR_/i.test(msg)) {
-    return { title: 'เชื่อมต่อไม่สำเร็จ', text: 'สัญญาณอาจหลุด — ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง ข้อมูลที่กรอกจะถูกเก็บไว้ถ้าเปิดฟอร์มเดิม' };
+  if (/ปิดแล้ว|already completed|409/i.test(msg) || status === 409) {
+    return pack(
+      'งานนี้ปิดไปแล้ว',
+      msg || 'สถานะงานถูกปิดไปก่อนหน้านี้',
+      'รีเฟรชหน้ารายการงานเพื่อดูสถานะล่าสุด หากต้องแก้ข้อมูลให้แจ้งแอดมิน'
+    );
   }
-  return { title: 'บันทึกไม่สำเร็จ', text: msg || fallback };
+  if (/กรุณาอัปโหลดรูป|อย่างน้อย 1 รูป/i.test(msg)) {
+    return pack(
+      'ยังไม่มีรูปหลักฐาน',
+      msg,
+      'แนบรูปปิดงานอย่างน้อย 1 รูป แล้วกดยืนยันอีกครั้ง'
+    );
+  }
+  if (/กรุณาระบุสาเหตุ|กรุณาเลือกวันที่/i.test(msg)) {
+    return pack('ข้อมูลไม่ครบ', msg, 'กรอกข้อมูลที่ระบบขอให้ครบ แล้วบันทึกอีกครั้ง');
+  }
+  if (!err?.response) {
+    return pack(
+      'เชื่อมต่อไม่สำเร็จ',
+      'สัญญาณอาจหลุดหรือเซิร์ฟเวอร์ตอบช้า',
+      'ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง — ข้อมูลที่กรอกมักยังอยู่ในฟอร์มเดิม'
+    );
+  }
+  if (/network|timeout|Failed to fetch|ERR_|ECONN|Network Error/i.test(msg)) {
+    return pack(
+      'เชื่อมต่อไม่สำเร็จ',
+      'สัญญาณอาจหลุดหรือเซิร์ฟเวอร์ตอบช้า',
+      'ตรวจสอบอินเทอร์เน็ตแล้วลองอีกครั้ง — ข้อมูลที่กรอกมักยังอยู่ในฟอร์มเดิม'
+    );
+  }
+  if (/Server error|Internal/i.test(msg) && !msg.includes('ไม่')) {
+    return pack(
+      'ระบบมีปัญหาชั่วคราว',
+      'เซิร์ฟเวอร์บันทึกไม่สำเร็จ',
+      'ลองใหม่อีกครั้งในสักครู่ หากยังไม่ได้ ให้แจ้งแอดมินพร้อมบอกเลขงาน/เวลาที่เกิดปัญหา'
+    );
+  }
+
+  return pack(
+    'บันทึกไม่สำเร็จ',
+    msg || fallback,
+    tipFromApi || 'ลองใหม่อีกครั้ง หากยังไม่ได้ ให้แจ้งแอดมินพร้อมข้อความนี้'
+  );
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Show a clear error dialog with problem + how to fix */
+export function showFriendlyError(err, fallback) {
+  const f = friendlyJobError(err, fallback);
+  const tipHtml = f.tip
+    ? `<div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:#FFFBEB;border:1px solid #FCD34D;text-align:left">
+         <p style="margin:0;font-size:12px;font-weight:800;color:#92400E">💡 วิธีแก้</p>
+         <p style="margin:6px 0 0;font-size:13px;line-height:1.45;color:#78350F;white-space:pre-line">${escapeHtml(f.tip)}</p>
+       </div>`
+    : '';
+  return Swal.fire({
+    icon: 'error',
+    title: f.title,
+    html: `<div style="text-align:left">
+      <p style="margin:0;font-size:14px;line-height:1.5;color:#374151;white-space:pre-line">${escapeHtml(f.text)}</p>
+      ${tipHtml}
+    </div>`,
+    confirmButtonText: 'เข้าใจแล้ว',
+    confirmButtonColor: '#1F2937',
+  });
 }

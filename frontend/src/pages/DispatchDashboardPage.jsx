@@ -433,12 +433,14 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               <div className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
                 <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">ที่อยู่ / พื้นที่</p>
                 <p className="text-sm text-[#374151] leading-relaxed">{job.address}</p>
-                {job.lat && job.lng && (
-                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}`} target="_blank" rel="noopener noreferrer"
+                {Number.isFinite(parseFloat(job.lat)) && Number.isFinite(parseFloat(job.lng)) ? (
+                  <a href={`https://www.google.com/maps/dir/?api=1&destination=${parseFloat(job.lat)},${parseFloat(job.lng)}`} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-emerald-600 hover:underline">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     นำทาง Google Maps
                   </a>
+                ) : (
+                  <p className="mt-2 text-[11px] font-semibold text-amber-700">⚠️ แอดมินยังไม่ได้ลงตำแหน่ง (ละติจูด/ลองจิจูด)</p>
                 )}
               </div>
             )}

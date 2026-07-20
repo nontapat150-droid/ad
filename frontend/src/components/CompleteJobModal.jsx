@@ -4,7 +4,7 @@ import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { FilterSelectField, AppDateField } from './DispatchFilterFields';
-import { friendlyJobError, PresetChips } from './dashboards/SharedComponents';
+import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import { NoSnEquipmentModal } from './JobActionModals';
 
 const BAG_DEVICE_SLOTS = [
@@ -38,8 +38,22 @@ const draftKeyFor = (jobId) => `${DRAFT_KEY_PREFIX}${jobId}`;
 function bagItemLabel(item) {
   const unit = item.unit || 'ชิ้น';
   const qty = Number(item.quantity) || 0;
-  const base = `${item.product_name} — ${item.model_name} [SN: ${item.sn}]`;
+  const name = item.product_name || 'สินค้า';
+  const model = item.model_name || '-';
+  const sn = item.sn || '-';
+  const base = `${name} — ${model} [SN: ${sn}]`;
   return `${base} · คงเหลือ ${qty} ${unit}`;
+}
+
+function isSnBagItem(item) {
+  return Number(item?.has_sn) === 1 || item?.has_sn === true;
+}
+
+function buildCompleteBagUrl(job, { isAdmin }) {
+  if (job?.team_id) return `/inventory/my-bag?team_id=${job.team_id}`;
+  const assigneeId = job?.field_engineer_id || job?.assigned_user_id;
+  if (isAdmin && assigneeId) return `/inventory/my-bag?user_id=${assigneeId}`;
+  return '/inventory/my-bag';
 }
 
 function fmtThaiDate(d) {
@@ -265,15 +279,14 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     } catch { /* corrupt draft — ignore */ }
     hydratedRef.current = true;
 
-    // Load tech bag
+    // Load tech / team bag
     setBagLoading(true);
-    const assigneeId = job.field_engineer_id || job.assigned_user_id;
-    const bagUrl = assigneeId ? `/inventory/my-bag?user_id=${assigneeId}` : '/inventory/my-bag';
+    const bagUrl = buildCompleteBagUrl(job, { isAdmin });
     api.get(bagUrl)
       .then((res) => {
-        const all = res.data || [];
-        const snItems = all.filter((item) => item.has_sn !== 0 && item.has_sn !== false);
-        const noSn = all.filter((item) => item.has_sn === 0 || item.has_sn === false);
+        const all = Array.isArray(res.data) ? res.data : [];
+        const snItems = all.filter(isSnBagItem);
+        const noSn = all.filter((item) => !isSnBagItem(item));
         setBagItems(snItems);
         setNoSnItems(noSn);
 
@@ -564,14 +577,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       // onSuccess called after user closes popup
     } catch (err) {
       console.error(err);
-      const friendly = friendlyJobError(err, 'เกิดข้อผิดพลาดในการจบงาน');
-      Swal.fire({
-        icon: 'error',
-        title: friendly.title,
-        text: friendly.text,
-        confirmButtonText: 'ตกลง',
-        confirmButtonColor: '#1F2937',
-      });
+      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการจบงาน');
     } finally {
       setLoading(false);
     }
@@ -650,7 +656,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
             <div className="flex flex-col gap-3 animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
                 <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2 mb-1">
-                  <h3 className="text-sm font-bold text-[#185FA5]">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าช่าง)</h3>
+                  <h3 className="text-sm font-bold text-[#185FA5]">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าทีม — ใช้ร่วมกันได้)</h3>
                   <div className="flex items-center gap-2">
                     {isAdmin && (job.field_engineer_id || job.assigned_user_id) && (
                       <button

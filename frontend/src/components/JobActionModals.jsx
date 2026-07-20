@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { AppDateField, AppTimeField } from './DispatchFilterFields';
-import { friendlyJobError, PresetChips } from './dashboards/SharedComponents';
+import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import { INCOMPLETE_REASON_PRESETS, POSTPONE_REASON_PRESETS } from '../constants/jobStatus';
 
 // ── Sub-modal: เลือกอุปกรณ์ไม่มี SN (no-SN items) ──────────────────────────────
@@ -227,8 +227,7 @@ export function IncompleteJobModal({ isOpen, onClose, job, onSuccess, jobType })
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      const friendly = friendlyJobError(err, 'เกิดข้อผิดพลาดในการบันทึกงานไม่จบ');
-      Swal.fire({ icon: 'error', title: friendly.title, text: friendly.text, confirmButtonColor: '#1F2937' });
+      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการบันทึกงานไม่จบ');
     } finally {
       setLoading(false);
     }
@@ -300,8 +299,7 @@ export function PostponeJobModal({ isOpen, onClose, job, onSuccess, jobType }) {
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      const friendly = friendlyJobError(err, 'เกิดข้อผิดพลาดในการเลื่อนนัด');
-      Swal.fire({ icon: 'error', title: friendly.title, text: friendly.text, confirmButtonColor: '#1F2937' });
+      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการเลื่อนนัด');
     } finally {
       setLoading(false);
     }

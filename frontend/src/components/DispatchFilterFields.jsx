@@ -293,7 +293,7 @@ export function FilterSelectField({
   const filtered = useMemo(() => {
     if (!searchable || !query.trim()) return options;
     const q = query.trim().toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q));
+    return options.filter((o) => String(o.label || '').toLowerCase().includes(q));
   }, [options, query, searchable]);
 
   useOutsideClose(ref, open, () => { setOpen(false); setQuery(''); });
@@ -380,9 +380,9 @@ export function FilterSelectField({
                         ? 'bg-[#E5E7EB] text-[#9CA3AF]'
                         : String(opt.value) === String(value) ? 'bg-[#A3E635] text-[#1F2937]' : 'bg-[#F3F4F6] text-[#9CA3AF]'
                     )}>
-                      {String(opt.value) === String(value) ? '✓' : opt.label.charAt(0)}
+                      {String(opt.value) === String(value) ? '✓' : String(opt.label || '?').charAt(0)}
                     </span>
-                    <span className="truncate flex-1">{opt.label}</span>
+                    <span className="truncate flex-1">{opt.label || '—'}</span>
                     {opt.disabled && (
                       <span className="text-[10px] font-bold text-red-400 shrink-0">ไม่พอ</span>
                     )}
