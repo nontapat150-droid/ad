@@ -651,7 +651,6 @@ export default function DispatchDashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAutoModalOpen, setIsAutoModalOpen] = useState(false);
   const [isSmartImportOpen, setIsSmartImportOpen] = useState(false);
-  const [smartImportJobType, setSmartImportJobType] = useState(null);
   const [showManualModal, setShowManualModal] = useState(false);
 
   const [actionJob, setActionJob] = useState(null);
@@ -853,7 +852,23 @@ export default function DispatchDashboardPage() {
       }
     });
   };
-  const handleDeleteAll = () => requestConfirm('ลบทั้งหมด', 'ลบงานที่รอดำเนินการทั้งหมด?', async () => { try { await axios.delete('/dispatch/jobs/all', { params: { type: mainTab } }); handleActionComplete(); showNotification('ลบสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } });
+  const handleDeletePendingByType = (type) => {
+    const isMa = type === 'ma';
+    const label = isMa ? 'งาน MA' : 'งานติดตั้ง';
+    requestConfirm(
+      `ลบเฉพาะ${label}`,
+      `ลบงานที่รอดำเนินการของ${label}ทั้งหมด? (งานสำเร็จ / ไม่สำเร็จจะไม่ถูกลบ)`,
+      async () => {
+        try {
+          const r = await axios.delete('/dispatch/jobs/all', { params: { type } });
+          handleActionComplete();
+          showNotification(`ลบ${label}สำเร็จ ${r.data?.deletedCount ?? ''}`.trim());
+        } catch (e) {
+          showNotification('ผิดพลาด', 'error');
+        }
+      }
+    );
+  };
   const handleClearDispatch = () => requestConfirm('ล้างจ่ายงาน', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-dispatch', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleClearQueue = () => requestConfirm('ล้างคิว', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-queue', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleCancelCompletion = (job) => requestConfirm('ยกเลิกจบงาน', `ยกเลิก ${job.access_no}?`, async () => { try { await axios.put(`/dispatch/jobs/${job.id}/cancel-completion`); fetchJobs(); showNotification('ยกเลิกสำเร็จ'); } catch(e) { showNotification(e.response?.data?.error || 'ผิดพลาด', 'error'); } }, true);
@@ -1034,7 +1049,18 @@ export default function DispatchDashboardPage() {
                             <button onClick={handleClearDispatch} className="px-2.5 py-2 bg-orange-50 text-orange-700 text-[11px] font-bold hover:bg-orange-100 rounded-lg border border-orange-200 transition-colors">ล้างจ่ายงาน</button>
                             <button onClick={handleClearQueue} className="px-2.5 py-2 bg-amber-50 text-amber-700 text-[11px] font-bold hover:bg-amber-100 rounded-lg border border-amber-200 transition-colors">ล้างคิว</button>
                             <button onClick={handleReorderByLocation} disabled={isReordering} className="px-2.5 py-2 bg-emerald-50 text-emerald-700 text-[11px] font-bold hover:bg-emerald-100 rounded-lg border border-emerald-200 disabled:opacity-50 transition-colors">{isReordering ? '⏳...' : '📍 เรียง GPS'}</button>
-                            <button onClick={handleDeleteAll} className="px-2.5 py-2 bg-red-50 text-red-600 text-[11px] font-bold hover:bg-red-100 rounded-lg border border-red-200 transition-colors">🗑️ ลบทั้งหมด</button>
+                            <button
+                              onClick={() => handleDeletePendingByType('office')}
+                              className="px-2.5 py-2 bg-red-50 text-red-600 text-[11px] font-bold hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
+                            >
+                              🗑️ ลบเฉพาะติดตั้ง
+                            </button>
+                            <button
+                              onClick={() => handleDeletePendingByType('ma')}
+                              className="px-2.5 py-2 bg-red-50 text-red-700 text-[11px] font-bold hover:bg-red-100 rounded-lg border border-red-200 transition-colors col-span-2"
+                            >
+                              🗑️ ลบเฉพาะ MA
+                            </button>
                           </div>
                         </div>
                       )}
@@ -1044,11 +1070,7 @@ export default function DispatchDashboardPage() {
               </div>
               {isAdmin && <>
                 <button
-                  onClick={() => {
-                    // Show job type picker then open smart wizard
-                    setSmartImportJobType(mainTab);
-                    setIsSmartImportOpen(true);
-                  }}
+                  onClick={() => setIsSmartImportOpen(true)}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] border border-[#E5E7EB] rounded-xl text-xs font-semibold transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
@@ -1260,7 +1282,6 @@ export default function DispatchDashboardPage() {
             showNotification(parts.join(' · ') || 'นำเข้าสำเร็จ');
           }
         }}
-        defaultJobType={smartImportJobType}
       />
       {selectedJob && <EditJobModal job={selectedJob} isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} onSuccess={handleActionComplete} type={mainTab} />}
       {mainTab === 'ma' ? (

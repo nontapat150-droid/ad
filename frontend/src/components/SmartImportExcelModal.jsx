@@ -519,9 +519,9 @@ function StepBar({ step }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defaultJobType }) {
+export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
   const [step, setStep] = useState(1);
-  const [jobType, setJobType] = useState(defaultJobType || 'office'); // 'office' | 'ma'
+  const [jobType, setJobType] = useState(null); // null | 'office' | 'ma' — must pick before continue
   const [headerRowMode, setHeaderRowMode] = useState('auto'); // 'auto' | 1 | 2
   const [headerRow, setHeaderRow] = useState(1); // effective header row (1-based)
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -554,9 +554,9 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       // Fetch teams and users for resolving engineer name → team
       axios.get('/users/teams').then(r => setTeams(r.data || [])).catch(() => {});
       axios.get('/users').then(r => setAllUsers(r.data || [])).catch(() => {});
-      // Reset
-      setStep(defaultJobType ? 2 : 1);
-      setJobType(defaultJobType || 'office');
+      // Always start at job-type selection — never skip this step
+      setStep(1);
+      setJobType(null);
       setHeaderRowMode('auto');
       setHeaderRow(1);
       setShowAdvanced(false);
@@ -578,11 +578,11 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
       setImportResult(null);
       setNotification('');
     }
-  }, [isOpen, defaultJobType]);
+  }, [isOpen]);
 
   // Load shared aliases from server (graceful when endpoint is unavailable)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !jobType) return;
     axios.get('/dispatch/import-aliases', { params: { job_type: jobType } })
       .then((r) => {
         const map = {};
@@ -599,11 +599,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
 
   const SYSTEM_FIELDS = jobType === 'ma' ? MA_SYSTEM_FIELDS : OFFICE_SYSTEM_FIELDS;
 
-  // ─── Step 1: Choose job type ───────────────────────────────────────────────
+  // ─── Step 1: Choose job type (required) ────────────────────────────────────
   function renderStep1() {
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-bold text-[#1F2937] mb-2">เลือกประเภทงานที่ต้องการนำเข้า</h3>
+        <div>
+          <h3 className="text-lg font-bold text-[#1F2937] mb-1">เลือกประเภทงานที่ต้องการนำเข้า</h3>
+          <p className="text-sm text-[#6B7280]">ต้องเลือกประเภทก่อน จึงจะอัปโหลดไฟล์ Excel ได้</p>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           {[
             { key: 'office', label: 'งานติดตั้ง', emoji: '🏢', desc: 'งาน Office / ติดตั้งใหม่' },
@@ -611,6 +614,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
           ].map(opt => (
             <button
               key={opt.key}
+              type="button"
               onClick={() => setJobType(opt.key)}
               className={`p-6 rounded-2xl border-2 text-left transition-all hover:scale-[1.02] active:scale-[0.98] ${
                 jobType === opt.key
@@ -624,10 +628,23 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess, defa
             </button>
           ))}
         </div>
+        {!jobType && (
+          <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            กรุณาเลือกประเภทงานก่อนกดถัดไป
+          </p>
+        )}
         <div className="flex justify-end mt-4">
           <button
-            onClick={() => setStep(2)}
-            className="px-6 py-3 rounded-xl font-bold text-[#1F2937] transition-all"
+            type="button"
+            disabled={!jobType}
+            onClick={() => {
+              if (!jobType) {
+                setNotification('กรุณาเลือกประเภทงานก่อน');
+                return;
+              }
+              setStep(2);
+            }}
+            className="px-6 py-3 rounded-xl font-bold text-[#1F2937] transition-all disabled:opacity-45 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)', boxShadow: '0 2px 8px rgba(163,230,53,0.3)' }}
           >
             ถัดไป →
