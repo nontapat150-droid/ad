@@ -126,7 +126,7 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-sm font-black text-[#1F2937] tracking-wide">{job.access_no || '-'}</span>
+              <span className="text-sm font-black text-[#1F2937] tracking-wide">{job.display_non || job.non_number || job.access_no || '-'}</span>
               {job.seq && <span className="text-[10px] font-bold bg-[#1F2937] text-white px-1.5 py-0.5 rounded-md">#{job.seq}</span>}
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_COLOR(status)}`}>
                 {isReactivated && !isPostponeNoTeam ? 'รอดำเนินการ (เลื่อน)' : STATUS_LABEL(status)}
@@ -139,6 +139,13 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
 
             {/* Customer name */}
             <p className="text-sm font-semibold text-[#374151] truncate">{job.customer || 'ไม่ระบุชื่อ'}</p>
+
+            {/* MA symptoms preview */}
+            {job.symptoms && (
+              <p className="text-xs font-semibold text-orange-700 mt-0.5 line-clamp-2 leading-snug">
+                🔧 {job.symptoms}
+              </p>
+            )}
 
             {/* Address */}
             {job.address && (
@@ -418,8 +425,15 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                       ? thaiTime(job.job_time)
                       : (job.assigned_time ? thaiTime(job.assigned_time) : '-'))
                 },
-                { label: 'แพ็กเกจ', value: job.package || '-' },
-                { label: 'สินค้า', value: job.product || '-' },
+                ...(mainTab === 'ma'
+                  ? [
+                      { label: 'พื้นที่', value: job.area_name || '-' },
+                      { label: 'Access / NON', value: job.access_no || job.non_number || '-' },
+                    ]
+                  : [
+                      { label: 'แพ็กเกจ', value: job.package || '-' },
+                      { label: 'สินค้า', value: job.product || '-' },
+                    ]),
               ].map(({ label, value }) => (
                 <div key={label} className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
                   <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">{label}</p>
@@ -427,6 +441,16 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 </div>
               ))}
             </div>
+
+            {/* MA symptoms — critical for techs before going on site */}
+            {mainTab === 'ma' && (
+              <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+                <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wide mb-1">อาการเสีย / ปัญหา</p>
+                <p className="text-sm font-semibold text-[#1F2937] leading-relaxed whitespace-pre-wrap">
+                  {job.symptoms?.trim() || 'ยังไม่ระบุอาการเสีย'}
+                </p>
+              </div>
+            )}
 
             {/* Address */}
             {job.address && (
@@ -449,7 +473,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
             {(job.service_note || job.remark) && (
               <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
                 <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">หมายเหตุ / รายละเอียด</p>
-                <p className="text-sm text-[#374151] leading-relaxed">{job.service_note || job.remark}</p>
+                <p className="text-sm text-[#374151] leading-relaxed whitespace-pre-wrap">{job.service_note || job.remark}</p>
               </div>
             )}
 

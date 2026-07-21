@@ -249,6 +249,11 @@ export function TechJobActionCard({
           <p className={`text-sm truncate ${overdue ? 'text-red-600' : 'text-[#6B7280]'}`}>
             {job.customer || 'ไม่ระบุลูกค้า'}
           </p>
+          {jobType === 'ma' && job.symptoms && (
+            <p className={`text-xs font-semibold mt-1 line-clamp-2 ${overdue ? 'text-orange-800' : 'text-orange-700'}`}>
+              🔧 {job.symptoms}
+            </p>
+          )}
           {(dateLabel || timeLabel) && (
             <p className={`text-[11px] font-medium mt-1 ${overdue ? 'text-red-400' : 'text-[#9CA3AF]'}`}>
               📅 {[dateLabel, timeLabel ? `${timeLabel} น.` : null].filter(Boolean).join(' · ')}

@@ -377,6 +377,12 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
                     <input readOnly value={job.address} className={readOnlyCls} />
                   </div>
                 )}
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-orange-700 uppercase mb-1">อาการเสียที่แจ้งมา</label>
+                  <div className="w-full px-3 py-2.5 rounded-xl border border-orange-200 bg-orange-50 text-sm font-semibold text-[#1F2937] whitespace-pre-wrap min-h-[44px]">
+                    {job.symptoms?.trim() || 'ยังไม่ระบุอาการเสีย'}
+                  </div>
+                </div>
               </div>
 
               {fieldHints.length > 0 && (
