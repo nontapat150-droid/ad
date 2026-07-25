@@ -1,18 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
-import { AppDateField } from './DispatchFilterFields';
+import { AppDateField, AppSelectField } from './DispatchFilterFields';
 
-export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveType = 'general' }) {
+export default function LeaveRequestModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  leaveType = 'general',
+  isAdmin = false,
+  usersList = [],
+}) {
   const [leaveDate, setLeaveDate] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState('');
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [targetUserId, setTargetUserId] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLeaveDate(new Date().toISOString().slice(0, 10));
+    setReason('');
+    setImage(null);
+    setPreview(null);
+    setTargetUserId('');
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const todayStr = new Date().toISOString().slice(0, 10);
+  const isBackdated = leaveDate && leaveDate < todayStr;
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -33,8 +51,17 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
       Swal.fire({ icon: 'warning', title: 'กรุณาเลือกวันที่ลา', confirmButtonColor: '#1F2937' });
       return;
     }
-    if (leaveDate < todayStr) {
-      Swal.fire({ icon: 'warning', title: 'ไม่สามารถลาย้อนหลังได้', text: 'กรุณาเลือกวันนี้หรือวันข้างหน้า', confirmButtonColor: '#1F2937' });
+    if (isBackdated && !isAdmin) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่สามารถลาย้อนหลังได้',
+        text: 'กรุณาเลือกวันนี้หรือวันข้างหน้า',
+        confirmButtonColor: '#1F2937',
+      });
+      return;
+    }
+    if (isAdmin && !targetUserId) {
+      Swal.fire({ icon: 'warning', title: 'กรุณาเลือกพนักงาน', confirmButtonColor: '#1F2937' });
       return;
     }
     if (!reason.trim() && !image) {
@@ -48,12 +75,21 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
       fd.append('leave_date', leaveDate);
       fd.append('reason', reason.trim());
       fd.append('leave_type', leaveType);
+      if (isAdmin && targetUserId) fd.append('user_id', targetUserId);
       if (image) fd.append('image', image);
 
-      await api.post('/checkin/leave', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      Swal.fire({ icon: 'success', title: 'บันทึกการลาสำเร็จ', showConfirmButton: false, timer: 1800 });
+      const { data } = await api.post('/checkin/leave', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      Swal.fire({
+        icon: 'success',
+        title: data?.message || 'บันทึกการลาสำเร็จ',
+        showConfirmButton: false,
+        timer: 1800,
+      });
       setReason('');
       clearImage();
+      setTargetUserId('');
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -68,6 +104,10 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
     }
   };
 
+  const userOptions = (usersList || [])
+    .filter((u) => u.status === 'approved' || !u.status)
+    .map((u) => ({ value: String(u.id), label: u.full_name || u.username || `#${u.id}` }));
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-[#1F2937]/50 backdrop-blur-sm" onClick={onClose} />
@@ -77,8 +117,12 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white border border-orange-200 flex items-center justify-center text-xl shadow-sm">📝</div>
             <div>
-              <h2 className="text-lg font-black text-[#1F2937]">แจ้งลางาน</h2>
-              <p className="text-xs text-[#9CA3AF] font-medium">เลือกวันที่ลา (ห้ามย้อนหลัง)</p>
+              <h2 className="text-lg font-black text-[#1F2937]">
+                {isAdmin ? 'ลงลางาน (แอดมิน)' : 'แจ้งลางาน'}
+              </h2>
+              <p className="text-xs text-[#9CA3AF] font-medium">
+                {isAdmin ? 'เลือกวันได้ทั้งย้อนหลังและล่วงหน้า' : 'เลือกวันที่ลา (ห้ามย้อนหลัง)'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-xl bg-white border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] hover:text-[#1F2937] transition-colors">
@@ -87,14 +131,32 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {isAdmin && (
+            <AppSelectField
+              label="พนักงานที่ลา *"
+              value={targetUserId}
+              onChange={setTargetUserId}
+              options={userOptions}
+              placeholder="เลือกพนักงาน"
+              searchable
+              allowClear={false}
+            />
+          )}
+
           <AppDateField
             label="วันที่ลา"
             value={leaveDate}
             onChange={setLeaveDate}
-            min={todayStr}
+            min={isAdmin ? undefined : todayStr}
             allowClear={false}
             showToday
           />
+
+          {isAdmin && isBackdated && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700">
+              รายการนี้เป็นลาย้อนหลัง ({leaveDate})
+            </div>
+          )}
 
           <div>
             <label className="block text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
@@ -160,7 +222,7 @@ export default function LeaveRequestModal({ isOpen, onClose, onSuccess, leaveTyp
               disabled={loading}
               className="flex-1 py-3 rounded-xl bg-gradient-to-r from-orange-400 to-orange-500 text-white font-black shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '📝 ยืนยันการลา'}
+              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (isBackdated && isAdmin ? '📝 บันทึกย้อนหลัง' : '📝 ยืนยันการลา')}
             </button>
           </div>
         </form>

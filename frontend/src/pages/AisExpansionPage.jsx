@@ -1,298 +1,625 @@
-import React, { useEffect, useRef, useState } from 'react';
-import 'ol/ol.css';
-import { Map, View, Feature } from 'ol';
-import Overlay from 'ol/Overlay';
-import TileLayer from 'ol/layer/Tile';
-import XYZ from 'ol/source/XYZ';
-import { fromLonLat, toLonLat } from 'ol/proj';
-import { defaults as defaultControls, FullScreen } from 'ol/control';
-import VectorLayer from 'ol/layer/Vector';
-import VectorSource from 'ol/source/Vector';
-import Point from 'ol/geom/Point';
-import Circle from 'ol/geom/Circle';
-import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import ExpansionMapPicker from '../components/ExpansionMapPicker';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
-export default function AisExpansionPage() {
-  const mapRef = useRef(null);
-  const [map, setMap] = useState(null);
-  const [clickedCoord, setClickedCoord] = useState(null);
-  const [splitterInput, setSplitterInput] = useState('');
-  const [radiusInput, setRadiusInput] = useState('500');
-  const [searchError, setSearchError] = useState('');
+const STATUS_META = {
+  draft: { label: 'ยังไม่ไป', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+  survey: { label: 'กำลังทำ', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  quoted: { label: 'คุยแล้ว', className: 'bg-amber-50 text-amber-800 border-amber-200' },
+  won: { label: 'ปิดได้', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  lost: { label: 'ไม่ได้', className: 'bg-red-50 text-red-700 border-red-200' },
+  handed_off: { label: 'ส่งต่อแล้ว', className: 'bg-violet-50 text-violet-700 border-violet-200' },
+};
 
-  const popupRef = useRef(null);
-  const popupOverlayRef = useRef(null);
-  const vectorSourceRef = useRef(new VectorSource());
+/** One clear next step for sales — avoid long status chains on the card */
+const NEXT_ACTIONS = {
+  draft: [{ status: 'survey', label: 'เริ่มทำ' }],
+  survey: [
+    { status: 'won', label: 'ปิดได้' },
+    { status: 'lost', label: 'ไม่ได้' },
+  ],
+  quoted: [
+    { status: 'won', label: 'ปิดได้' },
+    { status: 'lost', label: 'ไม่ได้' },
+  ],
+  won: [],
+  lost: [{ status: 'survey', label: 'เปิดใหม่' }],
+  handed_off: [],
+};
 
-  const handleSearchSplitter = (e) => {
-    e.preventDefault();
-    setSearchError('');
-    
-    if (!splitterInput.trim()) {
-      setSearchError('กรุณาระบุพิกัด');
-      return;
-    }
+const emptyForm = () => ({
+  customer_name: '',
+  phone: '',
+  address: '',
+  access_no: '',
+  lat: null,
+  lng: null,
+  splitter_note: '',
+  radius_m: 500,
+  status: 'draft',
+  follow_up_at: '',
+  remark: '',
+  lost_reason: '',
+});
 
-    // Attempt to parse "lat, lon" or "lat lon"
-    const parts = splitterInput.split(/[, ]+/).filter(Boolean);
-    if (parts.length < 2) {
-      setSearchError('รูปแบบพิกัดไม่ถูกต้อง (เช่น 13.75, 100.50)');
-      return;
-    }
+function StatusBadge({ status }) {
+  const meta = STATUS_META[status] || STATUS_META.draft;
+  return (
+    <span className={`inline-flex text-[10px] font-black px-2 py-0.5 rounded-full border ${meta.className}`}>
+      {meta.label}
+    </span>
+  );
+}
 
-    const lat = parseFloat(parts[0]);
-    const lon = parseFloat(parts[1]);
+function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin }) {
+  const [form, setForm] = useState(emptyForm());
+  const [saving, setSaving] = useState(false);
+  const isEdit = Boolean(job?.id);
+  const locked = job?.status === 'handed_off';
 
-    if (isNaN(lat) || isNaN(lon)) {
-      setSearchError('พิกัดต้องเป็นตัวเลข');
-      return;
-    }
-
-    // Clear old features
-    vectorSourceRef.current.clear();
-
-    const centerCoord = fromLonLat([lon, lat]);
-
-    // Create marker feature
-    const marker = new Feature({
-      geometry: new Point(centerCoord)
-    });
-
-    vectorSourceRef.current.addFeature(marker);
-
-    // Create radius feature if radius is provided
-    const radiusMeters = parseFloat(radiusInput);
-    if (!isNaN(radiusMeters) && radiusMeters > 0) {
-      // Convert meters to map units (EPSG:3857)
-      // Map units at equator = meters. We must scale it based on latitude.
-      const radiusMapUnits = radiusMeters / Math.cos((lat * Math.PI) / 180);
-      const circleFeature = new Feature({
-        geometry: new Circle(centerCoord, radiusMapUnits)
+  useEffect(() => {
+    if (!open) return;
+    if (job) {
+      setForm({
+        customer_name: job.customer_name || '',
+        phone: job.phone || '',
+        address: job.address || '',
+        access_no: job.access_no || '',
+        lat: job.lat != null ? Number(job.lat) : null,
+        lng: job.lng != null ? Number(job.lng) : null,
+        splitter_note: job.splitter_note || '',
+        radius_m: job.radius_m ?? 500,
+        status: job.status || 'draft',
+        follow_up_at: job.follow_up_at ? String(job.follow_up_at).slice(0, 10) : '',
+        remark: job.remark || '',
+        lost_reason: job.lost_reason || '',
       });
-      vectorSourceRef.current.addFeature(circleFeature);
+    } else {
+      setForm(emptyForm());
     }
+  }, [open, job]);
 
-    // Animate map to location
-    if (map) {
-      map.getView().animate({
-        center: centerCoord,
-        zoom: 18,
-        duration: 1000
-      });
-      // Close the clicked coordinate popup if it's open
-      setClickedCoord(null);
-      if (popupOverlayRef.current) {
-        popupOverlayRef.current.setPosition(undefined);
+  if (!open) return null;
+
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleSave = async () => {
+    if (locked) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        lat: form.lat,
+        lng: form.lng,
+        follow_up_at: form.follow_up_at || null,
+      };
+      if (isEdit) {
+        await api.put(`/expansion/${job.id}`, payload);
+      } else {
+        await api.post('/expansion', payload);
       }
+      onSaved?.();
+      onClose();
+      Swal.fire({ icon: 'success', title: isEdit ? 'บันทึกแล้ว' : 'สร้างงานขยายแล้ว', timer: 1400, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'บันทึกไม่สำเร็จ',
+        text: err.response?.data?.error || err.message,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Initialize Map
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (!map) {
-      const initialMap = new Map({
-        target: mapRef.current,
-        controls: defaultControls().extend([new FullScreen()]),
-        layers: [
-          // 1. Layer ภาพถ่ายดาวเทียม (ArcGIS World Imagery)
-          new TileLayer({
-            source: new XYZ({
-              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-              attributions: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-              crossOrigin: 'anonymous',
-            }),
-          }),
-          // 2. Layer ป้ายชื่อสถานที่และขอบเขต (ArcGIS Reference Labels)
-          new TileLayer({
-            source: new XYZ({
-              url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-              crossOrigin: 'anonymous',
-            }),
-          }),
-          // 3. Layer สำหรับวาดหมุด Splitter และรัศมี
-          new VectorLayer({
-            source: vectorSourceRef.current,
-            style: new Style({
-              fill: new Fill({
-                color: 'rgba(59, 130, 246, 0.15)', // Light blue for radius fill
-              }),
-              stroke: new Stroke({
-                color: '#3B82F6', // Blue for radius stroke
-                width: 2,
-              }),
-              image: new CircleStyle({
-                radius: 8,
-                fill: new Fill({
-                  color: '#ef4444', // Red for Splitter point so it stands out
-                }),
-                stroke: new Stroke({
-                  color: '#ffffff',
-                  width: 3,
-                }),
-              }),
-            }),
-          }),
-        ],
-        view: new View({
-          center: fromLonLat([100.5018, 13.7563]), // Bangkok
-          zoom: 6,
-        }),
-      });
-
-      // Create Popup Overlay
-      const popupOverlay = new Overlay({
-        element: popupRef.current,
-        positioning: 'bottom-center',
-        stopEvent: true,
-        offset: [0, -10],
-      });
-      initialMap.addOverlay(popupOverlay);
-      popupOverlayRef.current = popupOverlay;
-
-      setMap(initialMap);
-
-      initialMap.on('singleclick', (evt) => {
-        const coords = toLonLat(evt.coordinate);
-        setClickedCoord({
-          lon: coords[0].toFixed(6),
-          lat: coords[1].toFixed(6)
-        });
-        popupOverlay.setPosition(evt.coordinate);
-      });
-    }
-
-    return () => {
-      if (map) {
-        map.setTarget(null);
-        setMap(null);
-      }
-    };
-  }, [map]);
-
   return (
-    <Layout activeKey="ais_expansion" pageTitle="ระบบงานขยาย AIS (แผนที่ดาวเทียม)">
-      <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
-        {/* Header toolbar */}
-        <div className="flex items-center justify-between p-4 border-b bg-slate-50 shrink-0 flex-wrap gap-4">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-[#1F2937]/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl border border-[#E5E7EB] shadow-2xl max-h-[94vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] shrink-0">
           <div>
-            <h3 className="font-bold text-[#042C53] flex items-center gap-2">
-              <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-              แผนที่ดาวเทียมระบุพิกัด Splitter
+            <h3 className="font-black text-[#1F2937] text-lg">
+              {isEdit ? `แก้ไขงานขยาย #${job.id}` : 'สร้างงานขยายใหม่'}
             </h3>
-            <p className="text-xs text-slate-500 mt-1">ค้นหาและแสดงตำแหน่ง Splitter</p>
+            {isEdit && <div className="mt-1"><StatusBadge status={job.status} /></div>}
+          </div>
+          <button type="button" onClick={onClose} className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-[#6B7280]">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">ชื่อลูกค้า</label>
+              <input
+                disabled={locked}
+                value={form.customer_name}
+                onChange={(e) => setField('customer_name', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+                placeholder="ชื่อลูกค้า"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">เบอร์โทร</label>
+              <input
+                disabled={locked}
+                value={form.phone}
+                onChange={(e) => setField('phone', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+                placeholder="08x-xxx-xxxx"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">ที่อยู่</label>
+              <textarea
+                disabled={locked}
+                value={form.address}
+                onChange={(e) => setField('address', e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40 resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">Access No (ถ้ามี)</label>
+              <input
+                disabled={locked}
+                value={form.access_no}
+                onChange={(e) => setField('access_no', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+                placeholder="ใส่ตอนส่งต่อติดตั้งก็ได้"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">นัดติดตาม</label>
+              <input
+                type="date"
+                disabled={locked}
+                value={form.follow_up_at}
+                onChange={(e) => setField('follow_up_at', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">หมายเหตุ Splitter / จุดสนใจ</label>
+              <input
+                disabled={locked}
+                value={form.splitter_note}
+                onChange={(e) => setField('splitter_note', e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+                placeholder="เช่น ใกล้ splitter หมู่บ้าน..."
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-bold text-[#6B7280] uppercase mb-1">หมายเหตุ</label>
+              <textarea
+                disabled={locked}
+                value={form.remark}
+                onChange={(e) => setField('remark', e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40 resize-none"
+              />
+            </div>
+            {form.status === 'lost' || job?.status === 'lost' ? (
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-red-600 uppercase mb-1">เหตุผลที่ไม่ได้</label>
+                <input
+                  disabled={locked}
+                  value={form.lost_reason}
+                  onChange={(e) => setField('lost_reason', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-red-200 bg-red-50 text-sm font-semibold outline-none focus:ring-2 focus:ring-red-200"
+                />
+              </div>
+            ) : null}
           </div>
 
-          {/* Search Splitter Input */}
-          <form onSubmit={handleSearchSplitter} className="flex items-start gap-2 relative">
-            <div className="flex flex-col">
-              <input
-                type="text"
-                placeholder="พิกัด: 13.75, 100.50"
-                value={splitterInput}
-                onChange={(e) => {
-                  setSplitterInput(e.target.value);
-                  if (searchError) setSearchError('');
-                }}
-                className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 w-[180px] sm:w-[220px] transition-colors ${
-                  searchError ? 'border-red-300 focus:ring-red-200 bg-red-50' : 'border-slate-200 focus:ring-brand-100 focus:border-brand-400'
-                }`}
-              />
-              {searchError && (
-                <span className="absolute -bottom-5 left-1 text-[10px] text-red-500 font-medium whitespace-nowrap">
-                  {searchError}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col">
-              <div className="relative">
-                <input
-                  type="number"
-                  placeholder="รัศมี"
-                  value={radiusInput}
-                  onChange={(e) => setRadiusInput(e.target.value)}
-                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-100 focus:border-brand-400 w-[100px] transition-colors pr-8"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">ม.</span>
-              </div>
+          <div>
+            <p className="text-[11px] font-bold text-[#6B7280] uppercase mb-2">พิกัดบนแผนที่</p>
+            <ExpansionMapPicker
+              lat={form.lat}
+              lng={form.lng}
+              radiusM={form.radius_m}
+              selectable={!locked}
+              height="260px"
+              onPick={({ lat, lng }) => {
+                setField('lat', lat);
+                setField('lng', lng);
+              }}
+              onRadiusChange={(n) => setField('radius_m', n)}
+            />
+            {form.lat != null && form.lng != null && (
+              <p className="text-xs text-[#6B7280] mt-2 font-medium">
+                เลือกแล้ว: {Number(form.lat).toFixed(6)}, {Number(form.lng).toFixed(6)}
+              </p>
+            )}
+          </div>
+
+          {isAdmin && job?.owner_name && (
+            <p className="text-xs text-[#9CA3AF]">เจ้าของงาน: {job.owner_name}</p>
+          )}
+        </div>
+
+        <div className="px-4 py-3 border-t border-[#E5E7EB] flex gap-2 shrink-0">
+          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#F3F4F6] font-bold text-[#374151] text-sm">
+            ปิด
+          </button>
+          {!locked && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={handleSave}
+              className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937] disabled:opacity-60"
+              style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+            >
+              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AisExpansionPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const userRoles = user?.roles || [user?.role];
+  const isAdmin = userRoles.some((r) => ['admin', 'super_admin'].includes(r));
+
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewTab, setViewTab] = useState('open'); // open | today | done
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const fetchJobs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (viewTab === 'open') params.scope = 'open';
+      if (viewTab === 'done') params.scope = 'done';
+      if (viewTab === 'today') {
+        params.scope = 'open';
+        params.follow_up = 'today';
+      }
+      if (search.trim()) params.q = search.trim();
+      const { data } = await api.get('/expansion', { params });
+      setJobs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      Swal.fire({ icon: 'error', title: 'โหลดงานขยายไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    } finally {
+      setLoading(false);
+    }
+  }, [viewTab, search]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  const callPhone = (phone) => {
+    if (!phone) return;
+    const first = String(phone).split(/[,/|]/)[0].replace(/[^\d+]/g, '');
+    if (first) window.location.href = `tel:${first}`;
+  };
+
+  const openMaps = (job) => {
+    const lat = parseFloat(job.lat);
+    const lng = parseFloat(job.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+      return;
+    }
+    if (job.address) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`, '_blank');
+    }
+  };
+
+  const changeStatus = async (job, nextStatus) => {
+    let lost_reason = job.lost_reason;
+    if (nextStatus === 'lost') {
+      const { value } = await Swal.fire({
+        title: 'เหตุผลที่ไม่ได้',
+        input: 'text',
+        inputPlaceholder: 'เช่น ลูกค้าไม่สนใจ / พื้นที่ไม่พร้อม',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#1F2937',
+        inputValidator: (v) => (!v?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
+      });
+      if (!value) return;
+      lost_reason = value.trim();
+    }
+
+    try {
+      await api.put(`/expansion/${job.id}`, { status: nextStatus, lost_reason });
+      fetchJobs();
+      Swal.fire({ icon: 'success', title: 'อัปเดตสถานะแล้ว', timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'เปลี่ยนสถานะไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    }
+  };
+
+  const handleHandoff = async (job) => {
+    const { value: accessNo } = await Swal.fire({
+      title: 'ส่งต่องานติดตั้ง',
+      html: '<p class="text-sm text-left text-slate-600 mb-2">กรอก Access Number เพื่อสร้างงานในระบบแจกจ่ายงาน</p>',
+      input: 'text',
+      inputValue: job.access_no || '',
+      inputPlaceholder: '880xxxxxxx',
+      showCancelButton: true,
+      confirmButtonText: 'ส่งต่อติดตั้ง',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#185FA5',
+      inputValidator: (v) => (!v?.trim() ? 'ต้องมี Access Number' : undefined),
+    });
+    if (!accessNo) return;
+
+    try {
+      const { data } = await api.post(`/expansion/${job.id}/handoff`, { access_no: accessNo.trim() });
+      await fetchJobs();
+      const go = await Swal.fire({
+        icon: 'success',
+        title: data.already ? 'ส่งต่อไปแล้ว' : 'ส่งต่อติดตั้งสำเร็จ',
+        text: `งานติดตั้ง #${data.job_id} · Access ${data.access_no || accessNo}`,
+        showCancelButton: true,
+        confirmButtonText: 'ไปหน้าแจกจ่ายงาน',
+        cancelButtonText: 'อยู่หน้านี้',
+        confirmButtonColor: '#185FA5',
+      });
+      if (go.isConfirmed) navigate('/dispatch-dashboard?tab=office');
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'ส่งต่อไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    }
+  };
+
+  const handleDelete = async (job) => {
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: 'ลบงานขยาย?',
+      text: `#${job.id} ${job.customer_name || ''}`,
+      showCancelButton: true,
+      confirmButtonText: 'ลบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!conf.isConfirmed) return;
+    try {
+      await api.delete(`/expansion/${job.id}`);
+      fetchJobs();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    }
+  };
+
+  return (
+    <Layout activeKey="ais_expansion" pageTitle="ระบบงานขยาย AIS" manualPage="ais_expansion">
+      <div className="max-w-5xl mx-auto w-full space-y-4 pb-8">
+        {/* Header actions */}
+        <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5"
+          style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-black text-[#1F2937]">งานขยายของ{isAdmin ? 'ทีม' : 'ฉัน'}</h2>
+              <p className="text-xs text-[#6B7280] mt-0.5">เช็ครายการ · โทร · นำทาง · อัปเดตผล</p>
             </div>
             <button
-              type="submit"
-              className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-lg shadow-sm transition-colors whitespace-nowrap flex items-center gap-1.5"
+              type="button"
+              onClick={() => { setEditing(null); setFormOpen(true); }}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-[#1F2937]"
+              style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              + สร้างงาน
+            </button>
+          </div>
+
+          <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl mb-3">
+            {[
+              { key: 'open', label: 'ต้องทำ' },
+              { key: 'today', label: 'นัดวันนี้' },
+              { key: 'done', label: 'จบแล้ว' },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setViewTab(tab.key)}
+                className={`flex-1 py-2.5 rounded-lg text-xs font-black transition-colors ${
+                  viewTab === tab.key
+                    ? 'bg-white text-[#1F2937] shadow-sm'
+                    : 'text-[#6B7280]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearch(searchInput.trim());
+            }}
+          >
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="ค้นหาชื่อ / เบอร์ / ที่อยู่"
+              className="flex-1 px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/40"
+            />
+            <button
+              type="submit"
+              className="px-3 py-2.5 rounded-xl text-xs font-bold bg-[#F3F4F6] border border-[#E5E7EB] text-[#374151]"
+            >
               ค้นหา
             </button>
           </form>
         </div>
 
-        {/* Map Container */}
-        <div className="flex-1 relative bg-slate-800">
-          <div ref={mapRef} className="absolute inset-0 w-full h-full" />
-
-          {/* Coordinates Popup Overlay */}
-          <div ref={popupRef} className={`absolute z-20 ${clickedCoord ? 'block' : 'hidden'} transition-opacity`}>
-            {clickedCoord && (
-              <div className="bg-white p-3 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 min-w-[200px] relative origin-bottom">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">พิกัดบนแผนที่</span>
-                  <button onClick={() => {
-                    setClickedCoord(null);
-                    if (popupOverlayRef.current) {
-                      popupOverlayRef.current.setPosition(undefined);
-                    }
-                  }} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors -mr-1 -mt-1">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-500 shrink-0">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-[#042C53] leading-tight">{clickedCoord.lat}</p>
-                    <p className="text-xs font-bold text-[#042C53] leading-tight">{clickedCoord.lon}</p>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lon}`);
-                      alert('คัดลอกพิกัดเรียบร้อยแล้ว!');
-                    }}
-                    className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors border border-slate-200"
-                  >
-                    คัดลอก
-                  </button>
-                  <button 
-                    onClick={() => {
-                      window.open(`https://earth.google.com/web/search/${clickedCoord.lat},+${clickedCoord.lon}`, '_blank');
-                    }}
-                    className="flex-[1.5] py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-bold rounded-lg transition-colors border border-blue-100 flex items-center justify-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Google Earth
-                  </button>
-                </div>
-                
-                {/* Pointer arrow pointing down */}
-                <div className="absolute left-1/2 -bottom-2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 transform rotate-45"></div>
-              </div>
-            )}
+        {/* List */}
+        {loading ? (
+          <div className="space-y-3 animate-pulse">
+            {[1, 2, 3].map((i) => <div key={i} className="h-28 bg-[#E5E7EB]/60 rounded-2xl" />)}
           </div>
-        </div>
+        ) : jobs.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-[#E5E7EB] p-12 text-center">
+            <p className="text-[#9CA3AF] font-bold mb-3">ยังไม่มีงานขยาย</p>
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setFormOpen(true); }}
+              className="px-4 py-2.5 rounded-xl text-sm font-bold text-[#1F2937]"
+              style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+            >
+              สร้างงานแรก
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {jobs.map((job) => (
+              <div
+                key={job.id}
+                className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5"
+                style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
+              >
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="text-xs font-black text-[#9CA3AF]">#{job.id}</span>
+                      <StatusBadge status={job.status} />
+                      {job.follow_up_at && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md">
+                          นัด {String(job.follow_up_at).slice(0, 10)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-black text-[#1F2937] text-base truncate">
+                      {job.customer_name || 'ไม่ระบุชื่อลูกค้า'}
+                    </p>
+                    <p className="text-sm text-[#6B7280] truncate">{job.phone || 'ไม่มีเบอร์'}</p>
+                    {job.address && (
+                      <p className="text-xs text-[#9CA3AF] mt-1 line-clamp-2">{job.address}</p>
+                    )}
+                    {job.splitter_note && (
+                      <p className="text-xs font-semibold text-orange-700 mt-1">📍 {job.splitter_note}</p>
+                    )}
+                    {isAdmin && job.owner_name && (
+                      <p className="text-[11px] text-[#9CA3AF] mt-1">เซล: {job.owner_name}</p>
+                    )}
+                    {job.handed_off_job_id && (
+                      <p className="text-[11px] font-bold text-violet-700 mt-1">
+                        งานติดตั้ง #{job.handed_off_job_id}
+                        {job.access_no ? ` · ${job.access_no}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    {job.lat != null && job.lng != null && (
+                      <p className="text-[10px] font-mono text-[#9CA3AF]">
+                        {Number(job.lat).toFixed(4)}, {Number(job.lng).toFixed(4)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-[#F3F4F6]">
+                  <button
+                    type="button"
+                    disabled={!job.phone}
+                    onClick={() => callPhone(job.phone)}
+                    className="min-h-[48px] rounded-xl text-xs font-bold bg-white border border-[#E5E7EB] text-[#1F2937] disabled:opacity-35"
+                  >
+                    📞 โทร
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!(job.lat || job.address)}
+                    onClick={() => openMaps(job)}
+                    className="min-h-[48px] rounded-xl text-xs font-bold bg-white border border-[#E5E7EB] text-[#1F2937] disabled:opacity-35"
+                  >
+                    🗺️ นำทาง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditing(job); setFormOpen(true); }}
+                    className="min-h-[48px] rounded-xl text-xs font-bold bg-[#F3F4F6] text-[#374151] border border-[#E5E7EB]"
+                  >
+                    {job.status === 'handed_off' ? 'ดูรายละเอียด' : 'แก้ไข'}
+                  </button>
+
+                  {(NEXT_ACTIONS[job.status] || []).slice(0, 1).map((a) => (
+                    <button
+                      key={a.status}
+                      type="button"
+                      onClick={() => changeStatus(job, a.status)}
+                      className={`min-h-[48px] rounded-xl text-xs font-black border ${
+                        a.status === 'won'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-[#A3E635]/20 text-[#1F2937] border-[#A3E635]/40'
+                      }`}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+
+                  {(NEXT_ACTIONS[job.status] || []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => changeStatus(job, NEXT_ACTIONS[job.status][1].status)}
+                      className="min-h-[48px] rounded-xl text-xs font-bold bg-red-50 text-red-600 border border-red-200 col-span-2 sm:col-span-1"
+                    >
+                      {NEXT_ACTIONS[job.status][1].label}
+                    </button>
+                  )}
+
+                  {job.status === 'won' && (
+                    <button
+                      type="button"
+                      onClick={() => handleHandoff(job)}
+                      className="min-h-[48px] rounded-xl text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 col-span-2 sm:col-span-2"
+                    >
+                      ส่งต่อติดตั้ง
+                    </button>
+                  )}
+
+                  {job.status === 'handed_off' && job.handed_off_job_id && isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/dispatch-dashboard?tab=office&openJob=${job.handed_off_job_id}`)}
+                      className="min-h-[48px] rounded-xl text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200 col-span-2"
+                    >
+                      เปิดงานติดตั้ง
+                    </button>
+                  )}
+
+                  {isAdmin && job.status !== 'handed_off' && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(job)}
+                      className="min-h-[48px] rounded-xl text-xs font-bold bg-red-50 text-red-600 border border-red-100"
+                    >
+                      ลบ
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <ExpansionFormModal
+        open={formOpen}
+        job={editing}
+        isAdmin={isAdmin}
+        onClose={() => { setFormOpen(false); setEditing(null); }}
+        onSaved={fetchJobs}
+      />
     </Layout>
   );
 }

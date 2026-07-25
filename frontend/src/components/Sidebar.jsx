@@ -168,7 +168,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
           const allowedForOfficeTech = ['home', 'home_ma', 'bag', 'entry_fee', 'oil', 'oil_history', 'report', 'jobs', 'checkin'];
           return allowedForOfficeTech.includes(item.key);
         }
-        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'oil_history', 'entry_fee', 'bag', 'report', 'ais_expansion'].includes(item.key);
+        return ['home', 'home_ma', 'checkin', 'jobs', 'oil', 'oil_history', 'entry_fee', 'bag', 'report'].includes(item.key);
       })
     };
   }).filter(group => group.items.length > 0);

@@ -24,6 +24,7 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle, man
 
   const userRoles = user?.roles || [user?.role || ''];
   const isAdmin = userRoles.includes('super_admin') || userRoles.includes('admin');
+  const canUseExpansion = isAdmin || userRoles.includes('sales');
 
   const close  = useCallback(() => setSidebarOpen(false), []);
   const toggle = useCallback(() => setSidebarOpen((v) => !v), []);
@@ -80,19 +81,21 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle, man
           <div className="flex items-center gap-2">
             <ManualHelpButton onClick={() => setShowManualModal(true)} />
 
-            {/* Map Button */}
-            <button 
-              onClick={() => {
-                if (onNavigate) onNavigate('ais_expansion');
-                else navigate('/ais-expansion');
-              }}
-              className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
-              title="แผนที่งานขยาย AIS"
-            >
-              <svg className="w-5 h-5 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-              </svg>
-            </button>
+            {/* Expansion jobs (sales / admin) */}
+            {canUseExpansion && (
+              <button 
+                onClick={() => {
+                  if (onNavigate) onNavigate('ais_expansion');
+                  else navigate('/ais-expansion');
+                }}
+                className="w-10 h-10 rounded-xl glass border border-white/50 flex items-center justify-center relative hover:bg-[#E6F1FB] transition-colors"
+                title="ระบบงานขยาย AIS"
+              >
+                <svg className="w-5 h-5 text-[#378ADD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+              </button>
+            )}
 
             {/* Test FCM Button (Admin only) */}
             {isAdmin && (

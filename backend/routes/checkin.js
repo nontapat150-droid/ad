@@ -48,15 +48,36 @@ router.post(
     try {
       await ensureLeaveTable();
 
-      const userId = req.user.id;
-      const { leave_date, reason, leave_type } = req.body;
+      const userRoles = req.user.roles || [req.user.role];
+      const isAdmin = userRoles.some((r) => ['super_admin', 'admin'].includes(r));
+
+      let userId = req.user.id;
+      const { leave_date, reason, leave_type, user_id: targetUserId } = req.body;
       const today = new Date().toISOString().slice(0, 10);
 
       if (!leave_date) {
         return res.status(400).json({ error: 'กรุณาเลือกวันที่ลา' });
       }
-      if (leave_date < today) {
+
+      // Regular staff cannot backdate; admins can
+      if (leave_date < today && !isAdmin) {
         return res.status(400).json({ error: 'ไม่สามารถลาย้อนหลังได้' });
+      }
+
+      // Admin may record leave for another employee
+      if (isAdmin && targetUserId) {
+        const tid = parseInt(targetUserId, 10);
+        if (!tid) {
+          return res.status(400).json({ error: 'รหัสพนักงานไม่ถูกต้อง' });
+        }
+        const [[target]] = await pool.query(
+          `SELECT id, full_name, username, status FROM users WHERE id = ? LIMIT 1`,
+          [tid]
+        );
+        if (!target || target.status !== 'approved') {
+          return res.status(400).json({ error: 'ไม่พบพนักงานที่เลือก' });
+        }
+        userId = target.id;
       }
 
       const reasonText = (reason || '').trim();
@@ -78,7 +99,7 @@ router.post(
         [userId, leave_date]
       );
       if (existingLeave.length > 0) {
-        return res.status(409).json({ error: 'คุณได้แจ้งลาในวันนี้แล้ว' });
+        return res.status(409).json({ error: 'มีการแจ้งลาในวันนี้แล้ว' });
       }
 
       const [result] = await pool.query(
@@ -87,17 +108,26 @@ router.post(
         [userId, leave_date, reasonText || null, imagePath, leave_type || 'general']
       );
 
+      const [[leaveUser]] = await pool.query(
+        'SELECT full_name, username FROM users WHERE id = ? LIMIT 1',
+        [userId]
+      );
+
       notifyLeaveRequested({
         leaveId: result.insertId,
         userId,
-        userName: req.user.full_name || req.user.username || 'พนักงาน',
+        userName: leaveUser?.full_name || leaveUser?.username || 'พนักงาน',
         leaveDate: leave_date,
         reason: reasonText,
         leaveType: leave_type || 'general',
-        actorId: userId,
+        actorId: req.user.id,
       }).catch((e) => console.error('notifyLeaveRequested:', e.message));
 
-      res.status(201).json({ message: 'บันทึกการลาสำเร็จ', id: result.insertId });
+      res.status(201).json({
+        message: leave_date < today ? 'บันทึกการลาย้อนหลังสำเร็จ' : 'บันทึกการลาสำเร็จ',
+        id: result.insertId,
+        backdated: leave_date < today,
+      });
     } catch (err) {
       console.error('Leave request error:', err);
       res.status(500).json({ error: 'Server error: ' + err.message });

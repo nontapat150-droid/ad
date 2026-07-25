@@ -1296,6 +1296,8 @@ export default function CheckinPage() {
         onClose={() => setShowLeaveModal(false)}
         onSuccess={fetchHistory}
         leaveType={checkinType}
+        isAdmin={!!isAdmin}
+        usersList={usersList}
       />
     </Layout>
   );
