@@ -43,15 +43,22 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 --     Dispatch groups. Each team = one vehicle/crew.
 -- ============================================================
 CREATE TABLE `teams` (
-  `id`        INT(11)      NOT NULL AUTO_INCREMENT,
-  `team_name` VARCHAR(100) NOT NULL,
+  `id`              INT(11)      NOT NULL AUTO_INCREMENT,
+  `team_name`       VARCHAR(100) NOT NULL,
+  `team_type`       ENUM('office_install','office_ma','contractor_install','contractor_ma') NOT NULL DEFAULT 'office_install',
+  `leader_user_id`  INT(11)      DEFAULT NULL,
+  `counts_for_oil`  TINYINT(1)   NOT NULL DEFAULT 1,
+  `vehicle_plate`   VARCHAR(32)  DEFAULT NULL,
+  `is_active`       TINYINT(1)   NOT NULL DEFAULT 1,
+  `notes`           VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_team_name` (`team_name`)
+  UNIQUE KEY `uq_team_name` (`team_name`),
+  KEY `idx_teams_leader` (`leader_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `teams` (`id`, `team_name`) VALUES
-  (1, 'Team Alpha'),
-  (2, 'Team Beta');
+INSERT INTO `teams` (`id`, `team_name`, `team_type`, `counts_for_oil`) VALUES
+  (1, 'Team Alpha', 'office_install', 1),
+  (2, 'Team Beta', 'office_install', 1);
 
 -- ============================================================
 --  3. users

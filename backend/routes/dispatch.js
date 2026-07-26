@@ -15,6 +15,7 @@ const {
   notifyImportSummary,
   dispatchDashboardPath,
 } = require('../utils/jobNotifications');
+const { bumpTeamOilCase, decrementTeamOilCase, loadTeamLeaderIndex, applyLeaderTeamToJob } = require('../utils/teamsSchema');
 
 const router = express.Router();
 
@@ -1106,30 +1107,13 @@ router.put(
         }
       }
 
-      // 5. syncTeamOilMonth — increment case_count
+      // 5. syncTeamOilMonth — increment only for office teams (counts_for_oil)
       if (job.team_id) {
         try {
           const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-          await conn.query(
-            `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count)
-             VALUES (?, ?, 1)
-             ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-            [job.team_id, yearMonth]
-          );
-        } catch(e) {
-          if (e.message && e.message.includes("Field 'id' doesn't have a default value")) {
-            try {
-              const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
-              await conn.query(
-                `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-                [(maxId || 0) + 1, job.team_id, yearMonth]
-              );
-            } catch(e2) {
-              console.error('Oil cases insert error fallback:', e2.message);
-            }
-          } else {
-            console.error('Oil cases insert error:', e.message);
-          }
+          await bumpTeamOilCase(conn, job.team_id, yearMonth);
+        } catch (e) {
+          console.error('Oil cases insert error:', e.message);
         }
       }
 
@@ -1479,18 +1463,13 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
       } catch(e) {}
     }
 
-    // 4. Decrement team oil cases
+    // 4. Decrement team oil cases (office teams only)
     if (job.team_id && job.completed_at) {
       try {
-        // If completed_at is Date object
         const completedDate = typeof job.completed_at === 'string' ? new Date(job.completed_at) : job.completed_at;
         const yearMonth = completedDate.toISOString().slice(0, 7);
-        await conn.query(
-          `UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1)
-           WHERE team_id = ? AND \`year_month\` = ?`,
-          [job.team_id, yearMonth]
-        );
-      } catch(e) {
+        await decrementTeamOilCase(conn, job.team_id, yearMonth);
+      } catch (e) {
         console.error('Oil cases decrement error:', e.message);
       }
     }
@@ -1579,28 +1558,10 @@ router.put('/jobs/:id/change-completed-team', auth, requireRole(ADMIN_ROLES), as
       const [[jobLog]] = await conn.query(`SELECT timestamp FROM job_logs WHERE job_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`, [jobId]);
       const ym = jobLog ? new Date(jobLog.timestamp).toISOString().slice(0, 7) : new Date().toISOString().slice(0, 7);
 
-      // Decrement old team
       if (oldTeamId) {
-        await conn.query(`UPDATE team_oil_cases SET case_count = GREATEST(0, case_count - 1) WHERE team_id = ? AND \`year_month\` = ?`, [oldTeamId, ym]);
+        await decrementTeamOilCase(conn, oldTeamId, ym);
       }
-
-      // Increment new team
-      try {
-        await conn.query(
-          `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-          [new_team_id, ym]
-        );
-      } catch (e) {
-        if (e.message && e.message.includes("Field 'id' doesn't have a default value")) {
-          const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM team_oil_cases');
-          await conn.query(
-            `INSERT INTO team_oil_cases (id, team_id, \`year_month\`, case_count) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-            [(maxId || 0) + 1, new_team_id, ym]
-          );
-        } else {
-          throw e;
-        }
-      }
+      await bumpTeamOilCase(conn, new_team_id, ym);
     }
 
     // Update job
@@ -1935,6 +1896,8 @@ function ensureOfficeTimeFollowsDate(built, existing, incoming) {
   return built;
 }
 
+const MA_IMPORT_CLOSED = new Set(['completed', 'failed']);
+
 function pickLatestOpenMaJob(rows) {
   if (!rows?.length) return null;
   return [...rows].sort((a, b) => {
@@ -1943,6 +1906,13 @@ function pickLatestOpenMaJob(rows) {
     if (da !== db) return db.localeCompare(da);
     return Number(b.id) - Number(a.id);
   })[0];
+}
+
+/** Prefer latest open MA job for a NON. Closed-only → null (caller creates new). */
+function pickMaJobByNon(rows) {
+  if (!rows?.length) return null;
+  const open = rows.filter((r) => !MA_IMPORT_CLOSED.has(String(r.status || '').toLowerCase()));
+  return pickLatestOpenMaJob(open);
 }
 
 /** Ensure API returns calendar DATE / wall-clock TIME strings (Asia/Bangkok). */
@@ -1970,11 +1940,9 @@ function normalizeJobRowForClient(row, type) {
   return out;
 }
 
-const OFFICE_IMPORT_CLOSED = new Set(['completed', 'failed', 'cancelled']);
-const MA_IMPORT_CLOSED = new Set(['completed', 'failed']);
-
 // ── POST /api/dispatch/jobs/bulk — Admin imports office jobs from Excel ────
-// Supports ?preflight=1. Re-upload same Access No → update changed fields; skip if unchanged.
+// Identity = Access No / NON. Same NON → update immediately; missing → create new.
+// Supports ?preflight=1.
 router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
   const preflight = String(req.query.preflight || '') === '1';
@@ -1986,28 +1954,42 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const duplicates = [];
   const unchanged = [];
   const updatesPreview = [];
-  const seenInFile = new Set();
-  let candidates = [];
+  // Last row wins per NON/Access No (Excel ล่าสุดทับแถวซ้ำในไฟล์)
+  const byNonInFile = new Map();
   jobs.forEach((job, i) => {
-    // Install jobs: Access No is the identity key (Excel may label it NON)
     const accessNo = String(job.access_no || job.non_number || '').trim();
     if (!accessNo) {
       errors.push({ row: i + 1, access_no: null, error: 'ไม่มี Access No / NON' });
       return;
     }
-    if (seenInFile.has(accessNo)) {
-      duplicates.push({ row: i + 1, access_no: accessNo, reason: 'ซ้ำกันในไฟล์' });
-      return;
+    if (byNonInFile.has(accessNo)) {
+      const prev = byNonInFile.get(accessNo);
+      duplicates.push({
+        row: prev.row,
+        access_no: accessNo,
+        reason: 'NON ซ้ำในไฟล์ — ใช้แถวล่าสุด',
+      });
     }
-    seenInFile.add(accessNo);
-    candidates.push({ row: i + 1, accessNo, job: { ...job, access_no: accessNo } });
+    byNonInFile.set(accessNo, {
+      row: i + 1,
+      accessNo,
+      job: { ...job, access_no: accessNo, non_number: job.non_number || accessNo },
+    });
   });
+  let candidates = [...byNonInFile.values()];
 
   let toInsert = [];
   let toUpdate = [];
 
   try {
     if (candidates.length > 0) {
+      // Re-resolve team from leader name on every import (including re-upload of existing jobs)
+      const teamIndex = await loadTeamLeaderIndex(pool);
+      candidates = candidates.map((c) => ({
+        ...c,
+        job: applyLeaderTeamToJob(c.job, teamIndex),
+      }));
+
       const [existingRows] = await pool.query(
         `SELECT id, access_no, status, customer, phone, package, address, lat, lng,
                 plan_arrival_date, plan_arrival_time, product, remark,
@@ -2029,18 +2011,12 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
       for (const c of candidates) {
         const ex = byAccess.get(c.accessNo);
+        // ไม่มี NON นี้ในระบบ → สร้างงานใหม่ทันที
         if (!ex) {
           toInsert.push(c);
           continue;
         }
-        if (OFFICE_IMPORT_CLOSED.has(String(ex.status || '').toLowerCase())) {
-          duplicates.push({
-            row: c.row,
-            access_no: c.accessNo,
-            reason: `งานสถานะ ${ex.status} แล้ว — ไม่แก้ด้วยการนำเข้า`,
-          });
-          continue;
-        }
+        // มี NON ตรงกัน → อัปเดตข้อมูลเก่าทันที (ไม่สนสถานะ เพื่อความรวดเร็ว)
         const j = c.job;
         const dateKey = toDateKey(j.plan_arrival_date);
         const timeHm = normalizeImportTime(j.plan_arrival_time);
@@ -2079,12 +2055,20 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           unchanged.push({
             row: c.row,
             access_no: c.accessNo,
-            reason: 'Access No ตรงกันและข้อมูลไม่เปลี่ยนแปลง — ข้าม',
+            reason: 'NON ตรงกันและข้อมูลไม่เปลี่ยนแปลง — ข้าม',
           });
           continue;
         }
         toUpdate.push({ ...c, jobId: ex.id, sets: built.sets, params: built.params, changed: built.changed });
-        updatesPreview.push({ row: c.row, access_no: c.accessNo, job_id: ex.id, changed: built.changed });
+        updatesPreview.push({
+          row: c.row,
+          access_no: c.accessNo,
+          job_id: ex.id,
+          changed: built.changed,
+          team_id: j.team_id || null,
+          team_name: j._team_resolved || null,
+          leader_name: j._leader_resolved || null,
+        });
       }
     }
   } catch (err) {
@@ -2227,7 +2211,8 @@ router.post('/jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 // ── POST /api/dispatch/ma-jobs/bulk — Admin imports MA jobs from Excel ────
-// Supports ?preflight=1. Same NON → update open job (รวมเปลี่ยนวัน/เวลา); skip if unchanged.
+// Identity = NON always. Same NON → update immediately; missing → create new.
+// Supports ?preflight=1.
 router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const jobs = req.body.jobs;
   const preflight = String(req.query.preflight || '') === '1';
@@ -2239,22 +2224,29 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
   const duplicates = [];
   const unchanged = [];
   const updatesPreview = [];
-  const seenInFile = new Set();
-  let candidates = [];
+  // Last row wins per NON (ไม่ผูกวันที่ — อ้างอิง NON อย่างเดียว)
+  const byNonInFile = new Map();
   jobs.forEach((job, i) => {
     const nonNumber = String(job.non_number || job.access_no || '').trim();
     if (!nonNumber) {
       errors.push({ row: i + 1, non_number: null, error: 'ไม่มีเลข NON' });
       return;
     }
-    const dupKey = `${nonNumber}|${toDateKey(job.plan_arrival_date)}`;
-    if (seenInFile.has(dupKey)) {
-      duplicates.push({ row: i + 1, non_number: nonNumber, reason: 'ซ้ำกันในไฟล์' });
-      return;
+    if (byNonInFile.has(nonNumber)) {
+      const prev = byNonInFile.get(nonNumber);
+      duplicates.push({
+        row: prev.row,
+        non_number: nonNumber,
+        reason: 'NON ซ้ำในไฟล์ — ใช้แถวล่าสุด',
+      });
     }
-    seenInFile.add(dupKey);
-    candidates.push({ row: i + 1, nonNumber, dupKey, job });
+    byNonInFile.set(nonNumber, {
+      row: i + 1,
+      nonNumber,
+      job: { ...job, non_number: nonNumber, access_no: job.access_no || nonNumber },
+    });
   });
+  let candidates = [...byNonInFile.values()];
 
   let toInsert = [];
   let toUpdate = [];
@@ -2262,6 +2254,13 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
   try {
     if (candidates.length > 0) {
       await ensureMaJobSchema(pool);
+      // Re-resolve team from leader name on every import (including re-upload)
+      const teamIndex = await loadTeamLeaderIndex(pool);
+      candidates = candidates.map((c) => ({
+        ...c,
+        job: applyLeaderTeamToJob(c.job, teamIndex),
+      }));
+
       const nons = [...new Set(candidates.map((c) => c.nonNumber))];
       const [existingRows] = await pool.query(
         `SELECT id, non_number, plan_arrival_date, job_time, access_no, customer, phone,
@@ -2271,17 +2270,14 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
         [nons, nons]
       );
 
-      const existingByKey = new Map();
-      const openByIdentity = new Map();
-
-      const addOpen = (identity, row) => {
+      const jobsByNon = new Map();
+      const addByNon = (identity, row) => {
         if (!identity) return;
-        if (!openByIdentity.has(identity)) openByIdentity.set(identity, []);
-        openByIdentity.get(identity).push(row);
+        if (!jobsByNon.has(identity)) jobsByNon.set(identity, []);
+        jobsByNon.get(identity).push(row);
       };
 
       for (const raw of existingRows) {
-        // Normalize DATE/TIME before compare so Date objects do not false-match / false-skip
         const r = {
           ...raw,
           plan_arrival_date: toDateKey(raw.plan_arrival_date) || raw.plan_arrival_date,
@@ -2289,66 +2285,29 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
           non_number: raw.non_number != null ? String(raw.non_number).trim() : '',
           access_no: raw.access_no != null ? String(raw.access_no).trim() : '',
         };
-        const dateKey = toDateKey(r.plan_arrival_date);
-        if (r.non_number) existingByKey.set(`${r.non_number}|${dateKey}`, r);
-        if (r.access_no) existingByKey.set(`${r.access_no}|${dateKey}`, r);
-
-        if (!MA_IMPORT_CLOSED.has(String(r.status || '').toLowerCase())) {
-          addOpen(r.non_number, r);
-          if (r.access_no && r.access_no !== r.non_number) addOpen(r.access_no, r);
-        }
+        addByNon(r.non_number, r);
+        if (r.access_no && r.access_no !== r.non_number) addByNon(r.access_no, r);
       }
 
       const claimedJobIds = new Set();
 
       for (const c of candidates) {
-        let ex = existingByKey.get(c.dupKey);
+        const list = (jobsByNon.get(c.nonNumber) || []).filter((r) => !claimedJobIds.has(r.id));
+        const ex = pickMaJobByNon(list);
 
-        // Same NON/Access with different appointment date → update the open job
-        if (!ex) {
-          const openList = (openByIdentity.get(c.nonNumber) || []).filter((r) => !claimedJobIds.has(r.id));
-          ex = pickLatestOpenMaJob(openList);
-          if (ex) {
-            const conflict = existingByKey.get(c.dupKey);
-            if (conflict && conflict.id !== ex.id) {
-              duplicates.push({
-                row: c.row,
-                non_number: c.nonNumber,
-                reason: 'วันที่นัดใหม่ซ้ำกับงาน MA อื่นที่มี NON เดียวกัน',
-              });
-              continue;
-            }
-          }
-        }
-
+        // ยังไม่มี NON นี้ในระบบ → สร้างงานใหม่ทันที
         if (!ex) {
           toInsert.push(c);
           continue;
         }
-        if (MA_IMPORT_CLOSED.has(String(ex.status || '').toLowerCase())) {
-          duplicates.push({
-            row: c.row,
-            non_number: c.nonNumber,
-            reason: `งาน MA สถานะ ${ex.status} แล้ว — ไม่แก้ด้วยการนำเข้า`,
-          });
-          continue;
-        }
-        if (claimedJobIds.has(ex.id)) {
-          duplicates.push({
-            row: c.row,
-            non_number: c.nonNumber,
-            reason: 'NON นี้ถูกอัปเดตจากแถวอื่นในไฟล์แล้ว',
-          });
-          continue;
-        }
 
+        // มี NON ตรงกัน → อัปเดตข้อมูลเก่าทันที
         const j = c.job;
         const timeVal = normalizeImportTime(j.job_time || j.plan_arrival_time);
         const assigneeId = j.assigned_user_id || j.field_engineer_id || null;
         const fieldMap = {
           customer: j.customer,
           phone: j.phone,
-          // Keep identity in sync: always write NON when provided
           non_number: c.nonNumber,
           access_no: j.access_no || c.nonNumber,
           plan_arrival_date: j.plan_arrival_date,
@@ -2381,7 +2340,15 @@ router.post('/ma-jobs/bulk', auth, requireRole(ADMIN_ROLES), async (req, res) =>
         }
         claimedJobIds.add(ex.id);
         toUpdate.push({ ...c, jobId: ex.id, sets: built.sets, params: built.params, changed: built.changed });
-        updatesPreview.push({ row: c.row, non_number: c.nonNumber, job_id: ex.id, changed: built.changed });
+        updatesPreview.push({
+          row: c.row,
+          non_number: c.nonNumber,
+          job_id: ex.id,
+          changed: built.changed,
+          team_id: j.team_id || null,
+          team_name: j._team_resolved || null,
+          leader_name: j._leader_resolved || null,
+        });
       }
     }
   } catch (err) {
@@ -2743,16 +2710,11 @@ router.put(
         );
       }
 
-      // Oil case for team jobs only
+      // Oil case for office teams only (counts_for_oil)
       if (job.team_id) {
         const yearMonth = new Date().toISOString().slice(0, 7);
         try {
-          await conn.query(
-            `INSERT INTO team_oil_cases (team_id, \`year_month\`, case_count)
-             VALUES (?, ?, 1)
-             ON DUPLICATE KEY UPDATE case_count = case_count + 1`,
-            [job.team_id, yearMonth]
-          );
+          await bumpTeamOilCase(conn, job.team_id, yearMonth);
         } catch (e) { /* optional */ }
       }
 

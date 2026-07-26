@@ -13,7 +13,7 @@ const OFFICE_SYSTEM_FIELDS = [
   { key: 'plan_arrival_time', label: 'เวลาเข้างาน (HH:MM)',        required: false, group: 'recommended' },
   { key: 'address',           label: 'ที่อยู่ / พื้นที่',           required: false, group: 'recommended' },
   { key: 'team_id',           label: 'ทีมช่าง (ชื่อทีม)',           required: false, group: 'recommended' },
-  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีม/รับเหมารายคน',  required: false, group: 'recommended' },
+  { key: '_engineer_name',    label: 'ชื่อหัวหน้าทีม → หาทีม',  required: false, group: 'recommended' },
   { key: 'product',           label: 'สินค้า',                     required: false, group: 'extra' },
   { key: 'package',           label: 'แพ็กเกจ',                   required: false, group: 'extra' },
   { key: 'service_note',      label: 'รายละเอียดงาน (Service Note)', required: false, group: 'extra' },
@@ -36,7 +36,7 @@ const MA_SYSTEM_FIELDS = [
   { key: 'symptoms',          label: 'อาการ',                      required: false, group: 'recommended' },
   { key: 'address',           label: 'ที่อยู่',                    required: false, group: 'recommended' },
   { key: 'team_id',           label: 'ทีมช่าง (ชื่อทีม)',           required: false, group: 'recommended' },
-  { key: '_engineer_name',    label: 'ชื่อช่าง → หาทีม/รับเหมารายคน', required: false, group: 'recommended' },
+  { key: '_engineer_name',    label: 'ชื่อหัวหน้าทีม → หาทีม', required: false, group: 'recommended' },
   { key: 'plan_arrival_date', label: 'วันที่เข้างาน (YYYY-MM-DD)', required: false, group: 'recommended' },
   { key: 'area_name',         label: 'พื้นที่',                    required: false, group: 'extra' },
   { key: 'remark',            label: 'หมายเหตุ',                   required: false, group: 'extra' },
@@ -57,7 +57,7 @@ const FIELD_KEYWORDS = {
   address:           ['address', 'ที่อยู่'],
   symptoms:          ['symptoms', 'อาการ', 'ปัญหา'],
   team_id:           ['team', 'ทีม'],
-  _engineer_name:    ['engineer', 'ชื่อช่าง', 'ช่าง', 'technician', 'assigned', 'ผู้รับผิดชอบ'],
+  _engineer_name:    ['engineer', 'ชื่อช่าง', 'ช่าง', 'technician', 'assigned', 'ผู้รับผิดชอบ', 'หัวหน้า', 'หัวหน้าทีม'],
   product:           ['product', 'สินค้า'],
   package:           ['package', 'แพ็ก'],
   service_note:      ['service', 'note', 'รายละเอียด'],
@@ -291,13 +291,21 @@ function parseExcelTime(raw) {
   return String(raw);
 }
 
-// ─── Helper: resolve assignee from engineer nickname or team name ────────────
-const CONTRACTOR_ROLES = ['contractor_office', 'contractor_ma'];
+// ─── Helper: resolve assignee from team LEADER name (or team name) ───────────
+const CONTRACTOR_TEAM_TYPES = ['contractor_install', 'contractor_ma'];
 
-function userIsContractor(user) {
-  if (!user) return false;
-  const roles = user.roles || (user.roles_csv ? String(user.roles_csv).split(',') : [user.role]);
-  return roles.some((r) => CONTRACTOR_ROLES.includes(r));
+function teamIsContractor(team) {
+  return team && CONTRACTOR_TEAM_TYPES.includes(team.team_type);
+}
+
+function teamTypeShortLabel(team) {
+  const map = {
+    office_install: 'สำนักงาน·ติดตั้ง',
+    office_ma: 'สำนักงาน·MA',
+    contractor_install: 'รับเหมา·ติดตั้ง',
+    contractor_ma: 'รับเหมา·MA',
+  };
+  return map[team?.team_type] || team?.type_label || '';
 }
 
 /** Normalize Thai engineer/team names for matching (เจมส์ ≈ ช่างเจมส์ ≈ ช่าง เจมส์) */
@@ -312,10 +320,24 @@ function normalizePersonName(name) {
     .replace(/[()（）[\]【】]/g, '');
 }
 
+function resultFromTeam(team, engineerName = '') {
+  const leaderName = engineerName || team.leader_name || '';
+  return {
+    teamId: team.id,
+    teamName: team.team_name,
+    engineerName: leaderName,
+    fieldEngineerId: team.leader_user_id || null,
+    isContractor: teamIsContractor(team),
+    unmatched: null,
+    ambiguous: false,
+    countsForOil: Number(team.counts_for_oil) === 1,
+  };
+}
+
 /**
- * Resolve Excel engineer/team name.
- * Order: exact normalized alias/name → exact team → unmatched (no fuzzy substring).
- * Always keep assignee id when an individual matches.
+ * Resolve Excel name → team.
+ * Match ONLY team leaders (and team_name / vehicle_plate as fallback).
+ * Regular members are NOT matched.
  */
 function resolveTeamFromName(rawName, teams, allUsers, aliases = {}) {
   if (!rawName) {
@@ -332,149 +354,7 @@ function resolveTeamFromName(rawName, teams, allUsers, aliases = {}) {
 
   const raw = String(rawName).trim();
   const core = normalizePersonName(raw);
-
-  // Alias map: normalized excel nickname → user id (legacy) or { user_id } / { team_id }
-  const aliasVal = core ? aliases[core] : null;
-  const aliasUserId = aliasVal && typeof aliasVal === 'object' ? aliasVal.user_id : aliasVal;
-  const aliasTeamId = aliasVal && typeof aliasVal === 'object' ? aliasVal.team_id : null;
-  if (aliasTeamId) {
-    const aliasTeam = teams.find((t) => String(t.id) === String(aliasTeamId));
-    if (aliasTeam) {
-      return {
-        teamId: aliasTeam.id,
-        teamName: aliasTeam.team_name,
-        engineerName: '',
-        fieldEngineerId: null,
-        isContractor: false,
-        unmatched: null,
-        ambiguous: false,
-      };
-    }
-  }
-  if (aliasUserId) {
-    const aliasUser = allUsers.find((u) => String(u.id) === String(aliasUserId));
-    if (aliasUser) {
-      if (userIsContractor(aliasUser)) {
-        return {
-          teamId: null,
-          teamName: 'รับเหมา (รายคน)',
-          engineerName: aliasUser.full_name,
-          fieldEngineerId: aliasUser.id,
-          isContractor: true,
-          unmatched: null,
-          ambiguous: false,
-        };
-      }
-      const team = aliasUser.team_id ? teams.find((t) => t.id === aliasUser.team_id) : null;
-      return {
-        teamId: aliasUser.team_id || null,
-        teamName: team ? team.team_name : (aliasUser.full_name || ''),
-        engineerName: aliasUser.full_name,
-        fieldEngineerId: aliasUser.id,
-        isContractor: false,
-        unmatched: null,
-        ambiguous: false,
-      };
-    }
-  }
-
-  const exactUsers = allUsers.filter(
-    (u) => u.full_name && normalizePersonName(u.full_name) === core
-  );
-  if (exactUsers.length > 1) {
-    return {
-      teamId: null,
-      teamName: raw,
-      engineerName: '',
-      fieldEngineerId: null,
-      isContractor: false,
-      unmatched: raw,
-      ambiguous: true,
-      candidates: exactUsers.map((u) => ({ id: u.id, name: u.full_name })),
-    };
-  }
-  if (exactUsers.length === 1) {
-    const matchedUser = exactUsers[0];
-    if (userIsContractor(matchedUser)) {
-      return {
-        teamId: null,
-        teamName: 'รับเหมา (รายคน)',
-        engineerName: matchedUser.full_name,
-        fieldEngineerId: matchedUser.id,
-        isContractor: true,
-        unmatched: null,
-        ambiguous: false,
-      };
-    }
-    const team = matchedUser.team_id ? teams.find((t) => t.id === matchedUser.team_id) : null;
-    return {
-      teamId: matchedUser.team_id || null,
-      teamName: team ? team.team_name : matchedUser.full_name,
-      engineerName: matchedUser.full_name,
-      fieldEngineerId: matchedUser.id,
-      isContractor: false,
-      unmatched: null,
-      ambiguous: false,
-    };
-  }
-
-  // Ends-with core only when unique (ช่างเจมส์ สุขใจ)
-  const endsWithUsers = allUsers.filter((u) => {
-    if (!u.full_name) return false;
-    const n = normalizePersonName(u.full_name);
-    return n === core || n.endsWith(core) || core.endsWith(n);
-  });
-  if (endsWithUsers.length === 1 && core.length >= 2) {
-    const matchedUser = endsWithUsers[0];
-    if (userIsContractor(matchedUser)) {
-      return {
-        teamId: null,
-        teamName: 'รับเหมา (รายคน)',
-        engineerName: matchedUser.full_name,
-        fieldEngineerId: matchedUser.id,
-        isContractor: true,
-        unmatched: null,
-        ambiguous: false,
-      };
-    }
-    const team = matchedUser.team_id ? teams.find((t) => t.id === matchedUser.team_id) : null;
-    return {
-      teamId: matchedUser.team_id || null,
-      teamName: team ? team.team_name : matchedUser.full_name,
-      engineerName: matchedUser.full_name,
-      fieldEngineerId: matchedUser.id,
-      isContractor: false,
-      unmatched: null,
-      ambiguous: false,
-    };
-  }
-  if (endsWithUsers.length > 1) {
-    return {
-      teamId: null,
-      teamName: raw,
-      engineerName: '',
-      fieldEngineerId: null,
-      isContractor: false,
-      unmatched: raw,
-      ambiguous: true,
-      candidates: endsWithUsers.map((u) => ({ id: u.id, name: u.full_name })),
-    };
-  }
-
-  const exactTeam = teams.find((t) => normalizePersonName(t.team_name) === core);
-  if (exactTeam) {
-    return {
-      teamId: exactTeam.id,
-      teamName: exactTeam.team_name,
-      engineerName: '',
-      fieldEngineerId: null,
-      isContractor: false,
-      unmatched: null,
-      ambiguous: false,
-    };
-  }
-
-  return {
+  const emptyMiss = {
     teamId: null,
     teamName: raw,
     engineerName: '',
@@ -483,6 +363,77 @@ function resolveTeamFromName(rawName, teams, allUsers, aliases = {}) {
     unmatched: raw,
     ambiguous: false,
   };
+
+  // Alias map: normalized excel nickname → { team_id } or legacy { user_id }
+  const aliasVal = core ? aliases[core] : null;
+  const aliasUserId = aliasVal && typeof aliasVal === 'object' ? aliasVal.user_id : aliasVal;
+  const aliasTeamId = aliasVal && typeof aliasVal === 'object' ? aliasVal.team_id : null;
+  if (aliasTeamId) {
+    const aliasTeam = teams.find((t) => String(t.id) === String(aliasTeamId));
+    if (aliasTeam) return resultFromTeam(aliasTeam);
+  }
+  if (aliasUserId) {
+    // Legacy alias to a user: only accept if that user is a team leader
+    const led = teams.find((t) => String(t.leader_user_id) === String(aliasUserId));
+    if (led) {
+      const aliasUser = allUsers.find((u) => String(u.id) === String(aliasUserId));
+      return resultFromTeam(led, aliasUser?.full_name || led.leader_name || '');
+    }
+  }
+
+  // 1) Exact match on leader full_name (normalized)
+  const leaderExact = teams.filter(
+    (t) => t.leader_user_id && t.leader_name && normalizePersonName(t.leader_name) === core
+  );
+  if (leaderExact.length > 1) {
+    return {
+      ...emptyMiss,
+      unmatched: raw,
+      ambiguous: true,
+      candidates: leaderExact.map((t) => ({
+        id: t.leader_user_id,
+        name: `${t.leader_name} → ทีม ${t.team_name}`,
+        team_id: t.id,
+      })),
+    };
+  }
+  if (leaderExact.length === 1) {
+    return resultFromTeam(leaderExact[0], leaderExact[0].leader_name);
+  }
+
+  // 2) Ends-with match on unique leader name (ช่างเจมส์ / เจมส์ สุขใจ)
+  if (core.length >= 2) {
+    const leaderEnds = teams.filter((t) => {
+      if (!t.leader_user_id || !t.leader_name) return false;
+      const n = normalizePersonName(t.leader_name);
+      return n === core || n.endsWith(core) || core.endsWith(n);
+    });
+    if (leaderEnds.length === 1) {
+      return resultFromTeam(leaderEnds[0], leaderEnds[0].leader_name);
+    }
+    if (leaderEnds.length > 1) {
+      return {
+        ...emptyMiss,
+        unmatched: raw,
+        ambiguous: true,
+        candidates: leaderEnds.map((t) => ({
+          id: t.leader_user_id,
+          name: `${t.leader_name} → ทีม ${t.team_name}`,
+          team_id: t.id,
+        })),
+      };
+    }
+  }
+
+  // 3) Fallback: team_name or vehicle_plate
+  const exactTeam = teams.find(
+    (t) =>
+      normalizePersonName(t.team_name) === core ||
+      (t.vehicle_plate && normalizePersonName(t.vehicle_plate) === core)
+  );
+  if (exactTeam) return resultFromTeam(exactTeam);
+
+  return emptyMiss;
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
@@ -1164,9 +1115,9 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
         obj['_team_name_display'] = resolved.teamName;
       }
       if (resolved.isContractor) {
-        obj.team_id = null;
         obj['_is_contractor'] = true;
-        obj['_team_name_display'] = 'รับเหมา (รายคน)';
+        // Keep team_id — contractor teams share bag; oil skipped via counts_for_oil
+        if (!obj['_team_name_display']) obj['_team_name_display'] = resolved.teamName || 'ทีมรับเหมา';
       }
       if (resolved.engineerName) obj['_engineer_resolved'] = resolved.engineerName;
       if (resolved.ambiguous) {
@@ -1195,6 +1146,8 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
           val = parseExcelTime(val);
         } else if (fieldKey === 'team_id') {
           const rawName = String(val).trim();
+          // Keep raw text so backend can re-match leaders on re-import
+          if (rawName && !obj['_engineer_name']) obj['_engineer_name'] = rawName;
           const resolved = resolveTeamFromName(rawName, teams, allUsers, aliases);
           applyResolved(obj, resolved, rawName);
           val = resolved.teamId;
@@ -1230,6 +1183,10 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
         _ambiguous_candidates,
         ...rest
       } = row;
+      // Keep engineer/leader name so backend can re-match team on re-import
+      if (_engineer_name && String(_engineer_name).trim()) {
+        rest.engineer_name = String(_engineer_name).trim();
+      }
       // MA: map field_engineer_id → assigned_user_id; time → job_time
       if (jobType === 'ma') {
         if (rest.field_engineer_id && !rest.assigned_user_id) {
@@ -1309,22 +1266,30 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
 
   // ─── Fix unmatched engineer/team from the preview step ─────────────────────
   async function handleFixAssignee(rawName, value) {
-    // value: 'u:<userId>' or 't:<teamId>'
+    // value: 't:<teamId>' (preferred) or legacy 'u:<leaderUserId>'
     if (!value) return;
     const core = normalizePersonName(rawName);
     if (!core) return;
     const [kind, id] = value.split(':');
-    const userId = kind === 'u' ? parseInt(id) : null;
-    const teamId = kind === 't' ? parseInt(id) : null;
+    let teamId = kind === 't' ? parseInt(id, 10) : null;
+    let userId = kind === 'u' ? parseInt(id, 10) : null;
 
-    // 1) Save alias to localStorage
+    if (userId && !teamId) {
+      const led = teams.find((t) => String(t.leader_user_id) === String(userId));
+      if (led) {
+        teamId = led.id;
+        userId = null; // store as team alias
+      }
+    }
+
+    // 1) Save alias to localStorage (prefer team_id)
     try {
       const local = readLocalAliases();
-      local[core] = userId ? { user_id: userId } : { team_id: teamId };
+      local[core] = teamId ? { team_id: teamId } : { user_id: userId };
       localStorage.setItem(ALIAS_LS_KEY, JSON.stringify(local));
     } catch { /* localStorage unavailable */ }
 
-    // 2) Share alias via server (graceful if endpoint doesn't exist yet)
+    // 2) Share alias via server
     axios.post('/dispatch/import-aliases', {
       normalized_alias: core,
       user_id: userId || undefined,
@@ -1357,12 +1322,14 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
       });
     });
 
-    const baseAssigneeOptions = [
-      ...teams.map(t => ({ value: `t:${t.id}`, label: `🚐 ทีม ${t.team_name}` })),
-      ...allUsers
-        .filter(u => u.full_name)
-        .map(u => ({ value: `u:${u.id}`, label: `👷 ${u.full_name}${userIsContractor(u) ? ' (รับเหมา)' : ''}` })),
-    ];
+    const baseAssigneeOptions = teams
+      .filter((t) => t.leader_user_id || t.team_name)
+      .map((t) => ({
+        value: `t:${t.id}`,
+        label: `🚐 ${t.team_name}${t.leader_name ? ` · หัวหน้า ${t.leader_name}` : ' · ยังไม่มีหัวหน้า'}${
+          teamTypeShortLabel(t) ? ` (${teamTypeShortLabel(t)})` : ''
+        }${Number(t.counts_for_oil) === 1 ? '' : ' · ไม่นับน้ำมัน'}`,
+      }));
 
     const dupCount = preflight?.duplicates?.length || 0;
     const updateCount = preflight?.updateReady || 0;
@@ -1375,7 +1342,8 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
       <div>
         <h3 className="text-base font-bold text-[#1F2937] mb-1">ตรวจสอบข้อมูลก่อนนำเข้า</h3>
         <p className="text-[11px] text-[#6B7280] mb-3">
-          ถ้า{keyLabel}ตรงกับงานเดิม ระบบจะอัปเดตเฉพาะช่องที่มีการเปลี่ยนแปลง (ช่องว่างในไฟล์ไม่ทับข้อมูลเดิม) — ไม่เปลี่ยนจะข้าม
+          อ้างอิง{keyLabel} เป็นหลัก: มีในระบบแล้ว → อัปเดตทันที · ยังไม่มี → สร้างงานใหม่ทันที
+          {jobType === 'ma' ? ' (งานที่จบแล้วจะสร้างรอบใหม่)' : ''}
         </p>
 
         {/* Summary badges */}
@@ -1418,7 +1386,11 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
               {(preflight.updateJobs || []).slice(0, 12).map((d, i) => (
                 <span key={i} className="px-2 py-0.5 bg-white text-sky-700 text-[10px] font-semibold rounded-lg border border-sky-200">
                   {d.access_no || d.non_number}
-                  {d.changed?.length ? <span className="text-sky-400"> ({d.changed.slice(0, 3).join(', ')}{d.changed.length > 3 ? '…' : ''})</span> : null}
+                  {d.changed?.includes('team_id') && d.team_name ? (
+                    <span className="text-emerald-600"> → ทีม {d.team_name}{d.leader_name ? ` (${d.leader_name})` : ''}</span>
+                  ) : d.changed?.length ? (
+                    <span className="text-sky-400"> ({d.changed.slice(0, 3).join(', ')}{d.changed.length > 3 ? '…' : ''})</span>
+                  ) : null}
                 </span>
               ))}
               {updateCount > 12 && (
@@ -1448,14 +1420,19 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
         {/* Fix unmatched engineers/teams inline */}
         {unmatchedItems.length > 0 && (
           <div className="mb-3 p-4 bg-orange-50 rounded-xl border border-orange-200">
-            <h4 className="text-sm font-bold text-orange-800 mb-1">👷 ชื่อช่าง/ทีมที่ไม่ตรงกับระบบ</h4>
-            <p className="text-[11px] text-orange-600 mb-3">เลือกช่างหรือทีมที่ถูกต้อง — ระบบจะจำไว้ใช้ครั้งถัดไปอัตโนมัติ (หรือปล่อยว่างเพื่อนำเข้าโดยไม่ระบุทีม)</p>
+            <h4 className="text-sm font-bold text-orange-800 mb-1">👷 ชื่อหัวหน้าทีมที่ไม่ตรงกับระบบ</h4>
+            <p className="text-[11px] text-orange-600 mb-3">ระบบจับเฉพาะชื่อหัวหน้าทีม — เลือกทีมที่ถูกต้อง ระบบจะจำไว้ใช้ครั้งถัดไป (หรือปล่อยว่างเพื่อนำเข้าโดยไม่ระบุทีม)</p>
             <div className="space-y-2">
               {unmatchedItems.map((item) => {
                 const options = item.candidates.length > 0
                   ? [
-                      ...item.candidates.map(c => ({ value: `u:${c.id}`, label: `⭐ ${c.name} (ใกล้เคียง)` })),
-                      ...baseAssigneeOptions.filter(o => !item.candidates.some(c => `u:${c.id}` === o.value)),
+                      ...item.candidates.map((c) => ({
+                        value: c.team_id ? `t:${c.team_id}` : `u:${c.id}`,
+                        label: `⭐ ${c.name}`,
+                      })),
+                      ...baseAssigneeOptions.filter(
+                        (o) => !item.candidates.some((c) => (c.team_id ? `t:${c.team_id}` : `u:${c.id}`) === o.value)
+                      ),
                     ]
                   : baseAssigneeOptions;
                 return (
@@ -1470,7 +1447,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
                       value=""
                       onChange={(v) => handleFixAssignee(item.name, v)}
                       options={options}
-                      placeholder="เลือกช่าง/ทีม..."
+                      placeholder="เลือกทีม..."
                       searchable
                       allowClear={false}
                     />
@@ -1495,7 +1472,7 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
                     return <th key={key} className="px-3 py-2 text-left font-bold text-[#374151] whitespace-nowrap">{field?.label || key}</th>;
                   })}
                 {mapping['_engineer_name'] !== undefined && (
-                  <th className="px-3 py-2 text-left font-bold text-[#374151]">ช่าง</th>
+                  <th className="px-3 py-2 text-left font-bold text-[#374151]">หัวหน้าทีม</th>
                 )}
                 <th className="px-3 py-2 text-left font-bold text-[#374151]">ทีมช่าง</th>
               </tr>
@@ -1520,27 +1497,22 @@ export default function SmartImportExcelModal({ isOpen, onClose, onSuccess }) {
                     </td>
                   )}
                   <td className="px-3 py-2 text-[#374151]">
-                    {row._is_contractor || row.field_engineer_id ? (
+                    {row.team_id && row._team_name_display ? (
                       <span className="inline-flex items-center gap-1 flex-wrap">
-                        <span className="text-[10px] font-black text-[#1F2937] bg-[#A3E635] px-1.5 py-0.5 rounded">
-                          รับเหมา
+                        {row._is_contractor && (
+                          <span className="text-[10px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                            รับเหมา
+                          </span>
+                        )}
+                        <span className="text-emerald-600 font-semibold">
+                          {row._team_name_display}
+                          {row._engineer_resolved && row._engineer_resolved !== row._team_name_display && (
+                            <span className="text-[10px] text-[#6B7280] font-normal ml-1">({row._engineer_resolved})</span>
+                          )}
                         </span>
-                        <span className="text-emerald-700 font-semibold">
-                          {row._engineer_resolved || row._team_name_display || '-'}
-                        </span>
-                        <span className="text-[10px] text-[#9CA3AF]">(รายคน)</span>
                       </span>
                     ) : row._team_name_display ? (
-                      row.team_id
-                        ? (
-                          <span className="text-emerald-600 font-semibold">
-                            {row._team_name_display}
-                            {row._engineer_resolved && row._engineer_resolved !== row._team_name_display && (
-                              <span className="text-[10px] text-[#6B7280] font-normal ml-1">({row._engineer_resolved})</span>
-                            )}
-                          </span>
-                        )
-                        : <span className="text-amber-600">{row._team_name_display} ⚠️</span>
+                      <span className="text-amber-600">{row._team_name_display} ⚠️</span>
                     ) : '-'}
                   </td>
                 </tr>

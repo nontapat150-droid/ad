@@ -494,4 +494,55 @@ router.get('/migrate-job-completion-fields', async (req, res) => {
   }
 });
 
+// ─── Teams: type / leader / oil flag ─────────────────────────────────────────
+router.get('/migrate-teams-types', async (req, res) => {
+  const results = [];
+  try {
+    const { ensureTeamsSchema } = require('../utils/teamsSchema');
+    await ensureTeamsSchema(pool);
+    results.push('✅ teams schema columns ensured');
+
+    // Infer type from majority member role when still default office_install
+    try {
+      const [teams] = await pool.query(
+        `SELECT t.id,
+                SUM(CASE WHEN u.role IN ('technician') OR ur.role = 'technician' THEN 1 ELSE 0 END) AS c_tech,
+                SUM(CASE WHEN u.role IN ('ma_technician') OR ur.role = 'ma_technician' THEN 1 ELSE 0 END) AS c_ma,
+                SUM(CASE WHEN u.role IN ('contractor_office') OR ur.role = 'contractor_office' THEN 1 ELSE 0 END) AS c_co,
+                SUM(CASE WHEN u.role IN ('contractor_ma') OR ur.role = 'contractor_ma' THEN 1 ELSE 0 END) AS c_cm
+         FROM teams t
+         LEFT JOIN users u ON u.team_id = t.id
+         LEFT JOIN user_roles ur ON ur.user_id = u.id
+         WHERE t.team_type = 'office_install' OR t.team_type IS NULL
+         GROUP BY t.id`
+      );
+      let updated = 0;
+      for (const row of teams) {
+        const scores = [
+          ['office_install', Number(row.c_tech) || 0],
+          ['office_ma', Number(row.c_ma) || 0],
+          ['contractor_install', Number(row.c_co) || 0],
+          ['contractor_ma', Number(row.c_cm) || 0],
+        ];
+        scores.sort((a, b) => b[1] - a[1]);
+        if (scores[0][1] <= 0) continue;
+        const nextType = scores[0][0];
+        const oil = nextType.startsWith('contractor') ? 0 : 1;
+        await pool.query(
+          'UPDATE teams SET team_type = ?, counts_for_oil = ? WHERE id = ?',
+          [nextType, oil, row.id]
+        );
+        updated++;
+      }
+      results.push(`✅ Inferred team_type for ${updated} teams from members`);
+    } catch (e) {
+      results.push(`Infer types: ${e.message}`);
+    }
+
+    res.json({ success: true, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message, results });
+  }
+});
+
 module.exports = router;

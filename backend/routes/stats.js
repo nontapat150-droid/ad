@@ -1,6 +1,7 @@
 const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const { ensureTeamsSchema } = require('../utils/teamsSchema');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -289,8 +290,9 @@ router.get('/super-admin-dashboard', auth, requireRole(['super_admin']), async (
 router.get('/efficiency', auth, async (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
   try {
+    await ensureTeamsSchema(pool);
     const [rows] = await pool.query(
-      `SELECT t.id AS team_id, t.team_name,
+      `SELECT t.id AS team_id, t.team_name, t.team_type, t.counts_for_oil,
               COALESCE(toc.case_count, 0) AS case_count,
               COALESCE(SUM(r.liters), 0)      AS total_liters,
               COALESCE(SUM(r.total_price), 0)  AS total_cost,
@@ -303,7 +305,8 @@ router.get('/efficiency', auth, async (req, res) => {
        LEFT JOIN users u ON u.team_id = t.id
        LEFT JOIN oil_records r
          ON r.tech_id = u.id AND DATE_FORMAT(r.date_recorded, '%Y-%m') = ?
-       GROUP BY t.id, t.team_name, toc.case_count
+       WHERE COALESCE(t.counts_for_oil, 1) = 1
+       GROUP BY t.id, t.team_name, t.team_type, t.counts_for_oil, toc.case_count
        ORDER BY liters_per_job ASC`,
       [month, month]
     );

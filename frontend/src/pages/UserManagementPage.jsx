@@ -679,7 +679,12 @@ function UserFormModal({ user, teams, onClose, onSuccess }) {
               label="ทีมสังกัด"
               value={String(form.team_id || '')}
               onChange={(v) => setForm((prev) => ({ ...prev, team_id: v }))}
-              options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+              options={teams.map((t) => ({
+                value: String(t.id),
+                label: `${t.team_name}${t.leader_name ? ` · ${t.leader_name}` : ''}${
+                  t.type_label || t.team_type ? ` (${t.type_label || t.team_type})` : ''
+                }${Number(t.counts_for_oil) === 0 ? ' · ไม่นับน้ำมัน' : ''}`,
+              }))}
               placeholder="ไม่ระบุทีม"
               searchable
             />

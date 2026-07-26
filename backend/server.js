@@ -130,6 +130,9 @@ async function ensureAppSchema() {
     const { ensureNotificationsSchema } = require('./utils/notifyEvent');
     await ensureNotificationsSchema();
     console.log('✅ notifications schema ready');
+    const { ensureTeamsSchema } = require('./utils/teamsSchema');
+    await ensureTeamsSchema(pool);
+    console.log('✅ teams schema ready');
   } catch (err) {
     console.error('App schema bootstrap failed:', pool.formatError(err));
   }
