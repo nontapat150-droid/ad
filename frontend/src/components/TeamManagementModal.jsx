@@ -162,7 +162,7 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
       return;
     }
     if (!form.leader_user_id) {
-      Swal.fire('แจ้งเตือน', 'กรุณาเลือกหัวหน้าทีม (ใช้จับคู่ Import Excel)', 'warning');
+      Swal.fire('แจ้งเตือน', 'กรุณาเลือกหัวหน้าทีม (Import จับจาก Username ของหัวหน้า)', 'warning');
       return;
     }
 
@@ -177,15 +177,22 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
     };
 
     try {
+      let res;
       if (form.id) {
-        await api.put(`/users/teams/${form.id}`, payload);
+        res = await api.put(`/users/teams/${form.id}`, payload);
       } else {
-        await api.post('/users/teams', payload);
+        res = await api.post('/users/teams', payload);
       }
+      const synced = res?.data?.jobs_synced;
+      const syncText =
+        synced && (synced.office || synced.ma)
+          ? ` · อัปเดตงานเปิดแล้ว (ติดตั้ง ${synced.office || 0} / MA ${synced.ma || 0})`
+          : '';
       Swal.fire({
         icon: 'success',
         title: 'บันทึกแล้ว',
-        timer: 1200,
+        text: `ทีมและหัวหน้าถูกบันทึกแล้ว${syncText} — งานจะตามหัวหน้าทีม · กระเป๋าแชร์ตามสมาชิก`,
+        timer: 2200,
         showConfirmButton: false,
       });
       setForm(null);
@@ -247,7 +254,7 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
                 {form ? (form.id ? 'แก้ไขทีม' : 'สร้างทีมใหม่') : 'จัดการทีมช่าง'}
               </h2>
               <p className="text-xs sm:text-sm font-bold text-slate-400 mt-0.5">
-                สำนักงานนับน้ำมัน · รับเหมาไม่นับ · แชร์กระเป๋าตามทีม · Import จับชื่อหัวหน้าเท่านั้น
+                สำนักงานนับน้ำมัน · รับเหมาไม่นับ · แชร์กระเป๋าตามทีม · Import จับ Username หัวหน้าเท่านั้น
               </p>
             </div>
           </div>
@@ -331,7 +338,7 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
 
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-2">
-                หัวหน้าทีม * <span className="text-slate-400 font-semibold">(ใช้จับคู่ Import Excel)</span>
+                หัวหน้าทีม * <span className="text-slate-400 font-semibold">(Import จับจาก Username)</span>
               </label>
               <select
                 value={form.leader_user_id}
@@ -341,7 +348,7 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
                 <option value="">— เลือกหัวหน้าทีม —</option>
                 {eligibleUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.full_name}
+                    {u.username} — {u.full_name}
                     {u.team_id && Number(u.team_id) !== Number(form.id) ? ' (อยู่ทีมอื่น)' : ''}
                   </option>
                 ))}
@@ -395,7 +402,7 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
                 )}
               </div>
               <p className="text-[11px] text-slate-400 font-semibold mt-1.5">
-                เลือกแล้ว {form.member_ids.length} คน · ย้ายสมาชิกจะกระทบกระเป๋าร่วมของทีม
+                เลือกแล้ว {form.member_ids.length} คน · สมาชิกทีมเดียวกันแชร์กระเป๋าร่วมกัน · งานเปิดจะตามหัวหน้าทีมอัตโนมัติ
               </p>
             </div>
 
@@ -539,18 +546,51 @@ export default function TeamManagementModal({ onClose, refreshParent }) {
                             </button>
                           </div>
                         </div>
-                        <div className="mt-3 text-xs font-semibold text-slate-500 space-y-0.5">
+                        <div className="mt-3 text-xs font-semibold text-slate-500 space-y-1.5">
                           <p>
-                            หัวหน้า:{' '}
-                            <span className="text-[#042C53]">
-                              {team.leader_name || (
-                                <span className="text-amber-600">ยังไม่ตั้ง — Import จะจับไม่ได้</span>
+                            ⭐ หัวหน้า:{' '}
+                            <span className="text-[#042C53] font-bold">
+                              {team.leader_username || team.leader_name ? (
+                                <>
+                                  @{team.leader_username || '-'}
+                                  {team.leader_name ? (
+                                    <span className="text-slate-500 font-semibold"> ({team.leader_name})</span>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <span className="text-amber-600 font-semibold">ยังไม่ตั้ง — Import จะจับไม่ได้</span>
                               )}
                             </span>
                           </p>
-                          <p>
-                            สมาชิก: <span className="text-teal-600">{team.member_count || 0}</span> คน
-                            {team.vehicle_plate ? ` · ทะเบียน ${team.vehicle_plate}` : ''}
+                          <div>
+                            <p className="mb-1">
+                              👥 สมาชิกในทีม ({team.member_count || 0})
+                              {team.vehicle_plate ? ` · ทะเบียน ${team.vehicle_plate}` : ''}
+                            </p>
+                            {(team.members || []).length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {(team.members || []).map((mem) => {
+                                  const isLeader = Number(mem.id) === Number(team.leader_user_id);
+                                  return (
+                                    <span
+                                      key={mem.id}
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                        isLeader
+                                          ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                          : 'bg-slate-50 text-slate-600 border-slate-100'
+                                      }`}
+                                    >
+                                      {isLeader ? `★ ${mem.full_name}` : mem.full_name}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-slate-400">ยังไม่มีสมาชิก</p>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-teal-700 bg-teal-50 border border-teal-100 rounded-lg px-2 py-1.5 leading-relaxed">
+                            🎒 แชร์กระเป๋าตามคนในทีมนี้ — สมาชิกเห็นของร่วมกันอัตโนมัติ
                           </p>
                         </div>
                       </div>

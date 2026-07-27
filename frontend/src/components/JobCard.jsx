@@ -91,23 +91,44 @@ export default function JobCard({ job, index, onComplete, onIncomplete, onPostpo
             </div>
           </div>
           
-          <div className="flex flex-col mb-3">
-            <p className="text-[15px] font-bold text-[#475569] truncate mb-0.5">{job.customer || 'ไม่ระบุชื่อลูกค้า'}</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {job.team_name && (
-                <p className="text-[13px] font-medium text-[#94A3B8] truncate">{job.team_name}</p>
-              )}
-              {job.tech_names && (
-                <div className="flex flex-wrap gap-1">
-                  {job.tech_names.split(',').map((n, i) => (
-                    <span key={i} className="text-[10px] font-medium bg-[#F1F5F9] text-[#64748B] px-1.5 py-0.5 rounded-md border border-[#E2E8F0]">
-                      {n.trim()}
-                    </span>
-                  ))}
+            <div className="flex flex-col gap-1.5 mb-3">
+              <p className="text-[15px] font-bold text-[#475569] truncate">{job.customer || 'ไม่ระบุชื่อลูกค้า'}</p>
+              {(job.team_name || job.leader_name || job.tech_names) && (
+                <div className="rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] px-2.5 py-2 space-y-1">
+                  {job.team_name && (
+                    <p className="text-[12px] font-bold text-[#042C53] truncate">
+                      🚐 ทีม: {job.team_name}
+                    </p>
+                  )}
+                  {job.leader_name && (
+                    <p className="text-[11px] font-semibold text-[#185FA5] truncate">
+                      ⭐ หัวหน้าทีม: {job.leader_name}
+                    </p>
+                  )}
+                  {job.tech_names && (
+                    <div className="flex flex-wrap gap-1 items-center">
+                      <span className="text-[10px] font-bold text-[#64748B]">สมาชิก (แชร์กระเป๋า):</span>
+                      {job.tech_names.split(',').map((n, i) => {
+                        const name = n.trim();
+                        const isLeader = job.leader_name && name === String(job.leader_name).trim();
+                        return (
+                          <span
+                            key={i}
+                            className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${
+                              isLeader
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : 'bg-[#F1F5F9] text-[#64748B] border-[#E2E8F0]'
+                            }`}
+                          >
+                            {isLeader ? `★ ${name}` : name}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          </div>
           
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#378ADD]">
             <span className="flex items-center gap-1.5">

@@ -295,7 +295,12 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
                 label="ทีมที่รับผิดชอบ"
                 value={String(formData.team_id || '')}
                 onChange={handleTeamChange}
-                options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                options={teams.map((t) => ({
+                  value: String(t.id),
+                  label: `${t.team_name}${t.leader_name ? ` · หัวหน้า ${t.leader_name}` : ''}${
+                    Number(t.member_count) ? ` · สมาชิก ${t.member_count}` : ''
+                  }`,
+                }))}
                 placeholder="เลือกทีม"
                 searchable
               />

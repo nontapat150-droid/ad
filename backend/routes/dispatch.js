@@ -691,15 +691,21 @@ router.get('/jobs', auth, async (req, res) => {
     const assigneeJoinCol = type === 'ma' ? 'j.assigned_user_id' : 'j.field_engineer_id';
 
     const [rows] = await pool.query(
-      `SELECT ${selectCols}, j.id AS id, t.team_name,
+      `SELECT ${selectCols}, j.id AS id, t.team_name, t.leader_user_id,
+              leader.full_name AS leader_name,
               u.full_name AS completed_by_name,
               assignee.full_name AS assignee_name,
-              (SELECT GROUP_CONCAT(m.full_name SEPARATOR ', ')
+              (SELECT GROUP_CONCAT(m.full_name ORDER BY (m.id = t.leader_user_id) DESC, m.full_name SEPARATOR ', ')
                  FROM users m
                 WHERE m.team_id = j.team_id AND m.status = 'approved'
-              ) AS tech_names
+              ) AS tech_names,
+              (SELECT GROUP_CONCAT(m.id ORDER BY (m.id = t.leader_user_id) DESC, m.full_name SEPARATOR ',')
+                 FROM users m
+                WHERE m.team_id = j.team_id AND m.status = 'approved'
+              ) AS tech_ids
        FROM ${table} j
        LEFT JOIN teams t ON t.id = j.team_id
+       LEFT JOIN users leader ON leader.id = t.leader_user_id
        LEFT JOIN users u ON u.id = j.completed_by
        LEFT JOIN users assignee ON assignee.id = ${assigneeJoinCol}
        ${whereClause}
@@ -718,8 +724,14 @@ router.get('/jobs', auth, async (req, res) => {
 router.get('/jobs/:id', auth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT j.*, t.team_name FROM jobs j
+      `SELECT j.*, t.team_name, t.leader_user_id, leader.full_name AS leader_name,
+              (SELECT GROUP_CONCAT(m.full_name ORDER BY (m.id = t.leader_user_id) DESC, m.full_name SEPARATOR ', ')
+                 FROM users m
+                WHERE m.team_id = j.team_id AND m.status = 'approved'
+              ) AS tech_names
+       FROM jobs j
        LEFT JOIN teams t ON t.id = j.team_id
+       LEFT JOIN users leader ON leader.id = t.leader_user_id
        WHERE j.id = ?`,
       [req.params.id]
     );

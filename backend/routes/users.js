@@ -9,6 +9,8 @@ const {
   oilFlagForType,
   rolesForType,
   isValidTeamType,
+  syncOpenJobsForTeam,
+  syncOpenJobsForUserTeamChange,
 } = require('../utils/teamsSchema');
 
 const router = express.Router();
@@ -99,7 +101,7 @@ router.get('/teams', auth, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT t.id, t.team_name, t.team_type, t.counts_for_oil, t.leader_user_id,
               t.vehicle_plate, t.is_active, t.notes,
-              lu.full_name AS leader_name, lu.role AS leader_role,
+              lu.full_name AS leader_name, lu.username AS leader_username, lu.role AS leader_role,
               COUNT(u.id) AS member_count,
               GROUP_CONCAT(DISTINCT u.role) AS team_roles,
               GROUP_CONCAT(DISTINCT u.id ORDER BY u.full_name) AS member_ids_csv,
@@ -108,7 +110,7 @@ router.get('/teams', auth, async (req, res) => {
        LEFT JOIN users u ON u.team_id = t.id
        LEFT JOIN users lu ON lu.id = t.leader_user_id
        GROUP BY t.id, t.team_name, t.team_type, t.counts_for_oil, t.leader_user_id,
-                t.vehicle_plate, t.is_active, t.notes, lu.full_name, lu.role
+                t.vehicle_plate, t.is_active, t.notes, lu.full_name, lu.username, lu.role
        ORDER BY
          FIELD(t.team_type, 'office_install', 'office_ma', 'contractor_install', 'contractor_ma'),
          t.team_name`
@@ -202,12 +204,14 @@ router.post('/teams', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     );
     const teamId = result.insertId;
     await syncTeamMembers(conn, teamId, leaderId, member_ids);
+    const jobSync = await syncOpenJobsForTeam(conn, teamId, leaderId);
 
     await conn.commit();
     res.status(201).json({
       message: 'Team created',
       id: teamId,
       counts_for_oil: countsForOil,
+      jobs_synced: jobSync,
     });
   } catch (err) {
     await conn.rollback();
@@ -328,8 +332,15 @@ router.put('/teams/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       await syncTeamMembers(conn, teamId, nextLeader, nextMembers);
     }
 
+    // งานเปิดในระบบตามหัวหน้าทีม + กระเป๋าตามสมาชิกทีม
+    const jobSync = await syncOpenJobsForTeam(conn, teamId, nextLeader);
+
     await conn.commit();
-    res.json({ message: 'Team updated successfully', counts_for_oil: countsForOil });
+    res.json({
+      message: 'Team updated successfully',
+      counts_for_oil: countsForOil,
+      jobs_synced: jobSync,
+    });
   } catch (err) {
     await conn.rollback();
     console.error('Update team error:', err);
@@ -423,7 +434,7 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     await conn.beginTransaction();
 
     const [[oldUser]] = await conn.query(
-      'SELECT status, full_name FROM users WHERE id = ? LIMIT 1',
+      'SELECT status, full_name, team_id FROM users WHERE id = ? LIMIT 1',
       [userId]
     );
 
@@ -448,6 +459,40 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       await conn.query(
         `INSERT IGNORE INTO user_roles (user_id, role) VALUES (?, ?)`, [userId, r]
       );
+    }
+
+    const nextTeamId = team_id || null;
+    const prevTeamId = oldUser?.team_id || null;
+    if (String(prevTeamId || '') !== String(nextTeamId || '')) {
+      await ensureTeamsSchema(conn);
+      // If this user is a team leader, keep teams.leader on their new team membership
+      const [[ledTeam]] = await conn.query(
+        'SELECT id FROM teams WHERE leader_user_id = ? LIMIT 1',
+        [userId]
+      );
+      if (ledTeam && nextTeamId && Number(ledTeam.id) !== Number(nextTeamId)) {
+        // Leader moved to another team id — clear leadership on old team record if mismatched
+        // (leadership should follow the team they lead; membership already updated)
+      }
+      await syncOpenJobsForUserTeamChange(conn, userId, nextTeamId);
+      if (prevTeamId) {
+        const [[prevTeam]] = await conn.query(
+          'SELECT leader_user_id FROM teams WHERE id = ? LIMIT 1',
+          [prevTeamId]
+        );
+        if (prevTeam) {
+          await syncOpenJobsForTeam(conn, prevTeamId, prevTeam.leader_user_id || null);
+        }
+      }
+      if (nextTeamId) {
+        const [[nextTeam]] = await conn.query(
+          'SELECT leader_user_id FROM teams WHERE id = ? LIMIT 1',
+          [nextTeamId]
+        );
+        if (nextTeam) {
+          await syncOpenJobsForTeam(conn, nextTeamId, nextTeam.leader_user_id || null);
+        }
+      }
     }
 
     await conn.commit();

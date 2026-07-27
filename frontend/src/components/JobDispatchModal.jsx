@@ -432,7 +432,12 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess, defaultJo
                         label="ทีมที่รับผิดชอบ"
                         value={String(form.team_id || '')}
                         onChange={(v) => setForm((prev) => ({ ...prev, team_id: v, assignee_id: '' }))}
-                        options={teams.map((t) => ({ value: String(t.id), label: t.team_name }))}
+                        options={teams.map((t) => ({
+                          value: String(t.id),
+                          label: `${t.team_name}${t.leader_name ? ` · หัวหน้า ${t.leader_name}` : ''}${
+                            Number(t.member_count) ? ` · สมาชิก ${t.member_count}` : ''
+                          }`,
+                        }))}
                         placeholder="เลือกทีม"
                         searchable
                       />

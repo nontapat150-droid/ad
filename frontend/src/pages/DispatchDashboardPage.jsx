@@ -160,17 +160,22 @@ function JobCard({ job, today, isAdmin, onCardClick, onSelect, isSelected }) {
                   {job.team_name}
                 </span>
               )}
-              {/* ช่างรับผิดชอบรายคน (รับเหมา/ไม่มีทีม) หรือรายชื่อช่างในทีม */}
+              {job.leader_name && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                  ★ หัวหน้า {job.leader_name}
+                </span>
+              )}
+              {/* สมาชิกทีม (แชร์กระเป๋า) หรือช่างรายคน */}
               {(job.assignee_name || job.tech_names) && (
                 <span
                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100 max-w-full"
-                  title={job.assignee_name || job.tech_names}
+                  title={job.tech_names || job.assignee_name}
                 >
                   <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                   <span className="truncate">
-                    {job.assignee_name
-                      ? job.assignee_name
-                      : String(job.tech_names).split(',').map((n) => n.trim()).filter(Boolean).join(', ')}
+                    {job.tech_names
+                      ? String(job.tech_names).split(',').map((n) => n.trim()).filter(Boolean).join(', ')
+                      : job.assignee_name}
                   </span>
                 </span>
               )}
@@ -390,20 +395,34 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
               </div>
               {/* Team name + tech list */}
               <div className="bg-[#F9FAFB] rounded-xl p-3 border border-[#E5E7EB]">
-                <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">ทีม / ช่าง</p>
+                <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide mb-1">ทีม / หัวหน้า / สมาชิก</p>
                 <p className="text-sm font-semibold text-[#1F2937]">
                   {job.team_name
                     || job.assignee_name
                     || (isAdmin ? '⚠️ ยังไม่มอบหมาย' : '-')}
                 </p>
-                {job.assignee_name && job.team_name && (
-                  <p className="text-[11px] font-semibold text-teal-700 mt-1">👤 {job.assignee_name}</p>
+                {job.leader_name && (
+                  <p className="text-[11px] font-bold text-sky-700 mt-1">★ หัวหน้าทีม: {job.leader_name}</p>
                 )}
-                {!job.assignee_name && job.tech_names && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {job.tech_names.split(',').map((n, i) => (
-                      <span key={i} className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-md">{n.trim()}</span>
-                    ))}
+                {job.tech_names && (
+                  <div className="mt-1.5">
+                    <p className="text-[10px] font-bold text-[#9CA3AF] mb-1">สมาชิก (แชร์กระเป๋า)</p>
+                    <div className="flex flex-wrap gap-1">
+                      {job.tech_names.split(',').map((n, i) => {
+                        const name = n.trim();
+                        const isLeader = job.leader_name && name === String(job.leader_name).trim();
+                        return (
+                          <span
+                            key={i}
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+                              isLeader ? 'bg-sky-100 text-sky-700' : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {isLeader ? `★ ${name}` : name}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
                 {job.assignee_name && !job.team_name && (
@@ -872,7 +891,7 @@ export default function DispatchDashboardPage() {
   const handleClearDispatch = () => requestConfirm('ล้างจ่ายงาน', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-dispatch', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleClearQueue = () => requestConfirm('ล้างคิว', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-queue', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleCancelCompletion = (job) => requestConfirm('ยกเลิกจบงาน', `ยกเลิก ${job.access_no}?`, async () => { try { await axios.put(`/dispatch/jobs/${job.id}/cancel-completion`); fetchJobs(); showNotification('ยกเลิกสำเร็จ'); } catch(e) { showNotification(e.response?.data?.error || 'ผิดพลาด', 'error'); } }, true);
-  const handleChangeCompletedTeam = async (job) => { try { const r = await axios.get('/users/teams'); const opts = {}; r.data.forEach(t => { opts[t.id] = t.team_name; }); const { value: nid } = await Swal.fire({ title: 'เปลี่ยนทีม', text: `ปัจจุบัน: ${job.team_name || '-'}`, input: 'select', inputOptions: opts, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#185FA5', inputValidator: v => { if (!v) return 'เลือกทีม'; if (v == job.team_id) return 'เหมือนเดิม'; } }); if (nid) { await axios.put(`/dispatch/jobs/${job.id}/change-completed-team`, { new_team_id: nid }); fetchJobs(); showNotification('เปลี่ยนทีมสำเร็จ'); } } catch(e) {} };
+  const handleChangeCompletedTeam = async (job) => { try { const r = await axios.get('/users/teams'); const opts = {}; r.data.forEach(t => { opts[t.id] = `${t.team_name}${t.leader_name ? ` · หัวหน้า ${t.leader_name}` : ''}`; }); const { value: nid } = await Swal.fire({ title: 'เปลี่ยนทีม', text: `ปัจจุบัน: ${job.team_name || '-'}`, input: 'select', inputOptions: opts, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#185FA5', inputValidator: v => { if (!v) return 'เลือกทีม'; if (v == job.team_id) return 'เหมือนเดิม'; } }); if (nid) { await axios.put(`/dispatch/jobs/${job.id}/change-completed-team`, { new_team_id: nid }); fetchJobs(); showNotification('เปลี่ยนทีมสำเร็จ'); } } catch(e) {} };
   const handleReorderByLocation = () => { if (!navigator.geolocation) return showNotification('ไม่รองรับ GPS', 'error'); setIsReordering(true); navigator.geolocation.getCurrentPosition(async (pos) => { try { const r = await axios.put('/dispatch/jobs/reorder-by-location', { lat: pos.coords.latitude, lng: pos.coords.longitude, type: mainTab }); showNotification(`เรียงสำเร็จ ${r.data.updated} งาน`); fetchJobs(); } catch(e) { showNotification('ผิดพลาด', 'error'); } finally { setIsReordering(false); } }, () => { setIsReordering(false); showNotification('ไม่สามารถระบุตำแหน่ง', 'error'); }, { enableHighAccuracy: true, timeout: 10000 }); };
 
   // Map
@@ -898,7 +917,10 @@ export default function DispatchDashboardPage() {
   const activeFilters = [filterDate, filterTeamId, filterUserId].filter(Boolean).length;
 
   const teamFilterOptions = useMemo(
-    () => teams.map((t) => ({ value: t.id, label: t.team_name })),
+    () => teams.map((t) => ({
+      value: t.id,
+      label: `${t.team_name}${t.leader_name ? ` · ${t.leader_name}` : ''}`,
+    })),
     [teams]
   );
 
