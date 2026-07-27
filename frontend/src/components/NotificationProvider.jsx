@@ -123,7 +123,9 @@ export default function NotificationProvider({ children }) {
     }, delayMs);
   }, []);
 
-  /** แจ้งเป็นกล่องข้อความ (SweetAlert) จนกว่าจะอนุญาต */
+  const showPermissionMessageBoxRef = useRef(null);
+
+  /** กล่องข้อความ: อนุญาต / ยกเลิก — กดอนุญาตขอสิทธิ์ทันที, กดยกเลิกเด้งซ้ำ */
   const showPermissionMessageBox = useCallback(async () => {
     if (!hasAuthToken() || !user) return;
     if (promptingRef.current) return;
@@ -134,26 +136,36 @@ export default function NotificationProvider({ children }) {
     promptingRef.current = true;
     try {
       if (current === 'denied') {
-        await Swal.fire({
+        const deniedResult = await Swal.fire({
           title: 'ยังไม่ได้เปิดการแจ้งเตือน',
           html: `
             <p style="text-align:left;margin:0 0 10px;color:#4B5563;font-size:14px;line-height:1.6">
               คุณเคยกดบล็อกการแจ้งเตือนไว้แล้ว<br/>
-              ระบบจะไม่ให้ใช้งานจนกว่าจะอนุญาต
+              ระบบจะเด้งกล่องนี้จนกว่าจะอนุญาต
             </p>
             <div style="text-align:left;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:12px;font-size:13px;color:#92400E;line-height:1.7">
               <b>วิธีเปิดสิทธิ์:</b><br/>
               1) กดไอคอนแม่กุญแจ / ข้อมูลเว็บ ข้างแถบที่อยู่<br/>
               2) ตั้งค่า “การแจ้งเตือน” เป็น <b>อนุญาต</b><br/>
-              3) กลับมาแล้วกด “ตรวจสอบอีกครั้ง”
+              3) กลับมาแล้วกด <b>อนุญาต</b>
             </div>
           `,
           icon: 'error',
-          confirmButtonText: 'ตรวจสอบอีกครั้ง',
+          showCancelButton: true,
+          confirmButtonText: 'อนุญาต',
+          cancelButtonText: 'ยกเลิก',
           confirmButtonColor: '#185FA5',
+          cancelButtonColor: '#9CA3AF',
           allowOutsideClick: false,
           allowEscapeKey: false,
+          reverseButtons: true,
         });
+
+        if (!deniedResult.isConfirmed) {
+          // กดยกเลิก → เด้งกล่องซ้ำ
+          scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 1500);
+          return;
+        }
 
         await completePushSetup();
         if (refreshPermission() === 'granted') {
@@ -165,27 +177,47 @@ export default function NotificationProvider({ children }) {
             showConfirmButton: false,
           });
         } else {
-          scheduleRetryBox(showPermissionMessageBox, 800);
+          await Swal.fire({
+            title: 'ยังบล็อกการแจ้งเตือนอยู่',
+            text: 'เปิดสิทธิ์ในตั้งค่าเบราว์เซอร์ก่อน แล้วกดอนุญาตอีกครั้ง',
+            icon: 'info',
+            confirmButtonText: 'ตกลง',
+            confirmButtonColor: '#185FA5',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+          });
+          scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 800);
         }
         return;
       }
 
-      // permission === 'default'
-      await Swal.fire({
-        title: 'ต้องอนุญาตการแจ้งเตือนก่อนใช้งาน',
+      // permission === 'default' → เลือกอนุญาต หรือ ยกเลิก
+      const result = await Swal.fire({
+        title: 'อนุญาตการแจ้งเตือน',
         html: `
           <p style="color:#4B5563;font-size:14px;line-height:1.7;margin:0">
-            กรุณากด <b>อนุญาต</b> ในหน้าต่างถัดไป<br/>
-            ระบบจะแจ้งเตือนซ้ำจนกว่าจะอนุญาตครบก่อนใช้งาน
+            กด <b>อนุญาต</b> เพื่อเปิดรับการแจ้งเตือนงานทันที<br/>
+            หากกด <b>ยกเลิก</b> ระบบจะเด้งกล่องนี้ซ้ำจนกว่าจะอนุญาต
           </p>
         `,
         icon: 'warning',
-        confirmButtonText: 'อนุญาตเลย',
+        showCancelButton: true,
+        confirmButtonText: 'อนุญาต',
+        cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#185FA5',
+        cancelButtonColor: '#9CA3AF',
         allowOutsideClick: false,
         allowEscapeKey: false,
+        reverseButtons: true,
       });
 
+      if (!result.isConfirmed) {
+        // กดยกเลิก → เด้งมาเรื่อยๆ
+        scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 1500);
+        return;
+      }
+
+      // กดอนุญาต → ขอสิทธิ์จากเบราว์เซอร์ทันที
       const perm = await completePushSetup();
       if (perm === 'granted') {
         await Swal.fire({
@@ -195,23 +227,28 @@ export default function NotificationProvider({ children }) {
           timer: 1600,
           showConfirmButton: false,
         });
+      } else if (perm === 'denied') {
+        scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 600);
       } else {
+        // ยังเป็น default (ปิด prompt โดยไม่เลือก) → เด้งกล่องอีกครั้ง
         await Swal.fire({
           title: 'ยังไม่อนุญาตการแจ้งเตือน',
-          text: 'ต้องอนุญาตก่อนจึงจะใช้งานระบบได้',
+          text: 'กรุณากดอนุญาตในหน้าต่างของเบราว์เซอร์ด้วย',
           icon: 'info',
-          confirmButtonText: 'ลองอีกครั้ง',
+          confirmButtonText: 'ตกลง',
           confirmButtonColor: '#185FA5',
           allowOutsideClick: false,
           allowEscapeKey: false,
         });
-        scheduleRetryBox(showPermissionMessageBox, 400);
+        scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 600);
       }
     } finally {
       promptingRef.current = false;
       refreshPermission();
     }
   }, [user, refreshPermission, completePushSetup, scheduleRetryBox]);
+
+  showPermissionMessageBoxRef.current = showPermissionMessageBox;
 
   // เข้าเว็บ/ล็อกอิน → เด้งกล่องข้อความทันที + วนซ้ำจนกว่าจะอนุญาต
   useEffect(() => {
@@ -233,11 +270,12 @@ export default function NotificationProvider({ children }) {
       showPermissionMessageBox();
     }, 350);
 
+    // สำรอง: ถ้ากล่องหายไปโดยไม่ตั้งใจ เด้งซ้ำทุก 8 วินาที
     nagTimerRef.current = setInterval(() => {
       const perm = refreshPermission();
       if (perm === 'granted' || perm === 'unsupported') return;
       showPermissionMessageBox();
-    }, 10000);
+    }, 8000);
 
     return () => {
       clearTimeout(start);
