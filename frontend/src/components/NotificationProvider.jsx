@@ -68,14 +68,28 @@ function hasAuthToken() {
   return Boolean(localStorage.getItem('bou_token') || sessionStorage.getItem('bou_token'));
 }
 
+function readPermission() {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  return Notification.permission;
+}
+
 export default function NotificationProvider({ children }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [toast, setToast] = useState(null);
-  const promptedRef = useRef(false);
+  const [permission, setPermission] = useState(() => readPermission());
+  const promptingRef = useRef(false);
+  const nagTimerRef = useRef(null);
+  const retryTimerRef = useRef(null);
 
   const bumpBell = useCallback(() => {
     window.dispatchEvent(new CustomEvent('new_message_alert'));
+  }, []);
+
+  const refreshPermission = useCallback(() => {
+    const next = readPermission();
+    setPermission(next);
+    return next;
   }, []);
 
   const registerToken = useCallback(async (token) => {
@@ -92,54 +106,171 @@ export default function NotificationProvider({ children }) {
     }
   }, []);
 
-  const ensurePushReady = useCallback(async ({ promptIfNeeded = false } = {}) => {
-    if (!hasAuthToken()) return;
-    if (typeof Notification === 'undefined') return;
+  const completePushSetup = useCallback(async () => {
+    const fcmToken = await requestNotificationPermission();
+    const perm = refreshPermission();
+    if (perm === 'granted' && fcmToken) {
+      await registerToken(fcmToken);
+    }
+    return perm;
+  }, [refreshPermission, registerToken]);
 
-    if (Notification.permission === 'default' && promptIfNeeded) {
-      const result = await Swal.fire({
-        title: 'เปิดรับการแจ้งเตือนบนมือถือ',
-        text: 'อนุญาตการแจ้งเตือนเพื่อรับงานและเหตุการณ์สำคัญ แม้ปิดเว็บไปแล้ว',
-        icon: 'info',
-        showCancelButton: true,
-        confirmButtonText: 'อนุญาต',
-        cancelButtonText: 'ไว้ทีหลัง',
+  const scheduleRetryBox = useCallback((fn, delayMs = 600) => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      fn();
+    }, delayMs);
+  }, []);
+
+  /** แจ้งเป็นกล่องข้อความ (SweetAlert) จนกว่าจะอนุญาต */
+  const showPermissionMessageBox = useCallback(async () => {
+    if (!hasAuthToken() || !user) return;
+    if (promptingRef.current) return;
+
+    const current = refreshPermission();
+    if (current === 'granted' || current === 'unsupported') return;
+
+    promptingRef.current = true;
+    try {
+      if (current === 'denied') {
+        await Swal.fire({
+          title: 'ยังไม่ได้เปิดการแจ้งเตือน',
+          html: `
+            <p style="text-align:left;margin:0 0 10px;color:#4B5563;font-size:14px;line-height:1.6">
+              คุณเคยกดบล็อกการแจ้งเตือนไว้แล้ว<br/>
+              ระบบจะไม่ให้ใช้งานจนกว่าจะอนุญาต
+            </p>
+            <div style="text-align:left;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;padding:12px;font-size:13px;color:#92400E;line-height:1.7">
+              <b>วิธีเปิดสิทธิ์:</b><br/>
+              1) กดไอคอนแม่กุญแจ / ข้อมูลเว็บ ข้างแถบที่อยู่<br/>
+              2) ตั้งค่า “การแจ้งเตือน” เป็น <b>อนุญาต</b><br/>
+              3) กลับมาแล้วกด “ตรวจสอบอีกครั้ง”
+            </div>
+          `,
+          icon: 'error',
+          confirmButtonText: 'ตรวจสอบอีกครั้ง',
+          confirmButtonColor: '#185FA5',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+        });
+
+        await completePushSetup();
+        if (refreshPermission() === 'granted') {
+          await Swal.fire({
+            title: 'เปิดการแจ้งเตือนแล้ว',
+            text: 'พร้อมใช้งานระบบได้ตามปกติ',
+            icon: 'success',
+            timer: 1600,
+            showConfirmButton: false,
+          });
+        } else {
+          scheduleRetryBox(showPermissionMessageBox, 800);
+        }
+        return;
+      }
+
+      // permission === 'default'
+      await Swal.fire({
+        title: 'ต้องอนุญาตการแจ้งเตือนก่อนใช้งาน',
+        html: `
+          <p style="color:#4B5563;font-size:14px;line-height:1.7;margin:0">
+            กรุณากด <b>อนุญาต</b> ในหน้าต่างถัดไป<br/>
+            ระบบจะแจ้งเตือนซ้ำจนกว่าจะอนุญาตครบก่อนใช้งาน
+          </p>
+        `,
+        icon: 'warning',
+        confirmButtonText: 'อนุญาตเลย',
         confirmButtonColor: '#185FA5',
-        cancelButtonColor: '#9CA3AF',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
       });
-      if (!result.isConfirmed) return;
+
+      const perm = await completePushSetup();
+      if (perm === 'granted') {
+        await Swal.fire({
+          title: 'เปิดการแจ้งเตือนแล้ว',
+          text: 'พร้อมใช้งานระบบได้ตามปกติ',
+          icon: 'success',
+          timer: 1600,
+          showConfirmButton: false,
+        });
+      } else {
+        await Swal.fire({
+          title: 'ยังไม่อนุญาตการแจ้งเตือน',
+          text: 'ต้องอนุญาตก่อนจึงจะใช้งานระบบได้',
+          icon: 'info',
+          confirmButtonText: 'ลองอีกครั้ง',
+          confirmButtonColor: '#185FA5',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+        });
+        scheduleRetryBox(showPermissionMessageBox, 400);
+      }
+    } finally {
+      promptingRef.current = false;
+      refreshPermission();
+    }
+  }, [user, refreshPermission, completePushSetup, scheduleRetryBox]);
+
+  // เข้าเว็บ/ล็อกอิน → เด้งกล่องข้อความทันที + วนซ้ำจนกว่าจะอนุญาต
+  useEffect(() => {
+    if (!user) {
+      if (nagTimerRef.current) {
+        clearInterval(nagTimerRef.current);
+        nagTimerRef.current = null;
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      Swal.close();
+      return undefined;
     }
 
-    if (Notification.permission === 'denied') return;
+    refreshPermission();
+    const start = setTimeout(() => {
+      showPermissionMessageBox();
+    }, 350);
 
-    const fcmToken = await requestNotificationPermission();
-    if (fcmToken) await registerToken(fcmToken);
-  }, [registerToken]);
+    nagTimerRef.current = setInterval(() => {
+      const perm = refreshPermission();
+      if (perm === 'granted' || perm === 'unsupported') return;
+      showPermissionMessageBox();
+    }, 10000);
 
-  useEffect(() => {
-    if (!user) return undefined;
+    return () => {
+      clearTimeout(start);
+      if (nagTimerRef.current) {
+        clearInterval(nagTimerRef.current);
+        nagTimerRef.current = null;
+      }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [user?.id, showPermissionMessageBox, refreshPermission]);
 
-    const timer = setTimeout(() => {
-      ensurePushReady({ promptIfNeeded: !promptedRef.current }).then(() => {
-        if (typeof Notification !== 'undefined' && Notification.permission !== 'default') {
-          promptedRef.current = true;
-        }
-      });
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [user?.id, ensurePushReady]);
-
+  // กลับมาที่แท็บ → ตรวจสิทธิ์ / เด้งกล่องอีกครั้งถ้ายังไม่อนุญาต
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && hasAuthToken()) {
-        ensurePushReady({ promptIfNeeded: false });
+      if (document.visibilityState !== 'visible' || !hasAuthToken() || !user) return;
+      const perm = refreshPermission();
+      if (perm === 'granted') {
+        completePushSetup();
         bumpBell();
+      } else if (perm !== 'unsupported') {
+        showPermissionMessageBox();
       }
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [ensurePushReady, bumpBell]);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [user, refreshPermission, completePushSetup, showPermissionMessageBox, bumpBell]);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined;
@@ -193,9 +324,21 @@ export default function NotificationProvider({ children }) {
     return () => window.removeEventListener('new_message_alert', handleLocalAlert);
   }, []);
 
+  const mustBlock =
+    Boolean(user) &&
+    permission !== 'granted' &&
+    permission !== 'unsupported';
+
   return (
     <>
       {children}
+      {/* กันคลิกหลังบ้านขณะยังไม่อนุญาต — กล่องข้อความ Swal เป็นตัวหลัก */}
+      {mustBlock && (
+        <div
+          className="fixed inset-0 z-[9998] bg-[#042C53]/35"
+          aria-hidden="true"
+        />
+      )}
       {toast && (
         <NotificationToast
           notification={toast}
