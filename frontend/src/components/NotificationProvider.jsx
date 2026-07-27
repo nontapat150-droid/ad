@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { requestNotificationPermission, onForegroundMessage } from '../lib/firebase';
+import { requestNotificationPermission, askBrowserNotificationPermission, getFcmTokenIfGranted, onForegroundMessage } from '../lib/firebase';
 import { resolveNotificationPath } from '../utils/notificationUi';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
@@ -115,6 +115,14 @@ export default function NotificationProvider({ children }) {
     return perm;
   }, [refreshPermission, registerToken]);
 
+  /** After Chrome already granted, register FCM token only */
+  const registerAfterGranted = useCallback(async () => {
+    const fcmToken = await getFcmTokenIfGranted();
+    refreshPermission();
+    if (fcmToken) await registerToken(fcmToken);
+    return refreshPermission();
+  }, [refreshPermission, registerToken]);
+
   const scheduleRetryBox = useCallback((fn, delayMs = 600) => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     retryTimerRef.current = setTimeout(() => {
@@ -125,7 +133,7 @@ export default function NotificationProvider({ children }) {
 
   const showPermissionMessageBoxRef = useRef(null);
 
-  /** กล่องข้อความ: อนุญาต / ยกเลิก — กดอนุญาตขอสิทธิ์ทันที, กดยกเลิกเด้งซ้ำ */
+  /** กล่องข้อความ: กดอนุญาต → Chrome เด้งทันที / กดยกเลิก → เด้งซ้ำ */
   const showPermissionMessageBox = useCallback(async () => {
     if (!hasAuthToken() || !user) return;
     if (promptingRef.current) return;
@@ -162,7 +170,6 @@ export default function NotificationProvider({ children }) {
         });
 
         if (!deniedResult.isConfirmed) {
-          // กดยกเลิก → เด้งกล่องซ้ำ
           scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 1500);
           return;
         }
@@ -191,35 +198,46 @@ export default function NotificationProvider({ children }) {
         return;
       }
 
-      // permission === 'default' → เลือกอนุญาต หรือ ยกเลิก
+      // permission === 'default'
+      // กด "อนุญาต" → เรียก Chrome requestPermission() ทันทีใน preConfirm (user gesture)
       const result = await Swal.fire({
         title: 'อนุญาตการแจ้งเตือน',
         html: `
-          <p style="color:#4B5563;font-size:14px;line-height:1.7;margin:0">
-            กด <b>อนุญาต</b> เพื่อเปิดรับการแจ้งเตือนงานทันที<br/>
-            หากกด <b>ยกเลิก</b> ระบบจะเด้งกล่องนี้ซ้ำจนกว่าจะอนุญาต
+          <p style="color:#4B5563;font-size:14px;line-height:1.75;margin:0 0 8px">
+            กดปุ่ม <b style="color:#185FA5">อนุญาต</b> ด้านล่าง<br/>
+            จากนั้น Chrome จะเด้งหน้าต่างขึ้นมาทันที<br/>
+            ให้กด <b>Allow / อนุญาต</b> ในหน้าต่างของ Chrome อีกครั้ง
+          </p>
+          <p style="color:#9CA3AF;font-size:12px;margin:0">
+            หากกดยกเลิก ระบบจะเด้งกล่องนี้ซ้ำจนกว่าจะอนุญาต
           </p>
         `,
-        icon: 'warning',
+        icon: 'info',
         showCancelButton: true,
         confirmButtonText: 'อนุญาต',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#185FA5',
         cancelButtonColor: '#9CA3AF',
-        allowOutsideClick: false,
         allowEscapeKey: false,
         reverseButtons: true,
+        showLoaderOnConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+        preConfirm: () => {
+          // สำคัญ: เรียกทันทีตอนกดปุ่ม เพื่อให้ Chrome แสดงหน้าต่างขอสิทธิ์ทันที
+          return askBrowserNotificationPermission();
+        },
       });
 
       if (!result.isConfirmed) {
-        // กดยกเลิก → เด้งมาเรื่อยๆ
         scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 1500);
         return;
       }
 
-      // กดอนุญาต → ขอสิทธิ์จากเบราว์เซอร์ทันที
-      const perm = await completePushSetup();
-      if (perm === 'granted') {
+      const browserPerm = result.value || refreshPermission();
+      refreshPermission();
+
+      if (browserPerm === 'granted') {
+        await registerAfterGranted();
         await Swal.fire({
           title: 'เปิดการแจ้งเตือนแล้ว',
           text: 'พร้อมใช้งานระบบได้ตามปกติ',
@@ -227,15 +245,14 @@ export default function NotificationProvider({ children }) {
           timer: 1600,
           showConfirmButton: false,
         });
-      } else if (perm === 'denied') {
+      } else if (browserPerm === 'denied') {
         scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 600);
       } else {
-        // ยังเป็น default (ปิด prompt โดยไม่เลือก) → เด้งกล่องอีกครั้ง
         await Swal.fire({
-          title: 'ยังไม่อนุญาตการแจ้งเตือน',
-          text: 'กรุณากดอนุญาตในหน้าต่างของเบราว์เซอร์ด้วย',
+          title: 'ยังไม่อนุญาตในหน้าต่าง Chrome',
+          html: 'กรุณากด <b>Allow / อนุญาต</b> ในหน้าต่างของเบราว์เซอร์ด้วย',
           icon: 'info',
-          confirmButtonText: 'ตกลง',
+          confirmButtonText: 'ลองอีกครั้ง',
           confirmButtonColor: '#185FA5',
           allowOutsideClick: false,
           allowEscapeKey: false,
@@ -246,7 +263,7 @@ export default function NotificationProvider({ children }) {
       promptingRef.current = false;
       refreshPermission();
     }
-  }, [user, refreshPermission, completePushSetup, scheduleRetryBox]);
+  }, [user, refreshPermission, completePushSetup, registerAfterGranted, scheduleRetryBox]);
 
   showPermissionMessageBoxRef.current = showPermissionMessageBox;
 

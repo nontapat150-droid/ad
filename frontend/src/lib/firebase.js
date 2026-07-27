@@ -25,21 +25,35 @@ try {
   console.warn('Firebase Messaging not supported in this browser:', err.message);
 }
 
-// ── Request Notification Permission & Get FCM Token ─────────
-export async function requestNotificationPermission() {
+/**
+ * Ask Chrome/browser for notification permission immediately.
+ * Call this directly from a button click / Swal preConfirm (user gesture).
+ */
+export function askBrowserNotificationPermission() {
+  if (typeof Notification === 'undefined') {
+    return Promise.resolve('unsupported');
+  }
+  if (Notification.permission === 'granted') {
+    return Promise.resolve('granted');
+  }
+  if (Notification.permission === 'denied') {
+    return Promise.resolve('denied');
+  }
+  // Must run in the same user-gesture turn so Chrome shows the prompt right away
+  return Notification.requestPermission();
+}
+
+/** Register SW + get FCM token when permission is already granted */
+export async function getFcmTokenIfGranted() {
   if (!messaging) {
     console.warn('Firebase Messaging is not initialized');
     return null;
   }
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return null;
+  }
 
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      console.log('Notification permission denied');
-      return null;
-    }
-
-    // Register service worker explicitly with version string to bypass mobile cache
     const swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js?v=12');
     await swRegistration.update();
 
@@ -51,14 +65,23 @@ export async function requestNotificationPermission() {
     if (token) {
       console.log('FCM Token:', token);
       return token;
-    } else {
-      console.log('No FCM token available');
-      return null;
     }
+    console.log('No FCM token available');
+    return null;
   } catch (err) {
     console.error('Error getting FCM token:', err);
     return null;
   }
+}
+
+// ── Request Notification Permission & Get FCM Token ─────────
+export async function requestNotificationPermission() {
+  const permission = await askBrowserNotificationPermission();
+  if (permission !== 'granted') {
+    console.log('Notification permission denied');
+    return null;
+  }
+  return getFcmTokenIfGranted();
 }
 
 // ── Listen for Foreground Messages ──────────────────────────
