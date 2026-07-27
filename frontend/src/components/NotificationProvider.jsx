@@ -73,6 +73,15 @@ function readPermission() {
   return Notification.permission;
 }
 
+/** SweetAlert อยู่บนสุดเสมอ ไม่ให้ถูก overlay อื่นบัง */
+const swalPermission = Swal.mixin({
+  customClass: { container: 'bou-notif-swal' },
+  didOpen: () => {
+    const el = document.querySelector('.bou-notif-swal');
+    if (el) el.style.zIndex = '20000';
+  },
+});
+
 export default function NotificationProvider({ children }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -144,7 +153,7 @@ export default function NotificationProvider({ children }) {
     promptingRef.current = true;
     try {
       if (current === 'denied') {
-        const deniedResult = await Swal.fire({
+        const deniedResult = await swalPermission.fire({
           title: 'ยังไม่ได้เปิดการแจ้งเตือน',
           html: `
             <p style="text-align:left;margin:0 0 10px;color:#4B5563;font-size:14px;line-height:1.6">
@@ -176,7 +185,7 @@ export default function NotificationProvider({ children }) {
 
         await completePushSetup();
         if (refreshPermission() === 'granted') {
-          await Swal.fire({
+          await swalPermission.fire({
             title: 'เปิดการแจ้งเตือนแล้ว',
             text: 'พร้อมใช้งานระบบได้ตามปกติ',
             icon: 'success',
@@ -184,7 +193,7 @@ export default function NotificationProvider({ children }) {
             showConfirmButton: false,
           });
         } else {
-          await Swal.fire({
+          await swalPermission.fire({
             title: 'ยังบล็อกการแจ้งเตือนอยู่',
             text: 'เปิดสิทธิ์ในตั้งค่าเบราว์เซอร์ก่อน แล้วกดอนุญาตอีกครั้ง',
             icon: 'info',
@@ -200,7 +209,7 @@ export default function NotificationProvider({ children }) {
 
       // permission === 'default'
       // กด "อนุญาต" → เรียก Chrome requestPermission() ทันทีใน preConfirm (user gesture)
-      const result = await Swal.fire({
+      const result = await swalPermission.fire({
         title: 'อนุญาตการแจ้งเตือน',
         html: `
           <p style="color:#4B5563;font-size:14px;line-height:1.75;margin:0 0 8px">
@@ -238,7 +247,7 @@ export default function NotificationProvider({ children }) {
 
       if (browserPerm === 'granted') {
         await registerAfterGranted();
-        await Swal.fire({
+        await swalPermission.fire({
           title: 'เปิดการแจ้งเตือนแล้ว',
           text: 'พร้อมใช้งานระบบได้ตามปกติ',
           icon: 'success',
@@ -248,7 +257,7 @@ export default function NotificationProvider({ children }) {
       } else if (browserPerm === 'denied') {
         scheduleRetryBox(() => showPermissionMessageBoxRef.current?.(), 600);
       } else {
-        await Swal.fire({
+        await swalPermission.fire({
           title: 'ยังไม่อนุญาตในหน้าต่าง Chrome',
           html: 'กรุณากด <b>Allow / อนุญาต</b> ในหน้าต่างของเบราว์เซอร์ด้วย',
           icon: 'info',
@@ -379,21 +388,12 @@ export default function NotificationProvider({ children }) {
     return () => window.removeEventListener('new_message_alert', handleLocalAlert);
   }, []);
 
-  const mustBlock =
-    Boolean(user) &&
-    permission !== 'granted' &&
-    permission !== 'unsupported';
-
   return (
     <>
       {children}
-      {/* กันคลิกหลังบ้านขณะยังไม่อนุญาต — กล่องข้อความ Swal เป็นตัวหลัก */}
-      {mustBlock && (
-        <div
-          className="fixed inset-0 z-[9998] bg-[#042C53]/35"
-          aria-hidden="true"
-        />
-      )}
+      <style>{`
+        .bou-notif-swal { z-index: 20000 !important; }
+      `}</style>
       {toast && (
         <NotificationToast
           notification={toast}
