@@ -10,7 +10,7 @@ import { normalizePageKey } from '../manuals';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
-export default function Layout({ children, activeKey, onNavigate, pageTitle, manualPage }) {
+export default function Layout({ children, activeKey, onNavigate, pageTitle, manualPage, fullBleed = false }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
   const [testingSend, setTestingSend] = useState(false);
@@ -161,10 +161,12 @@ export default function Layout({ children, activeKey, onNavigate, pageTitle, man
         </header>
 
         {/* ── Page Content ────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8">
-          <div className="max-w-6xl mx-auto">
-            {children}
-          </div>
+        <main className={`flex-1 overflow-y-auto overflow-x-hidden ${fullBleed ? 'p-0' : 'p-4 md:p-6 lg:p-8'}`}>
+          {fullBleed ? children : (
+            <div className="max-w-6xl mx-auto">
+              {children}
+            </div>
+          )}
         </main>
       </div>
 

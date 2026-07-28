@@ -121,9 +121,15 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
       { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
       { key: 'report', label: 'รายการแจ้งปัญหา', icon: ReportIcon },
-      ...(isAdmin ? [{ key: 'settings', label: 'ตั้งค่าระบบ', icon: CogIcon }] : []),
     ],
   };
+
+  const SETTINGS_GROUP = isAdmin
+    ? {
+        label: 'ตั้งค่า',
+        items: [{ key: 'settings', label: 'ตั้งค่าระบบ', icon: CogIcon }],
+      }
+    : null;
 
   // Filter menus based on role
   const baseGroups = MENU_GROUPS.map(group => ({
@@ -174,7 +180,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
   }).filter(group => group.items.length > 0);
 
   const dynamicMenuGroups = isAdmin
-    ? [...baseGroups, ADMIN_GROUP]
+    ? [...baseGroups, ADMIN_GROUP, ...(SETTINGS_GROUP ? [SETTINGS_GROUP] : [])]
     : techGroups;
 
   return (
