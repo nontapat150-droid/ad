@@ -586,7 +586,6 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         `เลข (NON): ${accessNo || '-'}`,
         `แพ็กเกจ: ${mainPackage || '-'}`,
         `Order No: ${String(orderNo).trim() || '-'}`,
-        `SOA: -`,
         `อุปกรณ์ปิด SOA: ${String(soaDevice).trim() || '-'}`,
         `Splitt: ${splitNo || '-'}`,
         `ใช้ Port: ${portNo || '-'}`,
