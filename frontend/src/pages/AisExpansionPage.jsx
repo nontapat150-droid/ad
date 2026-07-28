@@ -5,6 +5,7 @@ import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapP
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 
 const STATUS_META = {
   draft: { label: 'ยังไม่ไป', className: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -90,6 +91,56 @@ function resolveImageUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   const base = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function excelDate(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function buildExpansionExportRows(rows, { isAdmin }) {
+  return rows.map((job, idx) => ({
+    ลำดับ: idx + 1,
+    รหัสงานขาย: job.id ?? '',
+    สถานะ: STATUS_META[job.status]?.label || job.status || '',
+    ชื่อลูกค้า: job.customer_name || '',
+    เลขบัตรประชาชน: job.id_card || '',
+    เบอร์โทร: job.phone || '',
+    ที่อยู่: job.address || '',
+    แพ็กเกจ: job.package_name || '',
+    ข้อมูลสัญญา: job.contract_info || '',
+    อาชีพ: job.occupation || '',
+    ค่าแรกเข้าที่ขอ: job.entry_fee_request ?? '',
+    วันติดตั้ง: excelDate(job.install_date) || job.install_date_text || '',
+    หมายเหตุเซล: job.sales_note || '',
+    คู่สาย: job.pair_line || '',
+    หมายเหตุถึงช่าง: job.tech_note || '',
+    AccessNo: job.access_no || '',
+    Splitter: job.splitter_code || job.splitter_name || '',
+    ระยะตรงเมตร: job.straight_distance_m ?? '',
+    ระยะสายประมาณเมตร: job.estimated_cable_m ?? '',
+    นัดติดตาม: excelDate(job.follow_up_at),
+    เหตุผลไม่ได้: job.lost_reason || '',
+    หมายเหตุเพิ่มเติม: job.remark || '',
+    พิกัดLat: job.lat ?? '',
+    พิกัดLng: job.lng ?? '',
+    ...(isAdmin ? { เซลผู้ดูแล: job.owner_name || '' } : {}),
+    สร้างเมื่อ: job.created_at || '',
+    อัปเดตล่าสุด: job.updated_at || '',
+  }));
+}
+
+function computeSheetColumnWidths(rows) {
+  if (!rows.length) return [];
+  const headers = Object.keys(rows[0]);
+  return headers.map((header) => {
+    let maxLen = String(header).length;
+    rows.forEach((row) => {
+      const v = row[header] == null ? '' : String(row[header]);
+      if (v.length > maxLen) maxLen = v.length;
+    });
+    return { wch: Math.min(60, Math.max(10, maxLen + 2)) };
+  });
 }
 
 function Field({ label, required, children }) {
@@ -939,6 +990,21 @@ export default function AisExpansionPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (!jobs.length) {
+      Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายสำหรับ Export' });
+      return;
+    }
+    const rows = buildExpansionExportRows(jobs, { isAdmin });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = computeSheetColumnWidths(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'sales_jobs');
+    const day = new Date().toLocaleDateString('en-CA');
+    const scopeLabel = viewTab === 'done' ? 'done' : viewTab === 'today' ? 'today' : 'open';
+    XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
+  };
+
   return (
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขาย / งานขยาย" manualPage="ais_expansion">
       <div className="max-w-5xl mx-auto w-full space-y-4 pb-8">
@@ -975,17 +1041,26 @@ export default function AisExpansionPage() {
                   <h2 className="text-lg font-black text-[#1F2937]">งานขายของ{isAdmin ? 'ทีม' : 'ฉัน'}</h2>
                   <p className="text-xs text-[#6B7280] mt-0.5">ลงขาย · วัดระยะประมาณจาก Splitter · อัปโหลดรูป</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(null);
-                    setFormOpen(true);
-                  }}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-[#1F2937]"
-                  style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
-                >
-                  + สร้างงานขาย
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border border-[#D1D5DB] text-[#1F2937] bg-white hover:bg-[#F9FAFB]"
+                  >
+                    Export Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(null);
+                      setFormOpen(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-[#1F2937]"
+                    style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+                  >
+                    + สร้างงานขาย
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl mb-3">
