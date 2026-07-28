@@ -8,7 +8,6 @@ import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import { NoSnEquipmentModal } from './JobActionModals';
 
 const BAG_DEVICE_SLOTS = [
-  { role: 'SOA', label: 'อุปกรณ์ปิด SOA', dashOption: false },
   { role: 'ONU', label: 'SN ONU', dashOption: true },
   { role: 'PB', label: 'SN Playbox', dashOption: false },
   { role: 'Mesh', label: 'SN Mesh', dashOption: false },
@@ -17,10 +16,10 @@ const BAG_DEVICE_SLOTS = [
 ];
 
 const ROLE_INSTALL_PREFIX = {
-  SOA: 'SOA', ONU: 'ONU', PB: 'PB', Mesh: 'Mesh', SIM: 'SIM', Cam: 'Cam',
+  ONU: 'ONU', PB: 'PB', Mesh: 'Mesh', SIM: 'SIM', Cam: 'Cam',
 };
 
-const EMPTY_BAG_SELECTIONS = { SOA: '', ONU: '', PB: '', Mesh: '', SIM: '', Cam: '' };
+const EMPTY_BAG_SELECTIONS = { ONU: '', PB: '', Mesh: '', SIM: '', Cam: '' };
 
 const WIZARD_STEPS = [
   { key: 'info', label: 'ตรวจข้อมูลงาน', icon: '📋' },
@@ -202,10 +201,11 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [customerName, setCustomerName] = useState('');
   const [mainPackage, setMainPackage] = useState('');
 
-  // Device fields — SN from tech bag only
+  // Device fields — SN from tech bag only (SOA is free text)
   const [bagItems, setBagItems] = useState([]);
   const [bagLoading, setBagLoading] = useState(false);
   const [bagSelections, setBagSelections] = useState({ ...EMPTY_BAG_SELECTIONS });
+  const [soaDevice, setSoaDevice] = useState('');
   const [splitNo, setSplitNo] = useState('');
   const [portNo, setPortNo] = useState('');
   const [l3Name, setL3Name] = useState('');
@@ -251,6 +251,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     setImages([]);
     setRemark('');
     setBagSelections({ ...EMPTY_BAG_SELECTIONS });
+    setSoaDevice('');
     setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
     setEntryFeeStatus('none'); setEntryFeeSlip(null); setEntryFeeBackdate('');
     imagePreviews.forEach(url => URL.revokeObjectURL(url));
@@ -268,7 +269,15 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         const d = JSON.parse(raw);
         if (d && typeof d === 'object') {
           if (d.installDate) setInstallDate(d.installDate);
-          if (d.bagSelections) setBagSelections({ ...EMPTY_BAG_SELECTIONS, ...d.bagSelections });
+          if (d.bagSelections) {
+            const { SOA: _legacySoa, ...restBag } = d.bagSelections;
+            setBagSelections({ ...EMPTY_BAG_SELECTIONS, ...restBag });
+            // Migrate old draft that stored SOA as bag inventory id → ignore; prefer typed field
+            if (d.soaDevice == null && typeof _legacySoa === 'string' && _legacySoa && _legacySoa !== 'dash' && Number.isNaN(Number(_legacySoa))) {
+              setSoaDevice(_legacySoa);
+            }
+          }
+          if (d.soaDevice != null) setSoaDevice(d.soaDevice);
           if (d.splitNo != null) setSplitNo(d.splitNo);
           if (d.portNo != null) setPortNo(d.portNo);
           if (d.l3Name != null) setL3Name(d.l3Name);
@@ -338,6 +347,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           step,
           installDate,
           bagSelections,
+          soaDevice,
           splitNo,
           portNo,
           l3Name,
@@ -354,7 +364,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     }, DRAFT_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [
-    isOpen, job, step, installDate, bagSelections, splitNo, portNo, l3Name,
+    isOpen, job, step, installDate, bagSelections, soaDevice, splitNo, portNo, l3Name,
     cableLength, refId3bb, scBlue, remark, entryFeeStatus, entryFeeBackdate, selectedNoSnItems,
   ]);
 
@@ -371,6 +381,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     setInstallDate(new Date().toLocaleDateString('en-CA'));
     setRemark('');
     setBagSelections({ ...EMPTY_BAG_SELECTIONS });
+    setSoaDevice('');
     setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
     setEntryFeeStatus('none'); setEntryFeeBackdate('');
     setSelectedNoSnItems({});
@@ -393,6 +404,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
   const buildDeviceDetailsFromBag = () => {
     const parts = [];
+    if (String(soaDevice).trim()) {
+      parts.push(`SOA:${String(soaDevice).trim()}`);
+    }
     BAG_DEVICE_SLOTS.forEach(({ role }) => {
       const sel = bagSelections[role];
       if (!sel) return;
@@ -403,10 +417,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       }
       const item = bagItems.find((b) => String(b.id) === String(sel));
       if (!item) return;
-      const val = role === 'SOA'
-        ? `${item.product_name} ${item.model_name}`.trim()
-        : item.sn;
-      parts.push(`${prefix}:${val}`);
+      parts.push(`${prefix}:${item.sn}`);
     });
     return parts;
   };
@@ -416,7 +427,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     if (sel === 'dash') return '-';
     if (sel) {
       const item = bagItems.find((b) => String(b.id) === String(sel));
-      if (item) return role === 'SOA' ? `${item.product_name} ${item.model_name}`.trim() : item.sn;
+      if (item) return item.sn;
     }
     return '-';
   };
@@ -536,6 +547,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('installDevice', deviceDetails);
       formData.append('usedInventory', JSON.stringify(usedInventory));
       formData.append('noSnItems', JSON.stringify(noSnPayload));
+      formData.append('soaDevice', soaDevice);
       formData.append('splitNo', splitNo);
       formData.append('portNo', portNo);
       formData.append('l3Name', l3Name);
@@ -569,7 +581,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         `แพ็กเกจ: ${mainPackage || '-'}`,
         `Order No: ${job.order_no || '-'}`,
         `SOA: -`,
-        `อุปกรณ์ปิด SOA: ${getDeviceVal('SOA')}`,
+        `อุปกรณ์ปิด SOA: ${String(soaDevice).trim() || '-'}`,
         `Splitt: ${splitNo || '-'}`,
         `ใช้ Port: ${portNo || '-'}`,
         `ระยะสายจริง(M): ${cableLength || '-'}`,
@@ -725,6 +737,16 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                     ไม่มีอุปกรณ์ SN ในกระเป๋า — กรุณาเบิกอุปกรณ์ก่อนจบงาน
                   </p>
                 ) : null}
+                <div>
+                  <label className="block text-xs font-semibold text-[#042C53] mb-1">อุปกรณ์ปิด SOA</label>
+                  <input
+                    type="text"
+                    value={soaDevice}
+                    onChange={(e) => setSoaDevice(e.target.value)}
+                    placeholder="พิมพ์ชื่อ/รุ่นอุปกรณ์ปิด SOA"
+                    className={inputCls}
+                  />
+                </div>
                 {BAG_DEVICE_SLOTS.map(({ role, label, dashOption }) => (
                   <BagDeviceSelect
                     key={role}
@@ -957,6 +979,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               <div className="p-4 bg-white/40 rounded-2xl border border-white/50">
                 <h3 className="text-sm font-bold text-[#185FA5] mb-3">📦 อุปกรณ์ที่ใช้ ({selectedDeviceCount} ชิ้น SN)</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <InfoRow label="อุปกรณ์ปิด SOA" value={String(soaDevice).trim() || '-'} />
                   {BAG_DEVICE_SLOTS.map(({ role, label }) => (
                     <InfoRow key={role} label={label} value={getDeviceVal(role)} />
                   ))}

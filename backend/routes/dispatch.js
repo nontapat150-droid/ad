@@ -971,6 +971,7 @@ router.put(
       }
 
       const manualParts = [
+        req.body.soaDevice ? `SOA:${req.body.soaDevice}` : null,
         req.body.splitNo ? `Sp:${req.body.splitNo}` : null,
         req.body.portNo ? `Pt:${req.body.portNo}` : null,
         req.body.l3Name ? `L3:${req.body.l3Name}` : null,
