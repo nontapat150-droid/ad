@@ -200,6 +200,7 @@ function Field({ label, required, children }) {
 function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName }) {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [step, setStep] = useState(1);
   const [nearby, setNearby] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [pendingFiles, setPendingFiles] = useState([]);
@@ -209,9 +210,15 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
   const locked = job?.status === 'handed_off';
 
   const totalPhotos = photos.length + pendingFiles.length;
+  const stepMeta = [
+    { id: 1, label: 'ข้อมูลลูกค้า' },
+    { id: 2, label: 'หน้างาน/พิกัด' },
+    { id: 3, label: 'รูปภาพ/บันทึก' },
+  ];
 
   useEffect(() => {
     if (!open) return;
+    setStep(1);
     let cancelled = false;
 
     const load = async () => {
@@ -320,6 +327,48 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const validateStep = (targetStep) => {
+    if (targetStep === 1) {
+      if (!form.customer_name.trim()) {
+        return form.customer_type === 'corporate'
+          ? 'กรุณากรอกชื่อบริษัท/หน่วยงาน'
+          : 'กรุณากรอกชื่อ-นามสกุลลูกค้า';
+      }
+      if (!form.id_card.trim()) {
+        return form.customer_type === 'corporate'
+          ? 'กรุณากรอกเลขผู้เสียภาษี'
+          : 'กรุณากรอกเลขบัตรประชาชน';
+      }
+      if (!form.phone.trim()) return 'กรุณากรอกเบอร์ติดต่อ';
+      if (!form.occupation.trim()) return form.customer_type === 'corporate' ? 'กรุณากรอกผู้ติดต่อ' : 'กรุณากรอกอาชีพ';
+      if (!form.address.trim()) return 'กรุณากรอกที่อยู่ติดตั้ง';
+      if (!form.package_name.trim()) return 'กรุณากรอกแพ็กเกจ';
+      if (!form.contract_info.trim()) return 'กรุณากรอกสัญญา';
+      if (!form.install_date && !form.install_date_text.trim()) return 'กรุณาระบุขอวันติดตั้ง หรือ เลข NON';
+      return null;
+    }
+    if (targetStep === 2) {
+      if (form.lat == null || form.lng == null) return 'กรุณาปักพิกัดบ้านลูกค้า';
+      if (form.estimated_cable_m === '' || form.estimated_cable_m == null) return 'กรุณากรอกระยะสายประมาณ';
+      return null;
+    }
+    if (targetStep === 3) {
+      if (totalPhotos < MIN_PHOTOS) return `ต้องมีรูปอย่างน้อย ${MIN_PHOTOS} รูป`;
+      if (totalPhotos > MAX_PHOTOS) return `รูปได้ไม่เกิน ${MAX_PHOTOS} รูป`;
+      return null;
+    }
+    return null;
+  };
+
+  const handleNextStep = () => {
+    const errMsg = validateStep(step);
+    if (errMsg) {
+      Swal.fire({ icon: 'warning', title: errMsg });
+      return;
+    }
+    setStep((prev) => Math.min(3, prev + 1));
+  };
+
   const selectSplitter = (id) => {
     const sp = nearby.find((s) => Number(s.id) === Number(id));
     if (!sp) {
@@ -388,26 +437,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
   };
 
   const validateClient = () => {
-    if (!form.customer_name.trim()) {
-      return form.customer_type === 'corporate'
-        ? 'กรุณากรอกชื่อบริษัท/หน่วยงาน'
-        : 'กรุณากรอกชื่อ-นามสกุลลูกค้า';
+    for (const stepNo of [1, 2, 3]) {
+      const err = validateStep(stepNo);
+      if (err) return err;
     }
-    if (!form.id_card.trim()) {
-      return form.customer_type === 'corporate'
-        ? 'กรุณากรอกเลขผู้เสียภาษี'
-        : 'กรุณากรอกเลขบัตรประชาชน';
-    }
-    if (!form.address.trim()) return 'กรุณากรอกที่อยู่ติดตั้ง';
-    if (!form.phone.trim()) return 'กรุณากรอกเบอร์ติดต่อ';
-    if (!form.package_name.trim()) return 'กรุณากรอกแพ็กเกจ';
-    if (!form.contract_info.trim()) return 'กรุณากรอกสัญญา';
-    if (!form.occupation.trim()) return form.customer_type === 'corporate' ? 'กรุณากรอกผู้ติดต่อ' : 'กรุณากรอกอาชีพ';
-    if (!form.install_date && !form.install_date_text.trim()) return 'กรุณาระบุขอวันติดตั้ง';
-    if (form.lat == null || form.lng == null) return 'กรุณาปักพิกัดบ้านลูกค้า';
-    if (form.estimated_cable_m === '' || form.estimated_cable_m == null) return 'กรุณากรอกระยะสายประมาณ';
-    if (totalPhotos < MIN_PHOTOS) return `ต้องมีรูปอย่างน้อย ${MIN_PHOTOS} รูป`;
-    if (totalPhotos > MAX_PHOTOS) return `รูปได้ไม่เกิน ${MAX_PHOTOS} รูป`;
     return null;
   };
 
@@ -483,7 +516,27 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              {stepMeta.map((s) => (
+                <div
+                  key={s.id}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black border ${
+                    step === s.id
+                      ? 'bg-[#A3E635] border-[#84cc16] text-[#1F2937]'
+                      : step > s.id
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'bg-white border-[#E5E7EB] text-[#6B7280]'
+                  }`}
+                >
+                  {s.id}. {s.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {step === 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="ประเภทลูกค้า" required>
               <select
                 disabled={locked}
@@ -534,12 +587,17 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             <Field label="ขอวันติดตั้ง (วันที่)">
               <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="ขอวันติดตั้ง (ข้อความ)" required={!form.install_date}>
-              <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น เสาร์หน้าช่วงเช้า" />
+            <Field label="เลข NON" required={!form.install_date}>
+              <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
             </Field>
             <Field label="พนักงานขาย">
               <input disabled value={job?.owner_name || salesName || '-'} className={`${inputCls} bg-[#F3F4F6]`} />
             </Field>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <Field label="หมายเหตุการขาย">
                 <textarea disabled={locked} value={form.sales_note} onChange={(e) => setField('sales_note', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
@@ -567,8 +625,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                 </Field>
               </div>
             )}
-          </div>
+            </div>
+          )}
 
+          {step === 2 && (
           <div>
             <p className={`${labelCls} mb-2`}>พิกัดบ้าน + Splitter</p>
             <ExpansionMapPicker
@@ -591,7 +651,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
               </p>
             )}
           </div>
+          )}
 
+          {step === 3 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className={labelCls}>
@@ -642,6 +704,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
               ))}
             </div>
           </div>
+          )}
 
           {isAdmin && job?.owner_name && (
             <p className="text-xs text-[#9CA3AF]">เจ้าของงาน: {job.owner_name}</p>
@@ -653,15 +716,37 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             ปิด
           </button>
           {!locked && (
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleSave}
-              className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937] disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
-            >
-              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </button>
+            <>
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+                  className="flex-1 py-3 rounded-xl bg-white border border-[#E5E7EB] font-bold text-[#374151] text-sm"
+                >
+                  ย้อนกลับ
+                </button>
+              )}
+              {step < 3 ? (
+                <button
+                  type="button"
+                  onClick={handleNextStep}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937]"
+                  style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+                >
+                  ถัดไป
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSave}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937] disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+                >
+                  {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

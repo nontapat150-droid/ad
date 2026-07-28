@@ -185,7 +185,7 @@ function validateSalesRequired(body, { photoCount = null, requirePhotos = true }
   if (!trimOrNull(body.contract_info)) errors.push('กรุณากรอกสัญญา');
   if (!trimOrNull(body.occupation)) errors.push('กรุณากรอกอาชีพ/ผู้ติดต่อ');
   if (!trimOrNull(body.install_date) && !trimOrNull(body.install_date_text)) {
-    errors.push('กรุณาระบุขอวันติดตั้ง (วันที่หรือข้อความ)');
+    errors.push('กรุณาระบุขอวันติดตั้ง (วันที่หรือเลข NON)');
   }
   if (parseCoord(body.lat) == null || parseCoord(body.lng) == null) {
     errors.push('กรุณาปักพิกัดบ้านลูกค้า');
