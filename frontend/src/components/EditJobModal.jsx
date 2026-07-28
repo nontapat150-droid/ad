@@ -234,34 +234,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
         payload.job_time = formData.plan_arrival_time || null;
       }
 
-      if (isCompleted) {
-        payload.edit_completion = true;
-        payload.completed_by = formData.completed_by || assigneeId || null;
-        if (isMa) {
-          payload.srt = formData.srt;
-          payload.spt = formData.spt;
-          payload.fail_cause = formData.fail_cause;
-          payload.fix_method = formData.fix_method;
-          payload.old_sn = formData.old_sn;
-          payload.new_sn = formData.new_sn;
-          payload.cable_used = formData.cable_used;
-          payload.used_equipment = formData.used_equipment;
-        } else {
-          payload.soa_device = formData.soa_device;
-          payload.sn_onu = formData.sn_onu;
-          payload.sn_playbox = formData.sn_playbox;
-          payload.sn_mesh = formData.sn_mesh;
-          payload.sn_sim = formData.sn_sim;
-          payload.sn_ip_camera = formData.sn_ip_camera;
-          payload.split_no = formData.split_no;
-          payload.port_no = formData.port_no;
-          payload.l3_name = formData.l3_name;
-          payload.cable_length = formData.cable_length;
-          payload.ref_id_3bb = formData.ref_id_3bb;
-          payload.sc_blue = formData.sc_blue;
-        }
-      }
-
       await api.put(`/dispatch/jobs/${job.id}`, payload);
       onSuccess();
       onClose();
@@ -285,9 +257,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
             <h2 className="text-[#042C53] font-bold text-lg">
               แก้ไขข้อมูลงาน{isMa ? ' MA' : ''} {isMa ? (job.non_number || job.display_non || job.access_no) : job.access_no}
             </h2>
-            {isCompleted && (
-              <p className="text-xs font-bold text-emerald-700 mt-0.5">✅ งานจบแล้ว — แก้ได้ทั้งข้อมูลงานและผลติดตั้ง</p>
-            )}
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full glass border border-white/50 flex items-center justify-center text-[#042C53] hover:bg-white/50 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -435,57 +404,6 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
               <p className="text-xs text-[#6B7280] font-medium px-1">งานจะถูกล้างทีม/ผู้รับผิดชอบออก สามารถมอบหมายใหม่ภายหลังได้</p>
             )}
           </div>
-
-          {isCompleted && (
-            <div className="pt-2 border-t border-emerald-200/60 space-y-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-emerald-700">📦 ข้อมูลหลังจบงาน</h3>
-              </div>
-              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                แก้ข้อความผลติดตั้งได้ทั้งหมด — การเปลี่ยน SN ไม่สลับของในกระเป๋า หากต้องเปลี่ยนชิ้นจริงให้ใช้ «ยกเลิกจบ» แล้วจบงานใหม่
-              </p>
-
-              <AppSelectField
-                label="ผู้จบงาน (แสดงในประวัติ)"
-                value={String(formData.completed_by || '')}
-                onChange={(v) => setVal('completed_by', v)}
-                options={techs.map((t) => ({ value: String(t.id), label: t.full_name }))}
-                placeholder="เลือกผู้จบงาน"
-                searchable
-              />
-
-              {isMa ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <TextInput label="SRT" value={formData.srt} onChange={set('srt')} />
-                  <TextInput label="SPT" value={formData.spt} onChange={set('spt')} />
-                  <TextInput label="สาเหตุเสีย" value={formData.fail_cause} onChange={set('fail_cause')} />
-                  <TextInput label="วิธีแก้ไข" value={formData.fix_method} onChange={set('fix_method')} />
-                  <TextInput label="SN เก่า" value={formData.old_sn} onChange={set('old_sn')} />
-                  <TextInput label="SN ใหม่" value={formData.new_sn} onChange={set('new_sn')} />
-                  <TextInput label="สายที่ใช้" value={formData.cable_used} onChange={set('cable_used')} />
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-semibold text-[#042C53] mb-1">อุปกรณ์ที่ใช้</label>
-                    <textarea className={`${inputCls} resize-none h-20`} value={formData.used_equipment} onChange={set('used_equipment')} />
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <TextInput label="อุปกรณ์ปิด SOA" value={formData.soa_device} onChange={set('soa_device')} />
-                  <TextInput label="SN ONU" value={formData.sn_onu} onChange={set('sn_onu')} />
-                  <TextInput label="SN Playbox" value={formData.sn_playbox} onChange={set('sn_playbox')} />
-                  <TextInput label="SN Mesh" value={formData.sn_mesh} onChange={set('sn_mesh')} />
-                  <TextInput label="SN Sim" value={formData.sn_sim} onChange={set('sn_sim')} />
-                  <TextInput label="SN IP Camera" value={formData.sn_ip_camera} onChange={set('sn_ip_camera')} />
-                  <TextInput label="Splitt" value={formData.split_no} onChange={set('split_no')} />
-                  <TextInput label="ใช้ Port" value={formData.port_no} onChange={set('port_no')} />
-                  <TextInput label="#L3 (ชื่อ)" value={formData.l3_name} onChange={set('l3_name')} />
-                  <TextInput label="ระยะสายจริง (M)" value={formData.cable_length} onChange={set('cable_length')} />
-                  <TextInput label="Ref ID 3BB" value={formData.ref_id_3bb} onChange={set('ref_id_3bb')} />
-                  <TextInput label="ตัวต่อ sc สีฟ้า" value={formData.sc_blue} onChange={set('sc_blue')} />
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="mt-4 pt-4 border-t border-white/30 flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl border border-[#378ADD]/30 text-[#042C53] font-semibold hover:bg-white/50 transition-colors">

@@ -27,6 +27,7 @@ import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from 
 import { thaiTime, extractHHMM, calendarDateKey, thaiJobDayMonth } from '../utils/thaiDate';
 import { AdminContactButton } from '../components/dashboards/SharedComponents';
 import { useBranding } from '../context/BrandingContext';
+import { saveOfficeCompleteDraftFromDetails, saveMaCompleteDraftFromDetails } from '../utils/completeDraft';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
@@ -555,7 +556,11 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                   {details.used_devices.map((d, i) => (
                     <div key={i} className="text-xs text-[#374151] flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span>{d.product_name} {d.model_name || ''} {d.sn && d.sn !== '-' ? `(SN: ${d.sn})` : ''} ×{d.quantity}</span>
+                      <span>
+                        {d.product_name} {d.model_name || ''}{' '}
+                        {d.sn && d.sn !== '-' ? `(SN: ${d.sn})` : ''}
+                        {' '}×{d.quantity}{d.device_role === 'NoSN' ? ` ${d.unit || 'ชิ้น'}` : ''}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -923,7 +928,40 @@ export default function DispatchDashboardPage() {
   };
   const handleClearDispatch = () => requestConfirm('ล้างจ่ายงาน', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-dispatch', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
   const handleClearQueue = () => requestConfirm('ล้างคิว', 'ยืนยัน?', async () => { try { await axios.put('/dispatch/jobs/clear-queue', {}); fetchJobs(); showNotification('ล้างสำเร็จ'); } catch(e) { showNotification('ผิดพลาด', 'error'); } }, false);
-  const handleCancelCompletion = (job) => requestConfirm('ยกเลิกจบงาน', `ยกเลิก ${job.access_no}?`, async () => { try { await axios.put(`/dispatch/jobs/${job.id}/cancel-completion`); fetchJobs(); showNotification('ยกเลิกสำเร็จ'); } catch(e) { showNotification(e.response?.data?.error || 'ผิดพลาด', 'error'); } }, true);
+  const handleCancelCompletion = (job) => requestConfirm(
+    'ยกเลิกจบงาน',
+    `ยกเลิก ${job.access_no || job.non_number || ''}?\nระบบจะบันทึกฉบับร่างไว้เพื่อจบงานใหม่ได้`,
+    async () => {
+      try {
+        const type = mainTab === 'ma' ? 'ma' : 'office';
+        let draftSaved = false;
+        try {
+          const res = await axios.get(`/dispatch/jobs/${job.id}/details?type=${type}`);
+          const details = res.data || {};
+          draftSaved = type === 'ma'
+            ? saveMaCompleteDraftFromDetails(job.id, details)
+            : saveOfficeCompleteDraftFromDetails(job.id, details);
+        } catch {
+          /* draft is best-effort — still cancel */
+        }
+
+        if (type === 'ma') {
+          await axios.put(`/dispatch/ma-jobs/${job.id}/cancel-completion`);
+        } else {
+          await axios.put(`/dispatch/jobs/${job.id}/cancel-completion`);
+        }
+        fetchJobs();
+        showNotification(
+          draftSaved
+            ? 'ยกเลิกสำเร็จ — บันทึกฉบับร่างแล้ว กดจบงานใหม่ได้เลย'
+            : 'ยกเลิกสำเร็จ'
+        );
+      } catch (e) {
+        showNotification(e.response?.data?.error || 'ผิดพลาด', 'error');
+      }
+    },
+    true
+  );
   const handleChangeCompletedTeam = async (job) => { try { const r = await axios.get('/users/teams'); const opts = {}; r.data.forEach(t => { opts[t.id] = `${t.team_name}${t.leader_name ? ` · หัวหน้า ${t.leader_name}` : ''}`; }); const { value: nid } = await Swal.fire({ title: 'เปลี่ยนทีม', text: `ปัจจุบัน: ${job.team_name || '-'}`, input: 'select', inputOptions: opts, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#185FA5', inputValidator: v => { if (!v) return 'เลือกทีม'; if (v == job.team_id) return 'เหมือนเดิม'; } }); if (nid) { await axios.put(`/dispatch/jobs/${job.id}/change-completed-team`, { new_team_id: nid }); fetchJobs(); showNotification('เปลี่ยนทีมสำเร็จ'); } } catch(e) {} };
   const handleReorderByLocation = () => { if (!navigator.geolocation) return showNotification('ไม่รองรับ GPS', 'error'); setIsReordering(true); navigator.geolocation.getCurrentPosition(async (pos) => { try { const r = await axios.put('/dispatch/jobs/reorder-by-location', { lat: pos.coords.latitude, lng: pos.coords.longitude, type: mainTab }); showNotification(`เรียงสำเร็จ ${r.data.updated} งาน`); fetchJobs(); } catch(e) { showNotification('ผิดพลาด', 'error'); } finally { setIsReordering(false); } }, () => { setIsReordering(false); showNotification('ไม่สามารถระบุตำแหน่ง', 'error'); }, { enableHighAccuracy: true, timeout: 10000 }); };
 
@@ -1309,7 +1347,15 @@ export default function DispatchDashboardPage() {
           isAdmin={isAdmin}
           mainTab={mainTab}
           onClose={() => setDetailJob(null)}
-          onEdit={(job) => { setDetailJob(null); setSelectedJob(job); }}
+          onEdit={(job) => {
+            setDetailJob(null);
+            if (job.status === 'completed') {
+              setActionJob(job);
+              setActionType('edit-complete');
+            } else {
+              setSelectedJob(job);
+            }
+          }}
           onComplete={(job) => { setActionJob(job); setActionType('complete'); }}
           onIncomplete={(job) => { setActionJob(job); setActionType('incomplete'); }}
           onPostpone={(job) => { setActionJob(job); setActionType('postpone'); }}
@@ -1359,9 +1405,21 @@ export default function DispatchDashboardPage() {
       />
       {selectedJob && <EditJobModal job={selectedJob} isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} onSuccess={handleActionComplete} type={mainTab} />}
       {mainTab === 'ma' ? (
-        <CompleteMaJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+        <CompleteMaJobModal
+          job={actionJob}
+          isOpen={actionType === 'complete' || actionType === 'edit-complete'}
+          editMode={actionType === 'edit-complete'}
+          onClose={() => { setActionJob(null); setActionType(null); }}
+          onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+        />
       ) : (
-        <CompleteJobModal job={actionJob} isOpen={actionType==='complete'} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
+        <CompleteJobModal
+          job={actionJob}
+          isOpen={actionType === 'complete' || actionType === 'edit-complete'}
+          editMode={actionType === 'edit-complete'}
+          onClose={() => { setActionJob(null); setActionType(null); }}
+          onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }}
+        />
       )}
       <IncompleteJobModal job={actionJob} isOpen={actionType==='incomplete'} jobType={mainTab} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />
       <PostponeJobModal job={actionJob} isOpen={actionType==='postpone'} jobType={mainTab} onClose={() => { setActionJob(null); setActionType(null); }} onSuccess={() => { handleActionComplete(); setActionJob(null); setActionType(null); }} />

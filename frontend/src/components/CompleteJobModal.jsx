@@ -72,6 +72,95 @@ function fmtThaiDate(d) {
   }
 }
 
+function parseInstallDeviceFields(str) {
+  if (!str) return {};
+  const map = {
+    SOA: 'soa_device', ONU: 'sn_onu', PB: 'sn_playbox', Mesh: 'sn_mesh',
+    SIM: 'sn_sim', Cam: 'sn_ip_camera', Sp: 'split_no', Pt: 'port_no',
+    L3: 'l3_name', 'สาย': 'cable_length', '3BB': 'ref_id_3bb', 'SCฟ้า': 'sc_blue',
+  };
+  const out = {};
+  for (const part of String(str).split(/[\n|]/)) {
+    const line = part.trim();
+    if (!line) continue;
+    const ci = line.indexOf(':');
+    if (ci === -1) continue;
+    const key = line.slice(0, ci).trim();
+    let val = line.slice(ci + 1).trim();
+    const field = map[key];
+    if (!field) continue;
+    if (field === 'cable_length') val = val.replace(/M$/i, '');
+    out[field] = val;
+  }
+  return out;
+}
+
+function resolveEvidenceUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  if (String(path).startsWith('/')) return path;
+  return `/uploads/job_evidence/${path}`;
+}
+
+/** Merge previously used job devices back into bag lists for re-selection in editMode. */
+function mergeUsedDevicesIntoBag(snItems, noSnItems, usedDevices) {
+  const sn = snItems.map((i) => ({ ...i }));
+  const noSn = noSnItems.map((i) => ({ ...i }));
+  const bagSelections = { ...EMPTY_BAG_SELECTIONS };
+  const selectedNoSn = {};
+
+  for (const d of usedDevices || []) {
+    const id = d.inventory_item_id;
+    if (!id) continue;
+    const qty = Number(d.quantity) || 1;
+
+    if (d.device_role === 'NoSN') {
+      const idx = noSn.findIndex((i) => String(i.id) === String(id));
+      if (idx >= 0) {
+        noSn[idx] = {
+          ...noSn[idx],
+          quantity: Number(noSn[idx].quantity || 0) + qty,
+        };
+        selectedNoSn[id] = {
+          ...noSn[idx],
+          useQty: qty,
+        };
+      } else {
+        const item = {
+          id,
+          product_name: d.product_name,
+          model_name: d.model_name || '',
+          quantity: qty,
+          has_sn: 0,
+          unit: d.unit || 'ชิ้น',
+        };
+        noSn.push(item);
+        selectedNoSn[id] = { ...item, useQty: qty };
+      }
+      continue;
+    }
+
+    if (BAG_DEVICE_SLOTS.some((s) => s.role === d.device_role)) {
+      if (!sn.some((i) => String(i.id) === String(id))) {
+        sn.push({
+          id,
+          sn: d.sn,
+          product_name: d.product_name,
+          model_name: d.model_name || '',
+          quantity: 1,
+          has_sn: 1,
+          unit: d.unit || 'ชิ้น',
+        });
+      }
+      if (d.sn && d.sn !== '-') {
+        bagSelections[d.device_role] = String(id);
+      }
+    }
+  }
+
+  return { sn, noSn, bagSelections, selectedNoSn };
+}
+
 function BagDeviceSelect({ role, label, value, onChange, bagItems, usedElsewhere, dashOption }) {
   const available = bagItems.filter(
     (item) => String(item.id) === String(value) || !usedElsewhere.has(item.id)
@@ -186,7 +275,7 @@ function InfoRow({ label, value }) {
   );
 }
 
-export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
+export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = false }) {
   const { user } = useAuth();
   const isAdmin = (user?.roles || [user?.role || '']).some((r) => ['super_admin', 'admin'].includes(r));
   const [step, setStep] = useState(0);
@@ -227,6 +316,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
   const [imagePreviews, setImagePreviews] = useState([]);
   const [entryFeeSlipPreview, setEntryFeeSlipPreview] = useState(null);
+  const [existingImages, setExistingImages] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [showSummaryPopup, setShowSummaryPopup] = useState(false);
@@ -246,114 +336,162 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     hydratedRef.current = false;
     setStep(0);
     setErrors({});
-    setInstallDate(new Date().toLocaleDateString('en-CA'));
+    setInstallDate(
+      editMode && job.plan_arrival_date
+        ? String(job.plan_arrival_date).split('T')[0]
+        : new Date().toLocaleDateString('en-CA')
+    );
     setAccessNo(job.access_no || '');
     setCustomerName(job.customer || '');
     setMainPackage(job.package || '');
     setOrderNo(job.order_no || '');
     setImages([]);
-    setRemark('');
+    setRemark(job.remark || '');
     setBagSelections({ ...EMPTY_BAG_SELECTIONS });
     setSoaDevice('');
     setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
     setEntryFeeStatus('none'); setEntryFeeSlip(null); setEntryFeeBackdate('');
-    imagePreviews.forEach(url => URL.revokeObjectURL(url));
+    imagePreviews.forEach((url) => { if (String(url).startsWith('blob:')) URL.revokeObjectURL(url); });
     if (entryFeeSlipPreview) URL.revokeObjectURL(entryFeeSlipPreview);
     setImagePreviews([]);
     setEntryFeeSlipPreview(null);
+    setExistingImages([]);
     setSelectedNoSnItems({});
     setShowNoSnModal(false);
     setDraftRestored(false);
 
-    // Restore draft (photos/slip files are never stored in the draft)
-    try {
-      const raw = localStorage.getItem(draftKeyFor(job.id));
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (d && typeof d === 'object') {
-          if (d.installDate) setInstallDate(d.installDate);
-          if (d.bagSelections) {
-            const { SOA: _legacySoa, ...restBag } = d.bagSelections;
-            setBagSelections({ ...EMPTY_BAG_SELECTIONS, ...restBag });
-            // Migrate old draft that stored SOA as bag inventory id → ignore; prefer typed field
-            if (d.soaDevice == null && typeof _legacySoa === 'string' && _legacySoa && _legacySoa !== 'dash' && Number.isNaN(Number(_legacySoa))) {
-              setSoaDevice(_legacySoa);
+    // Restore draft only for fresh complete (not edit completed job)
+    if (!editMode) {
+      try {
+        const raw = localStorage.getItem(draftKeyFor(job.id));
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d && typeof d === 'object') {
+            if (d.installDate) setInstallDate(d.installDate);
+            if (d.bagSelections) {
+              const { SOA: _legacySoa, ...restBag } = d.bagSelections;
+              setBagSelections({ ...EMPTY_BAG_SELECTIONS, ...restBag });
+              if (d.soaDevice == null && typeof _legacySoa === 'string' && _legacySoa && _legacySoa !== 'dash' && Number.isNaN(Number(_legacySoa))) {
+                setSoaDevice(_legacySoa);
+              }
             }
+            if (d.soaDevice != null) setSoaDevice(d.soaDevice);
+            if (d.orderNo != null) setOrderNo(d.orderNo);
+            if (d.splitNo != null) setSplitNo(d.splitNo);
+            if (d.portNo != null) setPortNo(d.portNo);
+            if (d.l3Name != null) setL3Name(d.l3Name);
+            if (d.cableLength != null) setCableLength(d.cableLength);
+            if (d.refId3bb != null) setRefId3bb(d.refId3bb);
+            if (d.scBlue != null) setScBlue(d.scBlue);
+            if (d.remark != null) setRemark(d.remark);
+            if (d.entryFeeStatus) setEntryFeeStatus(d.entryFeeStatus);
+            if (d.entryFeeBackdate != null) setEntryFeeBackdate(d.entryFeeBackdate);
+            if (d.selectedNoSnItems && typeof d.selectedNoSnItems === 'object') {
+              setSelectedNoSnItems(d.selectedNoSnItems);
+            }
+            if (typeof d.step === 'number') setStep(Math.min(Math.max(d.step, 0), 3));
+            setDraftRestored(true);
           }
-          if (d.soaDevice != null) setSoaDevice(d.soaDevice);
-          if (d.orderNo != null) setOrderNo(d.orderNo);
-          if (d.splitNo != null) setSplitNo(d.splitNo);
-          if (d.portNo != null) setPortNo(d.portNo);
-          if (d.l3Name != null) setL3Name(d.l3Name);
-          if (d.cableLength != null) setCableLength(d.cableLength);
-          if (d.refId3bb != null) setRefId3bb(d.refId3bb);
-          if (d.scBlue != null) setScBlue(d.scBlue);
-          if (d.remark != null) setRemark(d.remark);
-          if (d.entryFeeStatus) setEntryFeeStatus(d.entryFeeStatus);
-          if (d.entryFeeBackdate != null) setEntryFeeBackdate(d.entryFeeBackdate);
-          if (d.selectedNoSnItems && typeof d.selectedNoSnItems === 'object') {
-            setSelectedNoSnItems(d.selectedNoSnItems);
-          }
-          // Photos can't be restored, so never resume past the photos step
-          if (typeof d.step === 'number') setStep(Math.min(Math.max(d.step, 0), 3));
-          setDraftRestored(true);
         }
-      }
-    } catch { /* corrupt draft — ignore */ }
+      } catch { /* corrupt draft — ignore */ }
+    }
+
     hydratedRef.current = true;
 
-    // Load tech / team bag + auto-lock frequent no-SN from system settings
+    // Load tech / team bag (+ used devices when editing completed job)
     setBagLoading(true);
     const bagUrl = buildCompleteBagUrl(job, { isAdmin });
+    const detailsPromise = editMode
+      ? api.get(`/dispatch/jobs/${job.id}/details?type=office`).catch(() => ({ data: null }))
+      : Promise.resolve({ data: null });
+
     Promise.all([
       api.get(bagUrl),
       api.get('/settings/frequent-no-sn').catch(() => ({ data: { product_ids: [], roles: [] } })),
       resolveRolesForComplete({ api, user, job, isAdmin }),
+      detailsPromise,
     ])
-      .then(([res, cfgRes, roleList]) => {
+      .then(([res, cfgRes, roleList, detailsRes]) => {
         const all = Array.isArray(res.data) ? res.data : [];
-        const snItems = all.filter(isSnBagItem);
-        const noSn = all.filter((item) => !isSnBagItem(item));
+        let snItems = all.filter(isSnBagItem);
+        let noSn = all.filter((item) => !isSnBagItem(item));
+        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
+        const details = detailsRes?.data;
+
+        if (editMode && details) {
+          const parsed = parseInstallDeviceFields(details.install_device || job.install_device);
+          if (parsed.soa_device) setSoaDevice(parsed.soa_device);
+          if (parsed.split_no) setSplitNo(parsed.split_no);
+          if (parsed.port_no) setPortNo(parsed.port_no);
+          if (parsed.l3_name) setL3Name(parsed.l3_name);
+          if (parsed.cable_length) setCableLength(parsed.cable_length);
+          if (parsed.ref_id_3bb) setRefId3bb(parsed.ref_id_3bb);
+          if (parsed.sc_blue) setScBlue(parsed.sc_blue);
+          if (details.order_no) setOrderNo(details.order_no);
+          if (details.access_no) setAccessNo(details.access_no);
+          if (details.customer) setCustomerName(details.customer);
+          if (details.package) setMainPackage(details.package);
+          if (details.remark) setRemark(details.remark);
+          if (details.plan_arrival_date) {
+            setInstallDate(String(details.plan_arrival_date).split('T')[0]);
+          }
+
+          const existing = Array.isArray(details.images) ? details.images : [];
+          setExistingImages(existing);
+          setImagePreviews(existing.map((img) => resolveEvidenceUrl(img.image_path || img)));
+
+          const merged = mergeUsedDevicesIntoBag(snItems, noSn, details.used_devices || []);
+          snItems = merged.sn;
+          noSn = merged.noSn;
+          setBagSelections(() => {
+            const next = { ...EMPTY_BAG_SELECTIONS, ...merged.bagSelections };
+            if (parsed.sn_onu === '-') next.ONU = 'dash';
+            return next;
+          });
+          // Keep previously used quantities as-is (do not force frequent no-SN qty=1 on edit)
+          setSelectedNoSnItems(merged.selectedNoSn);
+        }
+
         setBagItems(snItems);
         setNoSnItems(noSn);
-        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
 
-        // Prune draft selections that no longer exist in the bag
-        setBagSelections((prev) => {
-          const next = { ...prev };
-          let changed = false;
-          Object.keys(next).forEach((role) => {
-            const v = next[role];
-            if (v && v !== 'dash' && !snItems.some((i) => String(i.id) === String(v))) {
-              next[role] = '';
-              changed = true;
-            }
+        if (!editMode) {
+          setBagSelections((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            Object.keys(next).forEach((role) => {
+              const v = next[role];
+              if (v && v !== 'dash' && !snItems.some((i) => String(i.id) === String(v))) {
+                next[role] = '';
+                changed = true;
+              }
+            });
+            return changed ? next : prev;
           });
-          return changed ? next : prev;
-        });
-        setSelectedNoSnItems((prev) => {
-          const pruned = {};
-          Object.values(prev).forEach((it) => {
-            const live = noSn.find((n) => n.id === it.id);
-            if (live) {
-              pruned[it.id] = {
-                ...live,
-                useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
-                locked: !!it.locked,
-              };
-            }
+          setSelectedNoSnItems((prev) => {
+            const pruned = {};
+            Object.values(prev).forEach((it) => {
+              const live = noSn.find((n) => n.id === it.id);
+              if (live) {
+                pruned[it.id] = {
+                  ...live,
+                  useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
+                  locked: !!it.locked,
+                };
+              }
+            });
+            return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
           });
-          return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
-        });
+        }
       })
       .catch(() => { setBagItems([]); setNoSnItems([]); })
       .finally(() => setBagLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, job?.id]);
+  }, [isOpen, job?.id, editMode]);
 
-  // ── Debounced draft save (no File/blob data) ─────────────────────────────
+  // ── Debounced draft save (no File/blob data) — skip in editMode ──────────
   useEffect(() => {
-    if (!isOpen || !job || !hydratedRef.current) return;
+    if (!isOpen || !job || !hydratedRef.current || editMode) return;
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(draftKeyFor(job.id), JSON.stringify({
@@ -455,8 +593,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const handleImagesChange = (e) => {
     const files = Array.from(e.target.files);
     setImages(files);
-    imagePreviews.forEach(url => URL.revokeObjectURL(url));
-    setImagePreviews(files.map(f => URL.createObjectURL(f)));
+    imagePreviews.forEach((url) => { if (String(url).startsWith('blob:')) URL.revokeObjectURL(url); });
+    setImagePreviews(files.map((f) => URL.createObjectURL(f)));
+    setExistingImages([]);
     setErrors((prev) => (prev.images ? { ...prev, images: null } : prev));
   };
 
@@ -485,13 +624,20 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       if (!String(cableLength).trim()) errs.cableLength = 'กรุณากรอกระยะสายจริง (เมตร) หรือแตะตัวเลือกด้านบน';
     }
     if (stepIdx === 3) {
-      if (images.length === 0) errs.images = 'กรุณาอัปโหลดรูปหลักฐานอย่างน้อย 1 รูป (สูงสุด 40 รูป)';
-      else if (images.length > 40) errs.images = `เลือกไว้ ${images.length} รูป — อัปโหลดได้สูงสุด 40 รูป กรุณาเลือกใหม่`;
-      if ((entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && !entryFeeSlip) {
-        errs.entryFeeSlip = 'กรุณาแนบรูปสลิปค่าแรกเข้า';
+      const hasNewImages = images.length > 0;
+      const hasExisting = editMode && existingImages.length > 0;
+      if (!hasNewImages && !hasExisting) {
+        errs.images = 'กรุณาอัปโหลดรูปหลักฐานอย่างน้อย 1 รูป (สูงสุด 40 รูป)';
+      } else if (images.length > 40) {
+        errs.images = `เลือกไว้ ${images.length} รูป — อัปโหลดได้สูงสุด 40 รูป กรุณาเลือกใหม่`;
       }
-      if (entryFeeStatus === 'backdate' && !entryFeeBackdate) {
-        errs.entryFeeBackdate = 'กรุณาเลือกวันที่โอนย้อนหลัง';
+      if (!editMode || entryFeeStatus !== 'none') {
+        if ((entryFeeStatus === 'slip' || entryFeeStatus === 'backdate') && !entryFeeSlip) {
+          errs.entryFeeSlip = 'กรุณาแนบรูปสลิปค่าแรกเข้า';
+        }
+        if (entryFeeStatus === 'backdate' && !entryFeeBackdate) {
+          errs.entryFeeBackdate = 'กรุณาเลือกวันที่โอนย้อนหลัง';
+        }
       }
     }
     return errs;
@@ -579,6 +725,13 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         formData.append('entryFeeBackdate', entryFeeBackdate);
       }
 
+      if (editMode) {
+        formData.append('recomplete', 'true');
+        if (images.length === 0 && existingImages.length > 0) {
+          formData.append('keepExistingImages', 'true');
+        }
+      }
+
       for (let i = 0; i < images.length; i++) {
         formData.append('images', images[i]);
       }
@@ -614,7 +767,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       // onSuccess called after user closes popup
     } catch (err) {
       console.error(err);
-      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการจบงาน');
+      await showFriendlyError(err, editMode ? 'เกิดข้อผิดพลาดในการแก้ไขการจบงาน' : 'เกิดข้อผิดพลาดในการจบงาน');
     } finally {
       setLoading(false);
     }
@@ -635,7 +788,8 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         <div className="px-5 pt-4 bg-white/80 backdrop-blur-sm border-b border-white/60">
           <div className="flex items-center justify-between">
             <h2 className="text-[#042C53] font-bold text-lg flex items-center gap-2">
-              <span className="text-2xl">✅</span> จบงาน: {job.access_no}
+              <span className="text-2xl">{editMode ? '✏️' : '✅'}</span>
+              {editMode ? 'แก้ไขการจบงาน' : 'จบงาน'}: {job.access_no}
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -648,10 +802,10 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
 
         {/* Body */}
         <div className="p-5 overflow-y-auto flex-1">
-          {draftRestored && (
+          {draftRestored && !editMode && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 animate-fade-in">
               <p className="text-xs font-bold text-amber-700">
-                📝 พบแบบร่างที่บันทึกไว้ — ระบบกู้คืนข้อมูลให้แล้ว (รูปภาพต้องเลือกใหม่)
+                📝 พบแบบร่างที่บันทึกไว้ — ระบบกู้คืนข้อมูลให้แล้ว (รูปภาพ / สลิปค่าแรกเข้าต้องเลือกใหม่)
               </p>
               <button
                 type="button"
@@ -805,18 +959,39 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#042C53] mb-1">ปิดเคสงาน (NON)</label>
-                  <input type="text" readOnly value={accessNo}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
+                  <input
+                    type="text"
+                    readOnly={!editMode}
+                    value={accessNo}
+                    onChange={(e) => setAccessNo(e.target.value)}
+                    className={editMode
+                      ? inputCls
+                      : 'w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed'}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#042C53] mb-1">ชื่อ-นามสกุล ลูกค้า</label>
-                  <input type="text" readOnly value={customerName}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
+                  <input
+                    type="text"
+                    readOnly={!editMode}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className={editMode
+                      ? inputCls
+                      : 'w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed'}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#042C53] mb-1">แพ็กเกจหลัก</label>
-                  <input type="text" readOnly value={mainPackage}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
+                  <input
+                    type="text"
+                    readOnly={!editMode}
+                    value={mainPackage}
+                    onChange={(e) => setMainPackage(e.target.value)}
+                    className={editMode
+                      ? inputCls
+                      : 'w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed'}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-[#042C53] mb-1">Order No</label>
@@ -965,7 +1140,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               {/* Images and Remark */}
               <div className="grid grid-cols-1 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
                 <div>
-                  <label className="block text-sm font-semibold text-[#042C53] mb-1">รูปภาพหลักฐานปิดงาน <span className="text-red-500">*</span> (สูงสุด 40 รูป)</label>
+                  <label className="block text-sm font-semibold text-[#042C53] mb-1">
+                    รูปภาพหลักฐานปิดงาน {editMode && existingImages.length > 0 ? '(เดิมใช้ได้ — หรือเลือกใหม่)' : <><span className="text-red-500">*</span> (สูงสุด 40 รูป)</>}
+                  </label>
                   <div className="relative mt-2 group cursor-pointer">
                     <input type="file" multiple accept="image/*" onChange={handleImagesChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
@@ -1048,7 +1225,14 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               <div className="p-4 bg-white/40 rounded-2xl border border-white/50">
                 <h3 className="text-sm font-bold text-[#185FA5] mb-3">📸 รูป / ค่าแรกเข้า</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <InfoRow label="รูปหลักฐานปิดงาน" value={`${images.length} รูป`} />
+                  <InfoRow
+                    label="รูปหลักฐานปิดงาน"
+                    value={images.length > 0
+                      ? `${images.length} รูป (ใหม่)`
+                      : existingImages.length > 0
+                        ? `${existingImages.length} รูป (เดิม)`
+                        : '0 รูป'}
+                  />
                   <InfoRow label="ค่าแรกเข้า" value={entryFeeText} />
                   {remark && (
                     <div className="sm:col-span-2">
@@ -1071,7 +1255,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               </div>
 
               <p className="text-xs text-center text-slate-500">
-                ตรวจสอบข้อมูลครบถ้วนแล้ว กด "ยืนยันจบงาน" เพื่อบันทึก
+                ตรวจสอบข้อมูลครบถ้วนแล้ว กด "{editMode ? 'บันทึกการแก้ไข' : 'ยืนยันจบงาน'}" เพื่อบันทึก
               </p>
               {isAdmin && (job.field_engineer_id || job.assigned_user_id) && (
                 <p className="text-xs text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
@@ -1111,7 +1295,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           ) : (
             <button type="button" onClick={handleSubmit} disabled={loading}
               className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all flex justify-center items-center">
-              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : 'ยืนยันจบงาน'}
+              {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : (editMode ? 'บันทึกการแก้ไข' : 'ยืนยันจบงาน')}
             </button>
           )}
         </div>

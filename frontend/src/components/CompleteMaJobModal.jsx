@@ -38,7 +38,7 @@ function clearDraft(jobId) {
   } catch { /* ignore */ }
 }
 
-export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) {
+export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess, editMode = false }) {
   const { user } = useAuth();
   const isAdmin = (user?.roles || [user?.role || '']).some(r => ['super_admin', 'admin'].includes(r));
   const [step, setStep] = useState(1);
@@ -52,6 +52,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
   const [remark, setRemark] = useState('');
   const [images, setImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [snBagItems, setSnBagItems] = useState([]);
   const [selectedSnIds, setSelectedSnIds] = useState([]);
   const [snSearch, setSnSearch] = useState('');
@@ -87,13 +88,13 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
 
   // Debounced auto-save
   useEffect(() => {
-    if (!isOpen || !job?.id) return;
+    if (!isOpen || !job?.id || editMode) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(persistDraft, 600);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [isOpen, job?.id, persistDraft]);
+  }, [isOpen, job?.id, persistDraft, editMode]);
 
   useEffect(() => {
     if (!isOpen || !job) return;
@@ -101,12 +102,13 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
     setFieldHints([]);
     setDraftRestored(false);
     setImages([]);
-    imagePreviews.forEach((u) => URL.revokeObjectURL(u));
+    imagePreviews.forEach((u) => { if (String(u).startsWith('blob:')) URL.revokeObjectURL(u); });
     setImagePreviews([]);
+    setExistingImages([]);
     setShowNoSnModal(false);
     setSnSearch('');
 
-    const draft = loadDraft(job.id);
+    const draft = (!editMode && loadDraft(job.id)) || null;
     if (draft) {
       setSrt(draft.srt || '');
       setSpt(draft.spt || '');
@@ -119,6 +121,17 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       setSelectedSnIds(Array.isArray(draft.selectedSnIds) ? draft.selectedSnIds : []);
       setSelectedNoSnItems(draft.selectedNoSnItems && typeof draft.selectedNoSnItems === 'object' ? draft.selectedNoSnItems : {});
       setDraftRestored(true);
+    } else if (editMode) {
+      setSrt(job.srt || '');
+      setSpt(job.spt || '');
+      setFailCause(job.fail_cause || job.symptoms || '');
+      setFixMethod(job.fix_method || '');
+      setOldSn(job.old_sn || '');
+      setNewSn(job.new_sn || '');
+      setCableUsed(job.cable_used || '');
+      setRemark(job.remark || '');
+      setSelectedSnIds([]);
+      setSelectedNoSnItems({});
     } else {
       setSrt('');
       setSpt('');
@@ -138,38 +151,109 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       : (isAdmin && (job.assigned_user_id || job.field_engineer_id)
         ? `/inventory/my-bag?user_id=${job.assigned_user_id || job.field_engineer_id}`
         : '/inventory/my-bag');
+    const detailsPromise = editMode
+      ? api.get(`/dispatch/jobs/${job.id}/details?type=ma`).catch(() => ({ data: null }))
+      : Promise.resolve({ data: null });
+
     Promise.all([
       api.get(bagUrl),
       api.get('/settings/frequent-no-sn').catch(() => ({ data: { product_ids: [], roles: [] } })),
       resolveRolesForComplete({ api, user, job, isAdmin }),
+      detailsPromise,
     ])
-      .then(([res, cfgRes, roleList]) => {
+      .then(([res, cfgRes, roleList, detailsRes]) => {
         const all = Array.isArray(res.data) ? res.data : [];
         const isSn = (item) => Number(item.has_sn) === 1 || item.has_sn === true;
-        const sn = all.filter((item) => isSn(item) && item.sn);
-        const noSn = all.filter((item) => !isSn(item) || !item.sn);
+        let sn = all.filter((item) => isSn(item) && item.sn);
+        let noSn = all.filter((item) => !isSn(item) || !item.sn);
+        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
+        const details = detailsRes?.data;
+
+        if (editMode && details) {
+          setSrt(details.srt || job.srt || '');
+          setSpt(details.spt || job.spt || '');
+          setFailCause(details.fail_cause || job.fail_cause || job.symptoms || '');
+          setFixMethod(details.fix_method || job.fix_method || '');
+          setOldSn(details.old_sn || job.old_sn || '');
+          setNewSn(details.new_sn || job.new_sn || '');
+          setCableUsed(details.cable_used || job.cable_used || '');
+          setRemark(details.remark || job.remark || '');
+
+          const existing = Array.isArray(details.images) ? details.images : [];
+          setExistingImages(existing);
+          setImagePreviews(existing.map((img) => {
+            const p = img.image_path || img;
+            if (!p) return '';
+            if (/^https?:\/\//i.test(p) || String(p).startsWith('/')) return p;
+            return `/uploads/job_evidence/${p}`;
+          }).filter(Boolean));
+
+          const selectedSn = [];
+          const selectedNoSn = {};
+          for (const d of details.used_devices || []) {
+            const id = d.inventory_item_id;
+            if (!id) continue;
+            const qty = Number(d.quantity) || 1;
+            if (d.device_role === 'NoSN') {
+              const idx = noSn.findIndex((i) => String(i.id) === String(id));
+              if (idx >= 0) {
+                noSn[idx] = { ...noSn[idx], quantity: Number(noSn[idx].quantity || 0) + qty };
+                selectedNoSn[id] = { ...noSn[idx], useQty: qty };
+              } else {
+                const item = {
+                  id,
+                  product_name: d.product_name,
+                  model_name: d.model_name || '',
+                  quantity: qty,
+                  has_sn: 0,
+                  unit: d.unit || 'ชิ้น',
+                };
+                noSn.push(item);
+                selectedNoSn[id] = { ...item, useQty: qty };
+              }
+            } else {
+              if (!sn.some((i) => String(i.id) === String(id))) {
+                sn.push({
+                  id,
+                  sn: d.sn,
+                  product_name: d.product_name,
+                  model_name: d.model_name || '',
+                  quantity: 1,
+                  has_sn: 1,
+                  unit: d.unit || 'ชิ้น',
+                });
+              }
+              selectedSn.push(id);
+            }
+          }
+          setSelectedSnIds(selectedSn);
+          setSelectedNoSnItems(selectedNoSn);
+        }
+
         setSnBagItems(sn);
         setNoSnItems(noSn);
-        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
-        setSelectedNoSnItems((prev) => {
-          const pruned = {};
-          Object.values(prev || {}).forEach((it) => {
-            const live = noSn.find((n) => n.id === it.id);
-            if (live) {
-              pruned[it.id] = {
-                ...live,
-                useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
-                locked: !!it.locked,
-              };
-            }
+
+        if (!editMode) {
+          setSelectedNoSnItems((prev) => {
+            const pruned = {};
+            Object.values(prev || {}).forEach((it) => {
+              const live = noSn.find((n) => n.id === it.id);
+              if (live) {
+                pruned[it.id] = {
+                  ...live,
+                  useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
+                  locked: !!it.locked,
+                };
+              }
+            });
+            return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
           });
-          return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
-        });
+        }
       })
       .catch(() => { setSnBagItems([]); setNoSnItems([]); })
       .finally(() => setBagLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, job]);
+  }, [isOpen, job, editMode]);
 
   const toggleSn = (id) => {
     setSelectedSnIds((prev) =>
@@ -180,8 +264,9 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
   const handleImagesChange = (e) => {
     const files = Array.from(e.target.files || []).slice(0, 40);
     setImages(files);
-    imagePreviews.forEach((u) => URL.revokeObjectURL(u));
+    imagePreviews.forEach((u) => { if (String(u).startsWith('blob:')) URL.revokeObjectURL(u); });
     setImagePreviews(files.map((f) => URL.createObjectURL(f)));
+    setExistingImages([]);
   };
 
   const step1Missing = () => {
@@ -228,13 +313,15 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         confirmButtonColor: '#1F2937',
       });
     }
-    if (!images.length) {
+    if (!images.length && !(editMode && existingImages.length > 0)) {
       setStep(3);
       setFieldHints(['รูปจบงาน']);
       return Swal.fire({
         icon: 'warning',
         title: 'ยังไม่มีรูปจบงาน',
-        text: 'บังคับอย่างน้อย 1 รูป (สูงสุด 40) — รูปไม่ถูกเก็บใน draft ต้องเลือกใหม่',
+        text: editMode
+          ? 'กรุณาอัปโหลดรูปอย่างน้อย 1 รูป หรือเก็บรูปเดิมไว้'
+          : 'บังคับอย่างน้อย 1 รูป (สูงสุด 40) — รูปไม่ถูกเก็บใน draft ต้องเลือกใหม่',
         confirmButtonColor: '#1F2937',
       });
     }
@@ -251,7 +338,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       fd.append('cable_used', cableUsed.trim());
       fd.append('remark', remark.trim());
 
-      const selectedSn = snBagItems.filter((i) => selectedSnIds.includes(i.id));
+      const selectedSn = snBagItems.filter((i) => selectedSnIds.some((id) => String(id) === String(i.id)));
       fd.append('usedInventory', JSON.stringify(selectedSn.map((i) => ({
         inventory_item_id: i.id,
         sn: i.sn,
@@ -267,6 +354,12 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         unit: i.unit,
       }));
       fd.append('noSnItems', JSON.stringify(noSnPayload));
+      if (editMode) {
+        fd.append('recomplete', 'true');
+        if (images.length === 0 && existingImages.length > 0) {
+          fd.append('keepExistingImages', 'true');
+        }
+      }
       images.forEach((img) => fd.append('images', img));
 
       await api.put(`/dispatch/ma-jobs/${job.id}/complete`, fd, {
@@ -276,7 +369,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       clearDraft(job.id);
       const result = await Swal.fire({
         icon: 'success',
-        title: 'ปิดงาน MA สำเร็จ',
+        title: editMode ? 'อัปเดตการจบงาน MA สำเร็จ' : 'ปิดงาน MA สำเร็จ',
         text: 'บันทึกลงข้อมูลลูกค้าเรียบร้อย',
         showCancelButton: true,
         confirmButtonText: '🎒 ดูกระเป๋าช่าง',
@@ -292,7 +385,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         onClose?.();
       }
     } catch (err) {
-      await showFriendlyError(err, 'เกิดข้อผิดพลาดในการปิดงาน MA');
+      await showFriendlyError(err, editMode ? 'เกิดข้อผิดพลาดในการแก้ไขการจบงาน MA' : 'เกิดข้อผิดพลาดในการปิดงาน MA');
     } finally {
       setLoading(false);
     }
@@ -325,8 +418,8 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-black text-[#1F2937] flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-[#1F2937] text-[#A3E635] flex items-center justify-center text-sm shrink-0">🔧</span>
-                ปิดงาน MA
+                <span className="w-8 h-8 rounded-lg bg-[#1F2937] text-[#A3E635] flex items-center justify-center text-sm shrink-0">{editMode ? '✏️' : '🔧'}</span>
+                {editMode ? 'แก้ไขการจบงาน MA' : 'ปิดงาน MA'}
               </h2>
               <p className="text-xs text-[#9CA3AF] mt-0.5 font-medium truncate">
                 {job.customer || 'ลูกค้า'} · NON {nonNumber || '-'}
@@ -368,9 +461,9 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
             ))}
           </div>
 
-          {draftRestored && (
+          {draftRestored && !editMode && (
             <p className="mt-2 text-[11px] font-medium text-[#4D7C0F] bg-[#A3E635]/15 border border-[#A3E635]/30 rounded-lg px-2.5 py-1.5">
-              กู้คืนข้อมูลที่ค้างไว้แล้ว (รูปต้องเลือกใหม่)
+              กู้คืนฉบับร่างแล้ว — ตรวจอุปกรณ์แล้วจบงานใหม่ได้ (รูปต้องเลือกใหม่)
             </p>
           )}
         </div>
@@ -691,11 +784,11 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
                 className="min-h-[48px] flex-1 py-3 rounded-xl font-black text-[#1F2937] disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
               >
-                {loading ? <span className="w-5 h-5 border-2 border-[#1F2937]/30 border-t-[#1F2937] rounded-full animate-spin" /> : '✅ ยืนยันปิดงาน'}
+                {loading ? <span className="w-5 h-5 border-2 border-[#1F2937]/30 border-t-[#1F2937] rounded-full animate-spin" /> : (editMode ? '💾 บันทึกการแก้ไข' : '✅ ยืนยันปิดงาน')}
               </button>
             )}
           </div>
-          {draftRestored && (
+          {draftRestored && !editMode && (
             <button type="button" onClick={discardDraftAndClose} className="text-[11px] text-[#9CA3AF] hover:text-red-500 font-medium py-1">
               ล้าง draft และปิด
             </button>

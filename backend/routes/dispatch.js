@@ -421,6 +421,80 @@ async function applyOfficeCompletionDeviceFields(conn, job, body) {
   return installDeviceStr;
 }
 
+/** Return bag items recorded on a completed office job (SN + NoSN), then clear job_used_inventory. */
+async function returnOfficeJobUsedInventory(conn, { jobId, accessNo, actorId, note }) {
+  const [usedItems] = await conn.query('SELECT * FROM job_used_inventory WHERE job_id = ?', [jobId]);
+  const logNote = note || `แก้ไขการจบงาน: คืนอุปกรณ์จากงาน ${accessNo || jobId}`;
+  for (const item of usedItems) {
+    if (item.device_role === 'NoSN') {
+      await conn.query(
+        `UPDATE inventory_items SET quantity = quantity + ?, status = 'dispatched' WHERE id = ?`,
+        [item.quantity, item.inventory_item_id]
+      );
+    } else {
+      await conn.query(
+        `UPDATE inventory_items SET status = 'dispatched', quantity = 1 WHERE id = ?`,
+        [item.inventory_item_id]
+      );
+    }
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'cancel_used', ?, ?)`,
+        [item.inventory_item_id, actorId, item.quantity, logNote]
+      );
+    } catch (le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'cancel_used', ?, ?)`,
+          [(maxId || 0) + 1, item.inventory_item_id, actorId, item.quantity, logNote]
+        );
+      } else {
+        console.error(le);
+      }
+    }
+  }
+  await conn.query('DELETE FROM job_used_inventory WHERE job_id = ?', [jobId]);
+  return usedItems;
+}
+
+/** Return bag items recorded on a completed MA job, then clear ma_job_used_inventory. */
+async function returnMaJobUsedInventory(conn, { maJobId, accessNo, actorId, note }) {
+  const [usedItems] = await conn.query('SELECT * FROM ma_job_used_inventory WHERE ma_job_id = ?', [maJobId]);
+  const logNote = note || `แก้ไขการจบงาน MA: คืนอุปกรณ์จากงาน ${accessNo || maJobId}`;
+  for (const item of usedItems) {
+    if (item.device_role === 'NoSN') {
+      await conn.query(
+        `UPDATE inventory_items SET quantity = quantity + ?, status = 'dispatched' WHERE id = ?`,
+        [item.quantity, item.inventory_item_id]
+      );
+    } else {
+      await conn.query(
+        `UPDATE inventory_items SET status = 'dispatched', quantity = 1 WHERE id = ?`,
+        [item.inventory_item_id]
+      );
+    }
+    try {
+      await conn.query(
+        `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'cancel_used', ?, ?)`,
+        [item.inventory_item_id, actorId, item.quantity, logNote]
+      );
+    } catch (le) {
+      if (le.message.includes("Field 'id' doesn't have a default value")) {
+        const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
+        await conn.query(
+          `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'cancel_used', ?, ?)`,
+          [(maxId || 0) + 1, item.inventory_item_id, actorId, item.quantity, logNote]
+        );
+      } else {
+        console.error(le);
+      }
+    }
+  }
+  await conn.query('DELETE FROM ma_job_used_inventory WHERE ma_job_id = ?', [maJobId]);
+  return usedItems;
+}
+
 function parseUsedInventoryBody(body) {
   if (!body.usedInventory) return [];
   try {
@@ -924,15 +998,25 @@ router.get('/jobs/:id/details', auth, async (req, res) => {
     try {
       if (req.query.type === 'ma') {
         const [devRows] = await pool.query(
-          `SELECT device_role, sn, product_name, model_name, quantity, used_at
-           FROM ma_job_used_inventory WHERE ma_job_id = ? ORDER BY id ASC`,
+          `SELECT mjui.inventory_item_id, mjui.device_role, mjui.sn, mjui.product_name, mjui.model_name, mjui.quantity, mjui.used_at,
+                  COALESCE(p.unit, 'ชิ้น') AS unit
+           FROM ma_job_used_inventory mjui
+           LEFT JOIN inventory_items ii ON ii.id = mjui.inventory_item_id
+           LEFT JOIN inventory_models m ON m.id = ii.model_id
+           LEFT JOIN inventory_products p ON p.id = m.product_id
+           WHERE mjui.ma_job_id = ? ORDER BY mjui.id ASC`,
           [jobId]
         );
         usedDevices = devRows;
       } else {
         const [devRows] = await pool.query(
-          `SELECT device_role, sn, product_name, model_name, quantity, used_at
-           FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
+          `SELECT jui.inventory_item_id, jui.device_role, jui.sn, jui.product_name, jui.model_name, jui.quantity, jui.used_at,
+                  COALESCE(p.unit, 'ชิ้น') AS unit
+           FROM job_used_inventory jui
+           LEFT JOIN inventory_items ii ON ii.id = jui.inventory_item_id
+           LEFT JOIN inventory_models m ON m.id = ii.model_id
+           LEFT JOIN inventory_products p ON p.id = m.product_id
+           WHERE jui.job_id = ? ORDER BY jui.id ASC`,
           [jobId]
         );
         usedDevices = devRows;
@@ -1079,9 +1163,23 @@ router.put(
         await conn.rollback();
         return res.status(403).json({ error: 'Job does not belong to your team' });
       }
-      if (job.status === 'completed') {
+
+      const isRecomplete = job.status === 'completed'
+        && isAdmin
+        && (req.body.recomplete === 'true' || req.body.recomplete === true || req.body.recomplete === '1');
+      if (job.status === 'completed' && !isRecomplete) {
         await conn.rollback();
         return res.status(409).json({ error: 'Job already completed' });
+      }
+
+      // Re-edit completed job: return previous bag usage first, then re-apply like a fresh complete
+      if (isRecomplete) {
+        await returnOfficeJobUsedInventory(conn, {
+          jobId,
+          accessNo: job.access_no,
+          actorId: techId,
+          note: `แก้ไขการจบงาน: คืนอุปกรณ์จากงาน ${job.access_no || jobId}`,
+        });
       }
 
       // Admin completing on behalf → credit assignee as completed_by / inventory used_by
@@ -1132,44 +1230,85 @@ router.put(
         || buildInstallDeviceString(installPartsFromBag, [...manualParts, ...noSnSummaryParts]);
 
       // 3. Update job status
-      await conn.query(
-        `UPDATE jobs SET 
-          status = 'completed', 
-          finish_time = NOW(),
-          completed_at = NOW(),
-          completed_by = ?,
-          remark = ?,
-          plan_arrival_date = COALESCE(?, plan_arrival_date),
-          access_no = COALESCE(?, access_no),
-          customer = COALESCE(?, customer),
-          package = COALESCE(?, package),
-          order_no = COALESCE(?, order_no),
-          install_device = COALESCE(?, install_device),
-          split_no = ?,
-          port_no = ?,
-          l3_name = ?,
-          cable_length = ?,
-          ref_id_3bb = ?,
-          sc_blue = ?
-         WHERE id = ?`,
-        [
-          completedById,
-          req.body.remark || null,
-          req.body.installDate || null,
-          req.body.accessNo || null,
-          req.body.customerName || null,
-          req.body.mainPackage || null,
-          req.body.orderNo || null,
-          installDeviceStr,
-          req.body.splitNo || null,
-          req.body.portNo || null,
-          req.body.l3Name || null,
-          req.body.cableLength ? req.body.cableLength.replace(/[^0-9.]/g, '') : null,
-          req.body.refId3bb || null,
-          req.body.scBlue || null,
-          jobId
-        ]
-      );
+      if (isRecomplete) {
+        await conn.query(
+          `UPDATE jobs SET 
+            status = 'completed', 
+            finish_time = COALESCE(finish_time, NOW()),
+            completed_at = COALESCE(completed_at, NOW()),
+            completed_by = ?,
+            remark = ?,
+            plan_arrival_date = COALESCE(?, plan_arrival_date),
+            access_no = COALESCE(?, access_no),
+            customer = COALESCE(?, customer),
+            package = COALESCE(?, package),
+            order_no = COALESCE(?, order_no),
+            install_device = COALESCE(?, install_device),
+            split_no = ?,
+            port_no = ?,
+            l3_name = ?,
+            cable_length = ?,
+            ref_id_3bb = ?,
+            sc_blue = ?
+           WHERE id = ?`,
+          [
+            completedById,
+            req.body.remark || null,
+            req.body.installDate || null,
+            req.body.accessNo || null,
+            req.body.customerName || null,
+            req.body.mainPackage || null,
+            req.body.orderNo || null,
+            installDeviceStr,
+            req.body.splitNo || null,
+            req.body.portNo || null,
+            req.body.l3Name || null,
+            req.body.cableLength ? req.body.cableLength.replace(/[^0-9.]/g, '') : null,
+            req.body.refId3bb || null,
+            req.body.scBlue || null,
+            jobId
+          ]
+        );
+      } else {
+        await conn.query(
+          `UPDATE jobs SET 
+            status = 'completed', 
+            finish_time = NOW(),
+            completed_at = NOW(),
+            completed_by = ?,
+            remark = ?,
+            plan_arrival_date = COALESCE(?, plan_arrival_date),
+            access_no = COALESCE(?, access_no),
+            customer = COALESCE(?, customer),
+            package = COALESCE(?, package),
+            order_no = COALESCE(?, order_no),
+            install_device = COALESCE(?, install_device),
+            split_no = ?,
+            port_no = ?,
+            l3_name = ?,
+            cable_length = ?,
+            ref_id_3bb = ?,
+            sc_blue = ?
+           WHERE id = ?`,
+          [
+            completedById,
+            req.body.remark || null,
+            req.body.installDate || null,
+            req.body.accessNo || null,
+            req.body.customerName || null,
+            req.body.mainPackage || null,
+            req.body.orderNo || null,
+            installDeviceStr,
+            req.body.splitNo || null,
+            req.body.portNo || null,
+            req.body.l3Name || null,
+            req.body.cableLength ? req.body.cableLength.replace(/[^0-9.]/g, '') : null,
+            req.body.refId3bb || null,
+            req.body.scBlue || null,
+            jobId
+          ]
+        );
+      }
 
       // 4. Log to job_logs (actor = who clicked; completed_by on jobs may be assignee)
       const logRemark = isAdmin && Number(completedById) !== Number(techId)
@@ -1195,7 +1334,15 @@ router.put(
 
       // 4. Insert images
       const images = req.files?.images || [];
+      const keepExistingImages = isRecomplete && (
+        req.body.keepExistingImages === 'true'
+        || req.body.keepExistingImages === true
+        || req.body.keepExistingImages === '1'
+      );
       if (images.length > 0) {
+        if (isRecomplete) {
+          await conn.query('DELETE FROM job_completion_images WHERE job_id = ?', [jobId]);
+        }
         for (const file of images) {
           try {
             await conn.query(
@@ -1215,6 +1362,8 @@ router.put(
             }
           }
         }
+      } else if (isRecomplete && !keepExistingImages) {
+        // recomplete without photos and without keep flag — leave existing images as-is
       }
 
       // 4.5 Insert Entry Fee (3 modes: slip/cash/backdate)
@@ -1273,7 +1422,8 @@ router.put(
       }
 
       // 5. syncTeamOilMonth — increment only for office teams (counts_for_oil)
-      if (job.team_id) {
+      // Skip on recomplete so oil cases are not double-counted
+      if (job.team_id && !isRecomplete) {
         try {
           const yearMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
           await bumpTeamOilCase(conn, job.team_id, yearMonth);
@@ -1287,24 +1437,26 @@ router.put(
       await conn.commit();
 
       writeJobAudit(pool, {
-        job_type: 'office', job_id: jobId, action: 'complete',
+        job_type: 'office', job_id: jobId, action: isRecomplete ? 'recomplete' : 'complete',
         old_status: job.status, new_status: 'completed',
         old_team_id: job.team_id, new_team_id: job.team_id,
         old_assignee_id: job.field_engineer_id, new_assignee_id: job.field_engineer_id,
         actor_id: techId, remark: req.body.remark || null,
       });
 
-      // 🔔 Phase 2: complete → admins (once)
-      const techName = req.user.full_name || req.user.username || 'ช่าง';
-      notifyJobCompleted({
-        job,
-        jobId,
-        actorId: techId,
-        actorName: techName,
-        kind: 'office',
-      }).catch((e) => console.error('notifyJobCompleted:', e.message));
+      // 🔔 Phase 2: complete → admins (once) — skip noisy re-notify on edit
+      if (!isRecomplete) {
+        const techName = req.user.full_name || req.user.username || 'ช่าง';
+        notifyJobCompleted({
+          job,
+          jobId,
+          actorId: techId,
+          actorName: techName,
+          kind: 'office',
+        }).catch((e) => console.error('notifyJobCompleted:', e.message));
+      }
 
-      res.json({ message: 'Job completed successfully', job_id: jobId });
+      res.json({ message: isRecomplete ? 'อัปเดตการจบงานสำเร็จ' : 'Job completed successfully', job_id: jobId });
     } catch (err) {
       await conn.rollback();
       console.error('Complete job error:', err);
@@ -1573,42 +1725,12 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
     }
 
     // 1. Return inventory items
-    const [usedItems] = await conn.query('SELECT * FROM job_used_inventory WHERE job_id = ?', [jobId]);
-    for (const item of usedItems) {
-      if (item.device_role === 'NoSN') {
-        // No-SN item
-        await conn.query(
-          `UPDATE inventory_items SET quantity = quantity + ?, status = 'dispatched' WHERE id = ?`,
-          [item.quantity, item.inventory_item_id]
-        );
-      } else {
-        // SN item
-        await conn.query(
-          `UPDATE inventory_items SET status = 'dispatched', quantity = 1 WHERE id = ?`,
-          [item.inventory_item_id]
-        );
-      }
-      
-      // Log the return
-      const note = `ยกเลิกการจบงาน: คืนอุปกรณ์จากงาน ${job.access_no || jobId}`;
-      try {
-        await conn.query(
-          `INSERT INTO inventory_logs (item_id, from_user_id, action, quantity, note) VALUES (?, ?, 'cancel_used', ?, ?)`,
-          [item.inventory_item_id, adminId, item.quantity, note]
-        );
-      } catch (le) {
-        if (le.message.includes("Field 'id' doesn't have a default value")) {
-          const [[{ maxId }]] = await conn.query('SELECT MAX(id) as maxId FROM inventory_logs');
-          await conn.query(
-            `INSERT INTO inventory_logs (id, item_id, from_user_id, action, quantity, note) VALUES (?, ?, ?, 'cancel_used', ?, ?)`,
-            [(maxId||0)+1, item.inventory_item_id, adminId, item.quantity, note]
-          );
-        } else {
-          console.error(le);
-        }
-      }
-    }
-    await conn.query('DELETE FROM job_used_inventory WHERE job_id = ?', [jobId]);
+    await returnOfficeJobUsedInventory(conn, {
+      jobId,
+      accessNo: job.access_no,
+      actorId: adminId,
+      note: `ยกเลิกการจบงาน: คืนอุปกรณ์จากงาน ${job.access_no || jobId}`,
+    });
 
     // 2. Delete job completion images
     await conn.query('DELETE FROM job_completion_images WHERE job_id = ?', [jobId]);
@@ -1684,6 +1806,85 @@ router.put('/jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async 
   } catch (err) {
     await conn.rollback();
     console.error('Cancel completion error:', err);
+    res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/ma-jobs/:id/cancel-completion — Admin cancels MA completion ──
+router.put('/ma-jobs/:id/cancel-completion', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const maJobId = req.params.id;
+  const adminId = req.user.id;
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+    await ensureMaJobSchema(conn);
+
+    const [[job]] = await conn.query('SELECT * FROM ma_jobs WHERE id = ? LIMIT 1', [maJobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน MA' });
+    }
+    if (job.status !== 'completed') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'งานนี้ยังไม่ได้จบงาน ไม่สามารถยกเลิกได้' });
+    }
+
+    await returnMaJobUsedInventory(conn, {
+      maJobId,
+      accessNo: job.non_number || job.access_no,
+      actorId: adminId,
+      note: `ยกเลิกการจบงาน MA: คืนอุปกรณ์จากงาน ${job.non_number || job.access_no || maJobId}`,
+    });
+
+    try {
+      await conn.query('DELETE FROM ma_job_completion_images WHERE ma_job_id = ?', [maJobId]);
+    } catch (e) { /* table may not exist */ }
+
+    if (job.team_id && job.completed_at) {
+      try {
+        const completedDate = typeof job.completed_at === 'string' ? new Date(job.completed_at) : job.completed_at;
+        const yearMonth = completedDate.toISOString().slice(0, 7);
+        await decrementTeamOilCase(conn, job.team_id, yearMonth);
+      } catch (e) {
+        console.error('MA oil cases decrement error:', e.message);
+      }
+    }
+
+    await conn.query(
+      `UPDATE ma_jobs SET
+         status = 'in_progress',
+         completed_at = NULL,
+         completed_by = NULL,
+         srt = NULL,
+         spt = NULL,
+         fail_cause = NULL,
+         fix_method = NULL,
+         old_sn = NULL,
+         new_sn = NULL,
+         cable_used = NULL,
+         used_equipment = NULL
+       WHERE id = ?`,
+      [maJobId]
+    );
+
+    await syncMaCustomerFromJob(conn, maJobId, { action: 'cancel_completion', techId: adminId });
+    await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'ma', job_id: maJobId, action: 'cancel_completion',
+      old_status: 'completed', new_status: 'in_progress',
+      old_team_id: job.team_id, new_team_id: job.team_id,
+      old_assignee_id: job.assigned_user_id, new_assignee_id: job.assigned_user_id,
+      actor_id: adminId, remark: 'Admin ยกเลิกการจบงาน MA และคืนอุปกรณ์',
+    });
+
+    res.json({ message: 'ยกเลิกการจบงาน MA สำเร็จ อุปกรณ์ถูกคืนกลับเข้ากระเป๋าช่างเรียบร้อยแล้ว' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Cancel MA completion error:', err);
     res.status(500).json({ error: 'เกิดข้อผิดพลาด: ' + err.message });
   } finally {
     conn.release();
@@ -2790,13 +2991,31 @@ router.put(
         await conn.rollback();
         return res.status(403).json({ error: 'งานนี้ไม่ได้อยู่ในความรับผิดชอบของคุณ' });
       }
-      if (job.status === 'completed') {
+
+      const isRecomplete = job.status === 'completed'
+        && isAdmin
+        && (req.body.recomplete === 'true' || req.body.recomplete === true || req.body.recomplete === '1');
+      if (job.status === 'completed' && !isRecomplete) {
         await conn.rollback();
         return res.status(409).json({ error: 'งานนี้ปิดแล้ว' });
       }
 
+      if (isRecomplete) {
+        await returnMaJobUsedInventory(conn, {
+          maJobId,
+          accessNo: job.non_number || job.access_no,
+          actorId: techId,
+          note: `แก้ไขการจบงาน MA: คืนอุปกรณ์จากงาน ${job.non_number || job.access_no || maJobId}`,
+        });
+      }
+
       const images = req.files?.images || [];
-      if (!images.length) {
+      const keepExistingImages = isRecomplete && (
+        req.body.keepExistingImages === 'true'
+        || req.body.keepExistingImages === true
+        || req.body.keepExistingImages === '1'
+      );
+      if (!images.length && !keepExistingImages) {
         await conn.rollback();
         return res.status(400).json({ error: 'กรุณาอัปโหลดรูปจบงานอย่างน้อย 1 รูป' });
       }
@@ -2843,7 +3062,7 @@ router.put(
       await conn.query(
         `UPDATE ma_jobs SET
            status = 'completed',
-           completed_at = NOW(),
+           completed_at = ${isRecomplete ? 'COALESCE(completed_at, NOW())' : 'NOW()'},
            completed_by = ?,
            srt = ?,
            spt = ?,
@@ -2870,15 +3089,20 @@ router.put(
         ]
       );
 
-      for (const file of images) {
-        await conn.query(
-          `INSERT INTO ma_job_completion_images (ma_job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
-          [maJobId, file.filename, techId]
-        );
+      if (images.length > 0) {
+        if (isRecomplete) {
+          await conn.query('DELETE FROM ma_job_completion_images WHERE ma_job_id = ?', [maJobId]);
+        }
+        for (const file of images) {
+          await conn.query(
+            `INSERT INTO ma_job_completion_images (ma_job_id, image_path, uploaded_by) VALUES (?, ?, ?)`,
+            [maJobId, file.filename, techId]
+          );
+        }
       }
 
       // Oil case for office teams only (counts_for_oil)
-      if (job.team_id) {
+      if (job.team_id && !isRecomplete) {
         const yearMonth = new Date().toISOString().slice(0, 7);
         try {
           await bumpTeamOilCase(conn, job.team_id, yearMonth);
@@ -2890,23 +3114,25 @@ router.put(
       await conn.commit();
 
       writeJobAudit(pool, {
-        job_type: 'ma', job_id: maJobId, action: 'complete',
+        job_type: 'ma', job_id: maJobId, action: isRecomplete ? 'recomplete' : 'complete',
         old_status: job.status, new_status: 'completed',
         old_team_id: job.team_id, new_team_id: job.team_id,
         old_assignee_id: job.assigned_user_id, new_assignee_id: job.assigned_user_id,
         actor_id: techId, remark: remark || null,
       });
 
-      const techName = req.user.full_name || req.user.username || 'ช่าง';
-      notifyJobCompleted({
-        job,
-        jobId: maJobId,
-        actorId: techId,
-        actorName: techName,
-        kind: 'ma',
-      }).catch((e) => console.error('notifyJobCompleted MA:', e.message));
+      if (!isRecomplete) {
+        const techName = req.user.full_name || req.user.username || 'ช่าง';
+        notifyJobCompleted({
+          job,
+          jobId: maJobId,
+          actorId: techId,
+          actorName: techName,
+          kind: 'ma',
+        }).catch((e) => console.error('notifyJobCompleted MA:', e.message));
+      }
 
-      res.json({ message: 'ปิดงาน MA สำเร็จ', id: maJobId });
+      res.json({ message: isRecomplete ? 'อัปเดตการจบงาน MA สำเร็จ' : 'ปิดงาน MA สำเร็จ', id: maJobId });
     } catch (err) {
       await conn.rollback();
       console.error('MA complete error:', err);
@@ -3383,8 +3609,13 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
     if (jobData.id) {
       try {
         const [usedRows] = await pool.query(
-          `SELECT device_role, sn, product_name, model_name, quantity, used_at
-           FROM job_used_inventory WHERE job_id = ? ORDER BY id ASC`,
+          `SELECT jui.inventory_item_id, jui.device_role, jui.sn, jui.product_name, jui.model_name, jui.quantity, jui.used_at,
+                  COALESCE(p.unit, 'ชิ้น') AS unit
+           FROM job_used_inventory jui
+           LEFT JOIN inventory_items ii ON ii.id = jui.inventory_item_id
+           LEFT JOIN inventory_models m ON m.id = ii.model_id
+           LEFT JOIN inventory_products p ON p.id = m.product_id
+           WHERE jui.job_id = ? ORDER BY jui.id ASC`,
           [jobData.id]
         );
         if (usedRows.length > 0) {
@@ -3392,7 +3623,8 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
         } else {
           // Fallback for legacy data: fetch from inventory_logs using note
           const [logRows] = await pool.query(
-            `SELECT 'TechBag' AS device_role, i.sn, p.name AS product_name, m.model_name, l.quantity, l.created_at AS used_at
+            `SELECT 'TechBag' AS device_role, i.sn, p.name AS product_name, m.model_name, l.quantity, l.created_at AS used_at,
+                    COALESCE(p.unit, 'ชิ้น') AS unit
              FROM inventory_logs l
              JOIN inventory_items i ON l.item_id = i.id
              JOIN inventory_models m ON i.model_id = m.id

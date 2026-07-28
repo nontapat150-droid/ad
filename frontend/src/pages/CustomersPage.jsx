@@ -232,7 +232,7 @@ export default function CustomersPage() {
                                   <InfoRow
                                     key={`used-nosn-${idx}`}
                                     label={`${d.product_name || ''} ${d.model_name || ''}`.trim()}
-                                    value={`จำนวน ${d.quantity || 1} ชิ้น`}
+                                    value={`จำนวน ${d.quantity || 1} ${d.unit || 'ชิ้น'}`}
                                   />
                                 ))}
                               </>

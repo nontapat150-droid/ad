@@ -34,12 +34,13 @@ export function applyFrequentNoSnLocks(selectedNoSnItems, noSnItems, config, use
     };
   }
 
-  // Re-assert lock + qty 1 on any already-selected matching products
+  // Re-assert lock on already-selected matching products (preserve draft qty)
   Object.keys(next).forEach((id) => {
     const it = next[id];
     const pid = it?.product_id != null ? String(it.product_id) : '';
     if (pid && productSet.has(pid)) {
-      next[id] = { ...it, locked: true, useQty: 1 };
+      const qty = Math.max(1, parseInt(it.useQty, 10) || 1);
+      next[id] = { ...it, locked: true, useQty: qty };
     }
   });
 
