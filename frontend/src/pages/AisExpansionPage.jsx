@@ -38,6 +38,8 @@ const NEARBY_RADIUS_M = 3000;
 const inputCls =
   'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40 disabled:opacity-60';
 const labelCls = 'block text-[11px] font-bold text-[#6B7280] uppercase mb-1';
+const selectCls = `${inputCls} appearance-none pr-10 bg-white`;
+const dateCls = `${inputCls} pr-10 bg-white [color-scheme:light]`;
 
 const emptyForm = () => ({
   customer_type: 'general',
@@ -538,15 +540,18 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="ประเภทลูกค้า" required>
-              <select
-                disabled={locked}
-                value={form.customer_type || 'general'}
-                onChange={(e) => setField('customer_type', e.target.value)}
-                className={inputCls}
-              >
-                <option value="general">ลูกค้าทั่วไป</option>
-                <option value="corporate">นิติบุคคล</option>
-              </select>
+              <div className="relative">
+                <select
+                  disabled={locked}
+                  value={form.customer_type || 'general'}
+                  onChange={(e) => setField('customer_type', e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="general">ลูกค้าทั่วไป</option>
+                  <option value="corporate">นิติบุคคล</option>
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">▾</span>
+              </div>
             </Field>
             <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'} required>
               <input disabled={locked} value={form.customer_name} onChange={(e) => setField('customer_name', e.target.value)} className={inputCls} />
@@ -572,20 +577,26 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
               <input disabled={locked} value={form.contract_info} onChange={(e) => setField('contract_info', e.target.value)} className={inputCls} />
             </Field>
             <Field label="ขออนุมัติ">
-              <select
-                disabled={locked}
-                value={form.approval_request || ''}
-                onChange={(e) => setField('approval_request', e.target.value)}
-                className={inputCls}
-              >
-                <option value="">ไม่ระบุ</option>
-                <option value="ฟรีค่าแรกเข้า">ฟรีค่าแรกเข้า</option>
-                <option value="บ้านเลขที่0">บ้านเลขที่0</option>
-                <option value="ใบอนญาติทำงาน">ใบอนญาติทำงาน</option>
-              </select>
+              <div className="relative">
+                <select
+                  disabled={locked}
+                  value={form.approval_request || ''}
+                  onChange={(e) => setField('approval_request', e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="">ไม่ระบุ</option>
+                  <option value="ฟรีค่าแรกเข้า">ฟรีค่าแรกเข้า</option>
+                  <option value="บ้านเลขที่0">บ้านเลขที่0</option>
+                  <option value="ใบอนญาติทำงาน">ใบอนญาติทำงาน</option>
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">▾</span>
+              </div>
             </Field>
             <Field label="ขอวันติดตั้ง (วันที่)">
-              <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={inputCls} />
+              <div className="relative">
+                <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={dateCls} />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">📅</span>
+              </div>
             </Field>
             <Field label="เลข NON" required={!form.install_date}>
               <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
@@ -1314,17 +1325,20 @@ export default function AisExpansionPage() {
                   />
                   เฉพาะในรัศมี
                 </label>
-                <select
-                  value={nearRadiusM}
-                  disabled={!myLocation}
-                  onChange={(e) => setNearRadiusM(Number(e.target.value))}
-                  className="px-2 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white disabled:opacity-60"
-                >
-                  <option value={1000}>1 กม.</option>
-                  <option value={2000}>2 กม.</option>
-                  <option value={3000}>3 กม.</option>
-                  <option value={5000}>5 กม.</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={nearRadiusM}
+                    disabled={!myLocation}
+                    onChange={(e) => setNearRadiusM(Number(e.target.value))}
+                    className="appearance-none pl-2 pr-7 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white disabled:opacity-60"
+                  >
+                    <option value={1000}>1 กม.</option>
+                    <option value={2000}>2 กม.</option>
+                    <option value={3000}>3 กม.</option>
+                    <option value={5000}>5 กม.</option>
+                  </select>
+                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[#9CA3AF] text-xs">▾</span>
+                </div>
                 <label className="px-3 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white text-[#1F2937]">
                   <input
                     type="checkbox"
