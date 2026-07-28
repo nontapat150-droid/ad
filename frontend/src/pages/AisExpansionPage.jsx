@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapPicker';
@@ -40,6 +40,7 @@ const inputCls =
 const labelCls = 'block text-[11px] font-bold text-[#6B7280] uppercase mb-1';
 
 const emptyForm = () => ({
+  customer_type: 'general',
   customer_name: '',
   id_card: '',
   phone: '',
@@ -47,11 +48,10 @@ const emptyForm = () => ({
   package_name: '',
   contract_info: '',
   occupation: '',
-  entry_fee_request: '',
+  approval_request: '',
   install_date: '',
   install_date_text: '',
   sales_note: '',
-  pair_line: '',
   tech_note: '',
   access_no: '',
   lat: null,
@@ -103,23 +103,21 @@ function buildExpansionExportRows(rows, { isAdmin }) {
     ลำดับ: idx + 1,
     รหัสงานขาย: job.id ?? '',
     สถานะ: STATUS_META[job.status]?.label || job.status || '',
-    ชื่อลูกค้า: job.customer_name || '',
-    เลขบัตรประชาชน: job.id_card || '',
+    ประเภทลูกค้า: job.customer_type === 'corporate' ? 'นิติบุคคล' : 'ลูกค้าทั่วไป',
+    ชื่อลูกค้า/บริษัท: job.customer_name || '',
+    เลขบัตร/ผู้เสียภาษี: job.id_card || '',
     เบอร์โทร: job.phone || '',
     ที่อยู่: job.address || '',
     แพ็กเกจ: job.package_name || '',
     ข้อมูลสัญญา: job.contract_info || '',
-    อาชีพ: job.occupation || '',
-    ค่าแรกเข้าที่ขอ: job.entry_fee_request ?? '',
-    วันติดตั้ง: excelDate(job.install_date) || job.install_date_text || '',
+    อาชีพ/ผู้ติดต่อ: job.occupation || '',
+    ขออนุมัติ: job.approval_request || '',
+    ขอวันติดตั้ง: excelDate(job.install_date) || job.install_date_text || '',
     หมายเหตุเซล: job.sales_note || '',
-    คู่สาย: job.pair_line || '',
     หมายเหตุถึงช่าง: job.tech_note || '',
     AccessNo: job.access_no || '',
     Splitter: job.splitter_code || job.splitter_name || '',
-    ระยะตรงเมตร: job.straight_distance_m ?? '',
     ระยะสายประมาณเมตร: job.estimated_cable_m ?? '',
-    นัดติดตาม: excelDate(job.follow_up_at),
     เหตุผลไม่ได้: job.lost_reason || '',
     หมายเหตุเพิ่มเติม: job.remark || '',
     พิกัดLat: job.lat ?? '',
@@ -141,6 +139,50 @@ function computeSheetColumnWidths(rows) {
     });
     return { wch: Math.min(60, Math.max(10, maxLen + 2)) };
   });
+}
+
+function clampScore(v) {
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+
+function parseNum(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function readinessScore(job) {
+  let score = 0;
+  if (job.customer_name) score += 12;
+  if (job.phone) score += 12;
+  if (job.address) score += 10;
+  if (job.id_card) score += 8;
+  if (job.package_name) score += 8;
+  if (job.lat != null && job.lng != null) score += 12;
+  if (job.estimated_cable_m != null && job.estimated_cable_m !== '') score += 20;
+  if (job.photo_count >= MIN_PHOTOS) score += 18;
+  return score; // 0..100
+}
+
+function feasibilityScore(job, myLocation, todayISO) {
+  const statusBonus = job.status === 'survey' ? 8 : job.status === 'quoted' ? 6 : job.status === 'draft' ? 3 : 0;
+  const followBonus = String(job.follow_up_at || '').slice(0, 10) === todayISO ? 8 : 0;
+  const cable = parseNum(job.estimated_cable_m);
+  const cableScore = cable == null ? 8 : cable <= 150 ? 20 : cable <= 300 ? 14 : cable <= 500 ? 8 : 4;
+
+  let distanceM = null;
+  let distanceScore = 10;
+  if (myLocation && job.lat != null && job.lng != null) {
+    distanceM = haversineMeters(myLocation.lat, myLocation.lng, Number(job.lat), Number(job.lng));
+    distanceScore = distanceM <= 1000 ? 22 : distanceM <= 2000 ? 18 : distanceM <= 3000 ? 14 : distanceM <= 5000 ? 10 : 4;
+  }
+
+  const splitterDist = parseNum(job.straight_distance_m);
+  const splitterScore = splitterDist == null ? 8 : splitterDist <= 300 ? 20 : splitterDist <= 800 ? 14 : splitterDist <= 1500 ? 9 : 5;
+
+  const ready = readinessScore(job); // 0..100
+  const total = (distanceScore * 0.30) + (splitterScore * 0.25) + (cableScore * 0.20) + (ready * 0.20) + statusBonus + followBonus;
+  return { score: clampScore(total), distanceM };
 }
 
 function Field({ label, required, children }) {
@@ -178,6 +220,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           const { data } = await api.get(`/expansion/${job.id}`);
           if (cancelled) return;
           setForm({
+            customer_type: data.customer_type === 'corporate' ? 'corporate' : 'general',
             customer_name: data.customer_name || '',
             id_card: data.id_card || '',
             phone: data.phone || '',
@@ -185,11 +228,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             package_name: data.package_name || '',
             contract_info: data.contract_info || '',
             occupation: data.occupation || '',
-            entry_fee_request: data.entry_fee_request != null ? String(data.entry_fee_request) : '',
+            approval_request: data.approval_request || '',
             install_date: data.install_date ? String(data.install_date).slice(0, 10) : '',
             install_date_text: data.install_date_text || '',
             sales_note: data.sales_note || '',
-            pair_line: data.pair_line || '',
             tech_note: data.tech_note || '',
             access_no: data.access_no || '',
             lat: data.lat != null ? Number(data.lat) : null,
@@ -346,16 +388,23 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
   };
 
   const validateClient = () => {
-    if (!form.customer_name.trim()) return 'กรุณากรอกชื่อ-นามสกุลลูกค้า';
-    if (!form.id_card.trim()) return 'กรุณากรอกเลขบัตรประชาชน';
+    if (!form.customer_name.trim()) {
+      return form.customer_type === 'corporate'
+        ? 'กรุณากรอกชื่อบริษัท/หน่วยงาน'
+        : 'กรุณากรอกชื่อ-นามสกุลลูกค้า';
+    }
+    if (!form.id_card.trim()) {
+      return form.customer_type === 'corporate'
+        ? 'กรุณากรอกเลขผู้เสียภาษี'
+        : 'กรุณากรอกเลขบัตรประชาชน';
+    }
     if (!form.address.trim()) return 'กรุณากรอกที่อยู่ติดตั้ง';
     if (!form.phone.trim()) return 'กรุณากรอกเบอร์ติดต่อ';
     if (!form.package_name.trim()) return 'กรุณากรอกแพ็กเกจ';
     if (!form.contract_info.trim()) return 'กรุณากรอกสัญญา';
-    if (!form.occupation.trim()) return 'กรุณากรอกอาชีพ';
-    if (!form.install_date && !form.install_date_text.trim()) return 'กรุณาระบุวันติดตั้ง';
+    if (!form.occupation.trim()) return form.customer_type === 'corporate' ? 'กรุณากรอกผู้ติดต่อ' : 'กรุณากรอกอาชีพ';
+    if (!form.install_date && !form.install_date_text.trim()) return 'กรุณาระบุขอวันติดตั้ง';
     if (form.lat == null || form.lng == null) return 'กรุณาปักพิกัดบ้านลูกค้า';
-    if (!form.pair_line.trim()) return 'กรุณากรอกคู่สาย';
     if (form.estimated_cable_m === '' || form.estimated_cable_m == null) return 'กรุณากรอกระยะสายประมาณ';
     if (totalPhotos < MIN_PHOTOS) return `ต้องมีรูปอย่างน้อย ${MIN_PHOTOS} รูป`;
     if (totalPhotos > MAX_PHOTOS) return `รูปได้ไม่เกิน ${MAX_PHOTOS} รูป`;
@@ -374,9 +423,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
     try {
       const payload = {
         ...form,
-        entry_fee_request: form.entry_fee_request === '' ? null : form.entry_fee_request,
+        approval_request: form.approval_request || null,
         install_date: form.install_date || null,
-        follow_up_at: form.follow_up_at || null,
+        follow_up_at: null,
         splitter_id: form.splitter_id || null,
         straight_distance_m: form.straight_distance_m === '' ? null : form.straight_distance_m,
         estimated_cable_m: form.estimated_cable_m === '' ? null : form.estimated_cable_m,
@@ -435,16 +484,27 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="ชื่อ-นามสกุลลูกค้า" required>
+            <Field label="ประเภทลูกค้า" required>
+              <select
+                disabled={locked}
+                value={form.customer_type || 'general'}
+                onChange={(e) => setField('customer_type', e.target.value)}
+                className={inputCls}
+              >
+                <option value="general">ลูกค้าทั่วไป</option>
+                <option value="corporate">นิติบุคคล</option>
+              </select>
+            </Field>
+            <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'} required>
               <input disabled={locked} value={form.customer_name} onChange={(e) => setField('customer_name', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="เลขบัตรประชาชน" required>
+            <Field label={form.customer_type === 'corporate' ? 'เลขผู้เสียภาษี' : 'เลขบัตรประชาชน'} required>
               <input disabled={locked} value={form.id_card} onChange={(e) => setField('id_card', e.target.value)} className={inputCls} inputMode="numeric" />
             </Field>
             <Field label="เบอร์ติดต่อ" required>
               <input disabled={locked} value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="อาชีพ" required>
+            <Field label={form.customer_type === 'corporate' ? 'ผู้ติดต่อ' : 'อาชีพ'} required>
               <input disabled={locked} value={form.occupation} onChange={(e) => setField('occupation', e.target.value)} className={inputCls} />
             </Field>
             <div className="sm:col-span-2">
@@ -458,23 +518,27 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             <Field label="สัญญา" required>
               <input disabled={locked} value={form.contract_info} onChange={(e) => setField('contract_info', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="ขออนุมัติค่าแรกเข้า">
-              <input disabled={locked} type="number" step="0.01" value={form.entry_fee_request} onChange={(e) => setField('entry_fee_request', e.target.value)} className={inputCls} placeholder="ไม่บังคับ" />
+            <Field label="ขออนุมัติ">
+              <select
+                disabled={locked}
+                value={form.approval_request || ''}
+                onChange={(e) => setField('approval_request', e.target.value)}
+                className={inputCls}
+              >
+                <option value="">ไม่ระบุ</option>
+                <option value="ฟรีค่าแรกเข้า">ฟรีค่าแรกเข้า</option>
+                <option value="บ้านเลขที่0">บ้านเลขที่0</option>
+                <option value="ใบอนญาติทำงาน">ใบอนญาติทำงาน</option>
+              </select>
             </Field>
-            <Field label="คู่สาย" required>
-              <input disabled={locked} value={form.pair_line} onChange={(e) => setField('pair_line', e.target.value)} className={inputCls} placeholder="เช่น 1 คู่ / รหัสคู่สาย" />
-            </Field>
-            <Field label="วันติดตั้ง (วันที่)">
+            <Field label="ขอวันติดตั้ง (วันที่)">
               <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="วันติดตั้ง (ข้อความ)" required={!form.install_date}>
+            <Field label="ขอวันติดตั้ง (ข้อความ)" required={!form.install_date}>
               <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น เสาร์หน้าช่วงเช้า" />
             </Field>
             <Field label="พนักงานขาย">
               <input disabled value={job?.owner_name || salesName || '-'} className={`${inputCls} bg-[#F3F4F6]`} />
-            </Field>
-            <Field label="นัดติดตาม">
-              <input disabled={locked} type="date" value={form.follow_up_at} onChange={(e) => setField('follow_up_at', e.target.value)} className={inputCls} />
             </Field>
             <div className="sm:col-span-2">
               <Field label="หมายเหตุการขาย">
@@ -486,9 +550,6 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                 <textarea disabled={locked} value={form.tech_note} onChange={(e) => setField('tech_note', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
               </Field>
             </div>
-            <Field label="ระยะเส้นตรง (ม.)">
-              <input disabled value={form.straight_distance_m} className={`${inputCls} bg-[#F3F4F6]`} />
-            </Field>
             <Field label="ระยะสายประมาณ (ม.)" required>
               <input
                 disabled={locked}
@@ -868,6 +929,11 @@ export default function AisExpansionPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [myLocation, setMyLocation] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [nearRadiusM, setNearRadiusM] = useState(NEARBY_RADIUS_M);
+  const [onlyNearby, setOnlyNearby] = useState(false);
+  const [sortByScore, setSortByScore] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -875,10 +941,6 @@ export default function AisExpansionPage() {
       const params = {};
       if (viewTab === 'open') params.scope = 'open';
       if (viewTab === 'done') params.scope = 'done';
-      if (viewTab === 'today') {
-        params.scope = 'open';
-        params.follow_up = 'today';
-      }
       if (search.trim()) params.q = search.trim();
       const { data } = await api.get('/expansion', { params });
       setJobs(Array.isArray(data) ? data : []);
@@ -991,19 +1053,67 @@ export default function AisExpansionPage() {
   };
 
   const handleExportExcel = () => {
-    if (!jobs.length) {
+    if (!displayedJobs.length) {
       Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายสำหรับ Export' });
       return;
     }
-    const rows = buildExpansionExportRows(jobs, { isAdmin });
+    const rows = buildExpansionExportRows(displayedJobs, { isAdmin });
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = computeSheetColumnWidths(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'sales_jobs');
     const day = new Date().toLocaleDateString('en-CA');
-    const scopeLabel = viewTab === 'done' ? 'done' : viewTab === 'today' ? 'today' : 'open';
+    const scopeLabel = viewTab === 'done' ? 'done' : 'open';
     XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
   };
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      Swal.fire({ icon: 'warning', title: 'ไม่รองรับ GPS', text: 'อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง' });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        setMyLocation({
+          lat: Number(pos.coords.latitude),
+          lng: Number(pos.coords.longitude),
+        });
+        setOnlyNearby(true);
+        setSortByScore(true);
+      },
+      () => {
+        setLocating(false);
+        Swal.fire({ icon: 'warning', title: 'ระบุตำแหน่งไม่สำเร็จ', text: 'กรุณาอนุญาตสิทธิ์ตำแหน่ง แล้วลองใหม่อีกครั้ง' });
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  };
+
+  const todayISO = new Date().toLocaleDateString('en-CA');
+  const scoredJobs = useMemo(() => {
+    return jobs.map((job) => {
+      const { score, distanceM } = feasibilityScore(job, myLocation, todayISO);
+      return { ...job, __score: score, __distanceM: distanceM };
+    });
+  }, [jobs, myLocation, todayISO]);
+
+  const displayedJobs = useMemo(() => {
+    let list = [...scoredJobs];
+    if (onlyNearby && myLocation) {
+      list = list.filter((job) => job.__distanceM != null && job.__distanceM <= Number(nearRadiusM || NEARBY_RADIUS_M));
+    }
+    if (sortByScore) {
+      list.sort((a, b) => {
+        if (b.__score !== a.__score) return b.__score - a.__score;
+        const ad = a.__distanceM == null ? Number.MAX_SAFE_INTEGER : a.__distanceM;
+        const bd = b.__distanceM == null ? Number.MAX_SAFE_INTEGER : b.__distanceM;
+        return ad - bd;
+      });
+    }
+    return list;
+  }, [scoredJobs, onlyNearby, myLocation, nearRadiusM, sortByScore]);
 
   return (
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขาย / งานขยาย" manualPage="ais_expansion">
@@ -1066,7 +1176,6 @@ export default function AisExpansionPage() {
               <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl mb-3">
                 {[
                   { key: 'open', label: 'ต้องทำ' },
-                  { key: 'today', label: 'นัดวันนี้' },
                   { key: 'done', label: 'จบแล้ว' },
                 ].map((tab) => (
                   <button
@@ -1100,6 +1209,59 @@ export default function AisExpansionPage() {
                   ค้นหา
                 </button>
               </form>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleLocateMe}
+                  disabled={locating}
+                  className="px-3 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white text-[#1F2937] hover:bg-[#F9FAFB] disabled:opacity-60"
+                >
+                  {locating ? 'กำลังหาตำแหน่ง...' : '📍 บ้านใกล้ฉัน'}
+                </button>
+                <label className={`px-3 py-2 rounded-xl text-xs font-bold border ${myLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                  <input
+                    type="checkbox"
+                    className="mr-1.5"
+                    checked={onlyNearby}
+                    disabled={!myLocation}
+                    onChange={(e) => setOnlyNearby(e.target.checked)}
+                  />
+                  เฉพาะในรัศมี
+                </label>
+                <select
+                  value={nearRadiusM}
+                  disabled={!myLocation}
+                  onChange={(e) => setNearRadiusM(Number(e.target.value))}
+                  className="px-2 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white disabled:opacity-60"
+                >
+                  <option value={1000}>1 กม.</option>
+                  <option value={2000}>2 กม.</option>
+                  <option value={3000}>3 กม.</option>
+                  <option value={5000}>5 กม.</option>
+                </select>
+                <label className="px-3 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white text-[#1F2937]">
+                  <input
+                    type="checkbox"
+                    className="mr-1.5"
+                    checked={sortByScore}
+                    onChange={(e) => setSortByScore(e.target.checked)}
+                  />
+                  เรียงตามความคุ้ม
+                </label>
+                {myLocation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMyLocation(null);
+                      setOnlyNearby(false);
+                    }}
+                    className="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
+                  >
+                    ล้างตำแหน่ง
+                  </button>
+                )}
+              </div>
             </div>
 
             {loading ? (
@@ -1108,9 +1270,11 @@ export default function AisExpansionPage() {
                   <div key={i} className="h-28 bg-[#E5E7EB]/60 rounded-2xl" />
                 ))}
               </div>
-            ) : jobs.length === 0 ? (
+            ) : displayedJobs.length === 0 ? (
               <div className="bg-white rounded-2xl border border-[#E5E7EB] p-12 text-center">
-                <p className="text-[#9CA3AF] font-bold mb-3">ยังไม่มีงานขาย</p>
+                <p className="text-[#9CA3AF] font-bold mb-3">
+                  {jobs.length > 0 ? 'ไม่พบงานในเงื่อนไขตำแหน่ง/รัศมี' : 'ยังไม่มีงานขาย'}
+                </p>
                 <button
                   type="button"
                   onClick={() => {
@@ -1125,7 +1289,7 @@ export default function AisExpansionPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {jobs.map((job) => (
+                {displayedJobs.map((job) => (
                   <div
                     key={job.id}
                     className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5"
@@ -1136,9 +1300,15 @@ export default function AisExpansionPage() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="text-xs font-black text-[#9CA3AF]">#{job.id}</span>
                           <StatusBadge status={job.status} />
-                          {job.follow_up_at && (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md">
-                              นัด {String(job.follow_up_at).slice(0, 10)}
+                          {sortByScore && (
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border ${
+                              job.__score >= 80
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : job.__score >= 60
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              คุ้ม {job.__score}
                             </span>
                           )}
                         </div>
@@ -1151,6 +1321,7 @@ export default function AisExpansionPage() {
                             {job.splitter_code || job.splitter_name || 'Splitter'}
                             {job.estimated_cable_m != null ? ` · ประมาณ ${job.estimated_cable_m} ม.` : ''}
                             {job.photo_count != null ? ` · รูป ${job.photo_count}` : ''}
+                            {job.__distanceM != null ? ` · ห่าง ${Math.round(job.__distanceM)} ม.` : ''}
                           </p>
                         )}
                         {isAdmin && job.owner_name && <p className="text-[11px] text-[#9CA3AF] mt-1">เซล: {job.owner_name}</p>}

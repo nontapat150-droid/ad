@@ -85,6 +85,8 @@ async function ensureExpansionSchema(db = pool) {
     await addColumnIfMissing(db, 'expansion_jobs', 'splitter_id', 'INT NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'straight_distance_m', 'DECIMAL(10,2) NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'estimated_cable_m', 'DECIMAL(10,2) NULL');
+    await addColumnIfMissing(db, 'expansion_jobs', 'approval_request', 'VARCHAR(100) NULL');
+    await addColumnIfMissing(db, 'expansion_jobs', 'customer_type', "VARCHAR(20) NOT NULL DEFAULT 'general'");
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS expansion_job_photos (
@@ -139,6 +141,11 @@ function parseDecimal(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function normalizeCustomerType(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return s === 'corporate' ? 'corporate' : 'general';
+}
+
 function todayISO() {
   return new Date().toLocaleDateString('en-CA');
 }
@@ -170,20 +177,19 @@ async function loadPhotos(db, expansionId) {
 
 function validateSalesRequired(body, { photoCount = null, requirePhotos = true } = {}) {
   const errors = [];
-  if (!trimOrNull(body.customer_name)) errors.push('กรุณากรอกชื่อ-นามสกุลลูกค้า');
-  if (!trimOrNull(body.id_card)) errors.push('กรุณากรอกเลขบัตรประชาชน');
+  if (!trimOrNull(body.customer_name)) errors.push('กรุณากรอกชื่อผู้ติดต่อ (ลูกค้า/บริษัท)');
+  if (!trimOrNull(body.id_card)) errors.push('กรุณากรอกเลขอ้างอิง (บัตรประชาชน/ผู้เสียภาษี)');
   if (!trimOrNull(body.address)) errors.push('กรุณากรอกที่อยู่ติดตั้ง');
   if (!trimOrNull(body.phone)) errors.push('กรุณากรอกเบอร์ติดต่อ');
   if (!trimOrNull(body.package_name)) errors.push('กรุณากรอกแพ็กเกจ');
   if (!trimOrNull(body.contract_info)) errors.push('กรุณากรอกสัญญา');
-  if (!trimOrNull(body.occupation)) errors.push('กรุณากรอกอาชีพ');
+  if (!trimOrNull(body.occupation)) errors.push('กรุณากรอกอาชีพ/ผู้ติดต่อ');
   if (!trimOrNull(body.install_date) && !trimOrNull(body.install_date_text)) {
-    errors.push('กรุณาระบุวันติดตั้ง (วันที่หรือข้อความ)');
+    errors.push('กรุณาระบุขอวันติดตั้ง (วันที่หรือข้อความ)');
   }
   if (parseCoord(body.lat) == null || parseCoord(body.lng) == null) {
     errors.push('กรุณาปักพิกัดบ้านลูกค้า');
   }
-  if (!trimOrNull(body.pair_line)) errors.push('กรุณากรอกคู่สาย');
   if (parseDecimal(body.estimated_cable_m) == null) {
     errors.push('กรุณากรอกระยะสายประมาณ');
   }
@@ -196,6 +202,9 @@ function validateSalesRequired(body, { photoCount = null, requirePhotos = true }
 
 function pickSalesFields(body, existing = {}) {
   return {
+    customer_type: body.customer_type !== undefined
+      ? normalizeCustomerType(body.customer_type)
+      : normalizeCustomerType(existing.customer_type),
     customer_name: body.customer_name !== undefined ? trimOrNull(body.customer_name) : existing.customer_name,
     phone: body.phone !== undefined ? trimOrNull(body.phone) : existing.phone,
     address: body.address !== undefined ? trimOrNull(body.address) : existing.address,
@@ -216,6 +225,9 @@ function pickSalesFields(body, existing = {}) {
     entry_fee_request: body.entry_fee_request !== undefined
       ? parseDecimal(body.entry_fee_request)
       : existing.entry_fee_request,
+    approval_request: body.approval_request !== undefined
+      ? trimOrNull(body.approval_request)
+      : existing.approval_request,
     install_date: body.install_date !== undefined ? (body.install_date || null) : existing.install_date,
     install_date_text: body.install_date_text !== undefined
       ? trimOrNull(body.install_date_text)
@@ -386,13 +398,14 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO expansion_jobs
-         (customer_name, phone, address, access_no, lat, lng, splitter_note, radius_m,
+         (customer_type, customer_name, phone, address, access_no, lat, lng, splitter_note, radius_m,
           status, owner_user_id, follow_up_at, remark, lost_reason,
-          id_card, package_name, contract_info, occupation, entry_fee_request,
+         id_card, package_name, contract_info, occupation, entry_fee_request, approval_request,
           install_date, install_date_text, sales_note, pair_line, tech_note,
           splitter_id, straight_distance_m, estimated_cable_m)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        fields.customer_type,
         fields.customer_name,
         fields.phone,
         fields.address,
@@ -411,6 +424,7 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
         fields.contract_info,
         fields.occupation,
         fields.entry_fee_request,
+        fields.approval_request,
         fields.install_date,
         fields.install_date_text,
         fields.sales_note,
@@ -477,15 +491,16 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
 
     await pool.query(
       `UPDATE expansion_jobs SET
-         customer_name = ?, phone = ?, address = ?, access_no = ?,
+         customer_type = ?, customer_name = ?, phone = ?, address = ?, access_no = ?,
          lat = ?, lng = ?, splitter_note = ?, radius_m = ?,
          status = ?, follow_up_at = ?, remark = ?, lost_reason = ?,
          id_card = ?, package_name = ?, contract_info = ?, occupation = ?,
-         entry_fee_request = ?, install_date = ?, install_date_text = ?,
+         entry_fee_request = ?, approval_request = ?, install_date = ?, install_date_text = ?,
          sales_note = ?, pair_line = ?, tech_note = ?,
          splitter_id = ?, straight_distance_m = ?, estimated_cable_m = ?
        WHERE id = ?`,
       [
+        fields.customer_type,
         fields.customer_name,
         fields.phone,
         fields.address,
@@ -503,6 +518,7 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
         fields.contract_info,
         fields.occupation,
         fields.entry_fee_request,
+        fields.approval_request,
         fields.install_date,
         fields.install_date_text,
         fields.sales_note,
