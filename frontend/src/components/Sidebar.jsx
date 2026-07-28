@@ -23,7 +23,7 @@ const MENU_GROUPS = [
       { key: 'oil',           label: 'เติมน้ำมัน',             icon: OilIcon       },
       { key: 'oil_history',   label: 'ประวัติเติมน้ำมันทีม',    icon: OilHistoryIcon },
       { key: 'checkin',       label: 'ลงเวลาเข้างาน',          icon: CheckinIcon   },
-      { key: 'ais_expansion', label: 'งานขยาย',                icon: MapIcon       },
+      { key: 'ais_expansion', label: 'งานขาย',                 icon: MapIcon       },
     ],
   },
   {

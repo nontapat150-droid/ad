@@ -31,6 +31,7 @@ const migrateRouter = require('./routes/migrate');
 const fcmRouter = require('./routes/fcm');
 const scheduledMessagesRouter = require('./routes/scheduledMessages');
 const expansionRouter = require('./routes/expansion');
+const splittersRouter = require('./routes/splitters');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -88,6 +89,7 @@ apiRouter.use('/upload', require('./routes/upload'));
 apiRouter.use('/fcm', fcmRouter);
 apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
 apiRouter.use('/expansion', expansionRouter);
+apiRouter.use('/splitters', splittersRouter);
 
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
