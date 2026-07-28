@@ -770,13 +770,16 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                 <h3 className="md:col-span-2 text-sm font-bold text-[#185FA5] mb-1">ข้อมูลพื้นฐาน</h3>
                 <div>
                   <AppDateField
-                    label="วันที่ติดตั้ง (ห้ามย้อนหลัง)"
+                    label="วันที่ติดตั้ง"
                     value={installDate}
                     onChange={(v) => { setInstallDate(v); setErrors(p => (p.installDate ? { ...p, installDate: null } : p)); }}
-                    min={new Date().toLocaleDateString('en-CA')}
+                    max={new Date().toLocaleDateString('en-CA')}
                     allowClear={false}
                     showToday
                   />
+                  {installDate && installDate < new Date().toLocaleDateString('en-CA') && (
+                    <p className="text-[10px] text-amber-600 mt-1 font-medium">📅 ปิดงานย้อนหลังวันที่ {installDate}</p>
+                  )}
                   <FieldHint message={errors.installDate} />
                 </div>
                 <div>
