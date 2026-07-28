@@ -660,7 +660,7 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                   <button onClick={() => { onClose(); onPostpone(job); }} className="py-2.5 px-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-colors">📅 นัดเวลาอีกครั้ง</button>
                   <button onClick={() => { onChangeTeam(job); }} className="py-2.5 px-3 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold border border-blue-200">🔄 ทีม</button>
                 </>}
-                {(status === 'pending' || status === 'overdue') && (
+                {(status === 'pending' || status === 'overdue' || status === 'in_progress') && (
                   <button onClick={() => { onClose(); onComplete(job); }} className="py-2.5 px-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold transition-colors">✅ จบงาน</button>
                 )}
                 <button onClick={() => { onClose(); onDelete(job.id); }} className="py-2.5 px-3 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl text-sm font-bold border border-red-100 transition-colors">🗑️</button>
