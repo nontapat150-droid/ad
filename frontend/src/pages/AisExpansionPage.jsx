@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapPicker';
@@ -36,10 +36,15 @@ const MAX_PHOTOS = 10;
 const NEARBY_RADIUS_M = 3000;
 
 const inputCls =
-  'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] text-sm font-semibold outline-none focus:ring-2 focus:ring-[#A3E635]/40 disabled:opacity-60';
+  'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-gradient-to-b from-white to-[#F9FAFB] text-sm font-semibold shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] outline-none focus:ring-2 focus:ring-[#A3E635]/35 focus:border-[#B7E45A] disabled:opacity-60 disabled:bg-[#F9FAFB]';
 const labelCls = 'block text-[11px] font-bold text-[#6B7280] uppercase mb-1';
-const selectCls = `${inputCls} appearance-none pr-10 bg-white`;
-const dateCls = `${inputCls} pr-10 bg-white [color-scheme:light]`;
+const controlWrapCls =
+  'relative rounded-xl bg-gradient-to-b from-white to-[#F9FAFB] border border-[#E5E7EB] shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] transition focus-within:ring-2 focus-within:ring-[#A3E635]/35 focus-within:border-[#B7E45A]';
+const selectCls =
+  'w-full px-3 py-2.5 rounded-xl border-0 bg-transparent text-sm font-semibold outline-none appearance-none pr-10 disabled:opacity-60';
+const dateCls =
+  'w-full px-3 py-2.5 rounded-xl border-0 bg-transparent text-sm font-semibold outline-none pr-10 disabled:opacity-60 [color-scheme:light]';
+const controlIconCls = 'pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]';
 
 const emptyForm = () => ({
   customer_type: 'general',
@@ -141,50 +146,6 @@ function computeSheetColumnWidths(rows) {
     });
     return { wch: Math.min(60, Math.max(10, maxLen + 2)) };
   });
-}
-
-function clampScore(v) {
-  return Math.max(0, Math.min(100, Math.round(v)));
-}
-
-function parseNum(v) {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function readinessScore(job) {
-  let score = 0;
-  if (job.customer_name) score += 12;
-  if (job.phone) score += 12;
-  if (job.address) score += 10;
-  if (job.id_card) score += 8;
-  if (job.package_name) score += 8;
-  if (job.lat != null && job.lng != null) score += 12;
-  if (job.estimated_cable_m != null && job.estimated_cable_m !== '') score += 20;
-  if (job.photo_count >= MIN_PHOTOS) score += 18;
-  return score; // 0..100
-}
-
-function feasibilityScore(job, myLocation, todayISO) {
-  const statusBonus = job.status === 'survey' ? 8 : job.status === 'quoted' ? 6 : job.status === 'draft' ? 3 : 0;
-  const followBonus = String(job.follow_up_at || '').slice(0, 10) === todayISO ? 8 : 0;
-  const cable = parseNum(job.estimated_cable_m);
-  const cableScore = cable == null ? 8 : cable <= 150 ? 20 : cable <= 300 ? 14 : cable <= 500 ? 8 : 4;
-
-  let distanceM = null;
-  let distanceScore = 10;
-  if (myLocation && job.lat != null && job.lng != null) {
-    distanceM = haversineMeters(myLocation.lat, myLocation.lng, Number(job.lat), Number(job.lng));
-    distanceScore = distanceM <= 1000 ? 22 : distanceM <= 2000 ? 18 : distanceM <= 3000 ? 14 : distanceM <= 5000 ? 10 : 4;
-  }
-
-  const splitterDist = parseNum(job.straight_distance_m);
-  const splitterScore = splitterDist == null ? 8 : splitterDist <= 300 ? 20 : splitterDist <= 800 ? 14 : splitterDist <= 1500 ? 9 : 5;
-
-  const ready = readinessScore(job); // 0..100
-  const total = (distanceScore * 0.30) + (splitterScore * 0.25) + (cableScore * 0.20) + (ready * 0.20) + statusBonus + followBonus;
-  return { score: clampScore(total), distanceM };
 }
 
 function Field({ label, required, children }) {
@@ -540,7 +501,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="ประเภทลูกค้า" required>
-              <div className="relative">
+              <div className={controlWrapCls}>
                 <select
                   disabled={locked}
                   value={form.customer_type || 'general'}
@@ -550,7 +511,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                   <option value="general">ลูกค้าทั่วไป</option>
                   <option value="corporate">นิติบุคคล</option>
                 </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">▾</span>
+                <span className={controlIconCls}>▾</span>
               </div>
             </Field>
             <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'} required>
@@ -577,7 +538,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
               <input disabled={locked} value={form.contract_info} onChange={(e) => setField('contract_info', e.target.value)} className={inputCls} />
             </Field>
             <Field label="ขออนุมัติ">
-              <div className="relative">
+              <div className={controlWrapCls}>
                 <select
                   disabled={locked}
                   value={form.approval_request || ''}
@@ -589,13 +550,17 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                   <option value="บ้านเลขที่0">บ้านเลขที่0</option>
                   <option value="ใบอนญาติทำงาน">ใบอนญาติทำงาน</option>
                 </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">▾</span>
+                <span className={controlIconCls}>▾</span>
               </div>
             </Field>
             <Field label="ขอวันติดตั้ง (วันที่)">
-              <div className="relative">
+              <div className={controlWrapCls}>
                 <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={dateCls} />
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]">📅</span>
+                <span className={controlIconCls}>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v3m8-3v3M4.5 9.5h15M5 4.5h14a1.5 1.5 0 011.5 1.5v13A1.5 1.5 0 0119 20.5H5A1.5 1.5 0 013.5 19V6A1.5 1.5 0 015 4.5z" />
+                  </svg>
+                </span>
               </div>
             </Field>
             <Field label="เลข NON" required={!form.install_date}>
@@ -1025,11 +990,6 @@ export default function AisExpansionPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [myLocation, setMyLocation] = useState(null);
-  const [locating, setLocating] = useState(false);
-  const [nearRadiusM, setNearRadiusM] = useState(NEARBY_RADIUS_M);
-  const [onlyNearby, setOnlyNearby] = useState(false);
-  const [sortByScore, setSortByScore] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -1163,53 +1123,7 @@ export default function AisExpansionPage() {
     XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
   };
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      Swal.fire({ icon: 'warning', title: 'ไม่รองรับ GPS', text: 'อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง' });
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        setMyLocation({
-          lat: Number(pos.coords.latitude),
-          lng: Number(pos.coords.longitude),
-        });
-        setOnlyNearby(true);
-        setSortByScore(true);
-      },
-      () => {
-        setLocating(false);
-        Swal.fire({ icon: 'warning', title: 'ระบุตำแหน่งไม่สำเร็จ', text: 'กรุณาอนุญาตสิทธิ์ตำแหน่ง แล้วลองใหม่อีกครั้ง' });
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
-    );
-  };
-
-  const todayISO = new Date().toLocaleDateString('en-CA');
-  const scoredJobs = useMemo(() => {
-    return jobs.map((job) => {
-      const { score, distanceM } = feasibilityScore(job, myLocation, todayISO);
-      return { ...job, __score: score, __distanceM: distanceM };
-    });
-  }, [jobs, myLocation, todayISO]);
-
-  const displayedJobs = useMemo(() => {
-    let list = [...scoredJobs];
-    if (onlyNearby && myLocation) {
-      list = list.filter((job) => job.__distanceM != null && job.__distanceM <= Number(nearRadiusM || NEARBY_RADIUS_M));
-    }
-    if (sortByScore) {
-      list.sort((a, b) => {
-        if (b.__score !== a.__score) return b.__score - a.__score;
-        const ad = a.__distanceM == null ? Number.MAX_SAFE_INTEGER : a.__distanceM;
-        const bd = b.__distanceM == null ? Number.MAX_SAFE_INTEGER : b.__distanceM;
-        return ad - bd;
-      });
-    }
-    return list;
-  }, [scoredJobs, onlyNearby, myLocation, nearRadiusM, sortByScore]);
+  const displayedJobs = jobs;
 
   return (
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขาย / งานขยาย" manualPage="ais_expansion">
@@ -1306,61 +1220,6 @@ export default function AisExpansionPage() {
                 </button>
               </form>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLocateMe}
-                  disabled={locating}
-                  className="px-3 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white text-[#1F2937] hover:bg-[#F9FAFB] disabled:opacity-60"
-                >
-                  {locating ? 'กำลังหาตำแหน่ง...' : '📍 บ้านใกล้ฉัน'}
-                </button>
-                <label className={`px-3 py-2 rounded-xl text-xs font-bold border ${myLocation ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
-                  <input
-                    type="checkbox"
-                    className="mr-1.5"
-                    checked={onlyNearby}
-                    disabled={!myLocation}
-                    onChange={(e) => setOnlyNearby(e.target.checked)}
-                  />
-                  เฉพาะในรัศมี
-                </label>
-                <div className="relative">
-                  <select
-                    value={nearRadiusM}
-                    disabled={!myLocation}
-                    onChange={(e) => setNearRadiusM(Number(e.target.value))}
-                    className="appearance-none pl-2 pr-7 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white disabled:opacity-60"
-                  >
-                    <option value={1000}>1 กม.</option>
-                    <option value={2000}>2 กม.</option>
-                    <option value={3000}>3 กม.</option>
-                    <option value={5000}>5 กม.</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[#9CA3AF] text-xs">▾</span>
-                </div>
-                <label className="px-3 py-2 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white text-[#1F2937]">
-                  <input
-                    type="checkbox"
-                    className="mr-1.5"
-                    checked={sortByScore}
-                    onChange={(e) => setSortByScore(e.target.checked)}
-                  />
-                  เรียงตามความคุ้ม
-                </label>
-                {myLocation && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMyLocation(null);
-                      setOnlyNearby(false);
-                    }}
-                    className="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
-                  >
-                    ล้างตำแหน่ง
-                  </button>
-                )}
-              </div>
             </div>
 
             {loading ? (
@@ -1371,9 +1230,7 @@ export default function AisExpansionPage() {
               </div>
             ) : displayedJobs.length === 0 ? (
               <div className="bg-white rounded-2xl border border-[#E5E7EB] p-12 text-center">
-                <p className="text-[#9CA3AF] font-bold mb-3">
-                  {jobs.length > 0 ? 'ไม่พบงานในเงื่อนไขตำแหน่ง/รัศมี' : 'ยังไม่มีงานขาย'}
-                </p>
+                <p className="text-[#9CA3AF] font-bold mb-3">ยังไม่มีงานขาย</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -1399,17 +1256,6 @@ export default function AisExpansionPage() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="text-xs font-black text-[#9CA3AF]">#{job.id}</span>
                           <StatusBadge status={job.status} />
-                          {sortByScore && (
-                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border ${
-                              job.__score >= 80
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : job.__score >= 60
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}>
-                              คุ้ม {job.__score}
-                            </span>
-                          )}
                         </div>
                         <p className="font-black text-[#1F2937] text-base truncate">{job.customer_name || 'ไม่ระบุชื่อลูกค้า'}</p>
                         <p className="text-sm text-[#6B7280] truncate">{job.phone || 'ไม่มีเบอร์'}</p>
@@ -1420,7 +1266,6 @@ export default function AisExpansionPage() {
                             {job.splitter_code || job.splitter_name || 'Splitter'}
                             {job.estimated_cable_m != null ? ` · ประมาณ ${job.estimated_cable_m} ม.` : ''}
                             {job.photo_count != null ? ` · รูป ${job.photo_count}` : ''}
-                            {job.__distanceM != null ? ` · ห่าง ${Math.round(job.__distanceM)} ม.` : ''}
                           </p>
                         )}
                         {isAdmin && job.owner_name && <p className="text-[11px] text-[#9CA3AF] mt-1">เซล: {job.owner_name}</p>}
