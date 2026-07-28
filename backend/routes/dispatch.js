@@ -106,6 +106,15 @@ function resolveBagOwnerId(job, completerId, { isMa = false } = {}) {
   return Number(completerId);
 }
 
+/** Who appears as completed_by — when admin completes on behalf, credit the assignee */
+function resolveCompletedById(job, actorId, { isAdmin = false, isMa = false } = {}) {
+  if (isAdmin) {
+    const assignee = isMa ? job?.assigned_user_id : job?.field_engineer_id;
+    if (assignee) return Number(assignee);
+  }
+  return Number(actorId);
+}
+
 async function getUserTeamId(conn, userId) {
   if (!userId) return null;
   const [[u]] = await conn.query('SELECT team_id FROM users WHERE id = ? LIMIT 1', [userId]);
@@ -941,6 +950,10 @@ router.put(
         return res.status(409).json({ error: 'Job already completed' });
       }
 
+      // Admin completing on behalf → credit assignee as completed_by / inventory used_by
+      const completedById = resolveCompletedById(job, techId, { isAdmin });
+      const creditUserId = resolveBagOwnerId(job, techId);
+
       // 2. Process tech-bag inventory usage (SN items) — shared team bag
       const bagTeamId = await resolveJobBagTeamId(conn, { job, actorId: techId });
       const usedItems = parseUsedInventoryBody(req.body);
@@ -948,9 +961,9 @@ router.put(
       if (usedItems.length > 0) {
         installPartsFromBag = await processUsedInventory(conn, {
           jobId,
-          techId,
+          techId: creditUserId,
           teamId: bagTeamId,
-          usedBy: techId,
+          usedBy: creditUserId,
           accessNo: job.access_no,
           usedItems,
         });
@@ -962,9 +975,9 @@ router.put(
       if (noSnItems.length > 0) {
         noSnSummaryParts = await processNoSnItems(conn, {
           jobId,
-          techId,
+          techId: creditUserId,
           teamId: bagTeamId,
-          usedBy: techId,
+          usedBy: creditUserId,
           accessNo: job.access_no,
           noSnItems,
         });
@@ -996,6 +1009,7 @@ router.put(
           access_no = COALESCE(?, access_no),
           customer = COALESCE(?, customer),
           package = COALESCE(?, package),
+          order_no = COALESCE(?, order_no),
           install_device = COALESCE(?, install_device),
           split_no = ?,
           port_no = ?,
@@ -1005,12 +1019,13 @@ router.put(
           sc_blue = ?
          WHERE id = ?`,
         [
-          techId,
+          completedById,
           req.body.remark || null,
           req.body.installDate || null,
           req.body.accessNo || null,
           req.body.customerName || null,
           req.body.mainPackage || null,
+          req.body.orderNo || null,
           installDeviceStr,
           req.body.splitNo || null,
           req.body.portNo || null,
@@ -1022,11 +1037,14 @@ router.put(
         ]
       );
 
-      // 4. Log to job_logs
+      // 4. Log to job_logs (actor = who clicked; completed_by on jobs may be assignee)
+      const logRemark = isAdmin && Number(completedById) !== Number(techId)
+        ? [req.body.remark, '(แอดมินจบงานแทนช่างที่ได้รับมอบหมาย)'].filter(Boolean).join(' ')
+        : (req.body.remark || null);
       try {
         await conn.query(
           `INSERT INTO job_logs (job_id, tech_id, status, remark) VALUES (?, ?, 'completed', ?)`,
-          [jobId, techId, req.body.remark || null]
+          [jobId, techId, logRemark]
         );
       } catch (logErr) {
         if (logErr.message.includes("Field 'id' doesn't have a default value")) {
@@ -1034,7 +1052,7 @@ router.put(
           const nextId = (maxId || 0) + 1;
           await conn.query(
             `INSERT INTO job_logs (id, job_id, tech_id, status, remark) VALUES (?, ?, ?, 'completed', ?)`,
-            [nextId, jobId, techId, req.body.remark || null]
+            [nextId, jobId, techId, logRemark]
           );
         } else {
           throw logErr;
@@ -2658,6 +2676,8 @@ router.put(
       } = req.body;
 
       const bagTeamId = await resolveJobBagTeamId(conn, { job, actorId: techId });
+      const completedById = resolveCompletedById(job, techId, { isAdmin, isMa: true });
+      const creditUserId = resolveBagOwnerId(job, techId, { isMa: true });
       const noSnItems = parseNoSnItems(req.body);
       const snItems = parseUsedInventoryBody(req.body);
       const equipParts = [];
@@ -2665,9 +2685,9 @@ router.put(
       if (snItems.length > 0) {
         const snParts = await processMaSnItems(conn, {
           maJobId,
-          techId,
+          techId: creditUserId,
           teamId: bagTeamId,
-          usedBy: techId,
+          usedBy: creditUserId,
           nonNumber: job.non_number || job.access_no,
           snItems,
         });
@@ -2677,9 +2697,9 @@ router.put(
       if (noSnItems.length > 0) {
         const noSnParts = await processMaNoSnItems(conn, {
           maJobId,
-          techId,
+          techId: creditUserId,
           teamId: bagTeamId,
-          usedBy: techId,
+          usedBy: creditUserId,
           nonNumber: job.non_number || job.access_no,
           noSnItems,
         });
@@ -2702,7 +2722,7 @@ router.put(
            remark = COALESCE(?, remark)
          WHERE id = ?`,
         [
-          techId,
+          completedById,
           srt || null,
           spt || null,
           fail_cause || null,

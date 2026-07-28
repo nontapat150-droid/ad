@@ -200,6 +200,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [accessNo, setAccessNo] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [mainPackage, setMainPackage] = useState('');
+  const [orderNo, setOrderNo] = useState('');
 
   // Device fields — SN from tech bag only (SOA is free text)
   const [bagItems, setBagItems] = useState([]);
@@ -248,6 +249,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     setAccessNo(job.access_no || '');
     setCustomerName(job.customer || '');
     setMainPackage(job.package || '');
+    setOrderNo(job.order_no || '');
     setImages([]);
     setRemark('');
     setBagSelections({ ...EMPTY_BAG_SELECTIONS });
@@ -278,6 +280,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
             }
           }
           if (d.soaDevice != null) setSoaDevice(d.soaDevice);
+          if (d.orderNo != null) setOrderNo(d.orderNo);
           if (d.splitNo != null) setSplitNo(d.splitNo);
           if (d.portNo != null) setPortNo(d.portNo);
           if (d.l3Name != null) setL3Name(d.l3Name);
@@ -348,6 +351,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           installDate,
           bagSelections,
           soaDevice,
+          orderNo,
           splitNo,
           portNo,
           l3Name,
@@ -364,7 +368,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     }, DRAFT_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [
-    isOpen, job, step, installDate, bagSelections, soaDevice, splitNo, portNo, l3Name,
+    isOpen, job, step, installDate, bagSelections, soaDevice, orderNo, splitNo, portNo, l3Name,
     cableLength, refId3bb, scBlue, remark, entryFeeStatus, entryFeeBackdate, selectedNoSnItems,
   ]);
 
@@ -380,6 +384,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     setErrors({});
     setInstallDate(new Date().toLocaleDateString('en-CA'));
     setRemark('');
+    setOrderNo(job?.order_no || '');
     setBagSelections({ ...EMPTY_BAG_SELECTIONS });
     setSoaDevice('');
     setSplitNo(''); setPortNo(''); setL3Name(''); setCableLength(''); setRefId3bb(''); setScBlue('');
@@ -516,6 +521,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
       formData.append('accessNo', accessNo);
       formData.append('customerName', customerName);
       formData.append('mainPackage', mainPackage);
+      formData.append('orderNo', orderNo);
 
       const usedInventory = BAG_DEVICE_SLOTS
         .filter(({ role }) => bagSelections[role] && bagSelections[role] !== 'dash')
@@ -579,7 +585,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         `วันที่ติดตั้ง (Plan Date): ${installDate || '-'}`,
         `เลข (NON): ${accessNo || '-'}`,
         `แพ็กเกจ: ${mainPackage || '-'}`,
-        `Order No: ${job.order_no || '-'}`,
+        `Order No: ${String(orderNo).trim() || '-'}`,
         `SOA: -`,
         `อุปกรณ์ปิด SOA: ${String(soaDevice).trim() || '-'}`,
         `Splitt: ${splitNo || '-'}`,
@@ -797,6 +803,16 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                   <input type="text" readOnly value={mainPackage}
                     className="w-full px-3 py-2 rounded-xl border border-gray-200 outline-none text-gray-500 bg-gray-100 text-sm cursor-not-allowed" />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#042C53] mb-1">Order No</label>
+                  <input
+                    type="text"
+                    value={orderNo}
+                    onChange={(e) => setOrderNo(e.target.value)}
+                    placeholder="กรอก Order No"
+                    className={inputCls}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/40 rounded-2xl border border-white/50">
@@ -975,6 +991,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                   <InfoRow label="Access (NON)" value={accessNo} />
                   <InfoRow label="ลูกค้า" value={customerName} />
                   <InfoRow label="แพ็กเกจ" value={mainPackage} />
+                  <InfoRow label="Order No" value={String(orderNo).trim() || '-'} />
                   <InfoRow label="วันที่ติดตั้ง" value={installDate} />
                 </div>
               </div>
@@ -1041,6 +1058,12 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
               <p className="text-xs text-center text-slate-500">
                 ตรวจสอบข้อมูลครบถ้วนแล้ว กด "ยืนยันจบงาน" เพื่อบันทึก
               </p>
+              {isAdmin && (job.field_engineer_id || job.assigned_user_id) && (
+                <p className="text-xs text-center text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  👤 แอดมินจบงานแทน — ผู้จบงานจะบันทึกเป็นชื่อช่างที่ได้รับมอบหมาย
+                  {job.engineer_name ? ` (${job.engineer_name})` : ''}
+                </p>
+              )}
             </div>
           )}
         </div>
