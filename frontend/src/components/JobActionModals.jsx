@@ -33,22 +33,21 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
 
   const handleQtyChange = (itemId, qty, maxQty) => {
     setSelectedNoSnItems((prev) => {
-      if (prev[itemId]?.locked) return prev;
+      if (!prev[itemId]) return prev;
+      const minQty = prev[itemId].locked ? 1 : 0;
       if (qty === '') {
         return { ...prev, [itemId]: { ...prev[itemId], useQty: '' } };
       }
       const num = parseInt(qty, 10);
       if (isNaN(num)) return prev;
-      const val = Math.min(Math.max(num, 0), maxQty);
+      const val = Math.min(Math.max(num, minQty), maxQty);
       return { ...prev, [itemId]: { ...prev[itemId], useQty: val } };
     });
   };
 
   const handleQtyBlur = (itemId, qty, maxQty) => {
     setSelectedNoSnItems((prev) => {
-      if (prev[itemId]?.locked) {
-        return { ...prev, [itemId]: { ...prev[itemId], useQty: 1 } };
-      }
+      if (!prev[itemId]) return prev;
       const num = parseInt(qty, 10);
       if (isNaN(num) || num < 1) {
         return { ...prev, [itemId]: { ...prev[itemId], useQty: 1 } };
@@ -153,7 +152,7 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                       <div className="font-bold text-slate-800 text-sm flex items-center gap-2 flex-wrap">
                         {item.product_name}
                         {isLocked && (
-                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-200 text-amber-800">🔒 ล็อกจากตั้งค่า · 1 ชิ้น</span>
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-200 text-amber-800">🔒 ใช้บ่อย · เริ่ม 1 (เพิ่มจำนวนได้)</span>
                         )}
                       </div>
                       <div className="text-xs text-slate-500">
@@ -180,12 +179,14 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                     </div>
                   </div>
 
-                  {isSelected && !insufficient && !isLocked && (
+                  {isSelected && !insufficient && (
                     <div
                       className="mt-3 flex items-center gap-2"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <label className="text-xs font-bold text-blue-700 whitespace-nowrap">จำนวนที่ใช้:</label>
+                      <label className={`text-xs font-bold whitespace-nowrap ${isLocked ? 'text-amber-800' : 'text-blue-700'}`}>
+                        จำนวนที่ใช้:
+                      </label>
                       <input
                         type="number"
                         min="1"
@@ -193,9 +194,16 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                         value={selectedNoSnItems[item.id].useQty}
                         onChange={(e) => handleQtyChange(item.id, e.target.value, maxQty)}
                         onBlur={(e) => handleQtyBlur(item.id, e.target.value, maxQty)}
-                        className="w-20 px-2 py-1.5 rounded-xl border-2 border-blue-300 focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 outline-none text-center font-bold text-sm"
+                        className={`w-20 px-2 py-1.5 rounded-xl border-2 outline-none text-center font-bold text-sm focus:ring-2 ${
+                          isLocked
+                            ? 'border-amber-300 focus:ring-amber-400/30 focus:border-amber-500'
+                            : 'border-blue-300 focus:ring-blue-400/30 focus:border-blue-500'
+                        }`}
                       />
                       <span className="text-xs font-semibold text-slate-500">/ {maxQty} {unit}</span>
+                      {isLocked && (
+                        <span className="text-[10px] font-bold text-amber-700">ขั้นต่ำ 1</span>
+                      )}
                     </div>
                   )}
                 </div>

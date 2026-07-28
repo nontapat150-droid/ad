@@ -1,6 +1,6 @@
 /**
- * Merge auto-locked frequent no-SN bag items (qty 1) into selected map.
- * Locked rows cannot be removed by the technician during complete.
+ * Auto-select frequent no-SN bag items with default qty 1.
+ * Locked rows cannot be removed, but technicians may increase quantity.
  */
 export function applyFrequentNoSnLocks(selectedNoSnItems, noSnItems, config, userRoles) {
   const productIds = Array.isArray(config?.product_ids) ? config.product_ids.map(String) : [];
@@ -26,15 +26,17 @@ export function applyFrequentNoSnLocks(selectedNoSnItems, noSnItems, config, use
 
     claimedProducts.add(pid);
     const prev = next[item.id];
+    const prevQty = Math.max(1, parseInt(prev?.useQty, 10) || 1);
     next[item.id] = {
       ...item,
       ...(prev || {}),
-      useQty: 1,
+      // Default 1 on first auto-select; keep higher qty if already set (draft / user bump)
+      useQty: prev ? Math.min(prevQty, Number(item.quantity) || prevQty) : 1,
       locked: true,
     };
   }
 
-  // Re-assert lock on already-selected matching products (preserve draft qty)
+  // Re-assert lock on already-selected matching products (preserve qty ≥ 1)
   Object.keys(next).forEach((id) => {
     const it = next[id];
     const pid = it?.product_id != null ? String(it.product_id) : '';

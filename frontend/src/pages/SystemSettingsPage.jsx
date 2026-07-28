@@ -109,7 +109,7 @@ export default function SystemSettingsPage() {
     try {
       setFrequentSaving(true);
       await api.put('/settings/frequent-no-sn', frequentConfig);
-      Swal.fire('บันทึกสำเร็จ', 'ตั้งค่าอุปกรณ์ที่ใช้บ่อยแล้ว — ระบบจะล็อก 1 ชิ้นตอนจบงานตามบทบาทที่เลือก', 'success');
+      Swal.fire('บันทึกสำเร็จ', 'ตั้งค่าอุปกรณ์ที่ใช้บ่อยแล้ว — ระบบจะเลือกให้เริ่มต้น 1 ชิ้นตอนจบงาน (ช่างเพิ่มจำนวนได้) ตามบทบาทที่เลือก', 'success');
     } catch (err) {
       Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || err.message, 'error');
     } finally {
@@ -168,7 +168,7 @@ export default function SystemSettingsPage() {
         </button>
         <div className="flex-1">
           <h1 className="text-3xl font-black text-slate-800 drop-shadow-sm">ตั้งค่าระบบ</h1>
-          <p className="text-slate-500 mt-2 font-medium">จัดการ Branding และอุปกรณ์ที่ล็อกอัตโนมัติตอนจบงาน</p>
+          <p className="text-slate-500 mt-2 font-medium">จัดการ Branding และอุปกรณ์ที่ใช้บ่อยตอนจบงาน</p>
         </div>
         <ManualHelpButton onClick={() => setShowManualModal(true)} />
       </div>
@@ -176,10 +176,10 @@ export default function SystemSettingsPage() {
       <div className="glass rounded-3xl p-6 md:p-8 shadow-xl border border-white/40 mb-8">
         <div className="mb-6 border-b border-slate-200/50 pb-6">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            🔒 อุปกรณ์ที่ใช้บ่อย (ไม่มี SN)
+            ⭐ อุปกรณ์ที่ใช้บ่อย (ไม่มี SN)
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            เลือกสินค้าที่ช่างมักลืม — ระบบจะล็อกไว้ 1 ชิ้นตอนจบงานตามบทบาทที่เลือก (อุปกรณ์อื่นยังเลือกเพิ่มได้)
+            เลือกสินค้าที่ช่างมักลืม — ระบบจะเลือกให้เริ่มต้น 1 ชิ้นตอนจบงานตามบทบาทที่เลือก (ช่างเพิ่มจำนวนได้ ถอนออกไม่ได้)
           </p>
         </div>
 
@@ -188,7 +188,7 @@ export default function SystemSettingsPage() {
         ) : (
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">บทบาทที่ให้ล็อกอัตโนมัติ</label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">บทบาทที่ให้เลือกอัตโนมัติ</label>
               <div className="flex flex-wrap gap-2">
                 {FREQUENT_NO_SN_ROLES.map((r) => {
                   const on = frequentConfig.roles.includes(r.key);
@@ -213,7 +213,7 @@ export default function SystemSettingsPage() {
             <div>
               <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                 <label className="block text-sm font-bold text-slate-700">
-                  สินค้าไม่มี SN ที่ล็อก 1 ชิ้น ({frequentConfig.product_ids.length} รายการ)
+                  สินค้าไม่มี SN ที่เลือกอัตโนมัติ เริ่ม 1 ({frequentConfig.product_ids.length} รายการ)
                 </label>
                 <input
                   type="text"
