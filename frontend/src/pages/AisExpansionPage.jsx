@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapPicker';
+import { Calendar } from '../components/ui/calendar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
@@ -38,13 +39,6 @@ const NEARBY_RADIUS_M = 3000;
 const inputCls =
   'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-gradient-to-b from-white to-[#F9FAFB] text-sm font-semibold shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] outline-none focus:ring-2 focus:ring-[#A3E635]/35 focus:border-[#B7E45A] disabled:opacity-60 disabled:bg-[#F9FAFB]';
 const labelCls = 'block text-[11px] font-bold text-[#6B7280] uppercase mb-1';
-const controlWrapCls =
-  'relative rounded-xl bg-gradient-to-b from-white to-[#F9FAFB] border border-[#E5E7EB] shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] transition focus-within:ring-2 focus-within:ring-[#A3E635]/35 focus-within:border-[#B7E45A]';
-const selectCls =
-  'w-full px-3 py-2.5 rounded-xl border-0 bg-transparent text-sm font-semibold outline-none appearance-none pr-10 disabled:opacity-60';
-const dateCls =
-  'w-full px-3 py-2.5 rounded-xl border-0 bg-transparent text-sm font-semibold outline-none pr-10 disabled:opacity-60 [color-scheme:light]';
-const controlIconCls = 'pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#9CA3AF]';
 
 const emptyForm = () => ({
   customer_type: 'general',
@@ -156,6 +150,133 @@ function Field({ label, required, children }) {
         {required ? <span className="text-red-500"> *</span> : null}
       </label>
       {children}
+    </div>
+  );
+}
+
+function toDateFromISO(iso) {
+  if (!iso) return undefined;
+  const parts = String(iso).split('-');
+  if (parts.length !== 3) return undefined;
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return undefined;
+  return new Date(y, m - 1, d);
+}
+
+function toISODateString(date) {
+  if (!(date instanceof Date)) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function prettyThaiDate(iso) {
+  const d = toDateFromISO(iso);
+  if (!d) return '';
+  return d.toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function FancySelect({ value, onChange, options, disabled, placeholder = 'เลือกข้อมูล' }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selected = options.find((o) => String(o.value) === String(value));
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocClick = (e) => {
+      if (!rootRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={`${inputCls} flex items-center justify-between text-left ${open ? 'ring-2 ring-[#A3E635]/35 border-[#B7E45A]' : ''}`}
+      >
+        <span className={selected ? 'text-[#1F2937]' : 'text-[#9CA3AF]'}>{selected?.label || placeholder}</span>
+        <svg className={`w-4 h-4 text-[#6B7280] transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && !disabled && (
+        <div className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-2xl border border-[#E5E7EB] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.06)]">
+          <div className="max-h-72 overflow-y-auto p-2">
+            {options.map((opt) => {
+              const active = String(opt.value) === String(value);
+              return (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                    active
+                      ? 'bg-[#A3E635]/15 text-[#1F2937] border border-[#A3E635]/40'
+                      : 'text-[#374151] hover:bg-[#F3F4F6]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FancyDatePicker({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocClick = (e) => {
+      if (!rootRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={`${inputCls} flex items-center justify-between text-left ${open ? 'ring-2 ring-[#A3E635]/35 border-[#B7E45A]' : ''}`}
+      >
+        <span className={value ? 'text-[#1F2937]' : 'text-[#9CA3AF]'}>
+          {value ? prettyThaiDate(value) : 'เลือกวันที่ติดตั้ง'}
+        </span>
+        <svg className="w-4 h-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v3m8-3v3M4.5 9.5h15M5 4.5h14a1.5 1.5 0 011.5 1.5v13A1.5 1.5 0 0119 20.5H5A1.5 1.5 0 013.5 19V6A1.5 1.5 0 015 4.5z" />
+        </svg>
+      </button>
+      {open && !disabled && (
+        <div className="mt-2 rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.08)] overflow-hidden animate-filterDropIn z-[70] relative">
+          <Calendar
+            mode="single"
+            selected={toDateFromISO(value)}
+            onSelect={(date) => {
+              onChange(toISODateString(date));
+              setOpen(false);
+            }}
+            className="rdp p-4 bg-white border-[#E5E7EB] border-0 shadow-none rounded-none"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -501,18 +622,15 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="ประเภทลูกค้า" required>
-              <div className={controlWrapCls}>
-                <select
-                  disabled={locked}
-                  value={form.customer_type || 'general'}
-                  onChange={(e) => setField('customer_type', e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="general">ลูกค้าทั่วไป</option>
-                  <option value="corporate">นิติบุคคล</option>
-                </select>
-                <span className={controlIconCls}>▾</span>
-              </div>
+              <FancySelect
+                disabled={locked}
+                value={form.customer_type || 'general'}
+                onChange={(v) => setField('customer_type', v)}
+                options={[
+                  { value: 'general', label: 'ลูกค้าทั่วไป' },
+                  { value: 'corporate', label: 'นิติบุคคล' },
+                ]}
+              />
             </Field>
             <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'} required>
               <input disabled={locked} value={form.customer_name} onChange={(e) => setField('customer_name', e.target.value)} className={inputCls} />
@@ -538,30 +656,24 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
               <input disabled={locked} value={form.contract_info} onChange={(e) => setField('contract_info', e.target.value)} className={inputCls} />
             </Field>
             <Field label="ขออนุมัติ">
-              <div className={controlWrapCls}>
-                <select
-                  disabled={locked}
-                  value={form.approval_request || ''}
-                  onChange={(e) => setField('approval_request', e.target.value)}
-                  className={selectCls}
-                >
-                  <option value="">ไม่ระบุ</option>
-                  <option value="ฟรีค่าแรกเข้า">ฟรีค่าแรกเข้า</option>
-                  <option value="บ้านเลขที่0">บ้านเลขที่0</option>
-                  <option value="ใบอนญาติทำงาน">ใบอนญาติทำงาน</option>
-                </select>
-                <span className={controlIconCls}>▾</span>
-              </div>
+              <FancySelect
+                disabled={locked}
+                value={form.approval_request || ''}
+                onChange={(v) => setField('approval_request', v)}
+                options={[
+                  { value: '', label: 'ไม่ระบุ' },
+                  { value: 'ฟรีค่าแรกเข้า', label: 'ฟรีค่าแรกเข้า' },
+                  { value: 'บ้านเลขที่0', label: 'บ้านเลขที่0' },
+                  { value: 'ใบอนญาติทำงาน', label: 'ใบอนญาติทำงาน' },
+                ]}
+              />
             </Field>
             <Field label="ขอวันติดตั้ง (วันที่)">
-              <div className={controlWrapCls}>
-                <input disabled={locked} type="date" value={form.install_date} onChange={(e) => setField('install_date', e.target.value)} className={dateCls} />
-                <span className={controlIconCls}>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v3m8-3v3M4.5 9.5h15M5 4.5h14a1.5 1.5 0 011.5 1.5v13A1.5 1.5 0 0119 20.5H5A1.5 1.5 0 013.5 19V6A1.5 1.5 0 015 4.5z" />
-                  </svg>
-                </span>
-              </div>
+              <FancyDatePicker
+                disabled={locked}
+                value={form.install_date}
+                onChange={(v) => setField('install_date', v)}
+              />
             </Field>
             <Field label="เลข NON" required={!form.install_date}>
               <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
