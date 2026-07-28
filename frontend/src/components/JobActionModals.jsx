@@ -22,6 +22,7 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
     setSelectedNoSnItems((prev) => {
       const next = { ...prev };
       if (next[item.id]) {
+        if (next[item.id].locked) return prev; // cannot unlock system-required items
         delete next[item.id];
       } else {
         next[item.id] = { ...item, useQty: 1 };
@@ -31,24 +32,32 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
   };
 
   const handleQtyChange = (itemId, qty, maxQty) => {
-    if (qty === '') {
-      setSelectedNoSnItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], useQty: '' } }));
-      return;
-    }
-    const num = parseInt(qty, 10);
-    if (!isNaN(num)) {
+    setSelectedNoSnItems((prev) => {
+      if (prev[itemId]?.locked) return prev;
+      if (qty === '') {
+        return { ...prev, [itemId]: { ...prev[itemId], useQty: '' } };
+      }
+      const num = parseInt(qty, 10);
+      if (isNaN(num)) return prev;
       const val = Math.min(Math.max(num, 0), maxQty);
-      setSelectedNoSnItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], useQty: val } }));
-    }
+      return { ...prev, [itemId]: { ...prev[itemId], useQty: val } };
+    });
   };
 
   const handleQtyBlur = (itemId, qty, maxQty) => {
-    const num = parseInt(qty, 10);
-    if (isNaN(num) || num < 1) {
-      setSelectedNoSnItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], useQty: 1 } }));
-    } else if (num > maxQty) {
-      setSelectedNoSnItems((prev) => ({ ...prev, [itemId]: { ...prev[itemId], useQty: maxQty } }));
-    }
+    setSelectedNoSnItems((prev) => {
+      if (prev[itemId]?.locked) {
+        return { ...prev, [itemId]: { ...prev[itemId], useQty: 1 } };
+      }
+      const num = parseInt(qty, 10);
+      if (isNaN(num) || num < 1) {
+        return { ...prev, [itemId]: { ...prev[itemId], useQty: 1 } };
+      }
+      if (num > maxQty) {
+        return { ...prev, [itemId]: { ...prev[itemId], useQty: maxQty } };
+      }
+      return prev;
+    });
   };
 
   const selectedCount = Object.keys(selectedNoSnItems).length;
@@ -107,6 +116,7 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
               const maxQty = Number(item.quantity) || 0;
               const insufficient = maxQty < 1;
               const isSelected = !!selectedNoSnItems[item.id];
+              const isLocked = !!selectedNoSnItems[item.id]?.locked;
               const useQty = isSelected ? (parseInt(selectedNoSnItems[item.id].useQty, 10) || 0) : 0;
               const remaining = maxQty - useQty;
               const unit = item.unit || 'ชิ้น';
@@ -117,16 +127,20 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                   className={`flex flex-col p-4 rounded-2xl border-2 transition-all ${
                     insufficient
                       ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                      : isLocked
+                        ? 'border-amber-400 bg-amber-50/70 shadow-sm cursor-default'
                       : isSelected
                         ? 'border-blue-400 bg-blue-50/60 shadow-sm cursor-pointer'
                         : 'border-slate-200 hover:border-blue-200 hover:bg-blue-50/20 cursor-pointer'
                   }`}
-                  onClick={() => !insufficient && handleToggle(item)}
+                  onClick={() => !insufficient && !isLocked && handleToggle(item)}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                       insufficient
                         ? 'border-slate-200 bg-slate-100'
+                        : isLocked
+                          ? 'bg-amber-500 border-amber-500 text-white'
                         : isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300'
                     }`}>
                       {isSelected && !insufficient && (
@@ -136,7 +150,12 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-slate-800 text-sm">{item.product_name}</div>
+                      <div className="font-bold text-slate-800 text-sm flex items-center gap-2 flex-wrap">
+                        {item.product_name}
+                        {isLocked && (
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-200 text-amber-800">🔒 ล็อกจากตั้งค่า · 1 ชิ้น</span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-500">
                         รุ่น: {item.model_name || '-'}
                         {insufficient && <span className="ml-2 text-red-500 font-bold">จำนวนไม่พอ</span>}
@@ -149,9 +168,9 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">ก่อนใช้</p>
                       <p className="text-sm font-black text-slate-800">{maxQty} <span className="text-[10px] font-semibold text-slate-500">{unit}</span></p>
                     </div>
-                    <div className={`rounded-xl border px-2 py-1.5 ${isSelected ? 'bg-blue-100 border-blue-300' : 'bg-white border-slate-200'}`}>
+                    <div className={`rounded-xl border px-2 py-1.5 ${isSelected ? (isLocked ? 'bg-amber-100 border-amber-300' : 'bg-blue-100 border-blue-300') : 'bg-white border-slate-200'}`}>
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">ใช้</p>
-                      <p className="text-sm font-black text-blue-700">{isSelected ? useQty : '—'}</p>
+                      <p className={`text-sm font-black ${isLocked ? 'text-amber-800' : 'text-blue-700'}`}>{isSelected ? useQty : '—'}</p>
                     </div>
                     <div className={`rounded-xl border px-2 py-1.5 ${remaining < 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">คงเหลือหลังใช้</p>
@@ -161,7 +180,7 @@ export function NoSnEquipmentModal({ isOpen, onClose, noSnItems, selectedNoSnIte
                     </div>
                   </div>
 
-                  {isSelected && !insufficient && (
+                  {isSelected && !insufficient && !isLocked && (
                     <div
                       className="mt-3 flex items-center gap-2"
                       onClick={(e) => e.stopPropagation()}

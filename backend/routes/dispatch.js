@@ -287,6 +287,140 @@ function parseInstallDevice(str) {
   return out;
 }
 
+const INSTALL_DEVICE_PREFIXES = ['SOA', 'ONU', 'PB', 'Mesh', 'SIM', 'Cam', 'Sp', 'Pt', 'L3', 'สาย', '3BB', 'SCฟ้า'];
+
+/** Split install_device into editable known tokens + free-form extras (e.g. no-SN lines) */
+function splitInstallDeviceParts(str) {
+  const knownKeys = new Set(INSTALL_DEVICE_PREFIXES);
+  const known = {};
+  const other = [];
+  for (const part of String(str || '').split(/[\n|]/)) {
+    const line = part.trim();
+    if (!line) continue;
+    const ci = line.indexOf(':');
+    if (ci === -1) {
+      other.push(line);
+      continue;
+    }
+    const key = line.slice(0, ci).trim();
+    const val = line.slice(ci + 1).trim();
+    if (knownKeys.has(key)) known[key] = val;
+    else other.push(line);
+  }
+  return { known, other };
+}
+
+function buildInstallDeviceFromEditedFields(fields, otherParts = []) {
+  const parts = [];
+  const push = (prefix, value) => {
+    const v = value == null ? '' : String(value).trim();
+    if (v) parts.push(`${prefix}:${v}`);
+  };
+  push('SOA', fields.soa_device);
+  push('ONU', fields.sn_onu);
+  push('PB', fields.sn_playbox);
+  push('Mesh', fields.sn_mesh);
+  push('SIM', fields.sn_sim);
+  push('Cam', fields.sn_ip_camera);
+  push('Sp', fields.split_no);
+  push('Pt', fields.port_no);
+  push('L3', fields.l3_name);
+  if (fields.cable_length != null && String(fields.cable_length).trim() !== '') {
+    const cable = String(fields.cable_length).trim().replace(/M$/i, '');
+    parts.push(`สาย:${cable}M`);
+  }
+  push('3BB', fields.ref_id_3bb);
+  push('SCฟ้า', fields.sc_blue);
+  for (const extra of otherParts) {
+    if (extra && String(extra).trim()) parts.push(String(extra).trim());
+  }
+  return parts.join(' | ') || null;
+}
+
+function pickCompletionDeviceFields(body) {
+  return {
+    soa_device: body.soa_device ?? body.soaDevice ?? '',
+    sn_onu: body.sn_onu ?? body.snOnu ?? '',
+    sn_playbox: body.sn_playbox ?? body.snPlaybox ?? '',
+    sn_mesh: body.sn_mesh ?? body.snMesh ?? '',
+    sn_sim: body.sn_sim ?? body.snSim ?? '',
+    sn_ip_camera: body.sn_ip_camera ?? body.snIpCamera ?? '',
+    split_no: body.split_no ?? body.splitNo ?? '',
+    port_no: body.port_no ?? body.portNo ?? '',
+    l3_name: body.l3_name ?? body.l3Name ?? '',
+    cable_length: body.cable_length ?? body.cableLength ?? '',
+    ref_id_3bb: body.ref_id_3bb ?? body.refId3bb ?? '',
+    sc_blue: body.sc_blue ?? body.scBlue ?? '',
+  };
+}
+
+function bodyHasCompletionDeviceEdit(body) {
+  if (body.edit_completion === true || body.edit_completion === 'true' || body.edit_completion === 1) {
+    return true;
+  }
+  const keys = [
+    'soa_device', 'soaDevice', 'sn_onu', 'snOnu', 'sn_playbox', 'snPlaybox',
+    'sn_mesh', 'snMesh', 'sn_sim', 'snSim', 'sn_ip_camera', 'snIpCamera',
+    'split_no', 'splitNo', 'port_no', 'portNo', 'l3_name', 'l3Name',
+    'cable_length', 'cableLength', 'ref_id_3bb', 'refId3bb', 'sc_blue', 'scBlue',
+  ];
+  return keys.some((k) => Object.prototype.hasOwnProperty.call(body, k));
+}
+
+async function applyOfficeCompletionDeviceFields(conn, job, body) {
+  const { other } = splitInstallDeviceParts(job.install_device);
+  const fields = pickCompletionDeviceFields(body);
+  const orderNo = body.order_no ?? body.orderNo ?? null;
+  const installDeviceStr = buildInstallDeviceFromEditedFields(fields, other);
+  const cableClean = fields.cable_length
+    ? String(fields.cable_length).replace(/[^0-9.]/g, '')
+    : null;
+
+  await conn.query(
+    `UPDATE jobs SET
+       install_device = ?,
+       order_no = COALESCE(?, order_no),
+       split_no = ?,
+       port_no = ?,
+       l3_name = ?,
+       cable_length = ?,
+       ref_id_3bb = ?,
+       sc_blue = ?
+     WHERE id = ?`,
+    [
+      installDeviceStr,
+      orderNo || null,
+      fields.split_no || null,
+      fields.port_no || null,
+      fields.l3_name || null,
+      cableClean || null,
+      fields.ref_id_3bb || null,
+      fields.sc_blue || null,
+      job.id,
+    ]
+  );
+
+  const snByRole = {
+    ONU: fields.sn_onu,
+    PB: fields.sn_playbox,
+    Mesh: fields.sn_mesh,
+    SIM: fields.sn_sim,
+    Cam: fields.sn_ip_camera,
+  };
+  for (const [role, sn] of Object.entries(snByRole)) {
+    const val = String(sn || '').trim();
+    if (!val || val === '-') continue;
+    try {
+      await conn.query(
+        `UPDATE job_used_inventory SET sn = ? WHERE job_id = ? AND device_role = ?`,
+        [val, job.id, role]
+      );
+    } catch { /* table may not exist */ }
+  }
+
+  return installDeviceStr;
+}
+
 function parseUsedInventoryBody(body) {
   if (!body.usedInventory) return [];
   try {
@@ -3615,35 +3749,84 @@ router.put('/jobs/clear-queue', auth, requireRole(ADMIN_ROLES), async (req, res)
 });
 
 
-// ── PUT /api/dispatch/jobs/:id — Update job details ─
+// ── PUT /api/dispatch/jobs/:id/completion-devices — Admin edits devices after complete ─
+router.put('/jobs/:id/completion-devices', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const jobId = req.params.id;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[job]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1`, [jobId]);
+    if (!job) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน' });
+    }
+    if (job.status !== 'completed') {
+      await conn.rollback();
+      return res.status(400).json({ error: 'แก้ข้อมูลอุปกรณ์ได้เฉพาะงานที่จบแล้ว' });
+    }
+
+    const installDeviceStr = await applyOfficeCompletionDeviceFields(conn, job, req.body);
+    await safeSyncCustomer(conn, jobId);
+    await conn.commit();
+
+    writeJobAudit(pool, {
+      job_type: 'office',
+      job_id: jobId,
+      action: 'update',
+      old_status: 'completed',
+      new_status: 'completed',
+      old_team_id: job.team_id,
+      new_team_id: job.team_id,
+      old_assignee_id: job.field_engineer_id,
+      new_assignee_id: job.field_engineer_id,
+      actor_id: req.user?.id,
+    });
+
+    res.json({ message: 'อัปเดตอุปกรณ์สำเร็จ', install_device: installDeviceStr });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Edit completion devices error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ── PUT /api/dispatch/jobs/:id — Update job details (incl. completed job full edit) ─
 router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   const {
     customer, phone, address, team_id, field_engineer_id, assigned_user_id, lat, lng, type,
     plan_arrival_date, plan_arrival_time, job_time, symptoms,
     package: pkg, product, order_no, customer_order_no, province,
     area_code, area_name, task_type, task_order, product_owner, order_type,
-    service_note, sla_status, region, map_link, remark
+    service_note, sla_status, region, map_link, remark,
+    access_no, completed_by,
+    srt, spt, fail_cause, fix_method, old_sn, new_sn, cable_used, used_equipment,
   } = req.body;
   const table = type === 'ma' ? 'ma_jobs' : 'jobs';
   const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+
     let formatted_time = plan_arrival_time || null;
     if (formatted_time && !formatted_time.includes('-') && plan_arrival_date) {
       formatted_time = `${plan_arrival_date} ${formatted_time}:00`;
     }
 
-    // Snapshot old values for the audit trail (best-effort)
-    let oldJob = null;
-    try {
-      const assigneeCol = table === 'ma_jobs' ? 'assigned_user_id' : 'field_engineer_id';
-      [[oldJob]] = await conn.query(
-        `SELECT status, team_id, ${assigneeCol} AS assignee_id FROM ${table} WHERE id = ?`,
-        [req.params.id]
-      );
-    } catch (e) { /* audit only */ }
+    const assigneeCol = table === 'ma_jobs' ? 'assigned_user_id' : 'field_engineer_id';
+    const [[oldJob]] = await conn.query(
+      `SELECT * FROM ${table} WHERE id = ? LIMIT 1`,
+      [req.params.id]
+    );
+    if (!oldJob) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'ไม่พบงาน' });
+    }
+    oldJob.assignee_id = oldJob[assigneeCol];
+    const isCompleted = oldJob.status === 'completed';
 
     if (table === 'ma_jobs') {
-      // ma_jobs uses assigned_user_id + job_time (plain HH:MM), not the office column names
       const maAssignee = assigned_user_id || field_engineer_id || null;
       const maTime = (job_time || plan_arrival_time || '').toString().trim() || null;
       await conn.query(
@@ -3651,9 +3834,30 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
            customer = COALESCE(?, customer), phone = COALESCE(?, phone), address = COALESCE(?, address),
            lat = ?, lng = ?, team_id = ?, assigned_user_id = ?,
            plan_arrival_date = COALESCE(?, plan_arrival_date), job_time = COALESCE(?, job_time),
-           symptoms = COALESCE(?, symptoms), area_name = COALESCE(?, area_name), remark = COALESCE(?, remark)
+           symptoms = COALESCE(?, symptoms), area_name = COALESCE(?, area_name), remark = COALESCE(?, remark),
+           access_no = COALESCE(?, access_no), non_number = COALESCE(?, non_number),
+           completed_by = COALESCE(?, completed_by),
+           srt = COALESCE(?, srt), spt = COALESCE(?, spt),
+           fail_cause = COALESCE(?, fail_cause), fix_method = COALESCE(?, fix_method),
+           old_sn = COALESCE(?, old_sn), new_sn = COALESCE(?, new_sn),
+           cable_used = COALESCE(?, cable_used),
+           used_equipment = COALESCE(?, used_equipment)
          WHERE id = ?`,
-        [customer, phone, address, lat || null, lng || null, team_id || null, maAssignee, plan_arrival_date || null, maTime, symptoms || null, area_name || null, remark || null, req.params.id]
+        [
+          customer, phone, address, lat || null, lng || null, team_id || null, maAssignee,
+          plan_arrival_date || null, maTime, symptoms || null, area_name || null, remark || null,
+          access_no || null, access_no || null,
+          isCompleted && completed_by ? completed_by : null,
+          isCompleted ? (srt ?? null) : null,
+          isCompleted ? (spt ?? null) : null,
+          isCompleted ? (fail_cause ?? null) : null,
+          isCompleted ? (fix_method ?? null) : null,
+          isCompleted ? (old_sn ?? null) : null,
+          isCompleted ? (new_sn ?? null) : null,
+          isCompleted ? (cable_used ?? null) : null,
+          isCompleted ? (used_equipment ?? null) : null,
+          req.params.id,
+        ]
       );
     } else {
       await conn.query(
@@ -3667,7 +3871,9 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           task_type = COALESCE(?, task_type), task_order = COALESCE(?, task_order),
           product_owner = COALESCE(?, product_owner), order_type = COALESCE(?, order_type),
           service_note = COALESCE(?, service_note), sla_status = COALESCE(?, sla_status),
-          region = COALESCE(?, region), map_link = COALESCE(?, map_link), remark = COALESCE(?, remark)
+          region = COALESCE(?, region), map_link = COALESCE(?, map_link), remark = COALESCE(?, remark),
+          access_no = COALESCE(?, access_no),
+          completed_by = COALESCE(?, completed_by)
          WHERE id = ?`,
         [
           customer, phone, address, lat || null, lng || null, team_id || null, field_engineer_id || null,
@@ -3676,9 +3882,17 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           province || null, area_code || null, area_name || null,
           task_type || null, task_order || null, product_owner || null, order_type || null,
           service_note || null, sla_status || null, region || null, map_link || null, remark || null,
-          req.params.id
+          access_no || null,
+          isCompleted && completed_by ? completed_by : null,
+          req.params.id,
         ]
       );
+
+      if (isCompleted && bodyHasCompletionDeviceEdit(req.body)) {
+        const [[freshJob]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1`, [req.params.id]);
+        await applyOfficeCompletionDeviceFields(conn, freshJob || oldJob, req.body);
+      }
+
       await safeSyncCustomer(conn, req.params.id);
     }
 
@@ -3693,8 +3907,10 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       actor_id: req.user?.id,
     });
 
+    await conn.commit();
     res.json({ message: 'Job updated' });
   } catch (err) {
+    await conn.rollback();
     console.error('Job update error:', err);
     res.status(500).json({ error: 'Server error', details: err.message });
   } finally {

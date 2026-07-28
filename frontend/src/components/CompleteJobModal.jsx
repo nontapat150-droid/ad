@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { FilterSelectField, AppDateField } from './DispatchFilterFields';
 import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import { NoSnEquipmentModal } from './JobActionModals';
+import { applyFrequentNoSnLocks, resolveRolesForComplete } from '../utils/frequentNoSn';
+import TechBagPreviewModal from './TechBagPreviewModal';
 
 const BAG_DEVICE_SLOTS = [
   { role: 'ONU', label: 'SN ONU', dashOption: true },
@@ -186,7 +187,6 @@ function InfoRow({ label, value }) {
 }
 
 export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = (user?.roles || [user?.role || '']).some((r) => ['super_admin', 'admin'].includes(r));
   const [step, setStep] = useState(0);
@@ -218,6 +218,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
   const [noSnItems, setNoSnItems] = useState([]);
   const [selectedNoSnItems, setSelectedNoSnItems] = useState({});
   const [showNoSnModal, setShowNoSnModal] = useState(false);
+  const [showBagPreview, setShowBagPreview] = useState(false);
 
   // Entry fee
   const [entryFeeStatus, setEntryFeeStatus] = useState('none'); // 'none' | 'slip' | 'cash' | 'backdate'
@@ -301,16 +302,21 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
     } catch { /* corrupt draft — ignore */ }
     hydratedRef.current = true;
 
-    // Load tech / team bag
+    // Load tech / team bag + auto-lock frequent no-SN from system settings
     setBagLoading(true);
     const bagUrl = buildCompleteBagUrl(job, { isAdmin });
-    api.get(bagUrl)
-      .then((res) => {
+    Promise.all([
+      api.get(bagUrl),
+      api.get('/settings/frequent-no-sn').catch(() => ({ data: { product_ids: [], roles: [] } })),
+      resolveRolesForComplete({ api, user, job, isAdmin }),
+    ])
+      .then(([res, cfgRes, roleList]) => {
         const all = Array.isArray(res.data) ? res.data : [];
         const snItems = all.filter(isSnBagItem);
         const noSn = all.filter((item) => !isSnBagItem(item));
         setBagItems(snItems);
         setNoSnItems(noSn);
+        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
 
         // Prune draft selections that no longer exist in the bag
         setBagSelections((prev) => {
@@ -326,14 +332,18 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
           return changed ? next : prev;
         });
         setSelectedNoSnItems((prev) => {
-          const next = {};
+          const pruned = {};
           Object.values(prev).forEach((it) => {
             const live = noSn.find((n) => n.id === it.id);
             if (live) {
-              next[it.id] = { ...live, useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity) };
+              pruned[it.id] = {
+                ...live,
+                useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
+                locked: !!it.locked,
+              };
             }
           });
-          return next;
+          return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
         });
       })
       .catch(() => { setBagItems([]); setNoSnItems([]); })
@@ -685,10 +695,10 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                 <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2 mb-1">
                   <h3 className="text-sm font-bold text-[#185FA5]">รายละเอียดอุปกรณ์ติดตั้ง (เลือกจากกระเป๋าทีม — ใช้ร่วมกันได้)</h3>
                   <div className="flex items-center gap-2">
-                    {isAdmin && (job.field_engineer_id || job.assigned_user_id) && (
+                    {isAdmin && (job.field_engineer_id || job.assigned_user_id || job.team_id) && (
                       <button
                         type="button"
-                        onClick={() => navigate(`/bag?user_id=${job.field_engineer_id || job.assigned_user_id}`)}
+                        onClick={() => setShowBagPreview(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold hover:bg-teal-100 transition-all"
                       >
                         🎒 ดูกระเป๋าช่าง
@@ -723,13 +733,19 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                     <p className="text-xs font-bold text-blue-700 mb-1.5">🔧 อุปกรณ์ที่เลือก:</p>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.values(selectedNoSnItems).map(item => (
-                        <span key={item.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white rounded-lg border border-blue-200 text-xs font-semibold text-blue-800">
-                          {item.product_name} {item.model_name} × {item.useQty} {item.unit || 'ชิ้น'}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedNoSnItems(prev => { const n = {...prev}; delete n[item.id]; return n; })}
-                            className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors"
-                          >✕</button>
+                        <span key={item.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-semibold ${
+                          item.locked
+                            ? 'bg-amber-50 border-amber-300 text-amber-900'
+                            : 'bg-white border-blue-200 text-blue-800'
+                        }`}>
+                          {item.locked ? '🔒 ' : ''}{item.product_name} {item.model_name} × {item.useQty} {item.unit || 'ชิ้น'}
+                          {!item.locked && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedNoSnItems(prev => { const n = {...prev}; delete n[item.id]; return n; })}
+                              className="ml-0.5 text-blue-400 hover:text-red-500 transition-colors"
+                            >✕</button>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -1110,6 +1126,15 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
         setSelectedNoSnItems={setSelectedNoSnItems}
       />
 
+      <TechBagPreviewModal
+        isOpen={showBagPreview}
+        onClose={() => setShowBagPreview(false)}
+        userId={job.field_engineer_id || job.assigned_user_id || null}
+        teamId={job.team_id || null}
+        title={job.engineer_name || job.team_name || 'กระเป๋าช่าง'}
+        subtitle={[job.access_no, job.customer].filter(Boolean).join(' · ')}
+      />
+
       {/* Post-Complete Summary Popup */}
       {showSummaryPopup && summaryData && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-fade-in">
@@ -1161,14 +1186,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess }) {
                 </button>
               </div>
               <button
-                onClick={() => {
-                  setShowSummaryPopup(false);
-                  setSummaryData(null);
-                  onSuccess();
-                  onClose();
-                  const assigneeId = job.field_engineer_id || job.assigned_user_id;
-                  navigate(isAdmin && assigneeId ? `/bag?user_id=${assigneeId}` : '/bag');
-                }}
+                onClick={() => setShowBagPreview(true)}
                 className="w-full mt-3 py-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 font-bold text-sm hover:bg-teal-100 transition-colors flex items-center justify-center gap-2"
               >
                 🎒 ดูกระเป๋าช่าง (ตรวจสอบสต๊อกหลังปิดงาน)

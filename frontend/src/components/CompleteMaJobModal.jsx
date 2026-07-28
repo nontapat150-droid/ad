@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { NoSnEquipmentModal } from './JobActionModals';
 import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
+import { applyFrequentNoSnLocks, resolveRolesForComplete } from '../utils/frequentNoSn';
+import TechBagPreviewModal from './TechBagPreviewModal';
 import {
   MA_FAIL_CAUSE_PRESETS,
   MA_FIX_METHOD_PRESETS,
@@ -38,7 +39,6 @@ function clearDraft(jobId) {
 }
 
 export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = (user?.roles || [user?.role || '']).some(r => ['super_admin', 'admin'].includes(r));
   const [step, setStep] = useState(1);
@@ -58,6 +58,8 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
   const [noSnItems, setNoSnItems] = useState([]);
   const [selectedNoSnItems, setSelectedNoSnItems] = useState({});
   const [showNoSnModal, setShowNoSnModal] = useState(false);
+  const [showBagPreview, setShowBagPreview] = useState(false);
+  const [closeAfterBagPreview, setCloseAfterBagPreview] = useState(false);
   const [bagLoading, setBagLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -136,12 +138,33 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
       : (isAdmin && (job.assigned_user_id || job.field_engineer_id)
         ? `/inventory/my-bag?user_id=${job.assigned_user_id || job.field_engineer_id}`
         : '/inventory/my-bag');
-    api.get(bagUrl)
-      .then((res) => {
+    Promise.all([
+      api.get(bagUrl),
+      api.get('/settings/frequent-no-sn').catch(() => ({ data: { product_ids: [], roles: [] } })),
+      resolveRolesForComplete({ api, user, job, isAdmin }),
+    ])
+      .then(([res, cfgRes, roleList]) => {
         const all = Array.isArray(res.data) ? res.data : [];
         const isSn = (item) => Number(item.has_sn) === 1 || item.has_sn === true;
-        setSnBagItems(all.filter((item) => isSn(item) && item.sn));
-        setNoSnItems(all.filter((item) => !isSn(item) || !item.sn));
+        const sn = all.filter((item) => isSn(item) && item.sn);
+        const noSn = all.filter((item) => !isSn(item) || !item.sn);
+        setSnBagItems(sn);
+        setNoSnItems(noSn);
+        const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
+        setSelectedNoSnItems((prev) => {
+          const pruned = {};
+          Object.values(prev || {}).forEach((it) => {
+            const live = noSn.find((n) => n.id === it.id);
+            if (live) {
+              pruned[it.id] = {
+                ...live,
+                useQty: Math.min(parseInt(it.useQty, 10) || 1, live.quantity),
+                locked: !!it.locked,
+              };
+            }
+          });
+          return applyFrequentNoSnLocks(pruned, noSn, freqConfig, roleList);
+        });
       })
       .catch(() => { setSnBagItems([]); setNoSnItems([]); })
       .finally(() => setBagLoading(false));
@@ -262,10 +285,11 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         cancelButtonColor: '#6B7280',
       });
       onSuccess?.();
-      onClose?.();
       if (result.isConfirmed) {
-        const assigneeId = job.assigned_user_id || job.field_engineer_id;
-        navigate(isAdmin && assigneeId ? `/bag?user_id=${assigneeId}` : '/bag');
+        setCloseAfterBagPreview(true);
+        setShowBagPreview(true);
+      } else {
+        onClose?.();
       }
     } catch (err) {
       await showFriendlyError(err, 'เกิดข้อผิดพลาดในการปิดงาน MA');
@@ -456,10 +480,10 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
                     <h3 className="text-sm font-black text-[#1F2937]">อุปกรณ์มี SN จากกระเป๋าทีม (ใช้ร่วมกันได้)</h3>
                     <p className="text-[11px] text-[#9CA3AF]">ติ๊กเลือกเพื่อตัดสต๊อก (ไม่บังคับ)</p>
                   </div>
-                  {isAdmin && (job.assigned_user_id || job.field_engineer_id) && (
+                  {isAdmin && (job.assigned_user_id || job.field_engineer_id || job.team_id) && (
                     <button
                       type="button"
-                      onClick={() => navigate(`/bag?user_id=${job.assigned_user_id || job.field_engineer_id}`)}
+                      onClick={() => setShowBagPreview(true)}
                       className="shrink-0 min-h-[40px] px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold"
                     >
                       🎒 ดูกระเป๋า
@@ -561,19 +585,25 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
                 {Object.keys(selectedNoSnItems).length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {Object.values(selectedNoSnItems).map((item) => (
-                      <span key={item.id} className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#A3E635]/15 border border-[#A3E635]/40 rounded-lg text-xs font-semibold text-[#1F2937]">
-                        {item.product_name} {item.model_name} × {item.useQty} {item.unit || 'ชิ้น'}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedNoSnItems((prev) => {
-                            const n = { ...prev };
-                            delete n[item.id];
-                            return n;
-                          })}
-                          className="text-[#9CA3AF] hover:text-red-500"
-                        >
-                          ✕
-                        </button>
+                      <span key={item.id} className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border ${
+                        item.locked
+                          ? 'bg-amber-50 border-amber-300 text-amber-900'
+                          : 'bg-[#A3E635]/15 border-[#A3E635]/40 text-[#1F2937]'
+                      }`}>
+                        {item.locked ? '🔒 ' : ''}{item.product_name} {item.model_name} × {item.useQty} {item.unit || 'ชิ้น'}
+                        {!item.locked && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedNoSnItems((prev) => {
+                              const n = { ...prev };
+                              delete n[item.id];
+                              return n;
+                            })}
+                            className="text-[#9CA3AF] hover:text-red-500"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -679,6 +709,21 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess }) 
         noSnItems={noSnItems}
         selectedNoSnItems={selectedNoSnItems}
         setSelectedNoSnItems={setSelectedNoSnItems}
+      />
+
+      <TechBagPreviewModal
+        isOpen={showBagPreview}
+        onClose={() => {
+          setShowBagPreview(false);
+          if (closeAfterBagPreview) {
+            setCloseAfterBagPreview(false);
+            onClose?.();
+          }
+        }}
+        userId={job?.assigned_user_id || job?.field_engineer_id || null}
+        teamId={job?.team_id || null}
+        title={job?.assignee_name || job?.team_name || 'กระเป๋าช่าง'}
+        subtitle={[nonNumber, job?.customer].filter(Boolean).join(' · ')}
       />
     </div>
   );

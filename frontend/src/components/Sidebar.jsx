@@ -121,7 +121,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
       { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },
       { key: 'report', label: 'รายการแจ้งปัญหา', icon: ReportIcon },
-      ...(isSuperAdmin ? [{ key: 'settings', label: 'ตั้งค่าระบบ', icon: CogIcon }] : []),
+      ...(isAdmin ? [{ key: 'settings', label: 'ตั้งค่าระบบ', icon: CogIcon }] : []),
     ],
   };
 

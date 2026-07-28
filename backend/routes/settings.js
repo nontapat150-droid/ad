@@ -181,4 +181,84 @@ router.post('/branding', auth, setUpload('branding'), upload.fields([{ name: 'lo
   }
 });
 
+const FREQUENT_NO_SN_KEY = 'frequent_no_sn_config';
+const DEFAULT_FREQUENT_NO_SN = { product_ids: [], roles: [] };
+
+async function ensureSettingsValueText(poolConn) {
+  try {
+    await poolConn.query('ALTER TABLE system_settings MODIFY setting_value TEXT NOT NULL');
+  } catch { /* already TEXT or no permission */ }
+}
+
+async function upsertSetting(key, value) {
+  await ensureSettingsValueText(pool);
+  const [existing] = await pool.query(
+    'SELECT setting_key FROM system_settings WHERE setting_key = ?',
+    [key]
+  );
+  if (existing.length > 0) {
+    await pool.query(
+      'UPDATE system_settings SET setting_value = ? WHERE setting_key = ?',
+      [value, key]
+    );
+  } else {
+    await pool.query(
+      'INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)',
+      [key, value]
+    );
+  }
+}
+
+// ── GET /api/settings/frequent-no-sn — Auto-lock no-SN products on job complete ─
+router.get('/frequent-no-sn', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1',
+      [FREQUENT_NO_SN_KEY]
+    );
+    let config = { ...DEFAULT_FREQUENT_NO_SN };
+    if (rows.length && rows[0].setting_value) {
+      try {
+        const parsed = JSON.parse(rows[0].setting_value);
+        config = {
+          product_ids: Array.isArray(parsed.product_ids)
+            ? parsed.product_ids.map((id) => parseInt(id, 10)).filter((n) => n > 0)
+            : [],
+          roles: Array.isArray(parsed.roles)
+            ? parsed.roles.map((r) => String(r).trim()).filter(Boolean)
+            : [],
+        };
+      } catch { /* keep default */ }
+    }
+    res.json(config);
+  } catch (err) {
+    console.error('Get frequent-no-sn error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── PUT /api/settings/frequent-no-sn — Admin configures frequent no-SN locks ─
+router.put('/frequent-no-sn', auth, async (req, res) => {
+  try {
+    const roles = req.user.roles || [];
+    const isAdmin = roles.some((r) => ['super_admin', 'admin'].includes(r))
+      || ['super_admin', 'admin'].includes(req.user.role);
+    if (!isAdmin) return res.status(403).json({ error: 'Forbidden' });
+
+    const productIds = Array.isArray(req.body.product_ids)
+      ? [...new Set(req.body.product_ids.map((id) => parseInt(id, 10)).filter((n) => n > 0))]
+      : [];
+    const roleList = Array.isArray(req.body.roles)
+      ? [...new Set(req.body.roles.map((r) => String(r).trim()).filter(Boolean))]
+      : [];
+
+    const config = { product_ids: productIds, roles: roleList };
+    await upsertSetting(FREQUENT_NO_SN_KEY, JSON.stringify(config));
+    res.json({ message: 'บันทึกการตั้งค่าอุปกรณ์ที่ใช้บ่อยแล้ว', ...config });
+  } catch (err) {
+    console.error('Update frequent-no-sn error:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
 module.exports = router;

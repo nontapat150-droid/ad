@@ -7,6 +7,7 @@ import SmartImportExcelModal from '../components/SmartImportExcelModal';
 import CompleteJobModal from '../components/CompleteJobModal';
 import { IncompleteJobModal, PostponeJobModal } from '../components/JobActionModals';
 import CompleteMaJobModal from '../components/CompleteMaJobModal';
+import TechBagPreviewModal from '../components/TechBagPreviewModal';
 import ImageWithFallback from '../components/common/ImageWithFallback';
 import axios from '../api/axios';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
@@ -19,7 +20,7 @@ import Swal from 'sweetalert2';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FilterDateField, FilterSelectField, AppDateField, AppTimeField, AppSelectField } from '../components/DispatchFilterFields';
 import { getJobStatusLabel, getJobStatusBadgeClass, getJobStatusDotClass } from '../constants/jobStatus';
@@ -325,8 +326,7 @@ function AuditTimeline({ logs }) {
   );
 }
 
-function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onComplete, onIncomplete, onPostpone, onDelete, onCancelCompletion, onChangeTeam }) {
-  const navigate = useNavigate();
+function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onComplete, onIncomplete, onPostpone, onDelete, onCancelCompletion, onChangeTeam, onViewBag }) {
   const [details, setDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -510,8 +510,40 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                 <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1.5">📋 ข้อมูลการปิดงาน</p>
                 {details.completed_by_name && <p className="text-sm"><span className="font-semibold">ปิดโดย:</span> {details.completed_by_name}</p>}
                 {details.completed_at && <p className="text-sm"><span className="font-semibold">เวลา:</span> {new Date(details.completed_at).toLocaleString('th-TH')}</p>}
+                {details.order_no && <p className="text-sm"><span className="font-semibold">Order No:</span> {details.order_no}</p>}
                 {details.completion_note && <p className="text-sm mt-1"><span className="font-semibold">หมายเหตุ:</span> {details.completion_note}</p>}
                 {isLate && <p className="text-sm font-bold text-red-600 mt-1">⚠️ ปิดงานล่าช้ากว่ากำหนด</p>}
+              </div>
+            )}
+
+            {/* Install device fields (office completed) */}
+            {status === 'completed' && mainTab !== 'ma' && details && (details.install_device || details.split_no || details.port_no) && (
+              <div className="bg-sky-50 rounded-xl p-3 border border-sky-100">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-[10px] font-bold text-sky-700 uppercase tracking-wide">📦 อุปกรณ์ / ผลติดตั้ง</p>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit?.(job)}
+                      className="text-[11px] font-bold text-sky-700 hover:text-sky-900 underline"
+                    >
+                      แก้ไข
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-[#374151]">
+                  {String(details.install_device || '').split(/\s*\|\s*/).filter(Boolean).map((line, i) => (
+                    <p key={i} className="col-span-2 sm:col-span-1 break-words">{line}</p>
+                  ))}
+                  {!details.install_device && (
+                    <>
+                      {details.split_no && <p><span className="font-semibold">Splitt:</span> {details.split_no}</p>}
+                      {details.port_no && <p><span className="font-semibold">Port:</span> {details.port_no}</p>}
+                      {details.l3_name && <p><span className="font-semibold">L3:</span> {details.l3_name}</p>}
+                      {details.cable_length && <p><span className="font-semibold">สาย:</span> {details.cable_length}M</p>}
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
@@ -574,10 +606,10 @@ function JobDetailSheet({ job, today, isAdmin, mainTab, onClose, onEdit, onCompl
                     })}
                   </div>
                 )}
-                {isAdmin && assigneeId && (
+                {isAdmin && (assigneeId || job.team_id) && (
                   <button
                     type="button"
-                    onClick={() => navigate(`/bag?user_id=${assigneeId}`)}
+                    onClick={() => onViewBag?.(job)}
                     className="mt-2.5 w-full py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-700 text-xs font-bold hover:bg-teal-100 transition-colors flex items-center justify-center gap-1.5"
                   >
                     🎒 ดูกระเป๋าช่างผู้รับงาน
@@ -676,6 +708,7 @@ export default function DispatchDashboardPage() {
   const [actionType, setActionType] = useState(null);
   const [detailJob, setDetailJob] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null); // for EditJobModal
+  const [bagPreview, setBagPreview] = useState(null);
 
   const [mainTab, setMainTab] = useState(initialMainTab);
   const validQueues = ['all', 'unassigned', 'incomplete_data', 'assigned', 'completed', 'failed', 'postponed', 'tech_reschedule', 'postponed_unassigned', 'overdue', 'map'];
@@ -1283,6 +1316,25 @@ export default function DispatchDashboardPage() {
           onDelete={(id) => { setDetailJob(null); handleDelete(id); }}
           onCancelCompletion={(job) => { setDetailJob(null); handleCancelCompletion(job); }}
           onChangeTeam={(job) => handleChangeCompletedTeam(job)}
+          onViewBag={(job) => {
+            setBagPreview({
+              userId: job.field_engineer_id || job.assigned_user_id || null,
+              teamId: job.team_id || null,
+              title: job.assignee_name || job.team_name || 'กระเป๋าช่าง',
+              subtitle: [job.access_no || job.non_number, job.customer].filter(Boolean).join(' · '),
+            });
+          }}
+        />
+      )}
+
+      {bagPreview && (
+        <TechBagPreviewModal
+          isOpen={!!bagPreview}
+          onClose={() => setBagPreview(null)}
+          userId={bagPreview.userId}
+          teamId={bagPreview.teamId}
+          title={bagPreview.title}
+          subtitle={bagPreview.subtitle}
         />
       )}
 

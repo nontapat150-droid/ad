@@ -133,7 +133,7 @@ function AppRoutes() {
       <Route path="/announcements" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AnnouncementsPage /></ProtectedRoute>} />
       <Route path="/ais-expansion" element={<ProtectedRoute allowedRoles={['super_admin', 'admin', 'sales']}><AisExpansionPage /></ProtectedRoute>} />
       <Route path="/oil-history" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'sales', 'super_admin', 'admin']}><TechOilHistoryPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute allowedRoles={['super_admin']}><SystemSettingsPage /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><SystemSettingsPage /></ProtectedRoute>} />
       <Route path="/contractor-inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><ContractorInventoryPage /></ProtectedRoute>} />
       <Route path="/report" element={<ProtectedRoute><ReportIssuePage /></ProtectedRoute>} />
 

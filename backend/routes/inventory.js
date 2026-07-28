@@ -112,6 +112,7 @@ function formatBagQty(n) {
 function aggregateTeamNoSnBag(items, { poolByTeam }) {
   const normalized = items.map((row) => ({
     ...row,
+    product_id: row.product_id != null ? Number(row.product_id) : null,
     has_sn: Number(row.has_sn) ? 1 : 0,
     quantity: Number(row.quantity) || 0,
     product_name: row.product_name || 'สินค้า',
@@ -1093,6 +1094,7 @@ router.get('/my-bag', auth, async (req, res) => {
       `SELECT ii.id, ii.model_id, ii.sn, ii.quantity, ii.status, ii.owner_id, ii.team_id,
               ii.dispatched_at, ii.expires_at,
               pm.model_name,
+              p.id AS product_id,
               p.name AS product_name,
               p.has_sn,
               p.unit,
