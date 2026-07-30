@@ -850,6 +850,10 @@ function SplitterAdminPanel() {
   const [editingId, setEditingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('active');
   const [q, setQ] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [kmlPreview, setKmlPreview] = useState(null);
+  const [kmlFile, setKmlFile] = useState(null);
+  const kmlInputRef = useRef(null);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -940,8 +944,157 @@ function SplitterAdminPanel() {
     }
   };
 
+  const handleKmlPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setKmlPreview(null);
+    setKmlFile(file);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/splitters/import-kml', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setKmlPreview(data);
+    } catch (err) {
+      setKmlFile(null);
+      Swal.fire({
+        icon: 'error',
+        title: 'อ่านไฟล์ KML ไม่สำเร็จ',
+        text: err.response?.data?.error || err.message,
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const confirmKmlImport = async () => {
+    if (!kmlFile || !kmlPreview?.summary?.will_import) return;
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: 'ยืนยันนำเข้า Splitter?',
+      html: `<p class="text-sm text-left">จะบันทึก <b>${kmlPreview.summary.will_import}</b> จุดใหม่<br/>ข้าม ${kmlPreview.summary.skipped || 0} จุด (ซ้ำ)<br/>หลังบันทึก เซลจะใช้หา Splitter ใกล้บ้านได้ทันที</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกลงระบบ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#65a30d',
+    });
+    if (!conf.isConfirmed) return;
+
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', kmlFile);
+      fd.append('confirm', '1');
+      const { data } = await api.post('/splitters/import-kml', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setKmlPreview(null);
+      setKmlFile(null);
+      fetchList();
+      Swal.fire({
+        icon: 'success',
+        title: 'นำเข้าสำเร็จ',
+        text: data.message || `บันทึก ${data.summary?.imported || 0} จุด`,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'นำเข้าไม่สำเร็จ',
+        text: err.response?.data?.error || err.message,
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="font-black text-[#1F2937]">Import จาก Google Earth (KML)</h3>
+            <p className="text-xs text-[#6B7280] mt-0.5">
+              นำเข้าหลายจุดทีเดียว → บันทึกลงคลัง Splitter → เซลสร้างงานขายแล้วระบบจับจุดใกล้บ้านอัตโนมัติ
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              ref={kmlInputRef}
+              type="file"
+              accept=".kml,application/vnd.google-earth.kml+xml,text/xml,application/xml"
+              className="hidden"
+              onChange={handleKmlPick}
+            />
+            <button
+              type="button"
+              disabled={importing}
+              onClick={() => kmlInputRef.current?.click()}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold border border-[#E5E7EB] bg-white hover:bg-[#F9FAFB] disabled:opacity-60"
+            >
+              {importing ? 'กำลังอ่านไฟล์...' : 'เลือกไฟล์ .kml'}
+            </button>
+          </div>
+        </div>
+
+        {kmlPreview && (
+          <div className="rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
+              <span className="px-2 py-1 rounded-lg bg-white border border-[#E5E7EB] text-[#374151]">
+                ไฟล์: {kmlPreview.filename || '-'}
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-white border border-[#E5E7EB] text-[#374151]">
+                พบทั้งหมด {kmlPreview.summary?.total || 0}
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700">
+                จะนำเข้า {kmlPreview.summary?.will_import || 0}
+              </span>
+              <span className="px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                ข้ามซ้ำ {kmlPreview.summary?.skipped || 0}
+              </span>
+            </div>
+
+            {(kmlPreview.preview || []).length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-white divide-y divide-[#F3F4F6]">
+                {kmlPreview.preview.map((row, idx) => (
+                  <div key={`${row.code}-${idx}`} className="px-3 py-2 text-xs">
+                    <p className="font-black text-[#1F2937] truncate">{row.code || row.name}</p>
+                    <p className="text-[#6B7280]">
+                      {row.area || '-'} · {Number(row.lat).toFixed(5)}, {Number(row.lng).toFixed(5)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={importing || !(kmlPreview.summary?.will_import > 0)}
+                onClick={confirmKmlImport}
+                className="px-4 py-2.5 rounded-xl text-xs font-black text-[#1F2937] disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
+              >
+                {importing ? 'กำลังบันทึก...' : `ยืนยันบันทึก ${kmlPreview.summary?.will_import || 0} จุด`}
+              </button>
+              <button
+                type="button"
+                disabled={importing}
+                onClick={() => {
+                  setKmlPreview(null);
+                  setKmlFile(null);
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white border border-[#E5E7EB]"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>

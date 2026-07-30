@@ -1,12 +1,27 @@
 const express = require('express');
 const pool = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
+const multer = require('multer');
 
 const router = express.Router();
 
 const READ_ROLES = ['sales', 'admin', 'super_admin'];
 const ADMIN_ROLES = ['admin', 'super_admin'];
 const DEFAULT_RADIUS_M = 3000;
+const DUP_METERS = 8;
+const MAX_KML_BYTES = 15 * 1024 * 1024;
+
+const kmlUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_KML_BYTES },
+  fileFilter: (req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    const okExt = name.endsWith('.kml') || name.endsWith('.xml');
+    const okMime = /kml|xml|text|octet-stream/i.test(String(file.mimetype || ''));
+    if (okExt || okMime) return cb(null, true);
+    cb(new Error('รองรับเฉพาะไฟล์ .kml'));
+  },
+});
 
 let schemaReady = false;
 let schemaPromise = null;
@@ -67,6 +82,131 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 function normalizeStatus(status) {
   const s = String(status || 'active').trim().toLowerCase();
   return s === 'inactive' ? 'inactive' : 'active';
+}
+
+function stripXml(text) {
+  return String(text || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tagValue(block, tag) {
+  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const m = String(block || '').match(re);
+  return m ? stripXml(m[1]) : '';
+}
+
+function parsePointCoords(block) {
+  const point = String(block || '').match(/<Point\b[^>]*>[\s\S]*?<\/Point>/i);
+  const src = point ? point[0] : String(block || '');
+  const m = src.match(/<coordinates\b[^>]*>([\s\S]*?)<\/coordinates>/i);
+  if (!m) return null;
+  const first = String(m[1] || '')
+    .trim()
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .find(Boolean);
+  if (!first) return null;
+  const parts = first.split(',');
+  const lng = parseCoord(parts[0]);
+  const lat = parseCoord(parts[1]);
+  if (lat == null || lng == null) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+/** Parse Google Earth KML placemarks into splitter-like rows */
+function parseKmlPlacemarks(kmlText) {
+  const text = String(kmlText || '');
+  const items = [];
+  const folderStack = [];
+  const tokenRe =
+    /<(?:Folder|Document)\b[^>]*>|<\/(?:Folder|Document)>|<Placemark\b[^>]*>[\s\S]*?<\/Placemark>/gi;
+  let match;
+  while ((match = tokenRe.exec(text)) !== null) {
+    const chunk = match[0];
+    if (/^<\/(?:Folder|Document)>/i.test(chunk)) {
+      folderStack.pop();
+      continue;
+    }
+    if (/^<(?:Folder|Document)\b/i.test(chunk)) {
+      const lookAhead = text.slice(match.index, match.index + 1200);
+      const nameMatch = lookAhead.match(/<name\b[^>]*>([\s\S]*?)<\/name>/i);
+      folderStack.push(nameMatch ? stripXml(nameMatch[1]) : '');
+      continue;
+    }
+
+    const name = tagValue(chunk, 'name');
+    const description = tagValue(chunk, 'description');
+    const coords = parsePointCoords(chunk);
+    if (!coords) continue;
+
+    const area =
+      [...folderStack].reverse().find((n) => n && n.trim()) || null;
+    const label = (name || '').trim() || `SP-${coords.lat.toFixed(5)},${coords.lng.toFixed(5)}`;
+
+    items.push({
+      code: label.slice(0, 100),
+      name: label.slice(0, 255),
+      lat: coords.lat,
+      lng: coords.lng,
+      area: area ? String(area).slice(0, 255) : null,
+      remark: description ? String(description).slice(0, 2000) : null,
+      status: 'active',
+    });
+  }
+
+  return items;
+}
+
+function classifyImportItems(parsed, existingRows) {
+  const existing = Array.isArray(existingRows) ? existingRows : [];
+  const codeMap = new Map();
+  for (const row of existing) {
+    const key = String(row.code || '').trim().toLowerCase();
+    if (key) codeMap.set(key, row);
+  }
+
+  const seenCodes = new Set();
+  const accepted = [];
+  const skipped = [];
+
+  for (const item of parsed) {
+    const codeKey = String(item.code || '').trim().toLowerCase();
+    if (codeKey && (codeMap.has(codeKey) || seenCodes.has(codeKey))) {
+      skipped.push({ ...item, skip_reason: 'รหัสซ้ำ' });
+      continue;
+    }
+
+    const nearExisting = existing.some(
+      (row) =>
+        distanceMeters(Number(item.lat), Number(item.lng), Number(row.lat), Number(row.lng)) <=
+        DUP_METERS
+    );
+    const nearAccepted = accepted.some(
+      (row) =>
+        distanceMeters(Number(item.lat), Number(item.lng), Number(row.lat), Number(row.lng)) <=
+        DUP_METERS
+    );
+    if (nearExisting || nearAccepted) {
+      skipped.push({ ...item, skip_reason: 'พิกัดซ้ำ/ใกล้จุดเดิมมาก' });
+      continue;
+    }
+
+    if (codeKey) seenCodes.add(codeKey);
+    accepted.push(item);
+  }
+
+  return { accepted, skipped };
 }
 
 // ── GET /api/splitters — list ───────────────────────────────
@@ -149,6 +289,102 @@ router.get('/nearby', auth, requireRole(READ_ROLES), async (req, res) => {
     res.status(500).json({ error: 'Server error', detail: err.message });
   }
 });
+
+// ── POST /api/splitters/import-kml — preview or confirm import ─
+router.post(
+  '/import-kml',
+  auth,
+  requireRole(ADMIN_ROLES),
+  (req, res, next) => {
+    kmlUpload.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'อัปโหลดไฟล์ไม่สำเร็จ' });
+      next();
+    });
+  },
+  async (req, res) => {
+    try {
+      await ensureSplittersSchema();
+      if (!req.file?.buffer) {
+        return res.status(400).json({ error: 'กรุณาเลือกไฟล์ .kml' });
+      }
+
+      const kmlText = req.file.buffer.toString('utf8');
+      if (!/<kml[\s>]/i.test(kmlText) && !/<Placemark[\s>]/i.test(kmlText)) {
+        return res.status(400).json({ error: 'ไฟล์ไม่ใช่ KML ที่ถูกต้อง หรือไม่มีจุด Placemark' });
+      }
+
+      const parsed = parseKmlPlacemarks(kmlText);
+      if (!parsed.length) {
+        return res.status(400).json({
+          error: 'ไม่พบจุด (Placemark + Point) ในไฟล์ KML',
+        });
+      }
+
+      const [existing] = await pool.query('SELECT id, code, lat, lng FROM splitters');
+      const { accepted, skipped } = classifyImportItems(parsed, existing);
+      const confirm =
+        String(req.body?.confirm || req.query?.confirm || '') === '1' ||
+        String(req.body?.confirm || req.query?.confirm || '').toLowerCase() === 'true';
+
+      if (!confirm) {
+        return res.json({
+          dry_run: true,
+          filename: req.file.originalname,
+          summary: {
+            total: parsed.length,
+            will_import: accepted.length,
+            skipped: skipped.length,
+          },
+          preview: accepted.slice(0, 50),
+          skipped_preview: skipped.slice(0, 30),
+        });
+      }
+
+      if (!accepted.length) {
+        return res.status(400).json({
+          error: 'ไม่มีจุดใหม่ให้บันทึก (อาจซ้ำทั้งหมด)',
+          summary: {
+            total: parsed.length,
+            will_import: 0,
+            skipped: skipped.length,
+          },
+        });
+      }
+
+      let inserted = 0;
+      for (const item of accepted) {
+        await pool.query(
+          `INSERT INTO splitters (code, name, lat, lng, area, remark, status, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+          [
+            item.code || null,
+            item.name || null,
+            item.lat,
+            item.lng,
+            item.area || null,
+            item.remark || null,
+            req.user.id,
+          ]
+        );
+        inserted += 1;
+      }
+
+      res.status(201).json({
+        dry_run: false,
+        filename: req.file.originalname,
+        summary: {
+          total: parsed.length,
+          imported: inserted,
+          skipped: skipped.length,
+        },
+        message: `นำเข้า Splitter สำเร็จ ${inserted} จุด — เซลจะใช้หาจุดใกล้บ้านได้ทันที`,
+      });
+    } catch (err) {
+      console.error('splitters import-kml:', err);
+      res.status(500).json({ error: 'Server error', detail: err.message });
+    }
+  }
+);
 
 // ── GET /api/splitters/:id ──────────────────────────────────
 router.get('/:id', auth, requireRole(READ_ROLES), async (req, res) => {
@@ -265,3 +501,5 @@ router.delete('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 module.exports = router;
 module.exports.ensureSplittersSchema = ensureSplittersSchema;
 module.exports.distanceMeters = distanceMeters;
+module.exports.parseKmlPlacemarks = parseKmlPlacemarks;
+module.exports.classifyImportItems = classifyImportItems;
