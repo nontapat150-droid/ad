@@ -6,6 +6,7 @@ import { FilterSelectField, AppDateField } from './DispatchFilterFields';
 import { showFriendlyError, PresetChips } from './dashboards/SharedComponents';
 import { NoSnEquipmentModal } from './JobActionModals';
 import { applyFrequentNoSnLocks, resolveRolesForComplete } from '../utils/frequentNoSn';
+import { syncCableReelNoSn, parseCableMeters, isCableReelItem } from '../utils/cableReelSync';
 import TechBagPreviewModal from './TechBagPreviewModal';
 
 const BAG_DEVICE_SLOTS = [
@@ -325,6 +326,35 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
 
   // Guards the debounced draft save so the initial reset never overwrites a stored draft
   const hydratedRef = useRef(false);
+  const cableReelWarnRef = useRef('');
+
+  const applyCableReelForLength = (metersValue, { toast = true } = {}) => {
+    setSelectedNoSnItems((prev) => {
+      const { next, warning, synced } = syncCableReelNoSn(prev, noSnItems, metersValue);
+      if (toast && warning && cableReelWarnRef.current !== `${metersValue}:${warning}`) {
+        cableReelWarnRef.current = `${metersValue}:${warning}`;
+        queueMicrotask(() => {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ปรับสายม้วนอัตโนมัติ',
+            text: warning,
+            confirmButtonColor: '#185FA5',
+          });
+        });
+      } else if (synced && !warning) {
+        cableReelWarnRef.current = '';
+      }
+      return next;
+    });
+  };
+
+  const setCableLengthAndSync = (value) => {
+    setCableLength(value);
+    setErrors((p) => (p.cableLength ? { ...p, cableLength: null } : p));
+    if (parseCableMeters(value) != null) {
+      applyCableReelForLength(value, { toast: true });
+    }
+  };
 
   // ── Open / reset / restore draft ─────────────────────────────────────────
   useEffect(() => {
@@ -489,6 +519,26 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, job?.id, editMode]);
 
+  // After bag + draft/edit cable length are ready, sync สายม้วน qty to match meters
+  useEffect(() => {
+    if (!isOpen || !hydratedRef.current || bagLoading) return;
+    if (!noSnItems.length) return;
+    if (parseCableMeters(cableLength) == null) return;
+    setSelectedNoSnItems((prev) => {
+      const { next } = syncCableReelNoSn(prev, noSnItems, cableLength);
+      const prevReels = Object.values(prev).filter(isCableReelItem);
+      const nextReels = Object.values(next).filter(isCableReelItem);
+      if (
+        prevReels.length === nextReels.length
+        && prevReels.every((p) => nextReels.some((n) => String(n.id) === String(p.id) && String(n.useQty) === String(p.useQty)))
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, bagLoading, noSnItems, cableLength]);
+
   // ── Debounced draft save (no File/blob data) — skip in editMode ──────────
   useEffect(() => {
     if (!isOpen || !job || !hydratedRef.current || editMode) return;
@@ -622,6 +672,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
       if (!String(splitNo).trim()) errs.splitNo = 'กรุณากรอก Splitt';
       if (!String(portNo).trim()) errs.portNo = 'กรุณากรอก Port ที่ใช้';
       if (!String(cableLength).trim()) errs.cableLength = 'กรุณากรอกระยะสายจริง (เมตร) หรือแตะตัวเลือกด้านบน';
+      else if (parseCableMeters(cableLength) == null) errs.cableLength = 'ระยะสายจริงต้องเป็นตัวเลขที่มากกว่า 0';
     }
     if (stepIdx === 3) {
       const hasNewImages = images.length > 0;
@@ -649,6 +700,9 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
       setErrors(errs);
       return;
     }
+    if (step === 2 && parseCableMeters(cableLength) != null) {
+      applyCableReelForLength(cableLength, { toast: true });
+    }
     setErrors({});
     setStep((s) => Math.min(s + 1, WIZARD_STEPS.length - 1));
   };
@@ -671,6 +725,16 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
 
     try {
       setLoading(true);
+      const reelSync = syncCableReelNoSn(selectedNoSnItems, noSnItems, cableLength);
+      if (reelSync.synced) setSelectedNoSnItems(reelSync.next);
+      if (reelSync.warning) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'ปรับสายม้วนอัตโนมัติ',
+          text: reelSync.warning,
+          confirmButtonColor: '#185FA5',
+        });
+      }
       const formData = new FormData();
       formData.append('remark', remark);
       formData.append('installDate', installDate);
@@ -686,7 +750,8 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
           device_role: role,
         }));
 
-      const noSnPayload = Object.values(selectedNoSnItems).map(i => ({
+      const noSnSource = reelSync.synced ? reelSync.next : selectedNoSnItems;
+      const noSnPayload = Object.values(noSnSource).map(i => ({
         item_id: i.id,
         quantity: parseInt(i.useQty, 10) || 1,
         product_name: i.product_name,
@@ -1030,12 +1095,15 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
                   <PresetChips
                     options={['20', '50', '100']}
                     value={String(cableLength)}
-                    onPick={(v) => { setCableLength(v); setErrors(p => (p.cableLength ? { ...p, cableLength: null } : p)); }}
+                    onPick={(v) => setCableLengthAndSync(v)}
                     className="mb-1.5"
                   />
                   <input type="number" step="0.1" value={cableLength}
-                    onChange={(e) => { setCableLength(e.target.value); setErrors(p => (p.cableLength ? { ...p, cableLength: null } : p)); }}
+                    onChange={(e) => setCableLengthAndSync(e.target.value)}
                     className={errors.cableLength ? inputErrCls : inputCls} />
+                  <p className="text-[10px] text-[#6B7280] mt-1 font-medium">
+                    ระบบจะเลือก/ปรับจำนวน &quot;สายม้วน&quot; ในกระเป๋าให้เท่ากับระยะสายจริงอัตโนมัติ
+                  </p>
                   <FieldHint message={errors.cableLength} />
                 </div>
                 <div>

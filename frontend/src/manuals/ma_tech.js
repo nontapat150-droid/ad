@@ -156,21 +156,6 @@ export const maTechManuals = {
     ],
   },
 
-  ais_expansion: {
-    title: 'งานขยาย AIS',
-    summary: 'ดูแผนที่และคัดลอกพิกัด',
-    sections: [
-      {
-        heading: 'ขั้นตอน',
-        steps: [
-          'เปิดงานขยาย',
-          'คลิกตำแหน่งบนแผนที่',
-          'คัดลอกพิกัดตามต้องการ',
-        ],
-      },
-    ],
-  },
-
   report: {
     title: 'แจ้งปัญหา',
     summary: 'ส่งปัญหาให้แอดมิน',
