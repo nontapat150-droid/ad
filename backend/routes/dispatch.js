@@ -3537,16 +3537,34 @@ router.post('/auto-assign', auth, requireRole(ADMIN_ROLES), async (req, res) => 
   }
 });
 
-// ── GET /api/dispatch/search-access/:accessNo — Search Customer/Job by Access No ──
+/** Normalize Access/NON for lookup (trim, strip spaces/dashes, Excel trailing .0). */
+function buildAccessCandidates(raw) {
+  const trimmed = String(raw || '').trim();
+  const compact = trimmed.replace(/[\s\-]/g, '');
+  const noExcelFloat = /^\d+\.0+$/.test(compact) ? compact.replace(/\.0+$/, '') : compact;
+  return [...new Set([trimmed, compact, noExcelFloat].filter(Boolean))];
+}
+
+function sqlAccessNorm(col) {
+  return `REPLACE(REPLACE(TRIM(COALESCE(${col}, '')), ' ', ''), '-', '')`;
+}
+
+// ── GET /api/dispatch/search-access/:accessNo — Search Customer/Job by Access No or NON ──
 router.get('/search-access/:accessNo', auth, async (req, res) => {
   try {
-    const accessNo = req.params.accessNo;
+    const accessNo = decodeURIComponent(req.params.accessNo || '');
+    const candidates = buildAccessCandidates(accessNo);
+    if (candidates.length === 0) {
+      return res.status(400).json({ error: 'กรุณาระบุ Access Number / NON' });
+    }
 
     let customerRow = null;
     try {
       const [[row]] = await pool.query(
-        'SELECT * FROM customers WHERE access_no = ? LIMIT 1',
-        [accessNo]
+        `SELECT * FROM customers
+         WHERE access_no IN (?) OR ${sqlAccessNorm('access_no')} IN (?)
+         LIMIT 1`,
+        [candidates, candidates]
       );
       customerRow = row || null;
     } catch (e) {
@@ -3556,117 +3574,215 @@ router.get('/search-access/:accessNo', auth, async (req, res) => {
     const [rows] = await pool.query(
       `SELECT jobs.*, teams.team_name, users.full_name as engineer_name,
               cu.full_name as completed_by_name
-       FROM jobs 
-       LEFT JOIN teams ON jobs.team_id = teams.id 
-       LEFT JOIN users ON jobs.field_engineer_id = users.id 
+       FROM jobs
+       LEFT JOIN teams ON jobs.team_id = teams.id
+       LEFT JOIN users ON jobs.field_engineer_id = users.id
        LEFT JOIN users cu ON jobs.completed_by = cu.id
-       WHERE jobs.access_no = ?
+       WHERE jobs.access_no IN (?) OR ${sqlAccessNorm('jobs.access_no')} IN (?)
        ORDER BY jobs.id DESC
        LIMIT 1`,
-      [accessNo]
+      [candidates, candidates]
     );
 
-    if (rows.length === 0 && !customerRow) {
-      return res.status(404).json({ error: 'ไม่พบข้อมูลจาก Access Number นี้' });
+    // MA fallback: ma_customers + ma_jobs by non_number / access_no
+    let maCustomerRow = null;
+    let maJobRow = null;
+    try {
+      const [[mc]] = await pool.query(
+        `SELECT * FROM ma_customers
+         WHERE non_number IN (?) OR ${sqlAccessNorm('non_number')} IN (?)
+         LIMIT 1`,
+        [candidates, candidates]
+      );
+      maCustomerRow = mc || null;
+
+      const [maRows] = await pool.query(
+        `SELECT ma_jobs.*, teams.team_name, users.full_name as engineer_name,
+                cu.full_name as completed_by_name,
+                ma_jobs.job_time AS plan_arrival_time,
+                ma_jobs.assigned_user_id AS field_engineer_id
+         FROM ma_jobs
+         LEFT JOIN teams ON ma_jobs.team_id = teams.id
+         LEFT JOIN users ON ma_jobs.assigned_user_id = users.id
+         LEFT JOIN users cu ON ma_jobs.completed_by = cu.id
+         WHERE ma_jobs.non_number IN (?)
+            OR ma_jobs.access_no IN (?)
+            OR ${sqlAccessNorm('ma_jobs.non_number')} IN (?)
+            OR ${sqlAccessNorm('ma_jobs.access_no')} IN (?)
+         ORDER BY ma_jobs.id DESC
+         LIMIT 1`,
+        [candidates, candidates, candidates, candidates]
+      );
+      maJobRow = maRows[0] || null;
+    } catch (e) {
+      if (!e.message.includes("doesn't exist")) throw e;
     }
 
-    const jobData = rows[0] || {};
-    if (customerRow) {
-      Object.assign(jobData, {
-        access_no: jobData.access_no || customerRow.access_no,
-        customer: jobData.customer || customerRow.customer_name,
-        phone: jobData.phone || customerRow.phone,
-        address: jobData.address || customerRow.address,
-        province: jobData.province || customerRow.province,
-        area_code: jobData.area_code || customerRow.area_code,
-        area_name: jobData.area_name || customerRow.area_name,
-        lat: jobData.lat ?? customerRow.lat,
-        lng: jobData.lng ?? customerRow.lng,
-        map_link: jobData.map_link || customerRow.map_link,
-        package: jobData.package || customerRow.package,
-        product: jobData.product || customerRow.product,
-        order_no: jobData.order_no || customerRow.order_no,
-        customer_order_no: jobData.customer_order_no || customerRow.customer_order_no,
-        task_type: jobData.task_type || customerRow.task_type,
-        task_order: jobData.task_order || customerRow.task_order,
-        product_owner: jobData.product_owner || customerRow.product_owner,
-        order_type: jobData.order_type || customerRow.order_type,
-        service_note: jobData.service_note || customerRow.service_note,
-        sla_status: jobData.sla_status || customerRow.sla_status,
-        region: jobData.region || customerRow.region,
-        install_device: jobData.install_device || customerRow.install_device,
-        customer_master_updated_at: customerRow.updated_at,
-        // งานไม่จบ
-        latest_job_status: customerRow.latest_job_status || jobData.status || null,
-        fail_reason: customerRow.fail_reason || jobData.fail_reason || null,
+    if (rows.length === 0 && !customerRow && !maJobRow && !maCustomerRow) {
+      return res.status(404).json({ error: 'ไม่พบข้อมูลจาก Access Number / NON นี้' });
+    }
+
+    // Prefer office install record when present; otherwise shape MA response
+    if (rows.length > 0 || customerRow) {
+      const jobData = rows[0] || {};
+      jobData.record_type = 'office';
+      if (customerRow) {
+        Object.assign(jobData, {
+          access_no: jobData.access_no || customerRow.access_no,
+          customer: jobData.customer || customerRow.customer_name,
+          phone: jobData.phone || customerRow.phone,
+          address: jobData.address || customerRow.address,
+          province: jobData.province || customerRow.province,
+          area_code: jobData.area_code || customerRow.area_code,
+          area_name: jobData.area_name || customerRow.area_name,
+          lat: jobData.lat ?? customerRow.lat,
+          lng: jobData.lng ?? customerRow.lng,
+          map_link: jobData.map_link || customerRow.map_link,
+          package: jobData.package || customerRow.package,
+          product: jobData.product || customerRow.product,
+          order_no: jobData.order_no || customerRow.order_no,
+          customer_order_no: jobData.customer_order_no || customerRow.customer_order_no,
+          task_type: jobData.task_type || customerRow.task_type,
+          task_order: jobData.task_order || customerRow.task_order,
+          product_owner: jobData.product_owner || customerRow.product_owner,
+          order_type: jobData.order_type || customerRow.order_type,
+          service_note: jobData.service_note || customerRow.service_note,
+          sla_status: jobData.sla_status || customerRow.sla_status,
+          region: jobData.region || customerRow.region,
+          install_device: jobData.install_device || customerRow.install_device,
+          customer_master_updated_at: customerRow.updated_at,
+          latest_job_status: customerRow.latest_job_status || jobData.status || null,
+          fail_reason: customerRow.fail_reason || jobData.fail_reason || null,
+        });
+      }
+
+      if (jobData.install_device) {
+        Object.assign(jobData, parseInstallDevice(jobData.install_device));
+      }
+
+      if (jobData.id) {
+        try {
+          const [usedRows] = await pool.query(
+            `SELECT jui.inventory_item_id, jui.device_role, jui.sn, jui.product_name, jui.model_name, jui.quantity, jui.used_at,
+                    COALESCE(p.unit, 'ชิ้น') AS unit
+             FROM job_used_inventory jui
+             LEFT JOIN inventory_items ii ON ii.id = jui.inventory_item_id
+             LEFT JOIN inventory_models m ON m.id = ii.model_id
+             LEFT JOIN inventory_products p ON p.id = m.product_id
+             WHERE jui.job_id = ? ORDER BY jui.id ASC`,
+            [jobData.id]
+          );
+          if (usedRows.length > 0) {
+            jobData.used_devices = usedRows;
+          } else {
+            const [logRows] = await pool.query(
+              `SELECT 'TechBag' AS device_role, i.sn, p.name AS product_name, m.model_name, l.quantity, l.created_at AS used_at,
+                      COALESCE(p.unit, 'ชิ้น') AS unit
+               FROM inventory_logs l
+               JOIN inventory_items i ON l.item_id = i.id
+               JOIN inventory_models m ON i.model_id = m.id
+               JOIN inventory_products p ON m.product_id = p.id
+               WHERE l.action = 'used' AND l.note LIKE ?
+               ORDER BY l.id ASC`,
+              [`%${jobData.access_no}%`]
+            );
+            jobData.used_devices = logRows;
+          }
+        } catch (e) {
+          if (!e.message.includes("doesn't exist")) throw e;
+          jobData.used_devices = [];
+        }
+      } else {
+        jobData.used_devices = [];
+      }
+
+      const lookupAccess = jobData.access_no || accessNo;
+      const [efRows] = await pool.query(
+        'SELECT image_path, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1',
+        [lookupAccess]
+      );
+      if (efRows.length > 0) {
+        jobData.entry_fee_image = efRows[0].image_path;
+        jobData.entry_fee_updated_at = efRows[0].created_at;
+      }
+
+      if (lookupAccess) {
+        const [imgRows] = await pool.query(`
+          SELECT jci.image_path
+          FROM job_completion_images jci
+          JOIN jobs j ON j.id = jci.job_id
+          WHERE j.access_no = ?
+          ORDER BY jci.id DESC
+        `, [lookupAccess]);
+        jobData.completion_images = imgRows.map(r => r.image_path);
+      } else {
+        jobData.completion_images = [];
+      }
+
+      if (maJobRow || maCustomerRow) {
+        jobData.has_ma_record = true;
+        jobData.related_non = (maJobRow && (maJobRow.non_number || maJobRow.access_no))
+          || (maCustomerRow && maCustomerRow.non_number)
+          || null;
+      }
+
+      return res.json(jobData);
+    }
+
+    // MA-only result
+    const maData = { ...(maJobRow || {}) };
+    maData.record_type = 'ma';
+    const non = (maJobRow && (maJobRow.non_number || maJobRow.access_no))
+      || (maCustomerRow && maCustomerRow.non_number)
+      || candidates[0];
+
+    if (maCustomerRow) {
+      Object.assign(maData, {
+        customer: maData.customer || maCustomerRow.customer_name,
+        phone: maData.phone || maCustomerRow.phone,
+        address: maData.address || maCustomerRow.address,
+        customer_master_updated_at: maCustomerRow.updated_at,
       });
     }
 
-    if (jobData.install_device) {
-      Object.assign(jobData, parseInstallDevice(jobData.install_device));
-    }
+    maData.access_no = maData.access_no || non;
+    maData.non_number = maData.non_number || non;
+    maData.task_type = maData.task_type || 'MA';
+    maData.fail_reason = maData.fail_reason || maData.fail_cause || null;
+    maData.latest_job_status = maData.status || null;
+    maData.finish_time = maData.finish_time || maData.completed_at || null;
+    maData.create_time = maData.create_time || maData.created_at || null;
 
-    if (jobData.id) {
+    maData.used_devices = [];
+    maData.completion_images = [];
+    if (maData.id) {
       try {
         const [usedRows] = await pool.query(
-          `SELECT jui.inventory_item_id, jui.device_role, jui.sn, jui.product_name, jui.model_name, jui.quantity, jui.used_at,
+          `SELECT mjui.inventory_item_id, mjui.device_role, mjui.sn, mjui.product_name, mjui.model_name, mjui.quantity, mjui.used_at,
                   COALESCE(p.unit, 'ชิ้น') AS unit
-           FROM job_used_inventory jui
-           LEFT JOIN inventory_items ii ON ii.id = jui.inventory_item_id
+           FROM ma_job_used_inventory mjui
+           LEFT JOIN inventory_items ii ON ii.id = mjui.inventory_item_id
            LEFT JOIN inventory_models m ON m.id = ii.model_id
            LEFT JOIN inventory_products p ON p.id = m.product_id
-           WHERE jui.job_id = ? ORDER BY jui.id ASC`,
-          [jobData.id]
+           WHERE mjui.ma_job_id = ? ORDER BY mjui.id ASC`,
+          [maData.id]
         );
-        if (usedRows.length > 0) {
-          jobData.used_devices = usedRows;
-        } else {
-          // Fallback for legacy data: fetch from inventory_logs using note
-          const [logRows] = await pool.query(
-            `SELECT 'TechBag' AS device_role, i.sn, p.name AS product_name, m.model_name, l.quantity, l.created_at AS used_at,
-                    COALESCE(p.unit, 'ชิ้น') AS unit
-             FROM inventory_logs l
-             JOIN inventory_items i ON l.item_id = i.id
-             JOIN inventory_models m ON i.model_id = m.id
-             JOIN inventory_products p ON m.product_id = p.id
-             WHERE l.action = 'used' AND l.note LIKE ?
-             ORDER BY l.id ASC`,
-            [`%${jobData.access_no}%`]
-          );
-          jobData.used_devices = logRows;
-        }
+        maData.used_devices = usedRows;
       } catch (e) {
         if (!e.message.includes("doesn't exist")) throw e;
-        jobData.used_devices = [];
       }
-    } else {
-      jobData.used_devices = [];
+      try {
+        const [imgRows] = await pool.query(
+          'SELECT image_path FROM ma_job_completion_images WHERE ma_job_id = ? ORDER BY id DESC',
+          [maData.id]
+        );
+        maData.completion_images = imgRows.map(r => r.image_path);
+      } catch (e) {
+        if (!e.message.includes("doesn't exist")) throw e;
+      }
     }
 
-    // Get entry fee info
-    const lookupAccess = jobData.access_no || accessNo;
-    const [efRows] = await pool.query('SELECT image_path, created_at FROM entry_fees WHERE access_no = ? ORDER BY id DESC LIMIT 1', [lookupAccess]);
-    if (efRows.length > 0) {
-      jobData.entry_fee_image = efRows[0].image_path;
-      jobData.entry_fee_updated_at = efRows[0].created_at;
-    }
-
-    // Get completion images
-    const lookupAccessImages = jobData.access_no || accessNo;
-    if (lookupAccessImages) {
-      const [imgRows] = await pool.query(`
-        SELECT jci.image_path 
-        FROM job_completion_images jci
-        JOIN jobs j ON j.id = jci.job_id
-        WHERE j.access_no = ?
-        ORDER BY jci.id DESC
-      `, [lookupAccessImages]);
-      jobData.completion_images = imgRows.map(r => r.image_path);
-    } else {
-      jobData.completion_images = [];
-    }
-
-    res.json(jobData);
+    res.json(maData);
   } catch (err) {
     console.error('Search Access Error:', err);
     res.status(500).json({ error: 'Server error' });

@@ -152,7 +152,7 @@ export default function CustomersPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-[#9CA3AF]">กรอกเลข Access Number เพื่อเริ่มค้นหา</h3>
+                <h3 className="text-lg font-bold text-[#9CA3AF]">กรอกเลข Access Number หรือ NON เพื่อเริ่มค้นหา</h3>
               </div>
             )}
 
@@ -167,7 +167,16 @@ export default function CustomersPage() {
                   <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4"
                     style={{ background: 'linear-gradient(135deg, #1F2937 0%, #374151 100%)' }}>
                     <div>
-                      <h2 className="text-2xl font-black text-white mb-1">{customerData.customer || 'ไม่ระบุชื่อลูกค้า'}</h2>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h2 className="text-2xl font-black text-white">{customerData.customer || 'ไม่ระบุชื่อลูกค้า'}</h2>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                          customerData.record_type === 'ma'
+                            ? 'bg-sky-500/20 text-sky-200 border-sky-400/40'
+                            : 'bg-[#A3E635]/20 text-[#A3E635] border-[#A3E635]/40'
+                        }`}>
+                          {customerData.record_type === 'ma' ? 'งาน MA' : 'งานติดตั้ง'}
+                        </span>
+                      </div>
                       <p className="text-[#A3E635] font-medium flex items-center gap-2 text-sm">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -202,13 +211,32 @@ export default function CustomersPage() {
                         ข้อมูลบริการ (Service)
                       </h3>
                       <div className="space-y-3">
-                        <InfoRow label="วันที่ติดตั้ง (Plan Date)" value={customerData.plan_arrival_date ? new Date(customerData.plan_arrival_date).toLocaleDateString('th-TH') : '-'} />
-                        <InfoRow label="เลข (NON)" value={customerData.access_no} />
-                        <InfoRow label="แพ็กเกจ" value={customerData.package} />
-                        <InfoRow label="สินค้า (Product)" value={customerData.product} />
-                        <InfoRow label="Order No" value={customerData.order_no} />
-                        <InfoRow label="Customer Order No" value={customerData.customer_order_no} />
-                        <InfoRow label="Service Note" value={customerData.service_note} />
+                        <InfoRow label={customerData.record_type === 'ma' ? 'วันที่นัด (Plan Date)' : 'วันที่ติดตั้ง (Plan Date)'} value={customerData.plan_arrival_date ? new Date(customerData.plan_arrival_date).toLocaleDateString('th-TH') : '-'} />
+                        <InfoRow label="เลข (NON)" value={customerData.non_number || customerData.access_no} />
+                        {customerData.record_type === 'ma' ? (
+                          <>
+                            <InfoRow label="อาการ / Symptoms" value={customerData.symptoms} />
+                            <InfoRow label="SRT" value={customerData.srt} />
+                            <InfoRow label="SPT" value={customerData.spt} />
+                            <InfoRow label="วิธีแก้ไข" value={customerData.fix_method} />
+                            <InfoRow label="อุปกรณ์ที่ใช้" value={customerData.used_equipment} />
+                            {(customerData.old_sn || customerData.new_sn) && (
+                              <>
+                                <InfoRow label="SN เก่า" value={customerData.old_sn} />
+                                <InfoRow label="SN ใหม่" value={customerData.new_sn} />
+                              </>
+                            )}
+                            {customerData.cable_used && <InfoRow label="สายที่ใช้" value={customerData.cable_used} />}
+                          </>
+                        ) : (
+                          <>
+                            <InfoRow label="แพ็กเกจ" value={customerData.package} />
+                            <InfoRow label="สินค้า (Product)" value={customerData.product} />
+                            <InfoRow label="Order No" value={customerData.order_no} />
+                            <InfoRow label="Customer Order No" value={customerData.customer_order_no} />
+                            <InfoRow label="Service Note" value={customerData.service_note} />
+                          </>
+                        )}
                         {customerData.used_devices && customerData.used_devices.length > 0 && (
                           <div className="pt-2 border-t border-[#E5E7EB]">
                             {/* SN items (มี Serial Number) */}
