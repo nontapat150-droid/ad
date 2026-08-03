@@ -109,6 +109,8 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       else if (key === 'announcements') navigate('/announcements');
       else if (key === 'report')        navigate('/report');
       else if (key === 'customers')     navigate('/customers');
+      else if (key === 'installed_customers') navigate('/installed-customers');
+      else if (key === 'quality_control') navigate('/quality-control');
       else if (key === 'ais_expansion') navigate('/ais-expansion');
       else if (key === 'oil_history')   navigate('/oil-history');
       else if (key === 'settings')      navigate('/settings');
@@ -121,6 +123,8 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
     label: 'ผู้ดูแลระบบ',
     items: [
       ...(isSuperAdmin ? [{ key: 'users', label: 'จัดการผู้ใช้', icon: UsersIcon }] : []),
+      { key: 'installed_customers', label: 'ลูกค้าติดตั้งสำเร็จ', icon: InstalledIcon },
+      { key: 'quality_control', label: 'ควบคุมคุณภาพ', icon: QcIcon },
       { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
       { key: 'contractor_inventory', label: 'สรุปอุปกรณ์รับเหมา', icon: InventoryIcon },
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
@@ -601,5 +605,16 @@ function CogIcon({ active }) {
   return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.2 : 1.75}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>;
+}
+function InstalledIcon({ active }) {
+  return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.2 : 1.75}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>;
+}
+function QcIcon({ active }) {
+  return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.2 : 1.75}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l3-3 3 2 4-5" />
   </svg>;
 }

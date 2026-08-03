@@ -1,4 +1,83 @@
 /**
+ * Lookup monthly fee from package_prices (case-insensitive trim match).
+ */
+async function lookupPackageFee(conn, packageName) {
+  const name = String(packageName || '').trim();
+  if (!name) return 0;
+  try {
+    const [[row]] = await conn.query(
+      `SELECT monthly_fee FROM package_prices
+       WHERE is_active = 1 AND LOWER(TRIM(package_name)) = LOWER(?)
+       LIMIT 1`,
+      [name]
+    );
+    return row ? Number(row.monthly_fee) || 0 : 0;
+  } catch (e) {
+    // table may not exist yet
+    return 0;
+  }
+}
+
+/**
+ * Sync completed install job → installed_customers registry (keyed by NON/access_no).
+ * Does not overwrite cancellation if already cancelled.
+ */
+async function syncInstalledFromJob(conn, jobId) {
+  const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
+  if (!job || job.status !== 'completed') return;
+
+  const nonNumber = String(job.access_no || job.non_number || '').trim();
+  if (!nonNumber) return;
+
+  const packageName = String(job.package || '').trim() || '-';
+  const monthlyFee = await lookupPackageFee(conn, packageName);
+  const installDateSrc = job.completed_at || job.finish_time || new Date();
+  let installDate;
+  if (typeof installDateSrc === 'string' && /^\d{4}-\d{2}-\d{2}/.test(installDateSrc)) {
+    installDate = installDateSrc.slice(0, 10);
+  } else {
+    const d = installDateSrc instanceof Date ? installDateSrc : new Date(installDateSrc);
+    if (Number.isNaN(d.getTime())) {
+      const now = new Date();
+      installDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    } else {
+      installDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+
+  try {
+    await conn.query(
+      `INSERT INTO installed_customers (
+         customer_name, non_number, package_name, monthly_fee,
+         install_date, job_id, status
+       ) VALUES (?, ?, ?, ?, ?, ?, 'active')
+       ON DUPLICATE KEY UPDATE
+         customer_name = IF(status = 'cancelled', customer_name, VALUES(customer_name)),
+         package_name  = IF(status = 'cancelled', package_name, VALUES(package_name)),
+         monthly_fee   = IF(status = 'cancelled', monthly_fee,
+           IF(VALUES(monthly_fee) > 0, VALUES(monthly_fee), monthly_fee)),
+         install_date  = IF(status = 'cancelled', install_date, COALESCE(install_date, VALUES(install_date))),
+         job_id        = COALESCE(VALUES(job_id), job_id),
+         updated_at    = CURRENT_TIMESTAMP`,
+      [
+        job.customer || nonNumber,
+        nonNumber,
+        packageName,
+        monthlyFee,
+        installDate,
+        job.id,
+      ]
+    );
+  } catch (e) {
+    if (e.message && e.message.includes("doesn't exist")) {
+      console.warn('installed_customers sync skipped (run migrate-fix):', e.message);
+      return;
+    }
+    throw e;
+  }
+}
+
+/**
  * Sync jobs row → customers master (keyed by access_no)
  */
 async function syncCustomerFromJob(conn, jobId) {
@@ -148,4 +227,9 @@ async function syncMaCustomerFromJob(conn, maJobId, { action = 'imported', techI
   return customer.id;
 }
 
-module.exports = { syncCustomerFromJob, syncMaCustomerFromJob };
+module.exports = {
+  syncCustomerFromJob,
+  syncMaCustomerFromJob,
+  syncInstalledFromJob,
+  lookupPackageFee,
+};

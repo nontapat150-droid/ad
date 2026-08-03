@@ -22,6 +22,8 @@ import ReportIssuePage from './pages/ReportIssuePage';
 import TechOilHistoryPage from './pages/TechOilHistoryPage';
 import SystemSettingsPage from './pages/SystemSettingsPage';
 import ContractorInventoryPage from './pages/ContractorInventoryPage';
+import InstalledCustomersPage from './pages/InstalledCustomersPage';
+import QualityControlPage from './pages/QualityControlPage';
 
 // ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -135,6 +137,8 @@ function AppRoutes() {
       <Route path="/oil-history" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'sales', 'super_admin', 'admin']}><TechOilHistoryPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><SystemSettingsPage /></ProtectedRoute>} />
       <Route path="/contractor-inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><ContractorInventoryPage /></ProtectedRoute>} />
+      <Route path="/installed-customers" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><InstalledCustomersPage /></ProtectedRoute>} />
+      <Route path="/quality-control" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><QualityControlPage /></ProtectedRoute>} />
       <Route path="/report" element={<ProtectedRoute><ReportIssuePage /></ProtectedRoute>} />
 
       {/* Default: redirect based on role */}

@@ -488,6 +488,51 @@ router.get('/migrate-job-completion-fields', async (req, res) => {
       results.push(`Backfill error: ${e.message}`);
     }
 
+    // package_prices — master monthly package fees
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS package_prices (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          package_name VARCHAR(150) NOT NULL,
+          monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+          is_active TINYINT(1) NOT NULL DEFAULT 1,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_package_name (package_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      results.push('✅ package_prices table created');
+    } catch(e) {
+      results.push('package_prices: ' + e.message);
+    }
+
+    // installed_customers — registry of successfully installed customers
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS installed_customers (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          customer_name VARCHAR(150) NOT NULL,
+          non_number VARCHAR(50) NOT NULL,
+          package_name VARCHAR(150) NOT NULL,
+          monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
+          install_date DATE NOT NULL,
+          job_id INT DEFAULT NULL,
+          status ENUM('active','cancelled') NOT NULL DEFAULT 'active',
+          cancelled_at DATE DEFAULT NULL,
+          cancel_reason VARCHAR(255) DEFAULT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY uq_installed_non (non_number),
+          KEY idx_install_date (install_date),
+          KEY idx_installed_status (status),
+          KEY idx_cancelled_at (cancelled_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      results.push('✅ installed_customers table created');
+    } catch(e) {
+      results.push('installed_customers: ' + e.message);
+    }
+
     res.json({ success: true, results });
   } catch(err) {
     res.status(500).json({ error: err.message, results });

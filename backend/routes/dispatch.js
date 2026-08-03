@@ -2,7 +2,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
-const { syncCustomerFromJob, syncMaCustomerFromJob } = require('../utils/customerSync');
+const { syncCustomerFromJob, syncMaCustomerFromJob, syncInstalledFromJob } = require('../utils/customerSync');
 const { sendToUser } = require('../config/firebase-admin');
 const { notifyEvent, getTeamMemberIds, getAdminIds, ensureNotificationsSchema } = require('../utils/notifyEvent');
 const {
@@ -91,6 +91,15 @@ async function safeSyncCustomer(conn, jobId) {
       console.warn('customers sync skipped (run migrate-fix):', e.message);
     } else {
       throw e;
+    }
+  }
+  try {
+    await syncInstalledFromJob(conn, jobId);
+  } catch (e) {
+    if (e.message && e.message.includes("doesn't exist")) {
+      console.warn('installed_customers sync skipped (run migrate-fix):', e.message);
+    } else {
+      console.warn('installed_customers sync error:', e.message);
     }
   }
 }

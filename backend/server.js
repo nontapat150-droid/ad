@@ -90,6 +90,7 @@ apiRouter.use('/fcm', fcmRouter);
 apiRouter.use('/scheduled-messages', scheduledMessagesRouter);
 apiRouter.use('/expansion', expansionRouter);
 apiRouter.use('/splitters', splittersRouter);
+apiRouter.use('/installed-customers', require('./routes/installedCustomers'));
 
 
 // เพื่อแก้ปัญหา cPanel Passenger ตัด /api ออก
