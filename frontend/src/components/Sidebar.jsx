@@ -309,7 +309,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
                     const label = r === 'super_admin' ? 'Super Admin'
                       : r === 'admin'          ? 'แอดมิน'
                       : r === 'ma_technician'  ? 'ช่าง MA'
-                      : r === 'technician'     ? 'ช่างติดตั้ง'
+                      : r === 'technician' || r === 'office_technician' ? 'ช่าง Office'
                       : r === 'contractor_office' ? 'รับเหมาติดตั้ง'
                       : r === 'contractor_ma'  ? 'รับเหมา MA'
                       : r === 'sales'          ? 'เซล' : r;

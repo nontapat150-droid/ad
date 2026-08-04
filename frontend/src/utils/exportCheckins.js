@@ -13,11 +13,11 @@ export const generateCheckinExcel = async (data, monthString) => {
   
   // Map of raw roles to display names
   const roleGroups = {
-    'technician': 'ช่างทั่วไป',
-    'office_technician': 'ช่าง',
+    'technician': 'ช่าง Office',
+    'office_technician': 'ช่าง Office',
     'ma_technician': 'ทีม MA',
     'sales': 'เซล',
-    'general': 'ช่างทั่วไป',
+    'general': 'ช่าง Office',
     'ma': 'ทีม MA',
     'manager': 'ผู้จัดการ',
     'contractor_office': 'รับเหมาติดตั้ง',

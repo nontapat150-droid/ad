@@ -75,7 +75,7 @@ export default function TechSection() {
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#374151] to-[#1F2937] flex items-center justify-center shadow-md">
             <span className="text-white text-xs">📋</span>
           </div>
-          <h3 className="text-[#1F2937] font-bold text-base">สรุปงานประจำวัน (ช่างติดตั้ง)</h3>
+          <h3 className="text-[#1F2937] font-bold text-base">สรุปงานประจำวัน (ช่าง Office)</h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <StatCard title="งานที่ได้รับมอบหมาย"

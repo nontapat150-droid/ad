@@ -300,7 +300,7 @@ function teamIsContractor(team) {
 
 function teamTypeShortLabel(team) {
   const map = {
-    office_install: 'สำนักงาน·ติดตั้ง',
+    office_install: 'สำนักงาน·Office',
     office_ma: 'สำนักงาน·MA',
     contractor_install: 'รับเหมา·ติดตั้ง',
     contractor_ma: 'รับเหมา·MA',

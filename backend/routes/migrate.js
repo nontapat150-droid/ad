@@ -316,6 +316,12 @@ router.get('/migrate-entry-fee', async (req, res) => {
       results.push('✅ oil_records.is_trip added');
     } catch(e) { results.push('oil_records.is_trip: ' + e.message); }
 
+    try {
+      const { ensureOilTeamOwnership } = require('../utils/oilSchema');
+      await ensureOilTeamOwnership(pool);
+      results.push('✅ oil_records.team_id ensured + historical backfill');
+    } catch(e) { results.push('oil_records.team_id: ' + e.message); }
+
     // ── Inventory unit & crate conversion ──
     try {
       await pool.query(`ALTER TABLE inventory_products ADD COLUMN unit VARCHAR(50) DEFAULT 'ชิ้น'`);

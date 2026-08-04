@@ -11,7 +11,7 @@ import ManualModal from '../components/ManualModal';
 const SAVED_LOGIN_KEY = 'bou_saved_login';
 
 const REGISTER_ROLES = [
-  { value: 'technician', label: 'ช่างติดตั้ง' },
+  { value: 'technician', label: 'ช่าง Office' },
   { value: 'ma_technician', label: 'ช่าง MA' },
   { value: 'contractor_office', label: 'รับเหมาติดตั้ง' },
   { value: 'contractor_ma', label: 'รับเหมา MA' },

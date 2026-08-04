@@ -7,8 +7,8 @@ import { getImageUrl } from '../utils/imageUtils';
 import Layout from '../components/Layout';
 
 const FREQUENT_NO_SN_ROLES = [
-  { key: 'technician', label: 'ช่างติดตั้ง' },
-  { key: 'office_technician', label: 'ช่างออฟฟิศ' },
+  { key: 'technician', label: 'ช่าง Office' },
+  { key: 'office_technician', label: 'ช่าง Office' },
   { key: 'contractor_office', label: 'รับเหมาติดตั้ง' },
   { key: 'ma_technician', label: 'ช่าง MA' },
   { key: 'contractor_ma', label: 'รับเหมา MA' },

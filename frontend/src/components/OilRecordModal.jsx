@@ -8,9 +8,9 @@ import { AppSelectField } from './DispatchFilterFields';
 
 const TECH_ROLE_LABELS = {
   sales: 'เซล',
-  technician: 'ช่างติดตั้ง',
+  technician: 'ช่าง Office',
   ma_technician: 'ช่าง MA',
-  office_technician: 'ช่างติดตั้ง',
+  office_technician: 'ช่าง Office',
   contractor_office: 'รับเหมาติดตั้ง',
   contractor_ma: 'รับเหมา MA',
 };
@@ -210,7 +210,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                 <svg className="w-4 h-4 text-[#A3E635]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 <p className="text-xs text-[#6B7280] font-medium">
                   กำลังบันทึกในนาม: <span className="font-bold text-[#1F2937]">{selectedTech.full_name}</span> ({teamName}) - 
-                  {' '}{{ sales: 'เซล', technician: 'ช่างติดตั้ง', ma_technician: 'ช่าง MA', office_technician: 'ช่างติดตั้ง', contractor_office: 'รับเหมาติดตั้ง', contractor_ma: 'รับเหมา MA', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
+                  {' '}{{ sales: 'เซล', technician: 'ช่าง Office', ma_technician: 'ช่าง MA', office_technician: 'ช่าง Office', contractor_office: 'รับเหมาติดตั้ง', contractor_ma: 'รับเหมา MA', admin: 'แอดมิน', super_admin: 'ผู้ดูแลระบบสูงสุด' }[selectedTech.role] || selectedTech.role || 'พนักงาน'}
                 </p>
               </div>
             )}
@@ -268,9 +268,9 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
                 <span className="text-xs font-medium text-[#4B5563] bg-white px-2.5 py-0.5 rounded-lg border border-[#E5E7EB] truncate shadow-sm">
                   {{
                     sales: 'เซล',
-                    technician: 'ช่างติดตั้ง',
+                    technician: 'ช่าง Office',
                     ma_technician: 'ช่าง MA',
-                    office_technician: 'ช่างติดตั้ง',
+                    office_technician: 'ช่าง Office',
                     contractor_office: 'รับเหมาติดตั้ง',
                     contractor_ma: 'รับเหมา MA',
                     admin: 'แอดมิน',

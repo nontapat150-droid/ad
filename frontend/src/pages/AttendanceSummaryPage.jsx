@@ -58,7 +58,8 @@ export default function AttendanceSummaryPage() {
     switch(role) {
       case 'super_admin': return <span className="px-2 py-1 rounded bg-purple-100 text-purple-700 text-xs font-bold">ผู้ดูแลระบบสูงสุด</span>;
       case 'admin': return <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs font-bold">ผู้ดูแลระบบ</span>;
-      case 'technician': return <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 text-xs font-bold">ช่างเทคนิค</span>;
+      case 'technician': return <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 text-xs font-bold">ช่าง Office</span>;
+      case 'office_technician': return <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 text-xs font-bold">ช่าง Office</span>;
       case 'user': return <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 text-xs font-bold">พนักงานทั่วไป</span>;
       default: return <span className="px-2 py-1 rounded bg-gray-100 text-gray-600 text-xs font-bold">{role}</span>;
     }

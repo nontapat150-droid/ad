@@ -445,7 +445,7 @@ export default function JobDispatchModal({ isOpen, onClose, onSuccess, defaultJo
 
                     {assignMode === 'individual' && (
                       <AppSelectField
-                        label={jobType === 'ma' ? 'ช่าง MA / รับเหมา MA' : 'ช่างติดตั้ง / รับเหมาติดตั้ง'}
+                        label={jobType === 'ma' ? 'ช่าง MA / รับเหมา MA' : 'ช่าง Office / รับเหมาติดตั้ง'}
                         value={String(form.assignee_id || '')}
                         onChange={(v) => setForm((prev) => ({ ...prev, assignee_id: v, team_id: '' }))}
                         options={assignableUsers.map((u) => ({ value: String(u.id), label: u.full_name }))}

@@ -3,7 +3,7 @@ import { COMMON_TIPS } from './shared';
 /** Manuals for technician / contractor_office */
 export const officeTechManuals = {
   dashboard: {
-    title: 'หน้าภาพรวม (ช่างติดตั้ง)',
+    title: 'หน้าภาพรวม (ช่าง Office)',
     summary: 'ดูงานวันนี้ ทางลัดไปหน้างาน กระเป๋า น้ำมัน และค่าแรกเข้า',
     sections: [
       {

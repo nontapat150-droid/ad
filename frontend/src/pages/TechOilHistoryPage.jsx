@@ -347,7 +347,7 @@ function RecordCard({ record, onViewImages }) {
   const displayName = r.filler_name || r.tech_name || 'ไม่ระบุ';
   const initials = displayName.substring(0, 2);
   const roleLabel = r.tech_role === 'ma_technician' ? 'ช่าง MA'
-    : r.tech_role === 'technician' ? 'ช่างติดตั้ง'
+    : r.tech_role === 'technician' ? 'ช่าง Office'
     : r.tech_role === 'contractor_office' ? 'รับเหมาติดตั้ง'
     : r.tech_role === 'contractor_ma' ? 'รับเหมา MA'
     : r.tech_role === 'sales' ? 'เซล'

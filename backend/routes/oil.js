@@ -3,6 +3,7 @@ const express = require('express');
 const pool    = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
+const { ensureOilTeamOwnership } = require('../utils/oilSchema');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -86,17 +87,18 @@ async function recalculateOilData(conn, targetPlate = null) {
   }
 }
 
-// ── Ensure indexes exist for performance ──────────────────────
+// ── Ensure indexes + historical team_id on oil_records ────────
 (async () => {
   try {
     const conn = await pool.getConnection();
+    await ensureOilTeamOwnership(conn);
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_date ON oil_records(date_recorded)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_tech ON oil_records(tech_id)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_plate ON oil_records(license_plate)').catch(() => {});
     await conn.query('CREATE INDEX IF NOT EXISTS idx_oil_img_record ON oil_images(record_id)').catch(() => {});
     conn.release();
   } catch (e) {
-    // Indexes may already exist or lack permission — ignore
+    // Indexes / schema may already exist or lack permission — ignore
   }
 })();
 
@@ -134,7 +136,8 @@ router.get('/records', auth, async (req, res) => {
     where.push('r.tech_id = ?');
     params.push(tech_id);
   } else if (team_ids) {
-    where.push('u.team_id IN (?)');
+    // Historical team stored on the record (not current tech membership)
+    where.push('r.team_id IN (?)');
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
@@ -149,17 +152,19 @@ router.get('/records', auth, async (req, res) => {
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
   try {
+    await ensureOilTeamOwnership(pool);
     const [rows] = await pool.query(
       `SELECT r.*,
               u.full_name AS tech_name,
               u.role AS tech_role,
-              u.team_id,
+              r.team_id,
               t.team_name,
+              u.team_id AS tech_current_team_id,
               (SELECT GROUP_CONCAT(i.image_path SEPARATOR ',')
                FROM oil_images i WHERE i.record_id = r.id) AS images
        FROM oil_records r
        LEFT JOIN users u ON u.id = r.tech_id
-       LEFT JOIN teams t ON t.id = u.team_id
+       LEFT JOIN teams t ON t.id = r.team_id
        ${whereClause}
        ORDER BY r.date_recorded DESC
        LIMIT ?`,
@@ -205,18 +210,18 @@ router.post(
 
     const conn = await pool.getConnection();
     try {
+      await ensureOilTeamOwnership(conn);
       const cleanMileage = String(mileage).replace(/,/g, '').trim();
 
-      // Get target user's team_id
+      // Snapshot team at fill-up — never updated when tech later transfers
       const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [targetTechId]);
       const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
 
-      // Check for duplicate record based on mileage and team, or anomaly (too close in time and mileage)
+      // Check for duplicate record based on mileage and historical team, or anomaly
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
-         JOIN users u ON r.tech_id = u.id
-         WHERE u.team_id <=> ?
+         WHERE r.team_id <=> ?
            AND (
              r.mileage = ?
              OR 
@@ -237,11 +242,11 @@ router.post(
 
       const [result] = await conn.query(
         `INSERT INTO oil_records
-           (tech_id, license_plate, liters, mileage, price_per_liter, total_price,
+           (tech_id, team_id, license_plate, liters, mileage, price_per_liter, total_price,
             distance, baht_per_km, filler_name, date_recorded, is_trip)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          targetTechId, license_plate, liters, mileage, price_per_liter,
+          targetTechId, targetTeamId, license_plate, liters, mileage, price_per_liter,
           total_price, isTripMileage ? 0 : (distance || 0), bahtPerKm, filler_name || null,
           (date_recorded ? date_recorded.replace('T', ' ') : null) || new Date(),
           isTripMileage ? 1 : 0
@@ -361,10 +366,10 @@ router.get('/efficiency', auth, async (req, res) => {
   }
 
   if (team_ids) { 
-    where.push("u.team_id IN (?)"); 
+    where.push("r.team_id IN (?)"); 
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))); 
   } else if (team_id) { 
-    where.push("u.team_id = ?");   
+    where.push("r.team_id = ?");   
     params.push(team_id); 
   }
 
@@ -372,6 +377,7 @@ router.get('/efficiency', auth, async (req, res) => {
   const jobsWhereClause = jobsWhere.length ? ' AND ' + jobsWhere.join(' AND ') : '';
 
   try {
+    await ensureOilTeamOwnership(pool);
     const [rows] = await pool.query(
       `SELECT
          t.id AS team_id, t.team_name,
@@ -385,8 +391,7 @@ router.get('/efficiency', auth, async (req, res) => {
               THEN ROUND(COALESCE(SUM(r.total_price), 0) / jc.case_count, 2)
               ELSE 0 END                     AS cost_per_job
        FROM oil_records r
-       JOIN users u ON u.id = r.tech_id
-       JOIN teams t ON t.id = u.team_id
+       JOIN teams t ON t.id = r.team_id
        LEFT JOIN (
            SELECT j.team_id, COUNT(*) as case_count
            FROM jobs j
@@ -420,7 +425,7 @@ router.get('/analytics', auth, async (req, res) => {
     where.push('r.tech_id = ?');
     params.push(req.user.id);
   } else if (team_ids) {
-    where.push("u.team_id IN (?)");
+    where.push("r.team_id IN (?)");
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
@@ -435,15 +440,15 @@ router.get('/analytics', auth, async (req, res) => {
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
   try {
+    await ensureOilTeamOwnership(pool);
     const [byVehicle] = await pool.query(`
       SELECT COALESCE(t.team_name, r.license_plate) as license_plate, 
              SUM(r.liters) as total_liters, 
              SUM(r.total_price) as total_cost,
              SUM(r.distance) as total_distance,
-             MAX(u.team_id) as main_team_id
+             MAX(r.team_id) as main_team_id
       FROM oil_records r
-      LEFT JOIN users u ON u.id = r.tech_id
-      LEFT JOIN teams t ON t.id = u.team_id
+      LEFT JOIN teams t ON t.id = r.team_id
       ${whereClause}
       GROUP BY COALESCE(t.team_name, r.license_plate)
       ORDER BY total_cost DESC
@@ -454,8 +459,7 @@ router.get('/analytics', auth, async (req, res) => {
              COALESCE(MAX(t.team_name), r.license_plate) as license_plate, 
              SUM(r.liters) as total_liters, SUM(r.total_price) as total_cost, SUM(r.distance) as total_distance
       FROM oil_records r
-      LEFT JOIN users u ON u.id = r.tech_id
-      LEFT JOIN teams t ON t.id = u.team_id
+      LEFT JOIN teams t ON t.id = r.team_id
       ${whereClause}
       GROUP BY date, COALESCE(t.team_name, r.license_plate)
       ORDER BY date ASC
@@ -484,7 +488,6 @@ router.get('/analytics', auth, async (req, res) => {
         COUNT(*) as total_bills,
         CASE WHEN SUM(liters) > 0 THEN SUM(total_price) / SUM(liters) ELSE 0 END as avg_price_per_liter
       FROM oil_records r
-      LEFT JOIN users u ON u.id = r.tech_id
       ${whereClause}
     `, params);
 
@@ -528,6 +531,7 @@ router.put(
 
     const conn = await pool.getConnection();
     try {
+      await ensureOilTeamOwnership(conn);
       await conn.beginTransaction();
 
       // Get old record
@@ -546,20 +550,26 @@ router.put(
       const newMileage = mileage || old[0].mileage;
       const cleanNewMileage = String(newMileage).replace(/,/g, '').trim();
       const newTechId = tech_id || old[0].tech_id;
+      const techChanged = tech_id != null && String(tech_id) !== String(old[0].tech_id);
 
-      // Get target user's team_id
+      // Keep historical team unless admin reassigns to a different tech
       const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [newTechId]);
-      const targetTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
+      const targetUserTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
+      let recordTeamId = old[0].team_id;
+      if (techChanged) {
+        recordTeamId = targetUserTeamId;
+      } else if (recordTeamId == null) {
+        recordTeamId = targetUserTeamId;
+      }
 
       const targetDate = date_recorded ? new Date(date_recorded) : new Date(old[0].date_recorded);
 
-      // Check for duplicate record based on mileage and team (excluding current record), or anomaly
+      // Check for duplicate record based on mileage and historical team (excluding current)
       const [existing] = await conn.query(
         `SELECT r.id 
          FROM oil_records r
-         JOIN users u ON r.tech_id = u.id
          WHERE r.id != ?
-           AND u.team_id <=> ?
+           AND r.team_id <=> ?
            AND (
              r.mileage = ?
              OR 
@@ -568,7 +578,7 @@ router.put(
                AND ABS(TIMESTAMPDIFF(MINUTE, r.date_recorded, ?)) <= 120
              )
            )`,
-        [recordId, targetTeamId, cleanNewMileage, cleanNewMileage, targetDate]
+        [recordId, recordTeamId, cleanNewMileage, cleanNewMileage, targetDate]
       );
 
       if (existing.length > 0) {
@@ -579,10 +589,11 @@ router.put(
 
       await conn.query(
         `UPDATE oil_records
-         SET tech_id = ?, license_plate = ?, liters = ?, mileage = ?, price_per_liter = ?, total_price = ?, date_recorded = ?, is_trip = ?
+         SET tech_id = ?, team_id = ?, license_plate = ?, liters = ?, mileage = ?, price_per_liter = ?, total_price = ?, date_recorded = ?, is_trip = ?
          WHERE id = ?`,
         [
-          tech_id || old[0].tech_id, 
+          newTechId,
+          recordTeamId,
           license_plate || old[0].license_plate, 
           liters || old[0].liters, 
           mileage || old[0].mileage, 
@@ -657,11 +668,15 @@ router.delete('/records/:id', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/oil/team-records — Oil records for the user's own team ──
+// ── GET /api/oil/team-records — Oil history attributed to viewer's team ──
+// Uses oil_records.team_id (fill-up-time team) so transferred techs keep
+// past records on the original team for audit.
 router.get('/team-records', auth, async (req, res) => {
   const { month } = req.query; // e.g. '2026-06'
 
   try {
+    await ensureOilTeamOwnership(pool);
+
     // Get the user's own team_id
     const [userRows] = await pool.query('SELECT team_id FROM users WHERE id = ?', [req.user.id]);
     if (userRows.length === 0 || !userRows[0].team_id) {
@@ -669,7 +684,7 @@ router.get('/team-records', auth, async (req, res) => {
     }
     const targetTeamId = userRows[0].team_id;
 
-    let where = ['u.team_id = ?'];
+    let where = ['r.team_id = ?'];
     let params = [targetTeamId];
 
     if (month) {
@@ -684,13 +699,14 @@ router.get('/team-records', auth, async (req, res) => {
               u.full_name AS tech_name,
               u.role AS tech_role,
               u.profile_image AS tech_profile_image,
-              u.team_id,
+              r.team_id,
               t.team_name,
+              u.team_id AS tech_current_team_id,
               (SELECT GROUP_CONCAT(i.image_path SEPARATOR ',')
                FROM oil_images i WHERE i.record_id = r.id) AS images
        FROM oil_records r
-       INNER JOIN users u ON u.id = r.tech_id
-       LEFT JOIN teams t ON t.id = u.team_id
+       LEFT JOIN users u ON u.id = r.tech_id
+       LEFT JOIN teams t ON t.id = r.team_id
        ${whereClause}
        ORDER BY r.date_recorded DESC
        LIMIT 500`,
@@ -720,7 +736,7 @@ router.get('/vehicle-summary', auth, async (req, res) => {
     where.push('r.tech_id = ?');
     params.push(req.user.id);
   } else if (team_ids) {
-    where.push('u.team_id IN (?)');
+    where.push('r.team_id IN (?)');
     params.push(team_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)));
   }
 
@@ -732,12 +748,13 @@ router.get('/vehicle-summary', auth, async (req, res) => {
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
   try {
+    await ensureOilTeamOwnership(pool);
     // Per-vehicle aggregation
     const [vehicles] = await pool.query(`
       SELECT 
         r.license_plate,
         MAX(t.team_name) AS team_name,
-        MAX(u.team_id) AS main_team_id,
+        MAX(r.team_id) AS main_team_id,
         COUNT(*) AS refuel_count,
         COALESCE(SUM(r.total_price), 0) AS total_cost,
         COALESCE(SUM(r.liters), 0) AS total_liters,
@@ -748,8 +765,7 @@ router.get('/vehicle-summary', auth, async (req, res) => {
         MIN(r.date_recorded) AS first_refuel,
         MAX(r.date_recorded) AS last_refuel
       FROM oil_records r
-      LEFT JOIN users u ON u.id = r.tech_id
-      LEFT JOIN teams t ON t.id = u.team_id
+      LEFT JOIN teams t ON t.id = r.team_id
       ${whereClause}
       GROUP BY r.license_plate
       ORDER BY total_cost DESC

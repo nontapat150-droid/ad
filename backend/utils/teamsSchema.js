@@ -3,7 +3,7 @@
  */
 
 const TEAM_TYPES = {
-  office_install: { counts_for_oil: 1, roles: ['technician'], label: 'ช่างติดตั้ง (สำนักงาน)' },
+  office_install: { counts_for_oil: 1, roles: ['technician'], label: 'ช่าง Office (สำนักงาน)' },
   office_ma: { counts_for_oil: 1, roles: ['ma_technician'], label: 'ช่าง MA (สำนักงาน)' },
   contractor_install: { counts_for_oil: 0, roles: ['contractor_office'], label: 'รับเหมาติดตั้ง' },
   contractor_ma: { counts_for_oil: 0, roles: ['contractor_ma'], label: 'รับเหมา MA' },

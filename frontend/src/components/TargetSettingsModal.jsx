@@ -166,7 +166,7 @@ export default function TargetSettingsModal({ isOpen, onClose, onSaved }) {
             </div>
 
             <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
-              <p className="text-sm font-black text-[#1F2937] mb-1">ช่างติดตั้ง — เป้าหมายงาน</p>
+              <p className="text-sm font-black text-[#1F2937] mb-1">ช่าง Office — เป้าหมายงาน</p>
               <p className="text-[11px] text-[#9CA3AF] mb-3">จำนวนงานติดตั้งเป้าหมาย / เดือน</p>
               <input
                 type="number"

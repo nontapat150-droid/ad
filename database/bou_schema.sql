@@ -552,6 +552,7 @@ CREATE TABLE `team_oil_cases` (
 CREATE TABLE `oil_records` (
   `id`              INT(11)      NOT NULL AUTO_INCREMENT,
   `tech_id`         INT(11)      NOT NULL,
+  `team_id`         INT(11)      DEFAULT NULL COMMENT 'Team at time of fill-up (immutable on tech transfer)',
   `license_plate`   VARCHAR(20)  NOT NULL,
   `liters`          DECIMAL(10,2) NOT NULL,
   `mileage`         INT(11)      NOT NULL  COMMENT 'Odometer reading at fill-up (km)',
@@ -563,6 +564,7 @@ CREATE TABLE `oil_records` (
   `date_recorded`   DATETIME     DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_or_tech`  (`tech_id`),
+  KEY `idx_or_team`  (`team_id`),
   KEY `idx_or_plate` (`license_plate`),
   KEY `idx_or_date`  (`date_recorded`),
   CONSTRAINT `oil_records_fk_tech` FOREIGN KEY (`tech_id`) REFERENCES `users` (`id`)
@@ -654,6 +656,7 @@ CREATE TABLE `notification_reads` (
 -- ============================================================
 
 -- Oil Efficiency View: L/Job per team per month
+-- Liters join via oil_records.team_id (fill-up-time team), not current tech membership
 CREATE OR REPLACE VIEW `v_oil_efficiency` AS
   SELECT
     t.id            AS team_id,
@@ -668,11 +671,8 @@ CREATE OR REPLACE VIEW `v_oil_efficiency` AS
     END AS liters_per_job
   FROM `team_oil_cases` toc
   JOIN `teams` t ON t.id = toc.team_id
-  LEFT JOIN `vehicles` v ON v.last_tech_id IN (
-    SELECT id FROM `users` WHERE team_id = toc.team_id
-  )
   LEFT JOIN `oil_records` ori
-    ON ori.license_plate = v.license_plate
+    ON ori.team_id = toc.team_id
     AND DATE_FORMAT(ori.date_recorded, '%Y-%m') = toc.year_month
   GROUP BY t.id, t.team_name, toc.year_month, toc.case_count;
 

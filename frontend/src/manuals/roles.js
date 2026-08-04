@@ -2,7 +2,7 @@
 export const ROLE_LABELS = {
   super_admin: 'ผู้ดูแลระบบ',
   admin: 'แอดมิน',
-  office_tech: 'ช่างติดตั้ง',
+  office_tech: 'ช่าง Office',
   ma_tech: 'ช่าง MA',
   sales: 'เซล',
   guest: 'ทั่วไป',

@@ -53,7 +53,7 @@ export default function CheckinPage() {
   const hasSales = userRolesList.includes('sales');
   
   const availableTabs = [];
-  if (hasGeneral || isAdmin) availableTabs.push({ id: 'general', label: 'ช่างติดตั้ง', icon: '📝' });
+  if (hasGeneral || isAdmin) availableTabs.push({ id: 'general', label: 'ช่าง Office', icon: '📝' });
   if (hasMA || isAdmin) availableTabs.push({ id: 'ma', label: 'ทีม MA', icon: '🛠️' });
   if (hasSales || isAdmin) availableTabs.push({ id: 'sales', label: 'เซลส์', icon: '💼' });
   // Camera state
@@ -513,7 +513,7 @@ export default function CheckinPage() {
   
   const checkedInRole = todayCheckin?.checkin_type;
   const showRoleAlert = alreadyCheckedInToday && checkedInRole && checkedInRole !== checkinType && !isAdmin;
-  const roleNameMap = { general: 'ช่างติดตั้ง', ma: 'ทีม MA', sales: 'เซลส์' };
+  const roleNameMap = { general: 'ช่าง Office', ma: 'ทีม MA', sales: 'เซลส์' };
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const myTodayLeave = leaves.find(l => {

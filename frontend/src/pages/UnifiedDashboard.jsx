@@ -63,11 +63,11 @@ export default function UnifiedDashboard() {
     : (isTech && isMaTech)
       ? (userRoles.includes('contractor_office') || userRoles.includes('contractor_ma')
           ? 'รับเหมา (ติดตั้ง+MA)'
-          : 'ช่างติดตั้ง + MA')
+          : 'ช่าง Office + MA')
     : userRoles.includes('contractor_office') ? 'รับเหมาติดตั้ง'
     : userRoles.includes('contractor_ma') ? 'รับเหมา MA'
     : isMaTech ? 'ช่าง MA'
-    : isTech ? 'ช่างติดตั้ง'
+    : isTech ? 'ช่าง Office'
     : isSales ? 'เซล'
     : 'ผู้ใช้งาน';
 

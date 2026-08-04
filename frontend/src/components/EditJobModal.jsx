@@ -391,7 +391,7 @@ export default function EditJobModal({ isOpen, onClose, job, onSuccess, type = '
 
             {assignMode === 'individual' && (
               <AppSelectField
-                label={isMa ? 'ช่าง MA / รับเหมา MA' : 'ช่างติดตั้ง / รับเหมาติดตั้ง'}
+                label={isMa ? 'ช่าง MA / รับเหมา MA' : 'ช่าง Office / รับเหมาติดตั้ง'}
                 value={String(formData.field_engineer_id || '')}
                 onChange={(techId) => setFormData((prev) => ({ ...prev, field_engineer_id: techId, team_id: '' }))}
                 options={techs.map((t) => ({ value: String(t.id), label: t.full_name }))}

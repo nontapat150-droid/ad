@@ -291,6 +291,12 @@ router.get('/efficiency', auth, async (req, res) => {
   const month = req.query.month || new Date().toISOString().slice(0, 7);
   try {
     await ensureTeamsSchema(pool);
+    try {
+      const { ensureOilTeamOwnership } = require('../utils/oilSchema');
+      await ensureOilTeamOwnership(pool);
+    } catch (e) { /* ignore schema ensure errors */ }
+
+    // Oil liters attributed by historical r.team_id (not current tech membership)
     const [rows] = await pool.query(
       `SELECT t.id AS team_id, t.team_name, t.team_type, t.counts_for_oil,
               COALESCE(toc.case_count, 0) AS case_count,
@@ -302,9 +308,8 @@ router.get('/efficiency', auth, async (req, res) => {
        FROM teams t
        LEFT JOIN team_oil_cases toc
          ON toc.team_id = t.id AND toc.\`year_month\` = ?
-       LEFT JOIN users u ON u.team_id = t.id
        LEFT JOIN oil_records r
-         ON r.tech_id = u.id AND DATE_FORMAT(r.date_recorded, '%Y-%m') = ?
+         ON r.team_id = t.id AND DATE_FORMAT(r.date_recorded, '%Y-%m') = ?
        WHERE COALESCE(t.counts_for_oil, 1) = 1
        GROUP BY t.id, t.team_name, t.team_type, t.counts_for_oil, toc.case_count
        ORDER BY liters_per_job ASC`,

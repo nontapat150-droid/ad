@@ -3,7 +3,7 @@ import api from '../api/axios';
 import Swal from 'sweetalert2';
 
 const TEAM_TYPE_META = {
-  office_install: { label: 'ช่างติดตั้ง (สำนักงาน)', short: 'ติดตั้ง', oil: true, roles: ['technician'], tone: 'teal' },
+  office_install: { label: 'ช่าง Office (สำนักงาน)', short: 'Office', oil: true, roles: ['technician'], tone: 'teal' },
   office_ma: { label: 'ช่าง MA (สำนักงาน)', short: 'MA', oil: true, roles: ['ma_technician'], tone: 'sky' },
   contractor_install: { label: 'รับเหมาติดตั้ง', short: 'รับเหมาติดตั้ง', oil: false, roles: ['contractor_office'], tone: 'amber' },
   contractor_ma: { label: 'รับเหมา MA', short: 'รับเหมา MA', oil: false, roles: ['contractor_ma'], tone: 'violet' },
@@ -13,7 +13,7 @@ const FILTERS = [
   { key: 'all', label: 'ทั้งหมด' },
   { key: 'office', label: 'สำนักงาน' },
   { key: 'contractor', label: 'รับเหมา' },
-  { key: 'office_install', label: 'ติดตั้ง' },
+  { key: 'office_install', label: 'Office' },
   { key: 'office_ma', label: 'MA' },
   { key: 'contractor_install', label: 'รับเหมาติดตั้ง' },
   { key: 'contractor_ma', label: 'รับเหมา MA' },
