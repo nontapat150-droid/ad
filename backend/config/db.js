@@ -5,7 +5,11 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: parseInt(process.env.DB_PORT) || 3306,
   user: process.env.DB_USER || 'zvucfpsz_BO',
-  password: process.env.DB_PASSWORD || '@2*]BC9AuGO^%P&-',
+  // Empty passwords are valid for a local XAMPP root account. Only use the
+  // legacy fallback when DB_PASSWORD is truly absent, not when it is empty.
+  password: Object.prototype.hasOwnProperty.call(process.env, 'DB_PASSWORD')
+    ? process.env.DB_PASSWORD
+    : '@2*]BC9AuGO^%P&-',
   database: process.env.DB_NAME || 'zvucfpsz_RT',
   waitForConnections: true,
   connectionLimit: 10,

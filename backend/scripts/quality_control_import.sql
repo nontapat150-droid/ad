@@ -1,0 +1,42 @@
+-- Quality Control import schema
+-- Runtime migration is also performed safely by routes/installedCustomers.js.
+
+ALTER TABLE installed_customers
+  ADD COLUMN IF NOT EXISTS seller_name VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS subdistrict VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS district VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS qc_status VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS billing_status VARCHAR(100) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS status_changed_at DATE DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS ae_remark TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS source_sheet VARCHAR(190) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_imported_at DATETIME DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS installed_customer_bills (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  installed_customer_id INT NOT NULL,
+  bill_month CHAR(7) NOT NULL,
+  bill_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
+  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  raw_value VARCHAR(255) DEFAULT NULL,
+  imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_customer_bill_month (installed_customer_id, bill_month),
+  KEY idx_bill_month_status (bill_month, bill_status),
+  CONSTRAINT fk_customer_bills_customer
+    FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS quality_import_runs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  source_file VARCHAR(255) DEFAULT NULL,
+  source_sheet VARCHAR(190) DEFAULT NULL,
+  total_rows INT NOT NULL DEFAULT 0,
+  inserted_rows INT NOT NULL DEFAULT 0,
+  updated_rows INT NOT NULL DEFAULT 0,
+  bill_rows INT NOT NULL DEFAULT 0,
+  error_rows INT NOT NULL DEFAULT 0,
+  imported_by INT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_quality_import_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -4,6 +4,7 @@ import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import QualityStatusImportModal from '../components/QualityStatusImportModal';
 
 const MONTHS = [
   { value: '01', label: 'January', labelTh: 'ม.ค.' },
@@ -125,12 +126,20 @@ function currentYm() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default function QualityControlPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [qcType, setQcType] = useState('fraud');
   const [month, setMonth] = useState(currentYm);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const runCalculate = async () => {
     if (!month) {
@@ -182,13 +191,22 @@ export default function QualityControlPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-lime-300 bg-lime-50 px-3 py-2 text-xs font-bold text-lime-800 transition hover:bg-lime-100 sm:text-sm"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 16V4m0 0L7 9m5-5l5 5M5 14v5h14v-5" /></svg>
+              <span className="hidden sm:inline">นำเข้าอัปเดตสถานะ</span>
+              <span className="sm:hidden">นำเข้า</span>
+            </button>
             <ThemeToggle />
             <NotificationBell />
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="max-w-5xl mx-auto w-full space-y-4">
+          <div className="max-w-6xl mx-auto w-full space-y-4">
             {/* Controls */}
             <div
               className="bg-white rounded-xl border border-[#E5E7EB] p-5 space-y-4"
@@ -241,8 +259,8 @@ export default function QualityControlPage() {
               </div>
 
               <p className="text-xs text-[#9CA3AF] leading-relaxed">
-                เลือกเดือนอ้างอิงแล้วระบบจะดู cohort ติดตั้งของเดือนย้อนหลัง {qcType === 'fraud' ? '4' : '8'} เดือน
-                และนับลูกค้าที่ยกเลิกภายใน {qcType === 'fraud' ? '4' : '8'} เดือนหลังวันติดตั้ง
+                เดือนที่เลือกจะถูกนับรวมในช่วงตรวจสอบ โดย Fraud ใช้เดือนที่เลือกและ 3 เดือนก่อนหน้า ส่วน Churn ใช้เดือนที่เลือกและ 7 เดือนก่อนหน้า
+                แล้วนับลูกค้าที่ยกเลิกภายในช่วงอายุ {qcType === 'fraud' ? '4' : '8'} เดือนหลังวันติดตั้ง
               </p>
             </div>
 
@@ -252,21 +270,28 @@ export default function QualityControlPage() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <StatCard label="ประเภท" value={result.type === 'fraud' ? 'Fraud' : 'Churn'} />
                   <StatCard label="เดือนอ้างอิง" value={formatMonthLabel(result.ref_month)} />
-                  <StatCard label="เดือน cohort (ติดตั้ง)" value={formatMonthLabel(result.cohort_month)} />
+                  <StatCard label="ช่วงติดตั้งเริ่มต้น" value={formatMonthLabel(result.cohort_start_month || result.cohort_month)} />
                   <StatCard
-                    label="อัตรา"
+                    label={`อัตรา / เกณฑ์ ${result.threshold_rate}%`}
                     value={`${result.rate}%`}
                     accent={result.type === 'fraud' ? 'amber' : 'rose'}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <StatCard label="จำนวนติดตั้งใน cohort" value={String(result.total_installs)} />
                   <StatCard
                     label={result.type === 'fraud' ? 'เคส Fraud' : 'เคส Churn'}
                     value={String(result.cases)}
                     accent={result.type === 'fraud' ? 'amber' : 'rose'}
                   />
+                  <StatCard label="จำนวนตามเกณฑ์" value={String(result.allowed_cases ?? 0)} />
+                  <StatCard label="เกินเกณฑ์" value={String(result.over_limit ?? 0)} accent={Number(result.over_limit) > 0 ? 'rose' : undefined} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard label="บิลค้างในช่วงที่เลือก" value={`${Number(result.outstanding_bills || 0).toLocaleString('th-TH')} บิล`} accent="amber" />
+                  <StatCard label="ยอดบิลค้างรวม" value={`${formatMoney(result.outstanding_total)} บาท`} accent="amber" />
                 </div>
 
                 <div
@@ -288,13 +313,16 @@ export default function QualityControlPage() {
                           <th className="px-3 py-3 font-semibold">แพ็กเกจ</th>
                           <th className="px-3 py-3 font-semibold">วันติดตั้ง</th>
                           <th className="px-3 py-3 font-semibold">วันยกเลิก</th>
-                          <th className="px-3 py-3 font-semibold">เหตุผล</th>
+                          <th className="px-3 py-3 font-semibold">CM สถานะ</th>
+                          <th className="px-3 py-3 font-semibold">Billing</th>
+                          <th className="px-3 py-3 font-semibold text-right">ยอดค้าง</th>
+                          <th className="px-3 py-3 font-semibold">ผลการติดตาม</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(result.detail || []).length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-3 py-10 text-center text-[#9CA3AF]">
+                            <td colSpan={9} className="px-3 py-10 text-center text-[#9CA3AF]">
                               ไม่พบเคสในเงื่อนไขนี้
                             </td>
                           </tr>
@@ -306,8 +334,17 @@ export default function QualityControlPage() {
                               <td className="px-3 py-2.5 text-[#4B5563]">{row.package_name}</td>
                               <td className="px-3 py-2.5">{formatDate(row.install_date)}</td>
                               <td className="px-3 py-2.5">{formatDate(row.cancelled_at)}</td>
-                              <td className="px-3 py-2.5 text-[#6B7280] max-w-[180px] truncate" title={row.cancel_reason || ''}>
-                                {row.cancel_reason || '-'}
+                              <td className="px-3 py-2.5 text-[#6B7280] max-w-[150px] truncate" title={row.qc_status || row.cancel_reason || ''}>
+                                {row.qc_status || row.cancel_reason || '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-[#6B7280] max-w-[140px] truncate" title={row.billing_status || ''}>
+                                {row.billing_status || '-'}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-amber-700 whitespace-nowrap">
+                                {formatMoney(row.outstanding_total)}
+                              </td>
+                              <td className="px-3 py-2.5 text-[#6B7280] max-w-[220px] truncate" title={row.ae_remark || ''}>
+                                {row.ae_remark || '-'}
                               </td>
                             </tr>
                           ))
@@ -327,6 +364,14 @@ export default function QualityControlPage() {
           </div>
         </main>
       </div>
+      <QualityStatusImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          runCalculate();
+        }}
+      />
     </div>
   );
 }

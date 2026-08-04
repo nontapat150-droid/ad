@@ -22,10 +22,26 @@ function monthBounds(ym) {
   return { start, end };
 }
 
+function isValidYm(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return false;
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12;
+}
+
+function lifecycleFromQcStatus(value) {
+  const status = String(value || '').trim().toLowerCase();
+  if (!status) return null;
+  if (/(terminate|disconnect|cancel|ยกเลิก|ตัดบริการ)/i.test(status)) return 'cancelled';
+  if (/(active|เปิดใช้งาน|ใช้งานปกติ)/i.test(status)) return 'active';
+  return null;
+}
+
 function parseDate(value) {
   if (value == null || value === '') return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    const safeDate = new Date(value.getTime() + (12 * 60 * 60 * 1000));
+    return `${safeDate.getUTCFullYear()}-${String(safeDate.getUTCMonth() + 1).padStart(2, '0')}-${String(safeDate.getUTCDate()).padStart(2, '0')}`;
   }
   const s = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
@@ -76,6 +92,57 @@ async function ensureTables(conn) {
       KEY idx_install_date (install_date),
       KEY idx_installed_status (status),
       KEY idx_cancelled_at (cancelled_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  const extraColumns = [
+    ['seller_name', 'VARCHAR(100) DEFAULT NULL'],
+    ['contact_phone', 'VARCHAR(100) DEFAULT NULL'],
+    ['subdistrict', 'VARCHAR(100) DEFAULT NULL'],
+    ['district', 'VARCHAR(100) DEFAULT NULL'],
+    ['qc_status', 'VARCHAR(100) DEFAULT NULL'],
+    ['billing_status', 'VARCHAR(100) DEFAULT NULL'],
+    ['status_changed_at', 'DATE DEFAULT NULL'],
+    ['ae_remark', 'TEXT DEFAULT NULL'],
+    ['source_sheet', 'VARCHAR(190) DEFAULT NULL'],
+    ['last_imported_at', 'DATETIME DEFAULT NULL'],
+  ];
+  for (const [column, definition] of extraColumns) {
+    const [found] = await conn.query('SHOW COLUMNS FROM installed_customers LIKE ?', [column]);
+    if (!found.length) {
+      await conn.query(`ALTER TABLE installed_customers ADD COLUMN \`${column}\` ${definition}`);
+    }
+  }
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS installed_customer_bills (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      installed_customer_id INT NOT NULL,
+      bill_month CHAR(7) NOT NULL,
+      bill_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
+      amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+      raw_value VARCHAR(255) DEFAULT NULL,
+      imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_customer_bill_month (installed_customer_id, bill_month),
+      KEY idx_bill_month_status (bill_month, bill_status),
+      CONSTRAINT fk_customer_bills_customer
+        FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS quality_import_runs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      source_file VARCHAR(255) DEFAULT NULL,
+      source_sheet VARCHAR(190) DEFAULT NULL,
+      total_rows INT NOT NULL DEFAULT 0,
+      inserted_rows INT NOT NULL DEFAULT 0,
+      updated_rows INT NOT NULL DEFAULT 0,
+      bill_rows INT NOT NULL DEFAULT 0,
+      error_rows INT NOT NULL DEFAULT 0,
+      imported_by INT DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_quality_import_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 }
@@ -199,13 +266,16 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (type !== 'fraud' && type !== 'churn') {
       return res.status(400).json({ error: 'type ต้องเป็น fraud หรือ churn' });
     }
-    if (!/^\d{4}-\d{2}$/.test(month)) {
+    if (!isValidYm(month)) {
       return res.status(400).json({ error: 'month ต้องเป็นรูปแบบ YYYY-MM' });
     }
 
     const monthsBack = type === 'fraud' ? 4 : 8;
-    const cohortMonth = shiftMonth(month, -monthsBack);
-    const { start, end } = monthBounds(cohortMonth);
+    // นับรวมเดือนอ้างอิง: Fraud = เดือนอ้างอิง + 3 เดือนก่อนหน้า,
+    // Churn = เดือนอ้างอิง + 7 เดือนก่อนหน้า
+    const cohortStartMonth = shiftMonth(month, -(monthsBack - 1));
+    const { start } = monthBounds(cohortStartMonth);
+    const { end } = monthBounds(month);
 
     const [[summary]] = await db.query(
       `SELECT
@@ -213,7 +283,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
          SUM(
            CASE WHEN status = 'cancelled'
              AND cancelled_at IS NOT NULL
-             AND cancelled_at <= DATE_ADD(install_date, INTERVAL ? MONTH)
+             AND cancelled_at >= install_date
+             AND cancelled_at < DATE_ADD(install_date, INTERVAL ? MONTH)
            THEN 1 ELSE 0 END
          ) AS cases
        FROM installed_customers
@@ -225,33 +296,242 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cases = Number(summary?.cases) || 0;
     const rate = total > 0 ? Number(((cases / total) * 100).toFixed(2)) : 0;
 
+    const thresholdRate = type === 'fraud' ? 3 : 1.5;
+    const allowedCases = Math.floor((total * thresholdRate) / 100);
+
+    const [[billSummary]] = await db.query(
+      `SELECT
+         COALESCE(SUM(CASE
+           WHEN b.bill_status IN ('outstanding', 'overdue') THEN b.amount
+           ELSE 0 END), 0) AS outstanding_total,
+         COALESCE(SUM(CASE
+           WHEN b.bill_status IN ('outstanding', 'overdue') THEN 1
+           ELSE 0 END), 0) AS outstanding_bills
+       FROM installed_customer_bills b
+       JOIN installed_customers c ON c.id = b.installed_customer_id
+       WHERE c.install_date BETWEEN ? AND ?
+         AND b.bill_month BETWEEN ? AND ?`,
+      [start, end, cohortStartMonth, month]
+    );
+
     const [detail] = await db.query(
-      `SELECT id, customer_name, non_number, package_name, monthly_fee,
-              install_date, status, cancelled_at, cancel_reason
-       FROM installed_customers
-       WHERE install_date BETWEEN ? AND ?
-         AND status = 'cancelled'
-         AND cancelled_at IS NOT NULL
-         AND cancelled_at <= DATE_ADD(install_date, INTERVAL ? MONTH)
-       ORDER BY cancelled_at ASC, non_number ASC`,
-      [start, end, monthsBack]
+      `SELECT c.id, c.customer_name, c.non_number, c.package_name, c.monthly_fee,
+              c.install_date, c.status, c.cancelled_at, c.cancel_reason,
+              c.qc_status, c.billing_status, c.status_changed_at, c.ae_remark,
+              COALESCE(b.outstanding_total, 0) AS outstanding_total,
+              COALESCE(b.outstanding_bills, 0) AS outstanding_bills
+       FROM installed_customers c
+       LEFT JOIN (
+         SELECT installed_customer_id,
+                SUM(CASE WHEN bill_status IN ('outstanding', 'overdue') THEN amount ELSE 0 END) AS outstanding_total,
+                SUM(CASE WHEN bill_status IN ('outstanding', 'overdue') THEN 1 ELSE 0 END) AS outstanding_bills
+         FROM installed_customer_bills
+         WHERE bill_month BETWEEN ? AND ?
+         GROUP BY installed_customer_id
+       ) b ON b.installed_customer_id = c.id
+       WHERE c.install_date BETWEEN ? AND ?
+         AND c.status = 'cancelled'
+         AND c.cancelled_at IS NOT NULL
+         AND c.cancelled_at >= c.install_date
+         AND c.cancelled_at < DATE_ADD(c.install_date, INTERVAL ? MONTH)
+       ORDER BY c.cancelled_at ASC, c.non_number ASC`,
+      [cohortStartMonth, month, start, end, monthsBack]
     );
 
     res.json({
       type,
       ref_month: month,
-      cohort_month: cohortMonth,
+      cohort_month: cohortStartMonth,
+      cohort_start_month: cohortStartMonth,
+      cohort_end_month: month,
       months_back: monthsBack,
       cohort_start: start,
       cohort_end: end,
       total_installs: total,
       cases,
       rate,
+      threshold_rate: thresholdRate,
+      allowed_cases: allowedCases,
+      over_limit: Math.max(0, cases - allowedCases),
+      outstanding_total: Number(billSummary?.outstanding_total) || 0,
+      outstanding_bills: Number(billSummary?.outstanding_bills) || 0,
       detail,
     });
   } catch (err) {
     console.error('qc:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// นำเข้าไฟล์ติดตาม Fraud/Churn ที่อ่านและตรวจตัวอย่างจากหน้าเว็บแล้ว
+router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+  const sourceFile = String(req.body.source_file || '').trim().slice(0, 255) || null;
+  const sourceSheet = String(req.body.source_sheet || '').trim().slice(0, 190) || null;
+  if (!rows.length) return res.status(400).json({ error: 'ไม่มีข้อมูลนำเข้า' });
+  if (rows.length > 5000) return res.status(400).json({ error: 'นำเข้าได้ครั้งละไม่เกิน 5,000 รายการ' });
+
+  let conn;
+  try {
+    await getDb();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    let inserted = 0;
+    let updated = 0;
+    let billRows = 0;
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      const sourceRow = Number(row.source_row) || i + 1;
+      const nonNumber = String(row.non_number || row.non || row.access_no || '').trim();
+      if (!nonNumber) {
+        errors.push({ row: sourceRow, error: 'ไม่มี Access Number / NON' });
+        continue;
+      }
+
+      await conn.query(`SAVEPOINT qc_import_row`);
+      try {
+        const [[existing]] = await conn.query(
+          'SELECT * FROM installed_customers WHERE non_number = ? LIMIT 1',
+          [nonNumber]
+        );
+
+        const customerName = String(row.customer_name || '').trim() || existing?.customer_name || '';
+        const packageName = String(row.package_name || '').trim() || existing?.package_name || '';
+        const installDate = parseDate(row.install_date) || parseDate(existing?.install_date);
+        if (!customerName || !packageName || !installDate) {
+          errors.push({
+            row: sourceRow,
+            non_number: nonNumber,
+            error: 'ข้อมูลลูกค้าใหม่ไม่ครบ: ต้องมีชื่อ แพ็กเกจ และ Register Date',
+          });
+          await conn.query(`ROLLBACK TO SAVEPOINT qc_import_row`);
+          continue;
+        }
+
+        let monthlyFee = Number(row.monthly_fee);
+        if (!Number.isFinite(monthlyFee) || monthlyFee < 0) {
+          monthlyFee = existing ? Number(existing.monthly_fee) : await lookupPackageFee(conn, packageName);
+        }
+        if (!Number.isFinite(monthlyFee) || monthlyFee < 0) monthlyFee = 0;
+
+        const qcStatus = String(row.qc_status || '').trim() || existing?.qc_status || null;
+        const lifecycle = lifecycleFromQcStatus(qcStatus);
+        const status = lifecycle || existing?.status || 'active';
+        const statusChangedAt = parseDate(row.status_changed_at || row.status_observed_at)
+          || parseDate(existing?.status_changed_at);
+        const cancelledAt = status === 'cancelled'
+          ? (statusChangedAt || parseDate(existing?.cancelled_at))
+          : null;
+        const cancelReason = status === 'cancelled' ? qcStatus : null;
+
+        const fields = [
+          customerName,
+          nonNumber,
+          packageName,
+          monthlyFee,
+          installDate,
+          String(row.seller_name || '').trim() || existing?.seller_name || null,
+          String(row.contact_phone || '').trim() || existing?.contact_phone || null,
+          String(row.subdistrict || '').trim() || existing?.subdistrict || null,
+          String(row.district || '').trim() || existing?.district || null,
+          status,
+          cancelledAt,
+          cancelReason,
+          qcStatus,
+          String(row.billing_status || '').trim() || existing?.billing_status || null,
+          statusChangedAt,
+          String(row.ae_remark || '').trim() || existing?.ae_remark || null,
+          sourceSheet,
+        ];
+
+        let customerId;
+        let rowAction;
+        if (existing) {
+          await conn.query(
+            `UPDATE installed_customers SET
+               customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?,
+               seller_name = ?, contact_phone = ?, subdistrict = ?, district = ?,
+               status = ?, cancelled_at = ?, cancel_reason = ?, qc_status = ?, billing_status = ?,
+               status_changed_at = ?, ae_remark = ?, source_sheet = ?,
+               last_imported_at = NOW(), updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [...fields, existing.id]
+          );
+          customerId = existing.id;
+          rowAction = 'updated';
+        } else {
+          const [result] = await conn.query(
+            `INSERT INTO installed_customers
+               (customer_name, non_number, package_name, monthly_fee, install_date,
+                seller_name, contact_phone, subdistrict, district,
+                status, cancelled_at, cancel_reason, qc_status, billing_status,
+                status_changed_at, ae_remark, source_sheet, last_imported_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+            fields
+          );
+          customerId = result.insertId;
+          rowAction = 'inserted';
+        }
+
+        const bills = (Array.isArray(row.bills) ? row.bills.slice(0, 36) : [])
+          .filter((bill) => isValidYm(bill?.bill_month));
+        if (bills.length) {
+          const placeholders = bills.map(() => '(?, ?, ?, ?, ?)').join(', ');
+          const billValues = bills.flatMap((bill) => {
+            const amount = Number(bill.amount);
+            return [
+              customerId,
+              bill.bill_month,
+              String(bill.bill_status || 'unknown').slice(0, 30),
+              Number.isFinite(amount) && amount >= 0 ? amount : 0,
+              bill.raw_value == null ? null : String(bill.raw_value).slice(0, 255),
+            ];
+          });
+          await conn.query(
+            `INSERT INTO installed_customer_bills
+               (installed_customer_id, bill_month, bill_status, amount, raw_value)
+             VALUES ${placeholders}
+             ON DUPLICATE KEY UPDATE
+               bill_status = VALUES(bill_status), amount = VALUES(amount),
+               raw_value = VALUES(raw_value), imported_at = CURRENT_TIMESTAMP`,
+            billValues
+          );
+        }
+        await conn.query(`RELEASE SAVEPOINT qc_import_row`);
+        if (rowAction === 'inserted') inserted++;
+        else updated++;
+        billRows += bills.length;
+      } catch (rowError) {
+        await conn.query(`ROLLBACK TO SAVEPOINT qc_import_row`);
+        errors.push({ row: sourceRow, non_number: nonNumber, error: rowError.message });
+      }
+    }
+
+    await conn.query(
+      `INSERT INTO quality_import_runs
+         (source_file, source_sheet, total_rows, inserted_rows, updated_rows, bill_rows, error_rows, imported_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sourceFile, sourceSheet, rows.length, inserted, updated, billRows, errors.length, req.user?.id || null]
+    );
+    await conn.commit();
+
+    res.json({
+      success: true,
+      total: rows.length,
+      inserted,
+      updated,
+      bill_rows: billRows,
+      errors,
+    });
+  } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
+    console.error('import quality status:', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
