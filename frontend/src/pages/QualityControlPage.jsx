@@ -525,6 +525,19 @@ function dateInput(value) {
   return value ? String(value).slice(0, 10) : '';
 }
 
+function aisDueDayPreview(installDate) {
+  const day = Number(String(installDate || '').slice(8, 10));
+  if (!day) return '';
+  if (day <= 3) return 4;
+  if (day <= 7) return 8;
+  if (day <= 11) return 12;
+  if (day <= 15) return 16;
+  if (day <= 19) return 20;
+  if (day <= 23) return 24;
+  if (day <= 27) return 28;
+  return 1;
+}
+
 function customerFormValues(customer) {
   return {
     customer_name: customer.customer_name || '',
@@ -544,6 +557,7 @@ function customerFormValues(customer) {
     status_changed_at: dateInput(customer.status_changed_at),
     ae_remark: customer.ae_remark || '',
     payment_due_day: customer.payment_due_day ?? '',
+    payment_due_mode: customer.payment_due_source === 'auto' ? 'auto' : 'manual',
     install_month_label: customer.install_month_label || '',
     tracking_summary: customer.tracking_summary || '',
     bill_check_date: dateInput(customer.bill_check_date),
@@ -603,6 +617,7 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
       bill_status: bill?.bill_status || 'paid',
       amount: bill?.amount ?? '',
       raw_value: bill?.raw_value || '',
+      due_date: dateInput(bill?.due_date),
     });
   };
 
@@ -622,6 +637,7 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
         bill_status: billEditor.bill_status,
         amount: billEditor.amount === '' ? 0 : Number(billEditor.amount),
         raw_value: billEditor.raw_value,
+        due_date: billEditor.due_date || null,
       });
       setBillEditor(null);
       await onRefresh();
@@ -700,7 +716,9 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
                   ['วันติดตั้ง', formatDate(customer.install_date)],
                   ['วันที่ครบ 128 วัน', formatDate(customer.tracking_due_at)],
                   ['ระยะเวลาคงเหลือ', `${Number(customer.tracking_days_remaining) >= 0 ? 'เหลือ' : 'เกิน'} ${Math.abs(Number(customer.tracking_days_remaining))} วัน`],
-                  ['กำหนดชำระ', customer.payment_due_day ? `วันที่ ${customer.payment_due_day}` : '-'],
+                  ['รอบครบกำหนด', customer.payment_due_day ? `วันที่ ${customer.payment_due_day} ของทุกเดือน` : '-'],
+                  ['ครบชำระครั้งแรก', formatDate(customer.first_due_date)],
+                  ['ที่มาของรอบบิล', customer.payment_due_source === 'auto' ? 'ระบบคำนวณตามวันติดตั้ง' : 'กำหนดเอง/จากไฟล์'],
                   ['เดือนติดตั้งสำเร็จ', customer.install_month_label || formatMonth(String(customer.install_date).slice(0, 7))],
                   ['สรุปสำรอง/ยกเลิก', customer.tracking_summary || customer.cancel_reason],
                   ['วันที่ยกเลิก', formatDate(customer.cancelled_at)],
@@ -791,7 +809,8 @@ function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
             <EditField label="วันที่เปลี่ยนสถานะ"><input type="date" value={form.status_changed_at} onChange={update('status_changed_at')} className={fieldClass} /></EditField>
             <EditField label="วันที่เช็คยอด"><input type="date" value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
             <EditField label="คาดการณ์ Terminate"><input type="date" value={form.expected_terminate_at} onChange={update('expected_terminate_at')} className={fieldClass} /></EditField>
-            <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" value={form.payment_due_day} onChange={update('payment_due_day')} className={fieldClass} /></EditField>
+            <EditField label="วิธีกำหนดรอบชำระ"><select value={form.payment_due_mode} onChange={update('payment_due_mode')} className={fieldClass}><option value="auto">อัตโนมัติตามวันติดตั้ง AIS</option><option value="manual">กำหนดวันที่เอง</option></select></EditField>
+            <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" disabled={form.payment_due_mode === 'auto'} value={form.payment_due_mode === 'auto' ? aisDueDayPreview(form.install_date) : form.payment_due_day} onChange={update('payment_due_day')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /><span className="mt-1 block text-[11px] font-medium text-slate-400">โหมดอัตโนมัติจะคำนวณใหม่เมื่อเปลี่ยนวันติดตั้ง</span></EditField>
             <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
             {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก"><input type="date" value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
             {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
@@ -837,8 +856,9 @@ function BillEditor({ value, onChange, saving, onSubmit, onCancel, onDelete }) {
         <div><h4 className="font-black text-sky-950 dark:text-sky-200">{value.originalMonth ? `แก้ไขบิล ${formatMonth(value.originalMonth)}` : 'เพิ่มบิลรายเดือน'}</h4><p className="text-xs text-sky-700 dark:text-sky-400">ยอดค้างรวมจะคำนวณใหม่หลังบันทึก</p></div>
         <button type="button" onClick={onCancel} className="grid h-8 w-8 place-items-center rounded-lg text-sky-700 hover:bg-sky-100" aria-label="ปิดตัวแก้บิล"><X className="h-4 w-4" /></button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <EditField label="เดือนบิล" required><input required type="month" disabled={Boolean(value.originalMonth)} value={value.bill_month} onChange={update('bill_month')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-500`} /></EditField>
+        <EditField label="วันครบชำระ"><input type="date" value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
         <EditField label="สถานะบิล" required><select value={value.bill_status} onChange={updateStatus} className={fieldClass}>{BILL_STATUS_OPTIONS.map(([status, label]) => <option key={status} value={status}>{label}</option>)}</select></EditField>
         <EditField label="ยอดเงิน (บาท)"><input type="number" min="0" step="0.01" disabled={!needsAmount} value={value.bill_status === 'paid' ? 0 : value.amount} onChange={update('amount')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /></EditField>
         <EditField label="ข้อความที่ต้องการแสดง"><input value={value.raw_value} onChange={update('raw_value')} placeholder={value.bill_status === 'paid' ? 'จ่ายแล้ว' : 'เช่น สำรอง 643.07'} className={fieldClass} /></EditField>
@@ -872,11 +892,14 @@ function BillCard({ month, bill, onEdit }) {
         ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
         : 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300';
   const value = !bill ? 'ไม่มีข้อมูล' : bill.bill_status === 'paid' ? 'จ่ายแล้ว' : bill.raw_value || `${formatMoney(bill.amount)} บาท`;
+  const sourceLabel = bill?.bill_source === 'auto' ? 'ระบบสร้าง' : bill?.bill_source === 'manual' ? 'แก้ไขเอง' : 'จากไฟล์';
   return (
     <button type="button" onClick={onEdit} className={`group relative min-h-24 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-lime-100 ${tone}`}>
       <Pencil className="absolute right-3 top-3 h-3.5 w-3.5 opacity-0 transition group-hover:opacity-70 group-focus:opacity-70" />
       <p className="pr-6 text-xs font-bold opacity-70">{formatMonth(month)}</p>
       <p className="mt-2 whitespace-normal break-words text-sm font-black leading-5" title={String(value)}>{value}</p>
+      {bill && <p className="mt-1 text-[11px] font-semibold opacity-70">ครบชำระ {formatDate(bill.due_date)} · {sourceLabel}</p>}
+      {bill?.bill_source === 'auto' && Number(bill.estimated_total) > 0 && <p className="mt-1 text-[11px] opacity-70">ก่อน VAT {formatMoney(bill.estimated_amount)} + VAT {formatMoney(bill.estimated_vat)} บาท</p>}
       <p className="mt-2 text-[11px] font-bold opacity-0 transition group-hover:opacity-60 group-focus:opacity-60">กดเพื่อแก้ไข</p>
     </button>
   );

@@ -24,6 +24,30 @@ function formatDate(d) {
   return `${day}/${m}/${y}`;
 }
 
+function billingPreview(installDate, monthlyFee) {
+  const match = String(installDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const dueDay = day <= 3 ? 4 : day <= 7 ? 8 : day <= 11 ? 12 : day <= 15 ? 16
+    : day <= 19 ? 20 : day <= 23 ? 24 : day <= 27 ? 28 : 1;
+  const dueDate = new Date(year, month, dueDay);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const serviceDays = daysInMonth - day + 1;
+  const fee = Math.max(0, Number(monthlyFee) || 0);
+  const beforeVat = Math.round(((fee / daysInMonth) * serviceDays + Number.EPSILON) * 100) / 100;
+  const total = Math.round((beforeVat * 1.07 + Number.EPSILON) * 100) / 100;
+  return {
+    dueDay,
+    dueDate: `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`,
+    daysInMonth,
+    serviceDays,
+    beforeVat,
+    total,
+  };
+}
+
 const PENDING_PACKAGE_NAME = 'รอระบุชื่อแพ็กเกจ';
 
 function isPackageIncomplete(value) {
@@ -122,6 +146,10 @@ export default function InstalledCustomersPage() {
     () => (showIncompletePackages ? rows.filter((row) => isPackageIncomplete(row.package_name)) : rows),
     [rows, showIncompletePackages]
   );
+  const formBillingPreview = useMemo(
+    () => billingPreview(form.install_date, form.monthly_fee),
+    [form.install_date, form.monthly_fee]
+  );
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -150,6 +178,8 @@ export default function InstalledCustomersPage() {
   }, []);
 
   useEffect(() => {
+    // Initial API hydration is the external synchronization performed by this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadList();
     loadPackages();
   }, [loadList, loadPackages]);
@@ -199,7 +229,13 @@ export default function InstalledCustomersPage() {
       }
       setFormOpen(false);
       await loadList();
-      Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1400, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'บันทึกและสร้างรอบบิลแล้ว',
+        text: 'ระบบคำนวณวันครบชำระและสร้างเดือนติดตามให้อัตโนมัติ',
+        timer: 1800,
+        showConfirmButton: false,
+      });
     } catch (err) {
       Swal.fire('ผิดพลาด', err.response?.data?.error || 'บันทึกไม่สำเร็จ', 'error');
     } finally {
@@ -576,13 +612,14 @@ export default function InstalledCustomersPage() {
                     </label>
                   </div>
                   <div className="max-h-[calc(100dvh-310px)] overflow-auto">
-                    <table className="w-full min-w-[1220px] table-fixed text-sm">
+                    <table className="w-full min-w-[1360px] table-fixed text-sm">
                       <colgroup>
                         <col className="w-[210px]" />
                         <col className="w-[145px]" />
                         <col className="w-[380px]" />
                         <col className="w-[115px]" />
                         <col className="w-[125px]" />
+                        <col className="w-[145px]" />
                         <col className="w-[135px]" />
                         <col className="w-[170px]" />
                       </colgroup>
@@ -593,6 +630,7 @@ export default function InstalledCustomersPage() {
                           <th className="px-3 py-3 font-semibold">แพ็กเกจ</th>
                           <th className="px-3 py-3 font-semibold text-right">ค่าใช้จ่าย/ด.</th>
                           <th className="px-3 py-3 font-semibold">วันติดตั้ง</th>
+                          <th className="px-3 py-3 font-semibold">ครบชำระครั้งแรก</th>
                           <th className="px-3 py-3 font-semibold">สถานะ</th>
                           <th className="px-3 py-3 font-semibold text-right">จัดการ</th>
                         </tr>
@@ -600,11 +638,11 @@ export default function InstalledCustomersPage() {
                       <tbody>
                         {loading ? (
                           <tr>
-                            <td colSpan={7} className="px-3 py-10 text-center text-[#9CA3AF]">กำลังโหลด...</td>
+                            <td colSpan={8} className="px-3 py-10 text-center text-[#9CA3AF]">กำลังโหลด...</td>
                           </tr>
                         ) : visibleRows.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-3 py-10 text-center text-[#9CA3AF]">
+                            <td colSpan={8} className="px-3 py-10 text-center text-[#9CA3AF]">
                               {showIncompletePackages ? 'ไม่พบรายการที่แพ็กเกจไม่ครบ' : 'ยังไม่มีข้อมูล'}
                             </td>
                           </tr>
@@ -634,6 +672,10 @@ export default function InstalledCustomersPage() {
                                 <span className="ml-1 text-[11px] font-medium text-[#9CA3AF]">บาท</span>
                               </td>
                               <td className="px-3 py-3 text-[#4B5563] whitespace-nowrap">{formatDate(row.install_date)}</td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <span className="block font-bold text-[#185FA5]">{formatDate(row.first_due_date)}</span>
+                                <span className="mt-0.5 block text-[11px] text-[#9CA3AF]">รอบวันที่ {row.payment_due_day || '-'}</span>
+                              </td>
                               <td className="px-3 py-3">
                                 {row.status === 'cancelled' ? (
                                   <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-bold bg-red-50 text-red-700 border border-red-100">
@@ -857,6 +899,17 @@ export default function InstalledCustomersPage() {
                   className="w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/40"
                 />
               </div>
+              {formBillingPreview && (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold">รอบบิลที่ระบบจะสร้าง</span>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-[#185FA5]">ครบชำระ {formatDate(formBillingPreview.dueDate)}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-sky-800">
+                    บิลแรกคิด {formBillingPreview.serviceDays}/{formBillingPreview.daysInMonth} วัน · ประมาณ {formatMoney(formBillingPreview.beforeVat)} บาทก่อน VAT · รวม VAT ประมาณ <b>{formatMoney(formBillingPreview.total)} บาท</b>
+                  </p>
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={saving}

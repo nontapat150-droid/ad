@@ -1,3 +1,11 @@
+const { getFraudChurnSettings } = require('./fraudChurnSettings');
+const {
+  aisDueDayFromInstallDate,
+  calculateFirstDueDate,
+  billingMonthsFromQcSettings,
+  syncAutoBillingSchedule,
+} = require('./billingSchedule');
+
 /**
  * Lookup monthly fee from package_prices (case-insensitive trim match).
  */
@@ -68,8 +76,40 @@ async function syncInstalledFromJob(conn, jobId) {
         job.id,
       ]
     );
+    const [[installedCustomer]] = await conn.query(
+      `SELECT id, install_date, monthly_fee, payment_due_day, payment_due_source
+       FROM installed_customers WHERE non_number = ? LIMIT 1`,
+      [nonNumber]
+    );
+    if (installedCustomer) {
+      const storedInstallDate = installedCustomer.install_date instanceof Date
+        ? installedCustomer.install_date.toISOString().slice(0, 10)
+        : String(installedCustomer.install_date).slice(0, 10);
+      const dueDay = installedCustomer.payment_due_source !== 'manual'
+        ? aisDueDayFromInstallDate(storedInstallDate)
+        : Number(installedCustomer.payment_due_day);
+      const firstDueDate = calculateFirstDueDate(storedInstallDate, dueDay);
+      await conn.query(
+        `UPDATE installed_customers
+         SET payment_due_day = ?, first_due_date = ?,
+             payment_due_source = IF(payment_due_source = 'manual', 'manual', 'auto')
+         WHERE id = ?`,
+        [dueDay, firstDueDate, installedCustomer.id]
+      );
+      let months = 8;
+      try {
+        months = billingMonthsFromQcSettings(await getFraudChurnSettings(conn));
+      } catch { /* keep default */ }
+      await syncAutoBillingSchedule(conn, installedCustomer.id, {
+        installDate: storedInstallDate,
+        monthlyFee: Number(installedCustomer.monthly_fee) || monthlyFee,
+        months,
+        dueDay,
+        vatRate: 7,
+      });
+    }
   } catch (e) {
-    if (e.message && e.message.includes("doesn't exist")) {
+    if (e.message && (e.message.includes("doesn't exist") || e.code === 'ER_BAD_FIELD_ERROR')) {
       console.warn('installed_customers sync skipped (run migrate-fix):', e.message);
       return;
     }

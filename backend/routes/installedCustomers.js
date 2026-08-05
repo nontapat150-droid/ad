@@ -3,6 +3,12 @@ const pool = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { lookupPackageFee } = require('../utils/customerSync');
 const { getFraudChurnSettings } = require('../utils/fraudChurnSettings');
+const {
+  aisDueDayFromInstallDate,
+  calculateFirstDueDate,
+  billingMonthsFromQcSettings,
+  syncAutoBillingSchedule,
+} = require('../utils/billingSchedule');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
@@ -123,6 +129,8 @@ async function ensureTables(conn) {
     ['status_changed_at', 'DATE DEFAULT NULL'],
     ['ae_remark', 'TEXT DEFAULT NULL'],
     ['payment_due_day', 'TINYINT UNSIGNED DEFAULT NULL'],
+    ['first_due_date', 'DATE DEFAULT NULL'],
+    ['payment_due_source', "VARCHAR(20) NOT NULL DEFAULT 'auto'"],
     ['install_month_label', 'VARCHAR(20) DEFAULT NULL'],
     ['tracking_summary', 'VARCHAR(255) DEFAULT NULL'],
     ['bill_check_date', 'DATE DEFAULT NULL'],
@@ -154,6 +162,25 @@ async function ensureTables(conn) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
+  const billColumns = [
+    ['due_date', 'DATE DEFAULT NULL'],
+    ['billing_period_start', 'DATE DEFAULT NULL'],
+    ['billing_period_end', 'DATE DEFAULT NULL'],
+    ['service_days', 'SMALLINT UNSIGNED DEFAULT NULL'],
+    ['days_in_month', 'TINYINT UNSIGNED DEFAULT NULL'],
+    ['estimated_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0'],
+    ['estimated_vat', 'DECIMAL(12,2) NOT NULL DEFAULT 0'],
+    ['estimated_total', 'DECIMAL(12,2) NOT NULL DEFAULT 0'],
+    ['vat_rate', 'DECIMAL(5,2) NOT NULL DEFAULT 7'],
+    ['bill_source', "VARCHAR(20) NOT NULL DEFAULT 'import'"],
+  ];
+  for (const [column, definition] of billColumns) {
+    const [found] = await conn.query('SHOW COLUMNS FROM installed_customer_bills LIKE ?', [column]);
+    if (!found.length) {
+      await conn.query(`ALTER TABLE installed_customer_bills ADD COLUMN \`${column}\` ${definition}`);
+    }
+  }
+
   await conn.query(`
     CREATE TABLE IF NOT EXISTS quality_import_runs (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -181,6 +208,58 @@ async function ensureTables(conn) {
      WHERE REPLACE(TRIM(package_name), ',', '') REGEXP '^[0-9]+([.][0-9]+)?$'`,
     [PENDING_PACKAGE_NAME]
   );
+
+  // Preserve a historical/imported due day before filling the new automatic fields.
+  await conn.query(`
+    UPDATE installed_customers
+    SET payment_due_source = 'import'
+    WHERE first_due_date IS NULL
+      AND payment_due_day IS NOT NULL
+      AND payment_due_source = 'auto'
+  `);
+
+  // Backfill the official AIS due-day rule for historical rows that remain automatic.
+  await conn.query(`
+    UPDATE installed_customers
+    SET payment_due_day = CASE
+          WHEN DAY(install_date) BETWEEN 1 AND 3 THEN 4
+          WHEN DAY(install_date) BETWEEN 4 AND 7 THEN 8
+          WHEN DAY(install_date) BETWEEN 8 AND 11 THEN 12
+          WHEN DAY(install_date) BETWEEN 12 AND 15 THEN 16
+          WHEN DAY(install_date) BETWEEN 16 AND 19 THEN 20
+          WHEN DAY(install_date) BETWEEN 20 AND 23 THEN 24
+          WHEN DAY(install_date) BETWEEN 24 AND 27 THEN 28
+          ELSE 1
+        END,
+        first_due_date = STR_TO_DATE(CONCAT(
+          DATE_FORMAT(DATE_ADD(install_date, INTERVAL 1 MONTH), '%Y-%m-'),
+          LPAD(CASE
+            WHEN DAY(install_date) BETWEEN 1 AND 3 THEN 4
+            WHEN DAY(install_date) BETWEEN 4 AND 7 THEN 8
+            WHEN DAY(install_date) BETWEEN 8 AND 11 THEN 12
+            WHEN DAY(install_date) BETWEEN 12 AND 15 THEN 16
+            WHEN DAY(install_date) BETWEEN 16 AND 19 THEN 20
+            WHEN DAY(install_date) BETWEEN 20 AND 23 THEN 24
+            WHEN DAY(install_date) BETWEEN 24 AND 27 THEN 28
+            ELSE 1
+          END, 2, '0')
+        ), '%Y-%m-%d'),
+        payment_due_source = 'auto'
+    WHERE (payment_due_source IS NULL OR payment_due_source = 'auto')
+      AND (payment_due_day IS NULL OR first_due_date IS NULL)
+  `);
+
+  await conn.query(`
+    UPDATE installed_customers
+    SET first_due_date = STR_TO_DATE(CONCAT(
+      DATE_FORMAT(DATE_ADD(install_date, INTERVAL 1 MONTH), '%Y-%m-'),
+      LPAD(LEAST(
+        payment_due_day,
+        DAY(LAST_DAY(DATE_ADD(install_date, INTERVAL 1 MONTH)))
+      ), 2, '0')
+    ), '%Y-%m-%d')
+    WHERE first_due_date IS NULL AND payment_due_day IS NOT NULL
+  `);
 }
 
 let tablesReady = false;
@@ -190,6 +269,25 @@ async function getDb() {
     tablesReady = true;
   }
   return pool;
+}
+
+async function getAutoBillingMonths(db) {
+  try {
+    return billingMonthsFromQcSettings(await getFraudChurnSettings(db));
+  } catch {
+    return 8;
+  }
+}
+
+async function syncCustomerAutoBills(db, customer) {
+  const months = await getAutoBillingMonths(db);
+  return syncAutoBillingSchedule(db, customer.id, {
+    installDate: parseDate(customer.install_date),
+    monthlyFee: Number(customer.monthly_fee) || 0,
+    months,
+    dueDay: customer.payment_due_day || aisDueDayFromInstallDate(customer.install_date),
+    vatRate: 7,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -390,7 +488,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               c.install_date, c.status, c.cancelled_at, c.cancel_reason,
               c.seller_name, c.contact_phone, c.subdistrict, c.district,
               c.qc_status, c.billing_status, c.status_changed_at, c.ae_remark,
-              c.payment_due_day, c.install_month_label, c.tracking_summary,
+              c.payment_due_day, c.first_due_date, c.payment_due_source,
+              c.install_month_label, c.tracking_summary,
               c.bill_check_date, c.expected_terminate_at, c.source_row_number,
               c.source_sheet, c.last_imported_at,
               DATE_ADD(c.install_date, INTERVAL 127 DAY) AS tracking_due_at,
@@ -420,7 +519,10 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     );
 
     const [billRows] = await db.query(
-      `SELECT b.installed_customer_id, b.bill_month, b.bill_status, b.amount, b.raw_value
+      `SELECT b.installed_customer_id, b.bill_month, b.bill_status, b.amount, b.raw_value,
+              b.due_date, b.billing_period_start, b.billing_period_end,
+              b.service_days, b.days_in_month, b.estimated_amount,
+              b.estimated_vat, b.estimated_total, b.vat_rate, b.bill_source
        FROM installed_customer_bills b
        JOIN installed_customers c ON c.id = b.installed_customer_id
        WHERE c.install_date BETWEEN ? AND ?
@@ -438,6 +540,16 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         bill_status: bill.bill_status,
         amount: Number(bill.amount) || 0,
         raw_value: bill.raw_value,
+        due_date: bill.due_date,
+        billing_period_start: bill.billing_period_start,
+        billing_period_end: bill.billing_period_end,
+        service_days: Number(bill.service_days) || 0,
+        days_in_month: Number(bill.days_in_month) || 0,
+        estimated_amount: Number(bill.estimated_amount) || 0,
+        estimated_vat: Number(bill.estimated_vat) || 0,
+        estimated_total: Number(bill.estimated_total) || 0,
+        vat_rate: Number(bill.vat_rate) || 0,
+        bill_source: bill.bill_source || 'import',
       });
       billsByCustomer.set(bill.installed_customer_id, list);
     }
@@ -566,9 +678,16 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
           : null;
         const cancelReason = status === 'cancelled' ? qcStatus : null;
         const dueDayValue = Number(row.payment_due_day);
-        const paymentDueDay = Number.isInteger(dueDayValue) && dueDayValue >= 1 && dueDayValue <= 31
+        const hasImportedDueDay = Number.isInteger(dueDayValue) && dueDayValue >= 1 && dueDayValue <= 31;
+        const paymentDueSource = hasImportedDueDay
+          ? 'import'
+          : (existing?.payment_due_source || 'auto');
+        const paymentDueDay = hasImportedDueDay
           ? dueDayValue
-          : (existing?.payment_due_day || null);
+          : (paymentDueSource === 'auto'
+            ? aisDueDayFromInstallDate(installDate)
+            : (existing?.payment_due_day || aisDueDayFromInstallDate(installDate)));
+        const firstDueDate = calculateFirstDueDate(installDate, paymentDueDay);
         const sourceRowValue = Number(row.source_row);
 
         const fields = [
@@ -589,6 +708,8 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
           statusChangedAt,
           String(row.ae_remark || '').trim() || existing?.ae_remark || null,
           paymentDueDay,
+          firstDueDate,
+          paymentDueSource,
           String(row.install_month_label || '').trim() || existing?.install_month_label || null,
           String(row.tracking_summary || '').trim() || existing?.tracking_summary || null,
           parseDate(row.bill_check_date) || parseDate(existing?.bill_check_date),
@@ -605,7 +726,8 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
                customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?,
                seller_name = ?, contact_phone = ?, subdistrict = ?, district = ?,
                status = ?, cancelled_at = ?, cancel_reason = ?, qc_status = ?, billing_status = ?,
-               status_changed_at = ?, ae_remark = ?, payment_due_day = ?, install_month_label = ?,
+               status_changed_at = ?, ae_remark = ?, payment_due_day = ?, first_due_date = ?,
+               payment_due_source = ?, install_month_label = ?,
                tracking_summary = ?, bill_check_date = ?, expected_terminate_at = ?, source_row_number = ?,
                source_sheet = ?,
                last_imported_at = NOW(), updated_at = CURRENT_TIMESTAMP
@@ -620,15 +742,23 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
                (customer_name, non_number, package_name, monthly_fee, install_date,
                 seller_name, contact_phone, subdistrict, district,
                 status, cancelled_at, cancel_reason, qc_status, billing_status,
-                status_changed_at, ae_remark, payment_due_day, install_month_label,
+                status_changed_at, ae_remark, payment_due_day, first_due_date,
+                payment_due_source, install_month_label,
                 tracking_summary, bill_check_date, expected_terminate_at, source_row_number,
                 source_sheet, last_imported_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             fields
           );
           customerId = result.insertId;
           rowAction = 'inserted';
         }
+
+        await syncCustomerAutoBills(conn, {
+          id: customerId,
+          install_date: installDate,
+          monthly_fee: monthlyFee,
+          payment_due_day: paymentDueDay,
+        });
 
         const bills = (Array.isArray(row.bills) ? row.bills.slice(0, 36) : [])
           .filter((bill) => isValidYm(bill?.bill_month));
@@ -650,7 +780,7 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
              VALUES ${placeholders}
              ON DUPLICATE KEY UPDATE
                bill_status = VALUES(bill_status), amount = VALUES(amount),
-               raw_value = VALUES(raw_value), imported_at = CURRENT_TIMESTAMP`,
+               raw_value = VALUES(raw_value), bill_source = 'import', imported_at = CURRENT_TIMESTAMP`,
             billValues
           );
         }
@@ -739,20 +869,31 @@ router.post('/import', auth, requireRole(ADMIN_ROLES), async (req, res) => {
           ? packagePriceOnly
           : await lookupPackageFee(db, package_name);
       }
+      const autoDueDay = aisDueDayFromInstallDate(install_date);
+      const autoFirstDueDate = calculateFirstDueDate(install_date, autoDueDay);
 
       try {
         const [result] = await db.query(
           `INSERT INTO installed_customers
-             (customer_name, non_number, package_name, monthly_fee, install_date, status)
-           VALUES (?, ?, ?, ?, ?, 'active')
+             (customer_name, non_number, package_name, monthly_fee, install_date,
+              payment_due_day, first_due_date, payment_due_source, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'auto', 'active')
            ON DUPLICATE KEY UPDATE
              customer_name = IF(status = 'cancelled', customer_name, VALUES(customer_name)),
              package_name  = IF(status = 'cancelled' OR VALUES(package_name) = ?, package_name, VALUES(package_name)),
              monthly_fee   = IF(status = 'cancelled', monthly_fee, VALUES(monthly_fee)),
              install_date  = IF(status = 'cancelled', install_date, VALUES(install_date)),
+             payment_due_day = IF(status = 'cancelled' OR payment_due_source <> 'auto', payment_due_day, VALUES(payment_due_day)),
+             first_due_date = IF(status = 'cancelled' OR payment_due_source <> 'auto', first_due_date, VALUES(first_due_date)),
              updated_at    = CURRENT_TIMESTAMP`,
-          [customer_name, non_number, package_name, monthly_fee, install_date, PENDING_PACKAGE_NAME]
+          [customer_name, non_number, package_name, monthly_fee, install_date,
+            autoDueDay, autoFirstDueDate, PENDING_PACKAGE_NAME]
         );
+        const [[savedCustomer]] = await db.query(
+          'SELECT id, install_date, monthly_fee, payment_due_day FROM installed_customers WHERE non_number = ? LIMIT 1',
+          [non_number]
+        );
+        if (savedCustomer) await syncCustomerAutoBills(db, savedCustomer);
         if (result.affectedRows === 1) imported++;
         else if (result.affectedRows === 2) updated++;
         else imported++;
@@ -884,13 +1025,22 @@ router.post('/', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (Number.isNaN(monthly_fee) || monthly_fee < 0) {
       monthly_fee = await lookupPackageFee(db, package_name);
     }
+    const paymentDueDay = aisDueDayFromInstallDate(install_date);
+    const firstDueDate = calculateFirstDueDate(install_date, paymentDueDay);
 
     const [result] = await db.query(
       `INSERT INTO installed_customers
-         (customer_name, non_number, package_name, monthly_fee, install_date, status)
-       VALUES (?, ?, ?, ?, ?, 'active')`,
-      [customer_name, non_number, package_name, monthly_fee, install_date]
+         (customer_name, non_number, package_name, monthly_fee, install_date,
+          payment_due_day, first_due_date, payment_due_source, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'auto', 'active')`,
+      [customer_name, non_number, package_name, monthly_fee, install_date, paymentDueDay, firstDueDate]
     );
+    await syncCustomerAutoBills(db, {
+      id: result.insertId,
+      install_date,
+      monthly_fee,
+      payment_due_day: paymentDueDay,
+    });
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [result.insertId]);
     res.status(201).json(row);
   } catch (err) {
@@ -950,13 +1100,22 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       return res.status(400).json({ error: 'สถานะระบบต้องเป็น active หรือ cancelled' });
     }
 
-    const dueDayInput = Object.prototype.hasOwnProperty.call(req.body, 'payment_due_day')
-      ? req.body.payment_due_day
-      : existing.payment_due_day;
+    const hasDueDayInput = Object.prototype.hasOwnProperty.call(req.body, 'payment_due_day');
+    const requestedDueMode = String(req.body.payment_due_mode || '').trim().toLowerCase();
+    const payment_due_source = requestedDueMode === 'auto'
+      ? 'auto'
+      : (requestedDueMode === 'manual'
+        ? 'manual'
+        : (hasDueDayInput ? 'manual' : (existing.payment_due_source || 'auto')));
+    const dueDayInput = payment_due_source === 'auto'
+      ? aisDueDayFromInstallDate(install_date)
+      : (hasDueDayInput ? req.body.payment_due_day : existing.payment_due_day);
     const payment_due_day = dueDayInput == null || dueDayInput === '' ? null : Number(dueDayInput);
     if (payment_due_day != null && (!Number.isInteger(payment_due_day) || payment_due_day < 1 || payment_due_day > 31)) {
       return res.status(400).json({ error: 'กำหนดชำระต้องเป็นวันที่ 1–31' });
     }
+    if (payment_due_day == null) return res.status(400).json({ error: 'กรุณาระบุวันครบกำหนดชำระ' });
+    const first_due_date = calculateFirstDueDate(install_date, payment_due_day);
 
     const cancelled_at = status === 'cancelled'
       ? dateField('cancelled_at', existing.cancelled_at)
@@ -992,17 +1151,25 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        SET customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?,
            seller_name = ?, contact_phone = ?, subdistrict = ?, district = ?,
            status = ?, cancelled_at = ?, cancel_reason = ?, qc_status = ?, billing_status = ?,
-           status_changed_at = ?, ae_remark = ?, payment_due_day = ?, install_month_label = ?,
+           status_changed_at = ?, ae_remark = ?, payment_due_day = ?, first_due_date = ?,
+           payment_due_source = ?, install_month_label = ?,
            tracking_summary = ?, bill_check_date = ?, expected_terminate_at = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         customer_name, non_number, package_name, monthly_fee, install_date,
         seller_name, contact_phone, subdistrict, district,
         status, cancelled_at, cancel_reason, qc_status, billing_status,
-        status_changed_at, ae_remark, payment_due_day, install_month_label,
+        status_changed_at, ae_remark, payment_due_day, first_due_date,
+        payment_due_source, install_month_label,
         tracking_summary, bill_check_date, expected_terminate_at, id,
       ]
     );
+    await syncCustomerAutoBills(db, {
+      id,
+      install_date,
+      monthly_fee,
+      payment_due_day,
+    });
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
     res.json(row);
   } catch (err) {
@@ -1022,8 +1189,15 @@ router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, 
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
     if (!isValidYm(billMonth)) return res.status(400).json({ error: 'เดือนบิลต้องเป็นรูปแบบ YYYY-MM' });
 
-    const [[customer]] = await db.query('SELECT id FROM installed_customers WHERE id = ? LIMIT 1', [id]);
+    const [[customer]] = await db.query(
+      'SELECT id, payment_due_day FROM installed_customers WHERE id = ? LIMIT 1',
+      [id]
+    );
     if (!customer) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
+    const [[existingBill]] = await db.query(
+      'SELECT due_date FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
+      [id, billMonth]
+    );
 
     const allowedStatuses = ['paid', 'reserved', 'outstanding', 'overdue', 'note', 'unknown'];
     const billStatus = String(req.body.bill_status || 'unknown').trim().toLowerCase();
@@ -1042,17 +1216,28 @@ router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, 
       else if (['outstanding', 'overdue'].includes(billStatus)) rawValue = String(amount);
     }
 
+    const [billYear, billMonthNumber] = billMonth.split('-').map(Number);
+    const lastDay = new Date(billYear, billMonthNumber, 0).getDate();
+    const defaultDueDate = `${billMonth}-${String(Math.min(Number(customer.payment_due_day) || 1, lastDay)).padStart(2, '0')}`;
+    const dueDate = parseDate(req.body.due_date) || parseDate(existingBill?.due_date) || defaultDueDate;
+    if (!dueDate.startsWith(`${billMonth}-`)) {
+      return res.status(400).json({ error: 'วันที่ครบชำระต้องอยู่ในเดือนบิลที่เลือก' });
+    }
+
     await db.query(
       `INSERT INTO installed_customer_bills
-         (installed_customer_id, bill_month, bill_status, amount, raw_value)
-       VALUES (?, ?, ?, ?, ?)
+         (installed_customer_id, bill_month, bill_status, amount, raw_value, due_date, bill_source)
+       VALUES (?, ?, ?, ?, ?, ?, 'manual')
        ON DUPLICATE KEY UPDATE
          bill_status = VALUES(bill_status), amount = VALUES(amount),
-         raw_value = VALUES(raw_value), imported_at = CURRENT_TIMESTAMP`,
-      [id, billMonth, billStatus, amount, rawValue]
+         raw_value = VALUES(raw_value), due_date = VALUES(due_date),
+         bill_source = 'manual', imported_at = CURRENT_TIMESTAMP`,
+      [id, billMonth, billStatus, amount, rawValue, dueDate]
     );
     const [[bill]] = await db.query(
-      `SELECT installed_customer_id, bill_month, bill_status, amount, raw_value, imported_at
+      `SELECT installed_customer_id, bill_month, bill_status, amount, raw_value, due_date,
+              billing_period_start, billing_period_end, service_days, days_in_month,
+              estimated_amount, estimated_vat, estimated_total, vat_rate, bill_source, imported_at
        FROM installed_customer_bills
        WHERE installed_customer_id = ? AND bill_month = ?`,
       [id, billMonth]
