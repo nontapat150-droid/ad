@@ -9,9 +9,13 @@ import {
   Eye,
   FileSpreadsheet,
   Menu,
+  Pencil,
+  Plus,
   RefreshCw,
+  Save,
   Search,
   ShieldAlert,
+  Trash2,
   Upload,
   Users,
   WalletCards,
@@ -26,6 +30,10 @@ import QualityStatusImportModal from '../components/QualityStatusImportModal';
 import axios from '../api/axios';
 
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const DEFAULT_QC_SETTINGS = {
+  fraud: { enabled: true, threshold_rate: 3, months: 4 },
+  churn: { enabled: true, threshold_rate: 1.5, months: 8 },
+};
 
 function formatDate(value) {
   if (!value) return '-';
@@ -65,6 +73,7 @@ export default function QualityControlPage() {
   const [qcType, setQcType] = useState('fraud');
   const [month, setMonth] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
+  const [qcSettings, setQcSettings] = useState(DEFAULT_QC_SETTINGS);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -83,7 +92,17 @@ export default function QualityControlPage() {
     try {
       const response = await axios.get('/installed-customers/qc-options');
       const months = response.data?.months || [];
+      const nextSettings = response.data?.settings?.fraud && response.data?.settings?.churn
+        ? response.data.settings
+        : DEFAULT_QC_SETTINGS;
       setAvailableMonths(months);
+      setQcSettings(nextSettings);
+      setQcType((current) => {
+        if (nextSettings[current]?.enabled) return current;
+        if (nextSettings.fraud.enabled) return 'fraud';
+        if (nextSettings.churn.enabled) return 'churn';
+        return current;
+      });
       setMonth((current) => {
         if (preserveMonth && months.some((item) => item.value === current)) return current;
         return response.data?.latest_month || '';
@@ -103,17 +122,32 @@ export default function QualityControlPage() {
 
   const runCalculate = useCallback(async () => {
     if (!month) return;
+    if (!qcSettings[qcType]?.enabled) {
+      setResult(null);
+      return null;
+    }
     setLoading(true);
     try {
       const response = await axios.get('/installed-customers/qc', { params: { type: qcType, month } });
       setResult(response.data);
+      return response.data;
     } catch (error) {
       setResult(null);
+      if (error.response?.data?.settings) setQcSettings(error.response.data.settings);
       Swal.fire('คำนวณไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
+      return null;
     } finally {
       setLoading(false);
     }
-  }, [month, qcType]);
+  }, [month, qcSettings, qcType]);
+
+  const refreshCustomer = useCallback(async (customerId) => {
+    const nextResult = await runCalculate();
+    if (!nextResult) return null;
+    const updated = (nextResult.customers || []).find((item) => Number(item.id) === Number(customerId)) || null;
+    setSelectedCustomer(updated);
+    return updated;
+  }, [runCalculate]);
 
   useEffect(() => {
     // Recalculate when the user changes the QC scope.
@@ -177,6 +211,9 @@ export default function QualityControlPage() {
     return counts;
   }, [result, qcType]);
 
+  const activeQcConfig = qcSettings[qcType] || DEFAULT_QC_SETTINGS[qcType];
+  const anyQcEnabled = Boolean(qcSettings.fraud?.enabled || qcSettings.churn?.enabled);
+
   return (
     <div className="flex h-dvh overflow-hidden bg-[#F4F7F2] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="quality_control" />
@@ -215,15 +252,17 @@ export default function QualityControlPage() {
               <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-6">
                 <div>
                   <div className="mb-4 flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setQcType('fraud')} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition ${qcType === 'fraud' ? 'border-amber-300 bg-amber-50 text-amber-900 ring-2 ring-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900'}`}>
-                      Fraud · 4 เดือน · เกณฑ์ 3%
+                    <button type="button" onClick={() => setQcType('fraud')} disabled={!qcSettings.fraud?.enabled} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:ring-0 dark:disabled:border-slate-800 dark:disabled:bg-slate-950 ${qcType === 'fraud' ? 'border-amber-300 bg-amber-50 text-amber-900 ring-2 ring-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900'}`}>
+                      Fraud · {qcSettings.fraud?.enabled ? `${qcSettings.fraud.months} เดือน · เกณฑ์ ${qcSettings.fraud.threshold_rate}%` : 'ปิดใช้งาน'}
                     </button>
-                    <button type="button" onClick={() => setQcType('churn')} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition ${qcType === 'churn' ? 'border-rose-300 bg-rose-50 text-rose-900 ring-2 ring-rose-100 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900'}`}>
-                      Churn · 8 เดือน · เกณฑ์ 1.5%
+                    <button type="button" onClick={() => setQcType('churn')} disabled={!qcSettings.churn?.enabled} className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:ring-0 dark:disabled:border-slate-800 dark:disabled:bg-slate-950 ${qcType === 'churn' ? 'border-rose-300 bg-rose-50 text-rose-900 ring-2 ring-rose-100 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900'}`}>
+                      Churn · {qcSettings.churn?.enabled ? `${qcSettings.churn.months} เดือน · เกณฑ์ ${qcSettings.churn.threshold_rate}%` : 'ปิดใช้งาน'}
                     </button>
                   </div>
                   <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    ระบบเลือกเฉพาะเดือนติดตั้งที่มีข้อมูลจริง และนับเดือนที่เลือกเป็นเดือนสุดท้ายของช่วงตรวจสอบ ลูกค้าที่ Terminate/Disconnect ภายในอายุ {qcType === 'fraud' ? '4' : '8'} เดือนจะถูกนับเป็นเคส
+                    {anyQcEnabled
+                      ? <>ระบบเลือกเฉพาะเดือนติดตั้งที่มีข้อมูลจริง และนับเดือนที่เลือกเป็นเดือนสุดท้ายของช่วงตรวจสอบ ลูกค้าที่ Terminate/Disconnect ภายในอายุ {activeQcConfig.months} เดือนจะถูกนับเป็นเคส</>
+                      : <>ขณะนี้ปิดการตรวจ Fraud และ Churn ทั้งหมด กรุณาเปิดใช้งานจากเมนูตั้งค่าระบบก่อนคำนวณ</>}
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -231,13 +270,13 @@ export default function QualityControlPage() {
                     <label htmlFor="qc-month" className="mb-1.5 block text-xs font-bold normal-case tracking-normal text-slate-600 dark:text-slate-300">เดือนติดตั้งอ้างอิง</label>
                     <div className="relative">
                       <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <select id="qc-month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={loadingOptions || !availableMonths.length} className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                      <select id="qc-month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={loadingOptions || !availableMonths.length || !anyQcEnabled} className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
                         {!availableMonths.length && <option value="">ยังไม่มีข้อมูลติดตั้ง</option>}
                         {availableMonths.map((item) => <option key={item.value} value={item.value}>{formatMonth(item.value)} · {item.total.toLocaleString('th-TH')} ราย</option>)}
                       </select>
                     </div>
                   </div>
-                  <button type="button" onClick={runCalculate} disabled={!month || loading} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:opacity-50">
+                  <button type="button" onClick={runCalculate} disabled={!month || loading || !activeQcConfig.enabled} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-5 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     อัปเดตผล
                   </button>
@@ -409,6 +448,7 @@ export default function QualityControlPage() {
           type={qcType}
           billMonths={result?.bill_months || []}
           onClose={() => setSelectedCustomer(null)}
+          onRefresh={() => refreshCustomer(selectedCustomer.id)}
         />
       )}
     </div>
@@ -472,61 +512,232 @@ function EmptyTable({ hasSearch }) {
   );
 }
 
-function CustomerDetailDrawer({ customer, type, billMonths, onClose }) {
+const BILL_STATUS_OPTIONS = [
+  ['paid', 'จ่ายแล้ว'],
+  ['outstanding', 'ยอดค้าง'],
+  ['overdue', 'เกินกำหนด'],
+  ['reserved', 'สำรองบิล'],
+  ['note', 'หมายเหตุ'],
+  ['unknown', 'ไม่ระบุสถานะ'],
+];
+
+function dateInput(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function customerFormValues(customer) {
+  return {
+    customer_name: customer.customer_name || '',
+    non_number: customer.non_number || '',
+    package_name: customer.package_name || '',
+    monthly_fee: customer.monthly_fee ?? '',
+    install_date: dateInput(customer.install_date),
+    contact_phone: customer.contact_phone || '',
+    seller_name: customer.seller_name || '',
+    subdistrict: customer.subdistrict || '',
+    district: customer.district || '',
+    status: customer.status || 'active',
+    cancelled_at: dateInput(customer.cancelled_at),
+    cancel_reason: customer.cancel_reason || '',
+    qc_status: customer.qc_status || '',
+    billing_status: customer.billing_status || '',
+    status_changed_at: dateInput(customer.status_changed_at),
+    ae_remark: customer.ae_remark || '',
+    payment_due_day: customer.payment_due_day ?? '',
+    install_month_label: customer.install_month_label || '',
+    tracking_summary: customer.tracking_summary || '',
+    bill_check_date: dateInput(customer.bill_check_date),
+    expected_terminate_at: dateInput(customer.expected_terminate_at),
+  };
+}
+
+function nextMonth(value) {
+  const [year, month] = String(value || '').split('-').map(Number);
+  const date = year && month ? new Date(year, month, 1) : new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }) {
+  const [editingCustomer, setEditingCustomer] = useState(false);
+  const [customerForm, setCustomerForm] = useState(() => customerFormValues(customer));
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [billEditor, setBillEditor] = useState(null);
+  const [savingBill, setSavingBill] = useState(false);
   const outcome = rowOutcome(customer, type);
   const billsByMonth = new Map((customer.bills || []).map((bill) => [bill.bill_month, bill]));
+  const visibleBillMonths = Array.from(new Set([
+    ...billMonths,
+    ...(customer.bills || []).map((bill) => bill.bill_month),
+  ])).sort();
+
+  const beginCustomerEdit = () => {
+    setCustomerForm(customerFormValues(customer));
+    setEditingCustomer(true);
+  };
+
+  const saveCustomer = async (event) => {
+    event.preventDefault();
+    setSavingCustomer(true);
+    try {
+      await axios.put(`/installed-customers/${customer.id}`, {
+        ...customerForm,
+        monthly_fee: customerForm.monthly_fee === '' ? 0 : Number(customerForm.monthly_fee),
+        payment_due_day: customerForm.payment_due_day === '' ? null : Number(customerForm.payment_due_day),
+        cancelled_at: customerForm.status === 'cancelled' ? (customerForm.cancelled_at || null) : null,
+        cancel_reason: customerForm.status === 'cancelled' ? customerForm.cancel_reason : null,
+      });
+      setEditingCustomer(false);
+      await onRefresh();
+      Swal.fire({ icon: 'success', title: 'บันทึกข้อมูลแล้ว', timer: 1400, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire('บันทึกไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
+  const openBillEditor = (month, bill = null) => {
+    setBillEditor({
+      originalMonth: bill ? month : null,
+      bill_month: month,
+      bill_status: bill?.bill_status || 'paid',
+      amount: bill?.amount ?? '',
+      raw_value: bill?.raw_value || '',
+    });
+  };
+
+  const addBill = () => {
+    const targetMonth = visibleBillMonths.length
+      ? nextMonth(visibleBillMonths.at(-1))
+      : String(new Date().toISOString()).slice(0, 7);
+    openBillEditor(targetMonth);
+  };
+
+  const saveBill = async (event) => {
+    event.preventDefault();
+    if (!billEditor?.bill_month) return;
+    setSavingBill(true);
+    try {
+      await axios.put(`/installed-customers/${customer.id}/bills/${billEditor.bill_month}`, {
+        bill_status: billEditor.bill_status,
+        amount: billEditor.amount === '' ? 0 : Number(billEditor.amount),
+        raw_value: billEditor.raw_value,
+      });
+      setBillEditor(null);
+      await onRefresh();
+      Swal.fire({ icon: 'success', title: 'บันทึกบิลแล้ว', timer: 1200, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire('บันทึกบิลไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
+    } finally {
+      setSavingBill(false);
+    }
+  };
+
+  const deleteBill = async () => {
+    if (!billEditor?.originalMonth) return;
+    const confirmed = await Swal.fire({
+      icon: 'warning',
+      title: `ลบบิล ${formatMonth(billEditor.originalMonth)}?`,
+      text: 'ยอดค้างและผลคำนวณจะอัปเดตทันที',
+      showCancelButton: true,
+      confirmButtonText: 'ลบบิล',
+      cancelButtonText: 'ไม่ลบ',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirmed.isConfirmed) return;
+    setSavingBill(true);
+    try {
+      await axios.delete(`/installed-customers/${customer.id}/bills/${billEditor.originalMonth}`);
+      setBillEditor(null);
+      await onRefresh();
+    } catch (error) {
+      Swal.fire('ลบบิลไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
+    } finally {
+      setSavingBill(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[80] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="customer-detail-title">
       <button type="button" onClick={onClose} className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" aria-label="ปิดรายละเอียด" />
-      <aside className="relative flex h-full w-full max-w-3xl flex-col bg-[#F8FAF7] shadow-2xl dark:bg-slate-950">
+      <aside className="relative flex h-full w-full max-w-4xl flex-col bg-[#F8FAF7] shadow-2xl dark:bg-slate-950">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2"><OutcomeBadge outcome={outcome} /><span className="text-xs text-slate-500">NON {customer.non_number}</span></div>
             <h2 id="customer-detail-title" className="mt-2 truncate text-xl font-black text-slate-900 dark:text-white">{customer.customer_name}</h2>
-            <p className="mt-1 truncate text-sm text-slate-500" title={customer.package_name}>{customer.package_name}</p>
+            <p className="mt-1 line-clamp-2 text-sm text-slate-500" title={customer.package_name}>{customer.package_name}</p>
           </div>
-          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950" aria-label="ปิด"><X className="h-5 w-5" /></button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!editingCustomer && <button type="button" onClick={beginCustomerEdit} className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#78BE20] px-3 text-sm font-black text-slate-950 hover:bg-lime-500"><Pencil className="h-4 w-4" /> แก้ไขข้อมูล</button>}
+            <button type="button" onClick={onClose} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950" aria-label="ปิด"><X className="h-5 w-5" /></button>
+          </div>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-          <DetailSection title="ข้อมูลลูกค้า">
-            <DetailGrid items={[
-              ['Access Number / NON', customer.non_number],
-              ['เบอร์ติดต่อ', customer.contact_phone],
-              ['ค่าใช้จ่ายต่อเดือน', `${formatMoney(customer.monthly_fee)} บาท`],
-              ['ผู้ขาย', customer.seller_name],
-              ['ตำบล', customer.subdistrict],
-              ['อำเภอ', customer.district],
-            ]} />
-          </DetailSection>
+          {editingCustomer ? (
+            <CustomerEditForm
+              form={customerForm}
+              setForm={setCustomerForm}
+              saving={savingCustomer}
+              onSubmit={saveCustomer}
+              onCancel={() => setEditingCustomer(false)}
+            />
+          ) : (
+            <>
+              <DetailSection title="ข้อมูลลูกค้า">
+                <DetailGrid items={[
+                  ['Access Number / NON', customer.non_number],
+                  ['เบอร์ติดต่อ', customer.contact_phone],
+                  ['ค่าใช้จ่ายต่อเดือน', `${formatMoney(customer.monthly_fee)} บาท`],
+                  ['ผู้ขาย', customer.seller_name],
+                  ['ตำบล', customer.subdistrict],
+                  ['อำเภอ', customer.district],
+                ]} />
+              </DetailSection>
 
-          <DetailSection title="ระยะเวลาติดตาม 128 วัน">
-            <DetailGrid items={[
-              ['วันติดตั้ง', formatDate(customer.install_date)],
-              ['วันที่ครบ 128 วัน', formatDate(customer.tracking_due_at)],
-              ['ระยะเวลาคงเหลือ', `${Number(customer.tracking_days_remaining) >= 0 ? 'เหลือ' : 'เกิน'} ${Math.abs(Number(customer.tracking_days_remaining))} วัน`],
-              ['กำหนดชำระ', customer.payment_due_day ? `วันที่ ${customer.payment_due_day}` : '-'],
-              ['เดือนติดตั้งสำเร็จ', customer.install_month_label || formatMonth(String(customer.install_date).slice(0, 7))],
-              ['สรุปสำรอง/ยกเลิก', customer.tracking_summary || customer.cancel_reason],
-              ['วันที่ยกเลิก', formatDate(customer.cancelled_at)],
-              ['คาดการณ์ Terminate', formatDate(customer.expected_terminate_at)],
-            ]} />
-          </DetailSection>
+              <DetailSection title="ระยะเวลาติดตาม 128 วัน">
+                <DetailGrid items={[
+                  ['วันติดตั้ง', formatDate(customer.install_date)],
+                  ['วันที่ครบ 128 วัน', formatDate(customer.tracking_due_at)],
+                  ['ระยะเวลาคงเหลือ', `${Number(customer.tracking_days_remaining) >= 0 ? 'เหลือ' : 'เกิน'} ${Math.abs(Number(customer.tracking_days_remaining))} วัน`],
+                  ['กำหนดชำระ', customer.payment_due_day ? `วันที่ ${customer.payment_due_day}` : '-'],
+                  ['เดือนติดตั้งสำเร็จ', customer.install_month_label || formatMonth(String(customer.install_date).slice(0, 7))],
+                  ['สรุปสำรอง/ยกเลิก', customer.tracking_summary || customer.cancel_reason],
+                  ['วันที่ยกเลิก', formatDate(customer.cancelled_at)],
+                  ['คาดการณ์ Terminate', formatDate(customer.expected_terminate_at)],
+                ]} />
+              </DetailSection>
 
-          <DetailSection title="สถานะติดตามล่าสุด">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InfoPanel label="CM สถานะ"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
-              <InfoPanel label="Billing"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{customer.billing_status || '-'}</p></InfoPanel>
-              <InfoPanel label="เดือนที่เปลี่ยนสถานะ"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.status_changed_at)}</p></InfoPanel>
-              <InfoPanel label="วันที่เช็คยอด"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.bill_check_date)}</p></InfoPanel>
-            </div>
-            <div className="mt-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><p className="text-xs font-bold text-slate-500">ผลการติดตาม / AE Remark</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{customer.ae_remark || '-'}</p></div>
-          </DetailSection>
+              <DetailSection title="สถานะติดตามล่าสุด">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <InfoPanel label="CM สถานะ"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
+                  <InfoPanel label="Billing"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{customer.billing_status || '-'}</p></InfoPanel>
+                  <InfoPanel label="เดือนที่เปลี่ยนสถานะ"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.status_changed_at)}</p></InfoPanel>
+                  <InfoPanel label="วันที่เช็คยอด"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.bill_check_date)}</p></InfoPanel>
+                </div>
+                <div className="mt-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><p className="text-xs font-bold text-slate-500">ผลการติดตาม / AE Remark</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{customer.ae_remark || '-'}</p></div>
+              </DetailSection>
+            </>
+          )}
 
           <DetailSection title={`บิลรายเดือน · ค้าง ${Number(customer.outstanding_bills).toLocaleString('th-TH')} บิล รวม ${formatMoney(customer.outstanding_total)} บาท`}>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">กดการ์ดเดือนเพื่อแก้ไข หรือเพิ่มเดือนใหม่ได้ทันที</p>
+              <button type="button" onClick={addBill} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-800 dark:bg-[#78BE20] dark:text-slate-950"><Plus className="h-4 w-4" /> เพิ่มบิลรายเดือน</button>
+            </div>
+            {billEditor && (
+              <BillEditor
+                value={billEditor}
+                onChange={setBillEditor}
+                saving={savingBill}
+                onSubmit={saveBill}
+                onCancel={() => setBillEditor(null)}
+                onDelete={deleteBill}
+              />
+            )}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {billMonths.map((ym) => <BillCard key={ym} month={ym} bill={billsByMonth.get(ym)} />)}
-              {!billMonths.length && <p className="text-sm text-slate-500">ยังไม่มีข้อมูลบิลรายเดือน</p>}
+              {visibleBillMonths.map((ym) => <BillCard key={ym} month={ym} bill={billsByMonth.get(ym)} onEdit={() => openBillEditor(ym, billsByMonth.get(ym))} />)}
+              {!visibleBillMonths.length && <p className="text-sm text-slate-500">ยังไม่มีข้อมูลบิลรายเดือน กด “เพิ่มบิลรายเดือน” เพื่อเริ่มบันทึก</p>}
             </div>
           </DetailSection>
 
@@ -544,6 +755,102 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose }) {
   );
 }
 
+const fieldClass = 'mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100';
+
+function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
+  const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  return (
+    <form onSubmit={onSubmit} className="overflow-hidden rounded-2xl border-2 border-lime-300 bg-white shadow-sm dark:border-lime-800 dark:bg-slate-900">
+      <div className="border-b border-lime-200 bg-lime-50 px-4 py-3 dark:border-lime-900 dark:bg-lime-950/50">
+        <h3 className="font-black text-lime-950 dark:text-lime-200">แก้ไขข้อมูลลูกค้า</h3>
+        <p className="mt-0.5 text-xs text-lime-800 dark:text-lime-400">ข้อมูลที่บันทึกจะนำไปคำนวณ Fraud / Churn และใช้ใน Export ครั้งถัดไป</p>
+      </div>
+
+      <div className="space-y-5 p-4 sm:p-5">
+        <div>
+          <EditGroupTitle>ข้อมูลหลัก</EditGroupTitle>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <EditField label="ชื่อลูกค้า" required><input required value={form.customer_name} onChange={update('customer_name')} className={fieldClass} /></EditField>
+            <EditField label="Access Number / NON" required><input required value={form.non_number} onChange={update('non_number')} className={fieldClass} /></EditField>
+            <EditField label="ชื่อแพ็กเกจ" required className="sm:col-span-2"><input required value={form.package_name} onChange={update('package_name')} className={fieldClass} /></EditField>
+            <EditField label="ค่าใช้จ่ายต่อเดือน"><input type="number" min="0" step="0.01" value={form.monthly_fee} onChange={update('monthly_fee')} className={fieldClass} /></EditField>
+            <EditField label="วันติดตั้ง" required><input required type="date" value={form.install_date} onChange={update('install_date')} className={fieldClass} /></EditField>
+            <EditField label="เบอร์ติดต่อ"><input value={form.contact_phone} onChange={update('contact_phone')} className={fieldClass} /></EditField>
+            <EditField label="ผู้ขาย"><input value={form.seller_name} onChange={update('seller_name')} className={fieldClass} /></EditField>
+            <EditField label="ตำบล"><input value={form.subdistrict} onChange={update('subdistrict')} className={fieldClass} /></EditField>
+            <EditField label="อำเภอ"><input value={form.district} onChange={update('district')} className={fieldClass} /></EditField>
+          </div>
+        </div>
+
+        <div>
+          <EditGroupTitle>สถานะและการติดตาม</EditGroupTitle>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <EditField label="สถานะระบบ"><select value={form.status} onChange={update('status')} className={fieldClass}><option value="active">ใช้งาน</option><option value="cancelled">ยกเลิก</option></select></EditField>
+            <EditField label="CM สถานะ"><input value={form.qc_status} onChange={update('qc_status')} placeholder="เช่น Active, Suspend - Debt" className={fieldClass} /></EditField>
+            <EditField label="Billing"><input value={form.billing_status} onChange={update('billing_status')} className={fieldClass} /></EditField>
+            <EditField label="วันที่เปลี่ยนสถานะ"><input type="date" value={form.status_changed_at} onChange={update('status_changed_at')} className={fieldClass} /></EditField>
+            <EditField label="วันที่เช็คยอด"><input type="date" value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
+            <EditField label="คาดการณ์ Terminate"><input type="date" value={form.expected_terminate_at} onChange={update('expected_terminate_at')} className={fieldClass} /></EditField>
+            <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" value={form.payment_due_day} onChange={update('payment_due_day')} className={fieldClass} /></EditField>
+            <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
+            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก"><input type="date" value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
+            {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
+            <EditField label="สรุปสำรอง/ยกเลิก" className="sm:col-span-2"><textarea rows={2} value={form.tracking_summary} onChange={update('tracking_summary')} className={`${fieldClass} h-auto py-2`} /></EditField>
+            <EditField label="ผลการติดตาม / AE Remark" className="sm:col-span-2"><textarea rows={4} value={form.ae_remark} onChange={update('ae_remark')} className={`${fieldClass} h-auto py-2`} /></EditField>
+          </div>
+        </div>
+      </div>
+
+      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+        <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700">ยกเลิก</button>
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#78BE20] px-4 py-2 text-sm font-black text-slate-950 hover:bg-lime-500 disabled:opacity-50">
+          {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลทั้งหมด'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EditGroupTitle({ children }) {
+  return <h4 className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">{children}</h4>;
+}
+
+function EditField({ label, required = false, className = '', children }) {
+  return <label className={`block min-w-0 text-xs font-bold text-slate-600 dark:text-slate-300 ${className}`}>{label}{required && <span className="ml-1 text-rose-500">*</span>}{children}</label>;
+}
+
+function BillEditor({ value, onChange, saving, onSubmit, onCancel, onDelete }) {
+  const update = (key) => (event) => onChange((current) => ({ ...current, [key]: event.target.value }));
+  const updateStatus = (event) => {
+    const billStatus = event.target.value;
+    onChange((current) => ({
+      ...current,
+      bill_status: billStatus,
+      amount: billStatus === 'paid' ? 0 : current.amount,
+      raw_value: billStatus === 'paid' ? 'จ่ายแล้ว' : (current.bill_status === 'paid' ? '' : current.raw_value),
+    }));
+  };
+  const needsAmount = ['outstanding', 'overdue', 'reserved'].includes(value.bill_status);
+  return (
+    <form onSubmit={onSubmit} className="mb-4 rounded-2xl border-2 border-sky-300 bg-sky-50/60 p-4 dark:border-sky-800 dark:bg-sky-950/30">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div><h4 className="font-black text-sky-950 dark:text-sky-200">{value.originalMonth ? `แก้ไขบิล ${formatMonth(value.originalMonth)}` : 'เพิ่มบิลรายเดือน'}</h4><p className="text-xs text-sky-700 dark:text-sky-400">ยอดค้างรวมจะคำนวณใหม่หลังบันทึก</p></div>
+        <button type="button" onClick={onCancel} className="grid h-8 w-8 place-items-center rounded-lg text-sky-700 hover:bg-sky-100" aria-label="ปิดตัวแก้บิล"><X className="h-4 w-4" /></button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <EditField label="เดือนบิล" required><input required type="month" disabled={Boolean(value.originalMonth)} value={value.bill_month} onChange={update('bill_month')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-500`} /></EditField>
+        <EditField label="สถานะบิล" required><select value={value.bill_status} onChange={updateStatus} className={fieldClass}>{BILL_STATUS_OPTIONS.map(([status, label]) => <option key={status} value={status}>{label}</option>)}</select></EditField>
+        <EditField label="ยอดเงิน (บาท)"><input type="number" min="0" step="0.01" disabled={!needsAmount} value={value.bill_status === 'paid' ? 0 : value.amount} onChange={update('amount')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /></EditField>
+        <EditField label="ข้อความที่ต้องการแสดง"><input value={value.raw_value} onChange={update('raw_value')} placeholder={value.bill_status === 'paid' ? 'จ่ายแล้ว' : 'เช่น สำรอง 643.07'} className={fieldClass} /></EditField>
+      </div>
+      <div className="mt-4 flex flex-wrap justify-between gap-2">
+        <div>{value.originalMonth && <button type="button" onClick={onDelete} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50"><Trash2 className="h-4 w-4" /> ลบบิลเดือนนี้</button>}</div>
+        <div className="flex gap-2"><button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">ยกเลิก</button><button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white hover:bg-sky-800 disabled:opacity-50">{saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกบิล</button></div>
+      </div>
+    </form>
+  );
+}
+
 function DetailSection({ title, children }) {
   return <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"><h3 className="mb-3 text-sm font-black text-slate-900 dark:text-white">{title}</h3>{children}</section>;
 }
@@ -556,7 +863,7 @@ function InfoPanel({ label, children }) {
   return <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><p className="mb-1 text-xs font-bold text-slate-500">{label}</p>{children}</div>;
 }
 
-function BillCard({ month, bill }) {
+function BillCard({ month, bill, onEdit }) {
   const tone = !bill
     ? 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950'
     : bill.bill_status === 'paid'
@@ -565,5 +872,12 @@ function BillCard({ month, bill }) {
         ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
         : 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300';
   const value = !bill ? 'ไม่มีข้อมูล' : bill.bill_status === 'paid' ? 'จ่ายแล้ว' : bill.raw_value || `${formatMoney(bill.amount)} บาท`;
-  return <div className={`rounded-xl border p-3 ${tone}`}><p className="text-xs font-bold opacity-70">{formatMonth(month)}</p><p className="mt-1 truncate text-sm font-black" title={String(value)}>{value}</p></div>;
+  return (
+    <button type="button" onClick={onEdit} className={`group relative min-h-24 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-lime-100 ${tone}`}>
+      <Pencil className="absolute right-3 top-3 h-3.5 w-3.5 opacity-0 transition group-hover:opacity-70 group-focus:opacity-70" />
+      <p className="pr-6 text-xs font-bold opacity-70">{formatMonth(month)}</p>
+      <p className="mt-2 whitespace-normal break-words text-sm font-black leading-5" title={String(value)}>{value}</p>
+      <p className="mt-2 text-[11px] font-bold opacity-0 transition group-hover:opacity-60 group-focus:opacity-60">กดเพื่อแก้ไข</p>
+    </button>
+  );
 }

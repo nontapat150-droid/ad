@@ -1,8 +1,41 @@
 const express = require('express');
 const pool = require('../config/db');
 const { auth } = require('../middleware/auth');
+const { getFraudChurnSettings, saveFraudChurnSettings } = require('../utils/fraudChurnSettings');
 
 const router = express.Router();
+
+function isAdminUser(user) {
+  const roles = user?.roles || [];
+  return roles.some((role) => ['super_admin', 'admin'].includes(role))
+    || ['super_admin', 'admin'].includes(user?.role);
+}
+
+// GET /api/settings/fraud-churn — Quality-control calculation settings
+router.get('/fraud-churn', auth, async (req, res) => {
+  try {
+    if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Forbidden' });
+    res.json(await getFraudChurnSettings(pool));
+  } catch (err) {
+    console.error('Get Fraud/Churn settings error:', err);
+    res.status(500).json({ error: 'ไม่สามารถโหลดการตั้งค่า Fraud / Churn ได้' });
+  }
+});
+
+// PUT /api/settings/fraud-churn — Update quality-control calculation settings
+router.put('/fraud-churn', auth, async (req, res) => {
+  try {
+    if (!isAdminUser(req.user)) return res.status(403).json({ error: 'Forbidden' });
+    const settings = await saveFraudChurnSettings(pool, req.body);
+    res.json({ message: 'บันทึกการตั้งค่า Fraud / Churn แล้ว', ...settings });
+  } catch (err) {
+    if (/กรุณาระบุ|ต้องเป็น|ต้องมากกว่า/.test(err.message)) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('Update Fraud/Churn settings error:', err);
+    res.status(500).json({ error: 'ไม่สามารถบันทึกการตั้งค่า Fraud / Churn ได้' });
+  }
+});
 
 // ── GET /api/settings/targets — Get global targets ───────────────
 router.get('/targets', auth, async (req, res) => {

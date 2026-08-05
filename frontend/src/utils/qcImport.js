@@ -38,7 +38,16 @@ function cellValue(sheet, row, column) {
 
 function cleanCellText(value) {
   const text = String(value ?? '').trim();
-  return /^#(?:N\/A|REF!|VALUE!|DIV\/0!|NAME\?)$/i.test(text) ? '' : text;
+  return /^#(?:N\/A|REF!|VALUE!|DIV\/0!|NAME\?|ERROR!)$/i.test(text) ? '' : text;
+}
+
+const PENDING_PACKAGE_NAME = 'รอระบุชื่อแพ็กเกจ';
+
+function priceOnlyPackage(value) {
+  const text = String(value ?? '').trim();
+  if (!/^\d[\d,]*(?:\.\d+)?(?:\s*(?:บาท|THB))?$/i.test(text)) return null;
+  const amount = Number(text.replace(/(?:บาท|THB)/gi, '').replace(/,/g, '').trim());
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
 function normalizeYear(year) {
@@ -116,7 +125,7 @@ function findHeaderRow(sheet) {
 export function readQualityWorkbook(data) {
   const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: true });
   const sheets = workbook.SheetNames
-    .map((name) => {
+    .map((name, workbookIndex) => {
       const sheet = workbook.Sheets[name];
       const header = findHeaderRow(sheet);
       const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
@@ -126,10 +135,11 @@ export function readQualityWorkbook(data) {
         headerExcelRow: header.row + 1,
         score: header.score,
         dataRows: Math.max(0, range.e.r - header.row),
+        workbookIndex,
       };
     })
     .filter((item) => item.score >= 8)
-    .sort((a, b) => b.score - a.score || b.dataRows - a.dataRows);
+    .sort((a, b) => b.score - a.score || a.workbookIndex - b.workbookIndex || b.dataRows - a.dataRows);
   return { workbook, sheets };
 }
 
@@ -250,7 +260,9 @@ export function parseQualitySheet(workbook, sheetName) {
     if (!nonNumber || nonNumber.length < 5) continue;
 
     const customerName = idxName >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxName)) : '';
-    const packageName = idxPackage >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPackage)) : '';
+    const packageText = idxPackage >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPackage)) : '';
+    const packagePriceOnly = priceOnlyPackage(packageText);
+    const packageName = packagePriceOnly != null ? PENDING_PACKAGE_NAME : packageText;
     const installDate = idxRegister >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, idxRegister)) : null;
     const statusValue = latestValue(sheet, rowIndex, statusIndexes);
     const fallbackStatus = idxFallbackStatus >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxFallbackStatus)) : '';
@@ -276,7 +288,13 @@ export function parseQualitySheet(workbook, sheetName) {
       })
       .filter(Boolean);
 
-    if (!customerName || !packageName || !installDate) {
+    if (packagePriceOnly != null) {
+      warnings.push({
+        row: rowIndex + 1,
+        non_number: nonNumber,
+        message: `ต้นฉบับมีเฉพาะราคา ${packagePriceOnly.toLocaleString('th-TH')} บาท ไม่มีชื่อแพ็กเกจ`,
+      });
+    } else if (!customerName || !packageName || !installDate) {
       warnings.push({
         row: rowIndex + 1,
         non_number: nonNumber,
@@ -289,7 +307,7 @@ export function parseQualitySheet(workbook, sheetName) {
       non_number: nonNumber,
       customer_name: customerName,
       package_name: packageName,
-      monthly_fee: parsePackageFee(packageName),
+      monthly_fee: packagePriceOnly ?? parsePackageFee(packageName),
       install_date: installDate,
       contact_phone: idxPhone >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPhone)) : '',
       seller_name: idxSeller >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxSeller)) : '',

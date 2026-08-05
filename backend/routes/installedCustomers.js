@@ -2,9 +2,27 @@ const express = require('express');
 const pool = require('../config/db');
 const { auth, requireRole } = require('../middleware/auth');
 const { lookupPackageFee } = require('../utils/customerSync');
+const { getFraudChurnSettings } = require('../utils/fraudChurnSettings');
 
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
+const PENDING_PACKAGE_NAME = 'รอระบุชื่อแพ็กเกจ';
+
+function isSpreadsheetError(value) {
+  return /^#(?:N\/A|REF!|VALUE!|DIV\/0!|NAME\?|ERROR!)$/i.test(String(value || '').trim());
+}
+
+function priceOnlyPackage(value) {
+  const text = String(value ?? '').trim();
+  if (!/^\d[\d,]*(?:\.\d+)?(?:\s*(?:บาท|THB))?$/i.test(text)) return null;
+  const amount = Number(text.replace(/(?:บาท|THB)/gi, '').replace(/,/g, '').trim());
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+function isNamedPackage(value) {
+  const text = String(value || '').trim();
+  return Boolean(text) && text !== PENDING_PACKAGE_NAME && !isSpreadsheetError(text) && priceOnlyPackage(text) == null;
+}
 
 function shiftMonth(ym, delta) {
   const [y, m] = String(ym).split('-').map(Number);
@@ -151,6 +169,18 @@ async function ensureTables(conn) {
       KEY idx_quality_import_created (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  // Repair historical imports where Excel supplied only the package price in the package column.
+  await conn.query(
+    `UPDATE installed_customers
+     SET monthly_fee = CASE
+           WHEN monthly_fee <= 0 THEN CAST(REPLACE(TRIM(package_name), ',', '') AS DECIMAL(10,2))
+           ELSE monthly_fee
+         END,
+         package_name = ?
+     WHERE REPLACE(TRIM(package_name), ',', '') REGEXP '^[0-9]+([.][0-9]+)?$'`,
+    [PENDING_PACKAGE_NAME]
+  );
 }
 
 let tablesReady = false;
@@ -266,6 +296,7 @@ router.delete('/packages/:id', auth, requireRole(ADMIN_ROLES), async (req, res) 
 router.get('/qc-options', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const db = await getDb();
+    const settings = await getFraudChurnSettings(db);
     const [months] = await db.query(
       `SELECT DATE_FORMAT(install_date, '%Y-%m') AS value, COUNT(*) AS total
        FROM installed_customers
@@ -280,6 +311,7 @@ router.get('/qc-options', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       months: months.map((item) => ({ value: item.value, total: Number(item.total) || 0 })),
       latest_month: months[0]?.value || null,
       bill_range: billRange || { min_month: null, max_month: null },
+      settings,
     });
   } catch (err) {
     console.error('qc options:', err);
@@ -300,9 +332,18 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       return res.status(400).json({ error: 'month ต้องเป็นรูปแบบ YYYY-MM' });
     }
 
-    const monthsBack = type === 'fraud' ? 4 : 8;
-    // นับรวมเดือนอ้างอิง: Fraud = เดือนอ้างอิง + 3 เดือนก่อนหน้า,
-    // Churn = เดือนอ้างอิง + 7 เดือนก่อนหน้า
+    const settings = await getFraudChurnSettings(db);
+    const activeConfig = settings[type];
+    if (!activeConfig.enabled) {
+      return res.status(409).json({
+        error: `การตรวจ ${type === 'fraud' ? 'Fraud' : 'Churn'} ถูกปิดใช้งานในการตั้งค่าระบบ`,
+        code: 'QC_TYPE_DISABLED',
+        settings,
+      });
+    }
+
+    const monthsBack = activeConfig.months;
+    // นับรวมเดือนอ้างอิงเป็นเดือนสุดท้ายของช่วงตรวจสอบ
     const cohortStartMonth = shiftMonth(month, -(monthsBack - 1));
     const { start } = monthBounds(cohortStartMonth);
     const { end } = monthBounds(month);
@@ -326,7 +367,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cases = Number(summary?.cases) || 0;
     const rate = total > 0 ? Number(((cases / total) * 100).toFixed(2)) : 0;
 
-    const thresholdRate = type === 'fraud' ? 3 : 1.5;
+    const thresholdRate = activeConfig.threshold_rate;
     const allowedCases = Math.floor((total * thresholdRate) / 100);
 
     const [[billSummary]] = await db.query(
@@ -433,6 +474,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       cases,
       rate,
       threshold_rate: thresholdRate,
+      active_config: activeConfig,
+      settings,
       allowed_cases: allowedCases,
       over_limit: Math.max(0, cases - allowedCases),
       outstanding_total: Number(billSummary?.outstanding_total) || 0,
@@ -485,7 +528,14 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
         );
 
         const customerName = String(row.customer_name || '').trim() || existing?.customer_name || '';
-        const packageName = String(row.package_name || '').trim() || existing?.package_name || '';
+        const incomingPackageName = String(row.package_name || '').trim();
+        const incomingPriceOnly = priceOnlyPackage(incomingPackageName);
+        const existingPackageName = String(existing?.package_name || '').trim();
+        const packageName = incomingPriceOnly != null || incomingPackageName === PENDING_PACKAGE_NAME
+          ? (isNamedPackage(existingPackageName) ? existingPackageName : PENDING_PACKAGE_NAME)
+          : (!isSpreadsheetError(incomingPackageName) && incomingPackageName
+            ? incomingPackageName
+            : existingPackageName);
         const installDate = parseDate(row.install_date) || parseDate(existing?.install_date);
         if (!customerName || !packageName || !installDate) {
           errors.push({
@@ -498,6 +548,9 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
         }
 
         let monthlyFee = Number(row.monthly_fee);
+        if ((!Number.isFinite(monthlyFee) || monthlyFee < 0) && incomingPriceOnly != null) {
+          monthlyFee = incomingPriceOnly;
+        }
         if (!Number.isFinite(monthlyFee) || monthlyFee < 0) {
           monthlyFee = existing ? Number(existing.monthly_fee) : await lookupPackageFee(conn, packageName);
         }
@@ -654,7 +707,11 @@ router.post('/import', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       const row = rows[i] || {};
       const non_number = String(row.non_number || row.non || row.access_no || '').trim();
       const customer_name = String(row.customer_name || row.customer || row.name || '').trim();
-      const package_name = String(row.package_name || row.package || '').trim();
+      const rawPackageName = String(row.package_name || row.package || '').trim();
+      const packagePriceOnly = priceOnlyPackage(rawPackageName);
+      const package_name = isSpreadsheetError(rawPackageName)
+        ? ''
+        : (packagePriceOnly != null ? PENDING_PACKAGE_NAME : rawPackageName);
       const install_date = parseDate(row.install_date || row.date || row.installDate);
       let monthly_fee = row.monthly_fee != null && row.monthly_fee !== ''
         ? parseFloat(row.monthly_fee)
@@ -678,7 +735,9 @@ router.post('/import', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       }
 
       if (Number.isNaN(monthly_fee) || monthly_fee < 0) {
-        monthly_fee = await lookupPackageFee(db, package_name);
+        monthly_fee = packagePriceOnly != null
+          ? packagePriceOnly
+          : await lookupPackageFee(db, package_name);
       }
 
       try {
@@ -688,11 +747,11 @@ router.post('/import', auth, requireRole(ADMIN_ROLES), async (req, res) => {
            VALUES (?, ?, ?, ?, ?, 'active')
            ON DUPLICATE KEY UPDATE
              customer_name = IF(status = 'cancelled', customer_name, VALUES(customer_name)),
-             package_name  = IF(status = 'cancelled', package_name, VALUES(package_name)),
+             package_name  = IF(status = 'cancelled' OR VALUES(package_name) = ?, package_name, VALUES(package_name)),
              monthly_fee   = IF(status = 'cancelled', monthly_fee, VALUES(monthly_fee)),
              install_date  = IF(status = 'cancelled', install_date, VALUES(install_date)),
              updated_at    = CURRENT_TIMESTAMP`,
-          [customer_name, non_number, package_name, monthly_fee, install_date]
+          [customer_name, non_number, package_name, monthly_fee, install_date, PENDING_PACKAGE_NAME]
         );
         if (result.affectedRows === 1) imported++;
         else if (result.affectedRows === 2) updated++;
@@ -865,6 +924,15 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         ? existing.install_date.toISOString().slice(0, 10)
         : String(existing.install_date).slice(0, 10));
 
+    const textField = (key, fallback, maxLength = 255) => {
+      if (!Object.prototype.hasOwnProperty.call(req.body, key)) return fallback;
+      return String(req.body[key] ?? '').trim().slice(0, maxLength) || null;
+    };
+    const dateField = (key, fallback) => {
+      if (!Object.prototype.hasOwnProperty.call(req.body, key)) return parseDate(fallback);
+      return parseDate(req.body[key]);
+    };
+
     let monthly_fee = req.body.monthly_fee != null && req.body.monthly_fee !== ''
       ? parseFloat(req.body.monthly_fee)
       : Number(existing.monthly_fee);
@@ -874,6 +942,40 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (!package_name) return res.status(400).json({ error: 'กรุณาระบุแพ็กเกจ' });
     if (!install_date) return res.status(400).json({ error: 'กรุณาระบุวันติดตั้ง' });
     if (Number.isNaN(monthly_fee) || monthly_fee < 0) monthly_fee = 0;
+
+    const status = Object.prototype.hasOwnProperty.call(req.body, 'status')
+      ? String(req.body.status || '').trim().toLowerCase()
+      : existing.status;
+    if (!['active', 'cancelled'].includes(status)) {
+      return res.status(400).json({ error: 'สถานะระบบต้องเป็น active หรือ cancelled' });
+    }
+
+    const dueDayInput = Object.prototype.hasOwnProperty.call(req.body, 'payment_due_day')
+      ? req.body.payment_due_day
+      : existing.payment_due_day;
+    const payment_due_day = dueDayInput == null || dueDayInput === '' ? null : Number(dueDayInput);
+    if (payment_due_day != null && (!Number.isInteger(payment_due_day) || payment_due_day < 1 || payment_due_day > 31)) {
+      return res.status(400).json({ error: 'กำหนดชำระต้องเป็นวันที่ 1–31' });
+    }
+
+    const cancelled_at = status === 'cancelled'
+      ? dateField('cancelled_at', existing.cancelled_at)
+      : null;
+    const cancel_reason = status === 'cancelled'
+      ? textField('cancel_reason', existing.cancel_reason)
+      : null;
+    const seller_name = textField('seller_name', existing.seller_name, 100);
+    const contact_phone = textField('contact_phone', existing.contact_phone, 100);
+    const subdistrict = textField('subdistrict', existing.subdistrict, 100);
+    const district = textField('district', existing.district, 100);
+    const qc_status = textField('qc_status', existing.qc_status, 100);
+    const billing_status = textField('billing_status', existing.billing_status, 100);
+    const status_changed_at = dateField('status_changed_at', existing.status_changed_at);
+    const ae_remark = textField('ae_remark', existing.ae_remark, 10000);
+    const install_month_label = textField('install_month_label', existing.install_month_label, 20);
+    const tracking_summary = textField('tracking_summary', existing.tracking_summary, 255);
+    const bill_check_date = dateField('bill_check_date', existing.bill_check_date);
+    const expected_terminate_at = dateField('expected_terminate_at', existing.expected_terminate_at);
 
     // If package changed and fee not explicitly set, re-lookup
     if (
@@ -887,9 +989,19 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
     await db.query(
       `UPDATE installed_customers
-       SET customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?
+       SET customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?,
+           seller_name = ?, contact_phone = ?, subdistrict = ?, district = ?,
+           status = ?, cancelled_at = ?, cancel_reason = ?, qc_status = ?, billing_status = ?,
+           status_changed_at = ?, ae_remark = ?, payment_due_day = ?, install_month_label = ?,
+           tracking_summary = ?, bill_check_date = ?, expected_terminate_at = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [customer_name, non_number, package_name, monthly_fee, install_date, id]
+      [
+        customer_name, non_number, package_name, monthly_fee, install_date,
+        seller_name, contact_phone, subdistrict, district,
+        status, cancelled_at, cancel_reason, qc_status, billing_status,
+        status_changed_at, ae_remark, payment_due_day, install_month_label,
+        tracking_summary, bill_check_date, expected_terminate_at, id,
+      ]
     );
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
     res.json(row);
@@ -898,6 +1010,75 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       return res.status(409).json({ error: 'เลข NON นี้มีในทะเบียนแล้ว' });
     }
     console.error('installed update:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const billMonth = String(req.params.billMonth || '').trim();
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
+    if (!isValidYm(billMonth)) return res.status(400).json({ error: 'เดือนบิลต้องเป็นรูปแบบ YYYY-MM' });
+
+    const [[customer]] = await db.query('SELECT id FROM installed_customers WHERE id = ? LIMIT 1', [id]);
+    if (!customer) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
+
+    const allowedStatuses = ['paid', 'reserved', 'outstanding', 'overdue', 'note', 'unknown'];
+    const billStatus = String(req.body.bill_status || 'unknown').trim().toLowerCase();
+    if (!allowedStatuses.includes(billStatus)) {
+      return res.status(400).json({ error: 'สถานะบิลไม่ถูกต้อง' });
+    }
+
+    let amount = req.body.amount == null || req.body.amount === '' ? 0 : Number(req.body.amount);
+    if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: 'ยอดบิลต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป' });
+    if (billStatus === 'paid') amount = 0;
+
+    let rawValue = String(req.body.raw_value || '').trim().slice(0, 255) || null;
+    if (!rawValue) {
+      if (billStatus === 'paid') rawValue = 'จ่ายแล้ว';
+      else if (billStatus === 'reserved') rawValue = amount > 0 ? `สำรอง ${amount}` : 'สำรอง';
+      else if (['outstanding', 'overdue'].includes(billStatus)) rawValue = String(amount);
+    }
+
+    await db.query(
+      `INSERT INTO installed_customer_bills
+         (installed_customer_id, bill_month, bill_status, amount, raw_value)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         bill_status = VALUES(bill_status), amount = VALUES(amount),
+         raw_value = VALUES(raw_value), imported_at = CURRENT_TIMESTAMP`,
+      [id, billMonth, billStatus, amount, rawValue]
+    );
+    const [[bill]] = await db.query(
+      `SELECT installed_customer_id, bill_month, bill_status, amount, raw_value, imported_at
+       FROM installed_customer_bills
+       WHERE installed_customer_id = ? AND bill_month = ?`,
+      [id, billMonth]
+    );
+    res.json({ ...bill, amount: Number(bill.amount) || 0 });
+  } catch (err) {
+    console.error('installed bill upsert:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const db = await getDb();
+    const id = Number(req.params.id);
+    const billMonth = String(req.params.billMonth || '').trim();
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
+    if (!isValidYm(billMonth)) return res.status(400).json({ error: 'เดือนบิลต้องเป็นรูปแบบ YYYY-MM' });
+    const [result] = await db.query(
+      'DELETE FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ?',
+      [id, billMonth]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: 'ไม่พบข้อมูลบิลเดือนนี้' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('installed bill delete:', err);
     res.status(500).json({ error: err.message });
   }
 });

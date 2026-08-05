@@ -16,6 +16,16 @@ const FREQUENT_NO_SN_ROLES = [
 
 const SETTINGS_NAV = [
   {
+    key: 'fraud_churn',
+    label: 'Fraud / Churn',
+    hint: 'เปิด–ปิด · เกณฑ์ · จำนวนเดือน',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+  },
+  {
     key: 'frequent',
     label: 'อุปกรณ์ที่ใช้บ่อย',
     hint: 'ไม่มี SN · เริ่ม 1',
@@ -57,9 +67,17 @@ export default function SystemSettingsPage() {
   const [frequentSaving, setFrequentSaving] = useState(false);
   const [frequentLoading, setFrequentLoading] = useState(true);
   const [productSearch, setProductSearch] = useState('');
+  const [qcConfig, setQcConfig] = useState({
+    fraud: { enabled: true, threshold_rate: 3, months: 4 },
+    churn: { enabled: true, threshold_rate: 1.5, months: 8 },
+  });
+  const [qcLoading, setQcLoading] = useState(true);
+  const [qcSaving, setQcSaving] = useState(false);
 
   useEffect(() => {
     if (branding) {
+      // Branding is hydrated from the shared application context.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBrandingForm((prev) => ({
         ...prev,
         website_name: branding.website_name || '',
@@ -72,7 +90,6 @@ export default function SystemSettingsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setFrequentLoading(true);
     Promise.all([
       api.get('/inventory/products').catch(() => ({ data: [] })),
       api.get('/settings/frequent-no-sn').catch(() => ({ data: { product_ids: [], roles: [] } })),
@@ -90,6 +107,23 @@ export default function SystemSettingsPage() {
       })
       .finally(() => {
         if (!cancelled) setFrequentLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/settings/fraud-churn')
+      .then((response) => {
+        if (!cancelled && response.data?.fraud && response.data?.churn) {
+          setQcConfig({ fraud: response.data.fraud, churn: response.data.churn });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) Swal.fire('โหลดการตั้งค่าไม่สำเร็จ', err.response?.data?.error || err.message, 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setQcLoading(false);
       });
     return () => { cancelled = true; };
   }, []);
@@ -135,6 +169,50 @@ export default function SystemSettingsPage() {
       Swal.fire('เกิดข้อผิดพลาด', err.response?.data?.error || err.message, 'error');
     } finally {
       setFrequentSaving(false);
+    }
+  };
+
+  const updateQcConfig = (type, field, value) => {
+    setQcConfig((current) => ({
+      ...current,
+      [type]: { ...current[type], [field]: value },
+    }));
+  };
+
+  const handleQcSave = async () => {
+    const normalized = {};
+    for (const type of ['fraud', 'churn']) {
+      const months = Number(qcConfig[type].months);
+      const thresholdRate = Number(qcConfig[type].threshold_rate);
+      const label = type === 'fraud' ? 'Fraud' : 'Churn';
+      if (!Number.isInteger(months) || months < 1 || months > 36) {
+        return Swal.fire('ตรวจสอบจำนวนเดือน', `${label} ต้องเป็นเลขจำนวนเต็ม 1–36 เดือน`, 'warning');
+      }
+      if (!Number.isFinite(thresholdRate) || thresholdRate <= 0 || thresholdRate > 100) {
+        return Swal.fire('ตรวจสอบเกณฑ์เปอร์เซ็นต์', `${label} ต้องมากกว่า 0 และไม่เกิน 100%`, 'warning');
+      }
+      normalized[type] = {
+        enabled: Boolean(qcConfig[type].enabled),
+        months,
+        threshold_rate: thresholdRate,
+      };
+    }
+
+    try {
+      setQcSaving(true);
+      const response = await api.put('/settings/fraud-churn', normalized);
+      setQcConfig({ fraud: response.data.fraud, churn: response.data.churn });
+      Swal.fire({
+        icon: 'success',
+        title: 'บันทึกการตั้งค่าแล้ว',
+        text: 'หน้าควบคุมคุณภาพและไฟล์ Export จะใช้ค่าใหม่ในการคำนวณครั้งถัดไป',
+        timer: 2200,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire('บันทึกไม่สำเร็จ', err.response?.data?.error || err.message, 'error');
+    } finally {
+      setQcSaving(false);
     }
   };
 
@@ -262,6 +340,125 @@ export default function SystemSettingsPage() {
 
         {/* Content panel */}
         <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-8 bg-[#F3F4F6]/60">
+          {activeSection === 'fraud_churn' && (
+            <div className="max-w-4xl animate-fade-in space-y-5">
+              <div className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-xl md:p-8">
+                <div className="mb-6 border-b border-slate-200 pb-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="flex items-center gap-2 text-xl font-black text-slate-900">
+                        <span className="grid h-9 w-9 place-items-center rounded-xl bg-lime-100 text-lg">🛡️</span>
+                        ตั้งค่า Fraud / Churn
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                        ควบคุมการตรวจแต่ละประเภทแยกกัน และปรับช่วงย้อนหลังกับเกณฑ์เปอร์เซ็นต์ได้โดยไม่ต้องแก้โปรแกรม
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500">
+                      รองรับ 1–36 เดือน
+                    </span>
+                  </div>
+                </div>
+
+                {qcLoading ? (
+                  <div className="grid min-h-56 place-items-center text-sm font-semibold text-slate-500">กำลังโหลดการตั้งค่า...</div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {[
+                        { type: 'fraud', title: 'Fraud', tone: 'amber', description: 'ตรวจลูกค้าที่ยกเลิกภายในช่วงอายุที่กำหนด' },
+                        { type: 'churn', title: 'Churn', tone: 'rose', description: 'ตรวจลูกค้าที่ยกเลิกภายในช่วงติดตามระยะยาว' },
+                      ].map(({ type, title, tone, description }) => {
+                        const config = qcConfig[type];
+                        const enabled = Boolean(config.enabled);
+                        const isAmber = tone === 'amber';
+                        return (
+                          <section key={type} className={`overflow-hidden rounded-2xl border-2 bg-white transition ${enabled ? (isAmber ? 'border-amber-200' : 'border-rose-200') : 'border-slate-200 opacity-75'}`}>
+                            <div className={`flex items-center justify-between gap-4 border-b px-5 py-4 ${enabled ? (isAmber ? 'border-amber-100 bg-amber-50' : 'border-rose-100 bg-rose-50') : 'border-slate-100 bg-slate-50'}`}>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-lg font-black text-slate-900">{title}</h3>
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                                    {enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">{description}</p>
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={enabled}
+                                aria-label={`${enabled ? 'ปิด' : 'เปิด'}การตรวจ ${title}`}
+                                onClick={() => updateQcConfig(type, 'enabled', !enabled)}
+                                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus:outline-none focus:ring-4 ${enabled ? 'bg-[#78BE20] focus:ring-lime-100' : 'bg-slate-300 focus:ring-slate-100'}`}
+                              >
+                                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                              </button>
+                            </div>
+
+                            <fieldset disabled={!enabled} className="grid gap-4 p-5 sm:grid-cols-2 disabled:opacity-50">
+                              <label className="block">
+                                <span className="mb-2 block text-xs font-black text-slate-600">จำนวนเดือนที่ตรวจ</span>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max="36"
+                                    step="1"
+                                    value={config.months}
+                                    onChange={(event) => updateQcConfig(type, 'months', event.target.value)}
+                                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pr-16 text-base font-black text-slate-900 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100"
+                                  />
+                                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">เดือน</span>
+                                </div>
+                              </label>
+                              <label className="block">
+                                <span className="mb-2 block text-xs font-black text-slate-600">เกณฑ์ที่ยอมรับได้</span>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    max="100"
+                                    step="0.1"
+                                    value={config.threshold_rate}
+                                    onChange={(event) => updateQcConfig(type, 'threshold_rate', event.target.value)}
+                                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 pr-12 text-base font-black text-slate-900 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100"
+                                  />
+                                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-black text-slate-400">%</span>
+                                </div>
+                              </label>
+                              <div className="sm:col-span-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+                                นับรวมเดือนอ้างอิงย้อนหลัง <b>{config.months || 0} เดือน</b> และรับได้ไม่เกิน <b>{config.threshold_rate || 0}%</b> ของลูกค้าในช่วงนั้น
+                              </div>
+                            </fieldset>
+                          </section>
+                        );
+                      })}
+                    </div>
+
+                    {!qcConfig.fraud.enabled && !qcConfig.churn.enabled && (
+                      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                        ขณะนี้ปิดทั้ง Fraud และ Churn หน้าควบคุมคุณภาพจะไม่สามารถคำนวณได้จนกว่าจะเปิดอย่างน้อยหนึ่งประเภท
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-5 text-slate-500">ค่าที่บันทึกจะมีผลกับการคำนวณครั้งถัดไปและช่วงเดือนในไฟล์ Export</p>
+                      <button
+                        type="button"
+                        onClick={handleQcSave}
+                        disabled={qcSaving}
+                        className="inline-flex h-12 items-center justify-center rounded-xl bg-[#185FA5] px-6 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#124F8A] active:scale-[0.98] disabled:opacity-60"
+                      >
+                        {qcSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า Fraud / Churn'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeSection === 'frequent' && (
             <div className="max-w-3xl glass rounded-3xl p-6 md:p-8 shadow-xl border border-white/40 animate-fade-in">
               <div className="mb-6 border-b border-slate-200/50 pb-6">

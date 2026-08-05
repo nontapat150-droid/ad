@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
@@ -22,6 +22,16 @@ function formatDate(d) {
   const [y, m, day] = s.split('-');
   if (!y || !m || !day) return s;
   return `${day}/${m}/${y}`;
+}
+
+const PENDING_PACKAGE_NAME = 'รอระบุชื่อแพ็กเกจ';
+
+function isPackageIncomplete(value) {
+  const text = String(value || '').trim();
+  return !text
+    || text === PENDING_PACKAGE_NAME
+    || /^#(?:N\/A|REF!|VALUE!|DIV\/0!|NAME\?|ERROR!)$/i.test(text)
+    || /^\d[\d,]*(?:\.\d+)?(?:\s*(?:บาท|THB))?$/i.test(text);
 }
 
 function normalizeHeader(h) {
@@ -91,6 +101,7 @@ export default function InstalledCustomersPage() {
   const [status, setStatus] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [showIncompletePackages, setShowIncompletePackages] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -102,6 +113,15 @@ export default function InstalledCustomersPage() {
 
   const installFileRef = useRef(null);
   const cancelFileRef = useRef(null);
+
+  const incompletePackageCount = useMemo(
+    () => rows.filter((row) => isPackageIncomplete(row.package_name)).length,
+    [rows]
+  );
+  const visibleRows = useMemo(
+    () => (showIncompletePackages ? rows.filter((row) => isPackageIncomplete(row.package_name)) : rows),
+    [rows, showIncompletePackages]
+  );
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -145,7 +165,7 @@ export default function InstalledCustomersPage() {
     setForm({
       customer_name: row.customer_name || '',
       non_number: row.non_number || '',
-      package_name: row.package_name || '',
+      package_name: isPackageIncomplete(row.package_name) ? '' : (row.package_name || ''),
       monthly_fee: row.monthly_fee != null ? String(row.monthly_fee) : '',
       install_date: row.install_date ? String(row.install_date).slice(0, 10) : '',
     });
@@ -426,7 +446,7 @@ export default function InstalledCustomersPage() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="max-w-7xl mx-auto w-full space-y-4">
+          <div className="max-w-[1600px] mx-auto w-full space-y-4">
             {/* Tabs */}
             <div className="flex gap-2 border-b border-[#E5E7EB]">
               {TABS.map((t) => (
@@ -534,9 +554,39 @@ export default function InstalledCustomersPage() {
                 {/* Table */}
                 <div className="bg-white rounded-xl border border-[#E5E7EB] overflow-hidden"
                   style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-[#F9FAFB] text-[#6B7280] text-left">
+                  <div className="flex flex-col gap-2 border-b border-[#E5E7EB] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="font-bold text-[#1F2937]">ข้อมูลลูกค้าติดตั้งสำเร็จ</div>
+                      <div className="mt-0.5 text-xs text-[#6B7280]">
+                        แสดง {visibleRows.length.toLocaleString('th-TH')} จาก {rows.length.toLocaleString('th-TH')} รายการ
+                      </div>
+                    </div>
+                    <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                      showIncompletePackages
+                        ? 'border-amber-300 bg-amber-50 text-amber-800'
+                        : 'border-[#E5E7EB] bg-white text-[#4B5563] hover:bg-[#F9FAFB]'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={showIncompletePackages}
+                        onChange={(event) => setShowIncompletePackages(event.target.checked)}
+                        className="h-4 w-4 accent-amber-500"
+                      />
+                      แพ็กเกจไม่ครบ {incompletePackageCount.toLocaleString('th-TH')} รายการ
+                    </label>
+                  </div>
+                  <div className="max-h-[calc(100dvh-310px)] overflow-auto">
+                    <table className="w-full min-w-[1220px] table-fixed text-sm">
+                      <colgroup>
+                        <col className="w-[210px]" />
+                        <col className="w-[145px]" />
+                        <col className="w-[380px]" />
+                        <col className="w-[115px]" />
+                        <col className="w-[125px]" />
+                        <col className="w-[135px]" />
+                        <col className="w-[170px]" />
+                      </colgroup>
+                      <thead className="sticky top-0 z-10 bg-[#F9FAFB] text-left text-[#6B7280] shadow-[0_1px_0_#E5E7EB]">
                         <tr>
                           <th className="px-3 py-3 font-semibold">ชื่อ</th>
                           <th className="px-3 py-3 font-semibold">NON</th>
@@ -552,25 +602,39 @@ export default function InstalledCustomersPage() {
                           <tr>
                             <td colSpan={7} className="px-3 py-10 text-center text-[#9CA3AF]">กำลังโหลด...</td>
                           </tr>
-                        ) : rows.length === 0 ? (
+                        ) : visibleRows.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-3 py-10 text-center text-[#9CA3AF]">ยังไม่มีข้อมูล</td>
+                            <td colSpan={7} className="px-3 py-10 text-center text-[#9CA3AF]">
+                              {showIncompletePackages ? 'ไม่พบรายการที่แพ็กเกจไม่ครบ' : 'ยังไม่มีข้อมูล'}
+                            </td>
                           </tr>
                         ) : (
-                          rows.map((row) => (
-                            <tr key={row.id} className="border-t border-[#F3F4F6] hover:bg-[#F9FAFB]/80">
-                              <td className="px-3 py-2.5 font-semibold text-[#1F2937] max-w-[160px] truncate" title={row.customer_name}>
+                          visibleRows.map((row) => {
+                            const packageIncomplete = isPackageIncomplete(row.package_name);
+                            return (
+                            <tr key={row.id} className={`border-t border-[#F3F4F6] align-top hover:bg-[#F9FAFB]/80 ${packageIncomplete ? 'bg-amber-50/35' : ''}`}>
+                              <td className="px-3 py-3 font-semibold leading-5 text-[#1F2937] whitespace-normal break-words" title={row.customer_name}>
                                 {row.customer_name}
                               </td>
-                              <td className="px-3 py-2.5 font-mono text-[#374151]">{row.non_number}</td>
-                              <td className="px-3 py-2.5 text-[#4B5563] max-w-[140px] truncate" title={row.package_name}>
-                                {row.package_name}
+                              <td className="px-3 py-3 font-mono text-[#374151] whitespace-nowrap">{row.non_number}</td>
+                              <td className="px-3 py-3 text-[#374151]" title={packageIncomplete ? 'ไฟล์ต้นฉบับไม่มีชื่อแพ็กเกจ กรุณากดระบุแพ็กเกจ' : row.package_name}>
+                                {packageIncomplete ? (
+                                  <button type="button" onClick={() => openEdit(row)} className="text-left">
+                                    <span className="inline-flex rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
+                                      รอระบุชื่อแพ็กเกจ
+                                    </span>
+                                    <span className="mt-1 block text-xs text-amber-700">ต้นฉบับมีเฉพาะราคา · กดเพื่อระบุชื่อ</span>
+                                  </button>
+                                ) : (
+                                  <div className="whitespace-normal break-words font-medium leading-5">{row.package_name}</div>
+                                )}
                               </td>
-                              <td className="px-3 py-2.5 text-right font-medium text-[#1F2937]">
+                              <td className="px-3 py-3 text-right font-bold text-[#1F2937] whitespace-nowrap">
                                 {formatMoney(row.monthly_fee)}
+                                <span className="ml-1 text-[11px] font-medium text-[#9CA3AF]">บาท</span>
                               </td>
-                              <td className="px-3 py-2.5 text-[#4B5563]">{formatDate(row.install_date)}</td>
-                              <td className="px-3 py-2.5">
+                              <td className="px-3 py-3 text-[#4B5563] whitespace-nowrap">{formatDate(row.install_date)}</td>
+                              <td className="px-3 py-3">
                                 {row.status === 'cancelled' ? (
                                   <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-bold bg-red-50 text-red-700 border border-red-100">
                                     ยกเลิก {formatDate(row.cancelled_at)}
@@ -581,33 +645,35 @@ export default function InstalledCustomersPage() {
                                   </span>
                                 )}
                               </td>
-                              <td className="px-3 py-2.5">
-                                <div className="flex flex-wrap justify-end gap-1">
-                                  <button type="button" onClick={() => openEdit(row)} className="px-2 py-1 text-xs font-bold text-[#0C447C] hover:underline">
+                              <td className="px-3 py-3">
+                                <div className="flex flex-wrap justify-end gap-1.5">
+                                  <button type="button" onClick={() => openEdit(row)} className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#0C447C] hover:bg-blue-100">
                                     แก้ไข
                                   </button>
                                   {row.status === 'cancelled' ? (
-                                    <button type="button" onClick={() => reactivateCustomer(row)} className="px-2 py-1 text-xs font-bold text-emerald-700 hover:underline">
+                                    <button type="button" onClick={() => reactivateCustomer(row)} className="rounded-lg bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
                                       คืนสถานะ
                                     </button>
                                   ) : (
-                                    <button type="button" onClick={() => cancelCustomer(row)} className="px-2 py-1 text-xs font-bold text-amber-700 hover:underline">
+                                    <button type="button" onClick={() => cancelCustomer(row)} className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 hover:bg-amber-100">
                                       ยกเลิก
                                     </button>
                                   )}
-                                  <button type="button" onClick={() => deleteCustomer(row)} className="px-2 py-1 text-xs font-bold text-red-600 hover:underline">
+                                  <button type="button" onClick={() => deleteCustomer(row)} className="rounded-lg bg-red-50 px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-100">
                                     ลบ
                                   </button>
                                 </div>
                               </td>
                             </tr>
-                          ))
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
                   </div>
                   <div className="px-3 py-2 text-xs text-[#9CA3AF] border-t border-[#F3F4F6]">
-                    ทั้งหมด {rows.length} รายการ
+                    ทั้งหมด {rows.length.toLocaleString('th-TH')} รายการ
+                    {showIncompletePackages ? ` · กำลังแสดงเฉพาะแพ็กเกจไม่ครบ ${visibleRows.length.toLocaleString('th-TH')} รายการ` : ''}
                   </div>
                 </div>
               </>
