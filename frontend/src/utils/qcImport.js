@@ -36,6 +36,11 @@ function cellValue(sheet, row, column) {
   return cellAt(sheet, row, column)?.v ?? '';
 }
 
+function cleanCellText(value) {
+  const text = String(value ?? '').trim();
+  return /^#(?:N\/A|REF!|VALUE!|DIV\/0!|NAME\?)$/i.test(text) ? '' : text;
+}
+
 function normalizeYear(year) {
   const value = Number(year);
   if (!Number.isFinite(value)) return null;
@@ -135,8 +140,8 @@ function findHeaderIndex(headers, ...needles) {
 function latestValue(sheet, row, indexes) {
   for (let i = indexes.length - 1; i >= 0; i--) {
     const column = indexes[i];
-    const value = cellDisplay(sheet, row, column);
-    if (value != null && String(value).trim() !== '') return { value: String(value).trim(), column };
+    const value = cleanCellText(cellDisplay(sheet, row, column));
+    if (value) return { value, column };
   }
   return { value: '', column: -1 };
 }
@@ -158,6 +163,7 @@ function classifyBill(rawValue, displayValue) {
   const text = String(displayValue ?? rawValue ?? '').trim();
   const lower = text.toLowerCase();
   if (!text) return null;
+  if (/^#(?:n\/a|ref!|value!|div\/0!|name\?)$/i.test(text)) return null;
   if (/จ่ายแล้ว|paid/.test(lower)) return { bill_status: 'paid', amount: 0, raw_value: text };
 
   const directAmount = typeof rawValue === 'number' && Number.isFinite(rawValue) ? rawValue : null;
@@ -205,6 +211,10 @@ export function parseQualitySheet(workbook, sheetName) {
   const idxDistrict = findHeaderIndex(headers, 'อำเภอ');
   const idxFallbackStatus = headers.findIndex((h) => h.includes('terminate') && h.includes('disconnect'));
   const idxCheckDate = findHeaderIndex(headers, 'วันที่เช็คยอด');
+  const idxPaymentDueDay = findHeaderIndex(headers, 'กำหนดชำระ');
+  const idxInstallMonth = findHeaderIndex(headers, 'เดือนที่ติดตั้งสำเร็จ');
+  const idxTrackingSummary = headers.findIndex((h) => h.includes('สรุปสำรองบิล'));
+  const idxExpectedTerminate = findHeaderIndex(headers, 'คาดการณ์terminate');
   const idxTotal = findHeaderIndex(headers, 'รวมยอด');
 
   const billingIndexes = headers
@@ -239,16 +249,18 @@ export function parseQualitySheet(workbook, sheetName) {
     const nonNumber = normalizeIdentifier(rawNon, displayNon);
     if (!nonNumber || nonNumber.length < 5) continue;
 
-    const customerName = idxName >= 0 ? String(cellDisplay(sheet, rowIndex, idxName)).trim() : '';
-    const packageName = idxPackage >= 0 ? String(cellDisplay(sheet, rowIndex, idxPackage)).trim() : '';
+    const customerName = idxName >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxName)) : '';
+    const packageName = idxPackage >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPackage)) : '';
     const installDate = idxRegister >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, idxRegister)) : null;
     const statusValue = latestValue(sheet, rowIndex, statusIndexes);
-    const fallbackStatus = idxFallbackStatus >= 0 ? String(cellDisplay(sheet, rowIndex, idxFallbackStatus)).trim() : '';
+    const fallbackStatus = idxFallbackStatus >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxFallbackStatus)) : '';
     const qcStatus = statusValue.value || fallbackStatus;
     const statusDate = latestValue(sheet, rowIndex, statusDateIndexes);
     const billing = latestValue(sheet, rowIndex, billingIndexes);
     const remark = latestValue(sheet, rowIndex, remarkIndexes);
     const checkDate = idxCheckDate >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, idxCheckDate)) : null;
+    const paymentDueText = idxPaymentDueDay >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPaymentDueDay)) : '';
+    const paymentDueDay = Number(paymentDueText.replace(/[^0-9]/g, ''));
     const observedHeader = statusValue.column >= 0 ? headerDisplays[statusValue.column] : '';
     const statusObservedAt = dateFromHeader(observedHeader)
       || dateFromHeader(remark.column >= 0 ? headerDisplays[remark.column] : '')
@@ -279,15 +291,22 @@ export function parseQualitySheet(workbook, sheetName) {
       package_name: packageName,
       monthly_fee: parsePackageFee(packageName),
       install_date: installDate,
-      contact_phone: idxPhone >= 0 ? String(cellDisplay(sheet, rowIndex, idxPhone)).trim() : '',
-      seller_name: idxSeller >= 0 ? String(cellDisplay(sheet, rowIndex, idxSeller)).trim() : '',
-      subdistrict: idxSubdistrict >= 0 ? String(cellDisplay(sheet, rowIndex, idxSubdistrict)).trim() : '',
-      district: idxDistrict >= 0 ? String(cellDisplay(sheet, rowIndex, idxDistrict)).trim() : '',
+      contact_phone: idxPhone >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxPhone)) : '',
+      seller_name: idxSeller >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxSeller)) : '',
+      subdistrict: idxSubdistrict >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxSubdistrict)) : '',
+      district: idxDistrict >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxDistrict)) : '',
       qc_status: qcStatus,
       billing_status: billing.value,
       status_changed_at: statusDate.column >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, statusDate.column)) : null,
       status_observed_at: statusObservedAt,
       ae_remark: remark.value,
+      payment_due_day: Number.isInteger(paymentDueDay) && paymentDueDay >= 1 && paymentDueDay <= 31 ? paymentDueDay : null,
+      install_month_label: idxInstallMonth >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxInstallMonth)) : '',
+      tracking_summary: idxTrackingSummary >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxTrackingSummary)) : '',
+      bill_check_date: checkDate,
+      expected_terminate_at: idxExpectedTerminate >= 0
+        ? parseExcelDate(cellDisplay(sheet, rowIndex, idxExpectedTerminate))
+        : null,
       bills,
     });
   }

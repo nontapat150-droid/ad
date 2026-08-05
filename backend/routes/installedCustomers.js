@@ -104,6 +104,12 @@ async function ensureTables(conn) {
     ['billing_status', 'VARCHAR(100) DEFAULT NULL'],
     ['status_changed_at', 'DATE DEFAULT NULL'],
     ['ae_remark', 'TEXT DEFAULT NULL'],
+    ['payment_due_day', 'TINYINT UNSIGNED DEFAULT NULL'],
+    ['install_month_label', 'VARCHAR(20) DEFAULT NULL'],
+    ['tracking_summary', 'VARCHAR(255) DEFAULT NULL'],
+    ['bill_check_date', 'DATE DEFAULT NULL'],
+    ['expected_terminate_at', 'DATE DEFAULT NULL'],
+    ['source_row_number', 'INT DEFAULT NULL'],
     ['source_sheet', 'VARCHAR(190) DEFAULT NULL'],
     ['last_imported_at', 'DATETIME DEFAULT NULL'],
   ];
@@ -257,6 +263,30 @@ router.delete('/packages/:id', auth, requireRole(ADMIN_ROLES), async (req, res) 
 // QC (must be before /:id)
 // ═══════════════════════════════════════════════════════════════════════════
 
+router.get('/qc-options', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const db = await getDb();
+    const [months] = await db.query(
+      `SELECT DATE_FORMAT(install_date, '%Y-%m') AS value, COUNT(*) AS total
+       FROM installed_customers
+       GROUP BY DATE_FORMAT(install_date, '%Y-%m')
+       ORDER BY value DESC`
+    );
+    const [[billRange]] = await db.query(
+      `SELECT MIN(bill_month) AS min_month, MAX(bill_month) AS max_month
+       FROM installed_customer_bills`
+    );
+    res.json({
+      months: months.map((item) => ({ value: item.value, total: Number(item.total) || 0 })),
+      latest_month: months[0]?.value || null,
+      bill_range: billRange || { min_month: null, max_month: null },
+    });
+  } catch (err) {
+    console.error('qc options:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
   try {
     const db = await getDb();
@@ -314,29 +344,81 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       [start, end, cohortStartMonth, month]
     );
 
-    const [detail] = await db.query(
+    const [customers] = await db.query(
       `SELECT c.id, c.customer_name, c.non_number, c.package_name, c.monthly_fee,
               c.install_date, c.status, c.cancelled_at, c.cancel_reason,
+              c.seller_name, c.contact_phone, c.subdistrict, c.district,
               c.qc_status, c.billing_status, c.status_changed_at, c.ae_remark,
+              c.payment_due_day, c.install_month_label, c.tracking_summary,
+              c.bill_check_date, c.expected_terminate_at, c.source_row_number,
+              c.source_sheet, c.last_imported_at,
+              DATE_ADD(c.install_date, INTERVAL 127 DAY) AS tracking_due_at,
+              DATEDIFF(DATE_ADD(c.install_date, INTERVAL 127 DAY), CURDATE()) + 1 AS tracking_days_remaining,
+              CASE WHEN c.status = 'cancelled'
+                     AND c.cancelled_at IS NOT NULL
+                     AND c.cancelled_at >= c.install_date
+                     AND c.cancelled_at < DATE_ADD(c.install_date, INTERVAL ? MONTH)
+                   THEN 1 ELSE 0 END AS is_case,
               COALESCE(b.outstanding_total, 0) AS outstanding_total,
-              COALESCE(b.outstanding_bills, 0) AS outstanding_bills
+              COALESCE(b.outstanding_bills, 0) AS outstanding_bills,
+              COALESCE(b.paid_bills, 0) AS paid_bills,
+              COALESCE(b.bill_rows, 0) AS bill_rows
        FROM installed_customers c
        LEFT JOIN (
          SELECT installed_customer_id,
                 SUM(CASE WHEN bill_status IN ('outstanding', 'overdue') THEN amount ELSE 0 END) AS outstanding_total,
-                SUM(CASE WHEN bill_status IN ('outstanding', 'overdue') THEN 1 ELSE 0 END) AS outstanding_bills
+                SUM(CASE WHEN bill_status IN ('outstanding', 'overdue') THEN 1 ELSE 0 END) AS outstanding_bills,
+                SUM(CASE WHEN bill_status = 'paid' THEN 1 ELSE 0 END) AS paid_bills,
+                COUNT(*) AS bill_rows
          FROM installed_customer_bills
-         WHERE bill_month BETWEEN ? AND ?
          GROUP BY installed_customer_id
        ) b ON b.installed_customer_id = c.id
        WHERE c.install_date BETWEEN ? AND ?
-         AND c.status = 'cancelled'
-         AND c.cancelled_at IS NOT NULL
-         AND c.cancelled_at >= c.install_date
-         AND c.cancelled_at < DATE_ADD(c.install_date, INTERVAL ? MONTH)
-       ORDER BY c.cancelled_at ASC, c.non_number ASC`,
-      [cohortStartMonth, month, start, end, monthsBack]
+       ORDER BY c.install_date ASC, COALESCE(c.source_row_number, 999999), c.non_number ASC`,
+      [monthsBack, start, end]
     );
+
+    const [billRows] = await db.query(
+      `SELECT b.installed_customer_id, b.bill_month, b.bill_status, b.amount, b.raw_value
+       FROM installed_customer_bills b
+       JOIN installed_customers c ON c.id = b.installed_customer_id
+       WHERE c.install_date BETWEEN ? AND ?
+       ORDER BY b.bill_month ASC, b.installed_customer_id ASC`,
+      [start, end]
+    );
+
+    const billsByCustomer = new Map();
+    const billMonthSet = new Set();
+    for (const bill of billRows) {
+      billMonthSet.add(bill.bill_month);
+      const list = billsByCustomer.get(bill.installed_customer_id) || [];
+      list.push({
+        bill_month: bill.bill_month,
+        bill_status: bill.bill_status,
+        amount: Number(bill.amount) || 0,
+        raw_value: bill.raw_value,
+      });
+      billsByCustomer.set(bill.installed_customer_id, list);
+    }
+
+    const normalizedCustomers = customers.map((customer) => ({
+      ...customer,
+      is_case: Boolean(customer.is_case),
+      outstanding_total: Number(customer.outstanding_total) || 0,
+      outstanding_bills: Number(customer.outstanding_bills) || 0,
+      paid_bills: Number(customer.paid_bills) || 0,
+      bill_rows: Number(customer.bill_rows) || 0,
+      bills: billsByCustomer.get(customer.id) || [],
+    }));
+    const detail = normalizedCustomers.filter((customer) => customer.is_case);
+    const suspendedCustomers = normalizedCustomers.filter((customer) => /suspend|debt/i.test(customer.qc_status || '')).length;
+    const outstandingCustomers = new Set(
+      billRows
+        .filter((bill) => bill.bill_month >= cohortStartMonth
+          && bill.bill_month <= month
+          && ['outstanding', 'overdue'].includes(bill.bill_status))
+        .map((bill) => bill.installed_customer_id)
+    ).size;
 
     res.json({
       type,
@@ -355,6 +437,10 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       over_limit: Math.max(0, cases - allowedCases),
       outstanding_total: Number(billSummary?.outstanding_total) || 0,
       outstanding_bills: Number(billSummary?.outstanding_bills) || 0,
+      suspended_customers: suspendedCustomers,
+      outstanding_customers: outstandingCustomers,
+      bill_months: Array.from(billMonthSet).sort(),
+      customers: normalizedCustomers,
       detail,
     });
   } catch (err) {
@@ -426,6 +512,11 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
           ? (statusChangedAt || parseDate(existing?.cancelled_at))
           : null;
         const cancelReason = status === 'cancelled' ? qcStatus : null;
+        const dueDayValue = Number(row.payment_due_day);
+        const paymentDueDay = Number.isInteger(dueDayValue) && dueDayValue >= 1 && dueDayValue <= 31
+          ? dueDayValue
+          : (existing?.payment_due_day || null);
+        const sourceRowValue = Number(row.source_row);
 
         const fields = [
           customerName,
@@ -444,6 +535,12 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
           String(row.billing_status || '').trim() || existing?.billing_status || null,
           statusChangedAt,
           String(row.ae_remark || '').trim() || existing?.ae_remark || null,
+          paymentDueDay,
+          String(row.install_month_label || '').trim() || existing?.install_month_label || null,
+          String(row.tracking_summary || '').trim() || existing?.tracking_summary || null,
+          parseDate(row.bill_check_date) || parseDate(existing?.bill_check_date),
+          parseDate(row.expected_terminate_at) || parseDate(existing?.expected_terminate_at),
+          Number.isInteger(sourceRowValue) && sourceRowValue > 0 ? sourceRowValue : (existing?.source_row_number || null),
           sourceSheet,
         ];
 
@@ -455,7 +552,9 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
                customer_name = ?, non_number = ?, package_name = ?, monthly_fee = ?, install_date = ?,
                seller_name = ?, contact_phone = ?, subdistrict = ?, district = ?,
                status = ?, cancelled_at = ?, cancel_reason = ?, qc_status = ?, billing_status = ?,
-               status_changed_at = ?, ae_remark = ?, source_sheet = ?,
+               status_changed_at = ?, ae_remark = ?, payment_due_day = ?, install_month_label = ?,
+               tracking_summary = ?, bill_check_date = ?, expected_terminate_at = ?, source_row_number = ?,
+               source_sheet = ?,
                last_imported_at = NOW(), updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [...fields, existing.id]
@@ -468,8 +567,10 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
                (customer_name, non_number, package_name, monthly_fee, install_date,
                 seller_name, contact_phone, subdistrict, district,
                 status, cancelled_at, cancel_reason, qc_status, billing_status,
-                status_changed_at, ae_remark, source_sheet, last_imported_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                status_changed_at, ae_remark, payment_due_day, install_month_label,
+                tracking_summary, bill_check_date, expected_terminate_at, source_row_number,
+                source_sheet, last_imported_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             fields
           );
           customerId = result.insertId;
