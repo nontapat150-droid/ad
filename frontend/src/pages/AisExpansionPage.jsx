@@ -20,6 +20,7 @@ const STATUS_META = {
 const NEXT_ACTIONS = {
   draft: [{ status: 'survey', label: 'เริ่มทำ' }],
   survey: [
+    { status: 'quoted', label: 'คุยแล้ว' },
     { status: 'won', label: 'ปิดได้' },
     { status: 'lost', label: 'ไม่ได้' },
   ],
@@ -52,9 +53,13 @@ const emptyForm = () => ({
   approval_request: '',
   install_date: '',
   install_date_text: '',
+  non_number: '',
   sales_note: '',
   tech_note: '',
   access_no: '',
+  owner_user_id: '',
+  entry_fee_request: '',
+  pair_line: '',
   lat: null,
   lng: null,
   splitter_id: null,
@@ -64,6 +69,9 @@ const emptyForm = () => ({
   radius_m: 500,
   status: 'draft',
   follow_up_at: '',
+  follow_up_time: '',
+  follow_up_channel: '',
+  follow_up_note: '',
   remark: '',
   lost_reason: '',
 });
@@ -114,9 +122,17 @@ function buildExpansionExportRows(rows, { isAdmin }) {
     'อาชีพ/ผู้ติดต่อ': job.occupation || '',
     ขออนุมัติ: job.approval_request || '',
     ขอวันติดตั้ง: excelDate(job.install_date) || job.install_date_text || '',
+    'เลข NON': job.non_number || '',
     หมายเหตุเซล: job.sales_note || '',
     หมายเหตุถึงช่าง: job.tech_note || '',
     AccessNo: job.access_no || '',
+    สถานะงานติดตั้ง: installationStatusMeta(job)?.label || '',
+    ทีมติดตั้ง: job.install_team_name || '',
+    ช่างผู้รับผิดชอบ: job.install_assignee_name || '',
+    วันติดตาม: excelDate(job.follow_up_at),
+    เวลาติดตาม: job.follow_up_time || '',
+    ช่องทางติดตาม: job.follow_up_channel || '',
+    รายละเอียดติดตาม: job.follow_up_note || '',
     Splitter: job.splitter_code || job.splitter_name || '',
     ระยะสายประมาณเมตร: job.estimated_cable_m ?? '',
     เหตุผลไม่ได้: job.lost_reason || '',
@@ -281,7 +297,7 @@ function FancyDatePicker({ value, onChange, disabled }) {
   );
 }
 
-function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName }) {
+function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, salesUsers = [] }) {
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
@@ -322,9 +338,13 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             approval_request: data.approval_request || '',
             install_date: data.install_date ? String(data.install_date).slice(0, 10) : '',
             install_date_text: data.install_date_text || '',
+            non_number: data.non_number || '',
             sales_note: data.sales_note || '',
             tech_note: data.tech_note || '',
             access_no: data.access_no || '',
+            owner_user_id: data.owner_user_id || '',
+            entry_fee_request: data.entry_fee_request ?? '',
+            pair_line: data.pair_line || '',
             lat: data.lat != null ? Number(data.lat) : null,
             lng: data.lng != null ? Number(data.lng) : null,
             splitter_id: data.splitter_id != null ? Number(data.splitter_id) : null,
@@ -334,6 +354,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
             radius_m: data.radius_m ?? 500,
             status: data.status || 'draft',
             follow_up_at: data.follow_up_at ? String(data.follow_up_at).slice(0, 10) : '',
+            follow_up_time: data.follow_up_time ? String(data.follow_up_time).slice(0, 5) : '',
+            follow_up_channel: data.follow_up_channel || '',
+            follow_up_note: data.follow_up_note || '',
             remark: data.remark || '',
             lost_reason: data.lost_reason || '',
           });
@@ -344,7 +367,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           setPhotos([]);
         }
       } else {
-        setForm(emptyForm());
+        setForm({
+          ...emptyForm(),
+          owner_user_id: isAdmin && salesUsers[0]?.id ? String(salesUsers[0].id) : '',
+        });
         setPhotos([]);
       }
       setPendingFiles([]);
@@ -424,6 +450,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
           : 'กรุณากรอกเลขบัตรประชาชน';
       }
       if (!form.phone.trim()) return 'กรุณากรอกเบอร์ติดต่อ';
+      const phoneDigits = form.phone.replace(/\D/g, '');
+      if (phoneDigits.length < 9 || phoneDigits.length > 15) return 'เบอร์โทรศัพท์ต้องมี 9-15 หลัก';
+      const idDigits = form.id_card.replace(/\D/g, '');
+      if (idDigits.length !== 13) return 'เลขบัตรประชาชน/เลขผู้เสียภาษีต้องมี 13 หลัก';
       if (!form.occupation.trim()) return form.customer_type === 'corporate' ? 'กรุณากรอกผู้ติดต่อ' : 'กรุณากรอกอาชีพ';
       if (!form.address.trim()) return 'กรุณากรอกที่อยู่ติดตั้ง';
       if (!form.package_name.trim()) return 'กรุณากรอกแพ็กเกจ';
@@ -434,6 +464,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
     if (targetStep === 2) {
       if (form.lat == null || form.lng == null) return 'กรุณาปักพิกัดบ้านลูกค้า';
       if (form.estimated_cable_m === '' || form.estimated_cable_m == null) return 'กรุณากรอกระยะสายประมาณ';
+      if (Number(form.estimated_cable_m) < 0) return 'ระยะสายต้องไม่ติดลบ';
       return null;
     }
     if (targetStep === 3) {
@@ -537,17 +568,43 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
     }
 
     setSaving(true);
+    let createdId = null;
     try {
       const payload = {
         ...form,
         approval_request: form.approval_request || null,
         install_date: form.install_date || null,
-        follow_up_at: null,
+        follow_up_at: form.follow_up_at || null,
+        follow_up_time: form.follow_up_time || null,
+        follow_up_channel: form.follow_up_channel || null,
+        follow_up_note: form.follow_up_note || null,
+        owner_user_id: form.owner_user_id || undefined,
         splitter_id: form.splitter_id || null,
         straight_distance_m: form.straight_distance_m === '' ? null : form.straight_distance_m,
         estimated_cable_m: form.estimated_cable_m === '' ? null : form.estimated_cable_m,
         skip_photo_check: '1',
       };
+
+      const { data: duplicateResult } = await api.post('/expansion/duplicate-check', {
+        ...payload,
+        exclude_id: job?.id || null,
+      });
+      if (duplicateResult?.duplicate) {
+        const names = (duplicateResult.rows || []).slice(0, 3)
+          .map((row) => `#${row.id} ${row.customer_name || '-'} (${STATUS_META[row.status]?.label || row.status})`)
+          .join('<br>');
+        const confirmDuplicate = await Swal.fire({
+          icon: 'warning',
+          title: 'พบข้อมูลที่อาจซ้ำ',
+          html: `<div class="text-sm text-left">${names}<br><br>ตรวจสอบเบอร์โทร เลขบัตร NON และ Access ก่อนยืนยัน</div>`,
+          showCancelButton: true,
+          confirmButtonText: 'ยืนยันบันทึก',
+          cancelButtonText: 'กลับไปตรวจสอบ',
+          confirmButtonColor: '#b45309',
+        });
+        if (!confirmDuplicate.isConfirmed) return;
+        payload.override_duplicate = true;
+      }
 
       let id = job?.id;
       if (isEdit) {
@@ -556,6 +613,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
       } else {
         const { data: created } = await api.post('/expansion', payload);
         id = created.id;
+        createdId = id;
         await uploadPending(id);
         await api.put(`/expansion/${id}`, { ...payload, skip_photo_check: undefined });
       }
@@ -569,6 +627,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
         showConfirmButton: false,
       });
     } catch (err) {
+      if (createdId) {
+        try { await api.post(`/expansion/${createdId}/rollback-create`); } catch { /* keep original error */ }
+      }
       Swal.fire({
         icon: 'error',
         title: 'บันทึกไม่สำเร็จ',
@@ -664,7 +725,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                   { value: '', label: 'ไม่ระบุ' },
                   { value: 'ฟรีค่าแรกเข้า', label: 'ฟรีค่าแรกเข้า' },
                   { value: 'บ้านเลขที่0', label: 'บ้านเลขที่0' },
-                  { value: 'ใบอนญาติทำงาน', label: 'ใบอนญาติทำงาน' },
+                  { value: 'ใบอนุญาตทำงาน', label: 'ใบอนุญาตทำงาน' },
                 ]}
               />
             </Field>
@@ -675,12 +736,64 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName })
                 onChange={(v) => setField('install_date', v)}
               />
             </Field>
-            <Field label="เลข NON" required={!form.install_date}>
-              <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
+            <Field label="หมายเหตุวันติดตั้ง" required={!form.install_date}>
+              <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น รอลูกค้ายืนยันวัน" />
+            </Field>
+            <Field label="เลข NON (ถ้ามี)">
+              <input disabled={locked} value={form.non_number} onChange={(e) => setField('non_number', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
+            </Field>
+            <Field label="Access Number (ถ้ามี)">
+              <input disabled={locked} value={form.access_no} onChange={(e) => setField('access_no', e.target.value)} className={inputCls} placeholder="เช่น 880xxxxxxx" />
             </Field>
             <Field label="พนักงานขาย">
-              <input disabled value={job?.owner_name || salesName || '-'} className={`${inputCls} bg-[#F3F4F6]`} />
+              {isAdmin && salesUsers.length ? (
+                <FancySelect
+                  disabled={locked}
+                  value={String(form.owner_user_id || '')}
+                  onChange={(v) => setField('owner_user_id', v)}
+                  placeholder="เลือกพนักงานขาย"
+                  options={salesUsers.map((sales) => ({ value: String(sales.id), label: sales.full_name || sales.username }))}
+                />
+              ) : (
+                <input disabled value={job?.owner_name || salesName || '-'} className={`${inputCls} bg-[#F3F4F6]`} />
+              )}
             </Field>
+            <Field label="ขอค่าแรกเข้า (บาท)">
+              <input disabled={locked} type="number" min="0" step="0.01" value={form.entry_fee_request} onChange={(e) => setField('entry_fee_request', e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="คู่สาย">
+              <input disabled={locked} value={form.pair_line} onChange={(e) => setField('pair_line', e.target.value)} className={inputCls} />
+            </Field>
+            <div className="sm:col-span-2 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+              <p className="text-xs font-black text-sky-800 mb-3">นัดติดตามลูกค้า</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="วันที่ติดตาม">
+                  <FancyDatePicker disabled={locked} value={form.follow_up_at} onChange={(v) => setField('follow_up_at', v)} />
+                </Field>
+                <Field label="เวลา">
+                  <input disabled={locked} type="time" value={form.follow_up_time} onChange={(e) => setField('follow_up_time', e.target.value)} className={inputCls} />
+                </Field>
+                <Field label="ช่องทาง">
+                  <FancySelect
+                    disabled={locked}
+                    value={form.follow_up_channel}
+                    onChange={(v) => setField('follow_up_channel', v)}
+                    options={[
+                      { value: '', label: 'ไม่ระบุ' },
+                      { value: 'phone', label: 'โทรศัพท์' },
+                      { value: 'line', label: 'LINE' },
+                      { value: 'visit', label: 'เข้าพบ' },
+                      { value: 'other', label: 'อื่น ๆ' },
+                    ]}
+                  />
+                </Field>
+                <div className="sm:col-span-3">
+                  <Field label="สิ่งที่ต้องติดตาม">
+                    <input disabled={locked} value={form.follow_up_note} onChange={(e) => setField('follow_up_note', e.target.value)} className={inputCls} placeholder="เช่น โทรยืนยันเอกสารและวันติดตั้ง" />
+                  </Field>
+                </div>
+              </div>
+            </div>
             </div>
           )}
 
@@ -1241,6 +1354,309 @@ function SplitterAdminPanel() {
   );
 }
 
+function followUpState(iso) {
+  if (!iso) return null;
+  const value = String(iso).slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA');
+  if (value < today) return 'overdue';
+  if (value === today) return 'today';
+  return 'future';
+}
+
+function installationStatusMeta(job) {
+  if (!job?.handed_off_job_id) return null;
+  if (job.install_status === 'completed') return { label: 'ติดตั้งสำเร็จ', className: 'bg-emerald-50 border-emerald-200 text-emerald-700' };
+  if (job.install_status === 'in_progress') return { label: 'กำลังติดตั้ง', className: 'bg-violet-50 border-violet-200 text-violet-700' };
+  if (['failed', 'cancelled', 'postponed'].includes(job.install_status)) return { label: 'งานติดตั้งมีปัญหา', className: 'bg-red-50 border-red-200 text-red-700' };
+  if (job.install_team_id || job.install_assignee_id) {
+    return { label: `มอบหมายแล้ว${job.install_team_name ? ` · ${job.install_team_name}` : ''}${job.install_assignee_name ? ` · ${job.install_assignee_name}` : ''}`, className: 'bg-sky-50 border-sky-200 text-sky-700' };
+  }
+  return { label: 'รอแอดมินมอบหมายงานติดตั้ง', className: 'bg-amber-50 border-amber-200 text-amber-800' };
+}
+
+const HISTORY_ACTION_LABELS = {
+  created: 'สร้างงานขาย',
+  updated: 'แก้ไขข้อมูล',
+  status_changed: 'เปลี่ยนสถานะ',
+  assigned: 'เปลี่ยนผู้รับผิดชอบ',
+  handed_off: 'ส่งต่องานติดตั้ง',
+  photos_added: 'เพิ่มรูปภาพ',
+  photo_deleted: 'ลบรูปภาพ',
+};
+
+const HISTORY_FIELD_LABELS = {
+  customer_name: 'ชื่อลูกค้า', phone: 'เบอร์โทร', address: 'ที่อยู่', package_name: 'แพ็กเกจ',
+  contract_info: 'สัญญา', occupation: 'อาชีพ/ผู้ติดต่อ', access_no: 'Access Number',
+  non_number: 'เลข NON', follow_up_at: 'วันติดตาม', follow_up_time: 'เวลาติดตาม',
+  follow_up_channel: 'ช่องทางติดตาม', follow_up_note: 'รายละเอียดติดตาม', status: 'สถานะ',
+  owner_user_id: 'ผู้รับผิดชอบ', install_date: 'วันติดตั้ง', install_date_text: 'หมายเหตุวันติดตั้ง',
+  sales_note: 'หมายเหตุการขาย', tech_note: 'หมายเหตุถึงช่าง', pair_line: 'คู่สาย',
+  estimated_cable_m: 'ระยะสาย', splitter_id: 'Splitter', approval_request: 'คำขออนุมัติ',
+};
+
+function SalesHistoryModal({ job, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!job?.id) return;
+    let active = true;
+    api.get(`/expansion/${job.id}/history`)
+      .then(({ data }) => { if (active) setRows(Array.isArray(data) ? data : []); })
+      .catch((err) => Swal.fire({ icon: 'error', title: 'โหลดประวัติไม่สำเร็จ', text: err.response?.data?.error || err.message }))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [job]);
+
+  if (!job) return null;
+  return (
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <button type="button" aria-label="ปิดประวัติ" className="absolute inset-0 bg-slate-900/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-xl max-h-[88vh] overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between gap-3 p-4 border-b border-slate-200">
+          <div className="min-w-0">
+            <h3 className="font-black text-slate-800">ประวัติงานขาย #{job.id}</h3>
+            <p className="text-xs text-slate-500 truncate">{job.customer_name}</p>
+          </div>
+          <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600">✕</button>
+        </div>
+        <div className="overflow-y-auto p-4">
+          {loading ? (
+            <p className="py-10 text-center text-slate-400">กำลังโหลด...</p>
+          ) : rows.length === 0 ? (
+            <p className="py-10 text-center text-slate-400">ยังไม่มีประวัติ</p>
+          ) : (
+            <div className="space-y-3">
+              {rows.map((row) => {
+                const changedCount = Object.keys(row.changed_fields || {}).length;
+                return (
+                  <div key={row.id} className="relative pl-5 border-l-2 border-lime-300">
+                    <span className="absolute -left-[7px] top-1 w-3 h-3 rounded-full bg-lime-500 ring-4 ring-white" />
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex justify-between gap-2">
+                        <p className="text-sm font-black text-slate-800">{HISTORY_ACTION_LABELS[row.action] || row.action}</p>
+                        <p className="text-[10px] text-slate-400 whitespace-nowrap">{new Date(row.created_at).toLocaleString('th-TH')}</p>
+                      </div>
+                      {row.old_status !== row.new_status && row.new_status && (
+                        <p className="text-xs text-slate-600 mt-1">
+                          {STATUS_META[row.old_status]?.label || row.old_status || '-'} → {STATUS_META[row.new_status]?.label || row.new_status}
+                        </p>
+                      )}
+                      {row.note && <p className="text-xs text-slate-600 mt-1">{row.note}</p>}
+                      {changedCount > 0 && (
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          แก้ไข: {Object.keys(row.changed_fields).map((key) => HISTORY_FIELD_LABELS[key] || key).join(', ')}
+                        </p>
+                      )}
+                      <p className="text-[11px] font-semibold text-slate-500 mt-2">โดย {row.created_by_name || 'ระบบ'}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function progressPercent(value, target) {
+  if (!target) return 0;
+  return Math.min(100, Math.round((Number(value) || 0) * 100 / Number(target)));
+}
+
+function SalesAnalyticsPanel({ isAdmin, salesUsers }) {
+  const [month, setMonth] = useState(() => new Date().toLocaleDateString('en-CA').slice(0, 7));
+  const [ownerId, setOwnerId] = useState('');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadAnalytics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { month };
+      if (isAdmin && ownerId) params.owner_id = ownerId;
+      const response = await api.get('/expansion/analytics', { params });
+      setData(response.data || null);
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'โหลดรายงานไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    } finally {
+      setLoading(false);
+    }
+  }, [month, ownerId, isAdmin]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadAnalytics(), 0);
+    return () => clearTimeout(timer);
+  }, [loadAnalytics]);
+
+  const setTarget = async (row) => {
+    const result = await Swal.fire({
+      title: `ตั้งเป้า ${row.owner_name}`,
+      html: `
+        <div class="text-left space-y-3">
+          <label class="block text-xs font-bold text-slate-600">ลูกค้าเป้าหมาย</label>
+          <input id="target-leads" type="number" min="0" value="${row.target_leads || 0}" class="swal2-input !m-0 !w-full">
+          <label class="block text-xs font-bold text-slate-600">ปิดการขายเป้าหมาย</label>
+          <input id="target-won" type="number" min="0" value="${row.target_won || 0}" class="swal2-input !m-0 !w-full">
+          <label class="block text-xs font-bold text-slate-600">ส่งติดตั้งเป้าหมาย</label>
+          <input id="target-handoffs" type="number" min="0" value="${row.target_handoffs || 0}" class="swal2-input !m-0 !w-full">
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกเป้าหมาย',
+      cancelButtonText: 'ยกเลิก',
+      preConfirm: () => ({
+        target_leads: Number(document.getElementById('target-leads')?.value || 0),
+        target_won: Number(document.getElementById('target-won')?.value || 0),
+        target_handoffs: Number(document.getElementById('target-handoffs')?.value || 0),
+      }),
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.put(`/expansion/targets/${row.owner_user_id}`, { month, ...result.value });
+      await loadAnalytics();
+      Swal.fire({ icon: 'success', title: 'บันทึกเป้าหมายแล้ว', timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'บันทึกเป้าหมายไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    }
+  };
+
+  const exportReport = () => {
+    if (!data) return;
+    const wb = XLSX.utils.book_new();
+    const metrics = [
+      ['เดือน', data.month], ['ลูกค้าใหม่', data.metrics?.leads || 0], ['ปิดการขาย', data.metrics?.won || 0],
+      ['ส่งติดตั้ง', data.metrics?.handoffs || 0], ['อัตราปิดการขาย (%)', data.metrics?.conversion_rate || 0],
+      ['วันเฉลี่ยก่อนปิด', data.metrics?.avg_days_to_win || 0], ['งานติดตามเกินกำหนด', data.metrics?.overdue_now || 0],
+      ['งานติดตั้งรอมอบหมาย', data.installation?.waiting_assignment || 0],
+    ].map(([หัวข้อ, ค่า]) => ({ หัวข้อ, ค่า }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(metrics), 'summary');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.leaderboard || []).map((row, index) => ({
+      ลำดับ: index + 1, พนักงานขาย: row.owner_name, ลูกค้าใหม่: row.leads, ปิดการขาย: row.won,
+      ส่งติดตั้ง: row.handoffs, เป้าลูกค้า: row.target_leads, เป้าปิดการขาย: row.target_won,
+      เป้าส่งติดตั้ง: row.target_handoffs,
+    }))), 'sales_team');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.packages || []), 'packages');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data.trend || []), 'daily_trend');
+    XLSX.writeFile(wb, `sales_performance_${data.month}.xlsx`);
+  };
+
+  if (loading && !data) {
+    return <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center text-slate-400 font-bold">กำลังคำนวณผลงานขาย...</div>;
+  }
+  const metrics = data?.metrics || {};
+  const maxTrend = Math.max(1, ...(data?.trend || []).map((row) => Math.max(row.leads, row.won, row.handoffs)));
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-slate-800">ผลงานและเป้าหมายงานขาย</h2>
+          <p className="text-xs text-slate-500 mt-0.5">ดูตั้งแต่ลูกค้าใหม่ ปิดการขาย จนถึงสถานะงานติดตั้ง</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold" />
+          {isAdmin && (
+            <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className="px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-bold bg-white">
+              <option value="">ทั้งทีมขาย</option>
+              {salesUsers.map((sales) => <option key={sales.id} value={sales.id}>{sales.full_name || sales.username}</option>)}
+            </select>
+          )}
+          <button type="button" onClick={exportReport} className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700">Export รายงาน</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        {[
+          ['ลูกค้าใหม่', metrics.leads, 'bg-white border-slate-200 text-slate-800'],
+          ['ปิดการขาย', metrics.won, 'bg-emerald-50 border-emerald-200 text-emerald-800'],
+          ['Conversion', `${metrics.conversion_rate || 0}%`, 'bg-lime-50 border-lime-200 text-lime-800'],
+          ['เฉลี่ยก่อนปิด', `${metrics.avg_days_to_win || 0} วัน`, 'bg-sky-50 border-sky-200 text-sky-800'],
+        ].map(([label, value, tone]) => (
+          <div key={label} className={`rounded-2xl border p-4 ${tone}`}>
+            <p className="text-[11px] font-bold opacity-70">{label}</p>
+            <p className="text-2xl font-black mt-1">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-black text-slate-800 mb-3">เส้นทางการขายของลูกค้าใหม่เดือนนี้</h3>
+          <div className="space-y-2">
+            {[
+              ['ลูกค้าใหม่', metrics.leads, 'bg-slate-500'], ['กำลังสำรวจ', metrics.survey, 'bg-sky-500'],
+              ['คุยแล้ว', metrics.quoted, 'bg-amber-500'], ['ปิดได้', metrics.won_cohort, 'bg-emerald-500'],
+              ['ปิดไม่ได้', metrics.lost_cohort, 'bg-red-400'],
+            ].map(([label, value, color]) => (
+              <div key={label}>
+                <div className="flex justify-between text-xs font-bold text-slate-600 mb-1"><span>{label}</span><span>{value || 0}</span></div>
+                <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden"><div className={`h-full rounded-full ${color}`} style={{ width: `${metrics.leads ? Math.max(3, (value || 0) * 100 / metrics.leads) : 0}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-black text-slate-800 mb-3">สถานะหลังส่งมอบงานติดตั้ง</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              ['รอแอดมินมอบหมาย', data?.installation?.waiting_assignment, 'text-amber-700 bg-amber-50 border-amber-200'],
+              ['มอบหมายแล้ว', data?.installation?.assigned, 'text-sky-700 bg-sky-50 border-sky-200'],
+              ['กำลังติดตั้ง', data?.installation?.in_progress, 'text-violet-700 bg-violet-50 border-violet-200'],
+              ['ติดตั้งสำเร็จ', data?.installation?.completed, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
+              ['มีปัญหา', data?.installation?.problem, 'text-red-700 bg-red-50 border-red-200'],
+            ].map(([label, value, tone]) => (
+              <div key={label} className={`rounded-xl border p-3 ${tone}`}><p className="text-[10px] font-bold">{label}</p><p className="text-xl font-black mt-1">{value || 0}</p></div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <div className="p-4 border-b border-slate-200"><h3 className="text-sm font-black text-slate-800">ผลงานรายพนักงานขาย</h3></div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-xs"><tr><th className="text-left p-3">พนักงานขาย</th><th className="p-3">ลูกค้าใหม่</th><th className="p-3">ปิดได้</th><th className="p-3">ส่งติดตั้ง</th><th className="text-left p-3">ความคืบหน้าเป้าปิด</th>{isAdmin && <th className="p-3">จัดการ</th>}</tr></thead>
+            <tbody>
+              {(data?.leaderboard || []).map((row) => (
+                <tr key={row.owner_user_id} className="border-t border-slate-100">
+                  <td className="p-3 font-black text-slate-800">{row.owner_name}</td><td className="p-3 text-center font-bold">{row.leads}</td><td className="p-3 text-center font-bold text-emerald-700">{row.won}</td><td className="p-3 text-center font-bold text-sky-700">{row.handoffs}</td>
+                  <td className="p-3"><div className="flex items-center gap-2"><div className="h-2 flex-1 rounded-full bg-slate-100 overflow-hidden"><div className="h-full bg-lime-500" style={{ width: `${progressPercent(row.won, row.target_won)}%` }} /></div><span className="text-[11px] font-bold text-slate-500">{row.target_won ? `${row.won}/${row.target_won}` : 'ยังไม่ตั้งเป้า'}</span></div></td>
+                  {isAdmin && <td className="p-3 text-center"><button type="button" onClick={() => setTarget(row)} className="px-3 py-2 rounded-lg bg-slate-100 text-xs font-bold">ตั้งเป้า</button></td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-black text-slate-800 mb-3">แนวโน้มรายวัน</h3>
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {(data?.trend || []).length === 0 ? <p className="text-sm text-slate-400 py-8 text-center">ยังไม่มีข้อมูลเดือนนี้</p> : data.trend.map((row) => (
+              <div key={String(row.day)} className="grid grid-cols-[72px_1fr_auto] gap-2 items-center text-[11px]">
+                <span className="font-bold text-slate-500">{String(row.day).slice(8, 10)}/{String(row.day).slice(5, 7)}</span>
+                <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex"><span className="bg-slate-400" style={{ width: `${row.leads * 100 / maxTrend}%` }} /><span className="bg-emerald-500" style={{ width: `${row.won * 100 / maxTrend}%` }} /></div>
+                <span className="font-bold text-slate-600">ใหม่ {row.leads} · ปิด {row.won}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-black text-slate-800 mb-3">แพ็กเกจที่ปิดการขายได้</h3>
+          <div className="space-y-2">
+            {(data?.packages || []).length === 0 ? <p className="text-sm text-slate-400 py-8 text-center">ยังไม่มีข้อมูลเดือนนี้</p> : data.packages.map((row, index) => (
+              <div key={row.package_name} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"><p className="text-xs font-bold text-slate-700 truncate"><span className="text-slate-400 mr-2">#{index + 1}</span>{row.package_name}</p><span className="text-sm font-black text-emerald-700">{row.won}</span></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AisExpansionPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -1255,6 +1671,17 @@ export default function AisExpansionPage() {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [historyJob, setHistoryJob] = useState(null);
+  const [summary, setSummary] = useState({ open: 0, follow_today: 0, follow_overdue: 0, won_month: 0, waiting_handoff: 0, install_waiting_assignment: 0 });
+  const [followFilter, setFollowFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [packageFilter, setPackageFilter] = useState('');
+  const [salesUsers, setSalesUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, per_page: 12, total: 0, total_pages: 1 });
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -1263,19 +1690,47 @@ export default function AisExpansionPage() {
       if (viewTab === 'open') params.scope = 'open';
       if (viewTab === 'done') params.scope = 'done';
       if (search.trim()) params.q = search.trim();
+      if (followFilter) params.follow_up = followFilter;
+      if (statusFilter) params.status = statusFilter;
+      if (isAdmin && ownerFilter) params.owner_id = ownerFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (packageFilter.trim()) params.package_name = packageFilter.trim();
+      params.page = page;
+      params.per_page = 12;
       const { data } = await api.get('/expansion', { params });
-      setJobs(Array.isArray(data) ? data : []);
+      setJobs(Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []));
+      if (data?.pagination) setPagination(data.pagination);
     } catch (err) {
       console.error(err);
       Swal.fire({ icon: 'error', title: 'โหลดงานขายไม่สำเร็จ', text: err.response?.data?.error || err.message });
     } finally {
       setLoading(false);
     }
-  }, [viewTab, search]);
+  }, [viewTab, search, followFilter, statusFilter, ownerFilter, dateFrom, dateTo, packageFilter, page, isAdmin]);
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      const { data } = await api.get('/expansion/summary');
+      setSummary((prev) => ({ ...prev, ...(data || {}) }));
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   useEffect(() => {
-    if (pageTab === 'jobs') fetchJobs();
-  }, [fetchJobs, pageTab]);
+    if (pageTab === 'jobs') {
+      fetchJobs();
+      fetchSummary();
+    }
+  }, [fetchJobs, fetchSummary, pageTab]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.get('/expansion/sales-users')
+      .then(({ data }) => setSalesUsers(Array.isArray(data) ? data : []))
+      .catch((err) => console.error(err));
+  }, [isAdmin]);
 
   const callPhone = (phone) => {
     if (!phone) return;
@@ -1314,7 +1769,7 @@ export default function AisExpansionPage() {
 
     try {
       await api.put(`/expansion/${job.id}`, { status: nextStatus, lost_reason });
-      fetchJobs();
+      await Promise.all([fetchJobs(), fetchSummary()]);
       Swal.fire({ icon: 'success', title: 'อัปเดตสถานะแล้ว', timer: 1200, showConfirmButton: false });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'เปลี่ยนสถานะไม่สำเร็จ', text: err.response?.data?.error || err.message });
@@ -1338,11 +1793,21 @@ export default function AisExpansionPage() {
 
     try {
       const { data } = await api.post(`/expansion/${job.id}/handoff`, { access_no: accessNo.trim() });
-      await fetchJobs();
+      await Promise.all([fetchJobs(), fetchSummary()]);
+      if (!isAdmin) {
+        await Swal.fire({
+          icon: 'success',
+          title: data.already ? 'ส่งต่อไปแล้ว' : 'ส่งเข้าคิวติดตั้งแล้ว',
+          text: `งานติดตั้ง #${data.job_id} กำลังรอแอดมินมอบหมายทีม/ช่าง`,
+          confirmButtonText: 'รับทราบ',
+          confirmButtonColor: '#185FA5',
+        });
+        return;
+      }
       const go = await Swal.fire({
         icon: 'success',
-        title: data.already ? 'ส่งต่อไปแล้ว' : 'ส่งต่อติดตั้งสำเร็จ',
-        text: `งานติดตั้ง #${data.job_id} · Access ${data.access_no || accessNo}`,
+        title: data.already ? 'ส่งต่อไปแล้ว' : 'ส่งเข้าคิวติดตั้งแล้ว',
+        text: `งานติดตั้ง #${data.job_id} รอแอดมินมอบหมายทีม/ช่าง · Access ${data.access_no || accessNo}`,
         showCancelButton: true,
         confirmButtonText: 'ไปหน้าแจกจ่ายงาน',
         cancelButtonText: 'อยู่หน้านี้',
@@ -1367,25 +1832,71 @@ export default function AisExpansionPage() {
     if (!conf.isConfirmed) return;
     try {
       await api.delete(`/expansion/${job.id}`);
-      fetchJobs();
+      await Promise.all([fetchJobs(), fetchSummary()]);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: err.response?.data?.error || err.message });
     }
   };
 
-  const handleExportExcel = () => {
-    if (!displayedJobs.length) {
-      Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายสำหรับ Export' });
-      return;
+  const handleAssign = async (job) => {
+    const inputOptions = Object.fromEntries(salesUsers.map((sales) => [String(sales.id), sales.full_name || sales.username]));
+    const { value } = await Swal.fire({
+      title: 'มอบหมายพนักงานขาย',
+      input: 'select',
+      inputOptions,
+      inputValue: String(job.owner_user_id || ''),
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (v) => (!v ? 'กรุณาเลือกพนักงานขาย' : undefined),
+    });
+    if (!value || Number(value) === Number(job.owner_user_id)) return;
+    try {
+      await api.put(`/expansion/${job.id}/assign`, { owner_user_id: Number(value) });
+      await Promise.all([fetchJobs(), fetchSummary()]);
+      Swal.fire({ icon: 'success', title: 'มอบหมายงานแล้ว', timer: 1200, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'มอบหมายไม่สำเร็จ', text: err.response?.data?.error || err.message });
     }
-    const rows = buildExpansionExportRows(displayedJobs, { isAdmin });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = computeSheetColumnWidths(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'sales_jobs');
-    const day = new Date().toLocaleDateString('en-CA');
-    const scopeLabel = viewTab === 'done' ? 'done' : 'open';
-    XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const params = { page: 1, per_page: 100 };
+      if (viewTab === 'open') params.scope = 'open';
+      if (viewTab === 'done') params.scope = 'done';
+      if (search.trim()) params.q = search.trim();
+      if (followFilter) params.follow_up = followFilter;
+      if (statusFilter) params.status = statusFilter;
+      if (isAdmin && ownerFilter) params.owner_id = ownerFilter;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (packageFilter.trim()) params.package_name = packageFilter.trim();
+
+      Swal.fire({ title: 'กำลังจัดทำ Excel', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const first = await api.get('/expansion', { params });
+      let allJobs = Array.isArray(first.data?.rows) ? first.data.rows : [];
+      const totalPages = Number(first.data?.pagination?.total_pages) || 1;
+      for (let exportPage = 2; exportPage <= totalPages; exportPage += 1) {
+        const response = await api.get('/expansion', { params: { ...params, page: exportPage } });
+        allJobs = allJobs.concat(Array.isArray(response.data?.rows) ? response.data.rows : []);
+      }
+      Swal.close();
+      if (!allJobs.length) {
+        Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายสำหรับ Export' });
+        return;
+      }
+      const rows = buildExpansionExportRows(allJobs, { isAdmin });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = computeSheetColumnWidths(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'sales_jobs');
+      const day = new Date().toLocaleDateString('en-CA');
+      const scopeLabel = viewTab === 'done' ? 'done' : 'open';
+      XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Export ไม่สำเร็จ', text: err.response?.data?.error || err.message });
+    }
   };
 
   const displayedJobs = jobs;
@@ -1393,11 +1904,11 @@ export default function AisExpansionPage() {
   return (
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขาย / งานขยาย" manualPage="ais_expansion">
       <div className="max-w-5xl mx-auto w-full space-y-4 pb-8">
-        {isAdmin && (
-          <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl">
+        <div className="flex gap-1.5 p-1 bg-[#F3F4F6] rounded-xl">
             {[
               { key: 'jobs', label: 'งานขาย' },
-              { key: 'splitters', label: 'คลัง Splitter' },
+              { key: 'analytics', label: 'ผลงานและเป้าหมาย' },
+              ...(isAdmin ? [{ key: 'splitters', label: 'คลัง Splitter' }] : []),
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -1410,13 +1921,34 @@ export default function AisExpansionPage() {
                 {tab.label}
               </button>
             ))}
-          </div>
-        )}
+        </div>
 
-        {pageTab === 'splitters' && isAdmin ? (
+        {pageTab === 'analytics' ? (
+          <SalesAnalyticsPanel isAdmin={isAdmin} salesUsers={salesUsers} />
+        ) : pageTab === 'splitters' && isAdmin ? (
           <SplitterAdminPanel />
         ) : (
           <>
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
+              {[
+                { key: 'open', label: 'งานที่ต้องทำ', value: summary.open, tone: 'border-slate-200 bg-white text-slate-800', onClick: () => { setPage(1); setViewTab('open'); setFollowFilter(''); setStatusFilter(''); } },
+                { key: 'today', label: 'ติดตามวันนี้', value: summary.follow_today, tone: 'border-sky-200 bg-sky-50 text-sky-800', onClick: () => { setPage(1); setViewTab('open'); setFollowFilter('today'); } },
+                { key: 'overdue', label: 'เลยกำหนด', value: summary.follow_overdue, tone: 'border-red-200 bg-red-50 text-red-700', onClick: () => { setPage(1); setViewTab('open'); setFollowFilter('overdue'); } },
+                { key: 'waiting', label: 'รอส่งติดตั้ง', value: summary.waiting_handoff, tone: 'border-amber-200 bg-amber-50 text-amber-800', onClick: () => { setPage(1); setViewTab('open'); setStatusFilter('won'); setFollowFilter(''); } },
+                { key: 'installQueue', label: 'รอแอดมินมอบหมาย', value: summary.install_waiting_assignment, tone: 'border-violet-200 bg-violet-50 text-violet-800', onClick: () => setPageTab('analytics') },
+                { key: 'won', label: 'ปิดได้เดือนนี้', value: summary.won_month, tone: 'border-emerald-200 bg-emerald-50 text-emerald-800', onClick: null },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={item.onClick || undefined}
+                  className={`rounded-2xl border p-3 text-left min-h-[82px] ${item.tone} ${item.onClick ? 'hover:-translate-y-0.5 transition-transform' : 'cursor-default'}`}
+                >
+                  <p className="text-[11px] font-bold opacity-75">{item.label}</p>
+                  <p className="text-2xl font-black mt-1">{item.value || 0}</p>
+                </button>
+              ))}
+            </div>
             <div
               className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5"
               style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
@@ -1456,7 +1988,7 @@ export default function AisExpansionPage() {
                   <button
                     key={tab.key}
                     type="button"
-                    onClick={() => setViewTab(tab.key)}
+                    onClick={() => { setPage(1); setViewTab(tab.key); }}
                     className={`flex-1 py-2.5 rounded-lg text-xs font-black transition-colors ${
                       viewTab === tab.key ? 'bg-white text-[#1F2937] shadow-sm' : 'text-[#6B7280]'
                     }`}
@@ -1470,6 +2002,7 @@ export default function AisExpansionPage() {
                 className="flex gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  setPage(1);
                   setSearch(searchInput.trim());
                 }}
               >
@@ -1484,6 +2017,53 @@ export default function AisExpansionPage() {
                   ค้นหา
                 </button>
               </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                <select value={statusFilter} onChange={(e) => {
+                  const value = e.target.value;
+                  setPage(1);
+                  setStatusFilter(value);
+                  if (['lost', 'handed_off'].includes(value)) setViewTab('done');
+                  else if (value) setViewTab('open');
+                }} className="px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-white text-xs font-bold text-slate-700">
+                  <option value="">ทุกสถานะ</option>
+                  {Object.entries(STATUS_META).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+                </select>
+                <select value={followFilter} onChange={(e) => { setPage(1); setFollowFilter(e.target.value); }} className="px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-white text-xs font-bold text-slate-700">
+                  <option value="">ทุกวันติดตาม</option>
+                  <option value="today">ติดตามวันนี้</option>
+                  <option value="overdue">เลยกำหนดติดตาม</option>
+                  <option value="scheduled">มีนัดติดตาม</option>
+                </select>
+                {isAdmin ? (
+                  <select value={ownerFilter} onChange={(e) => { setPage(1); setOwnerFilter(e.target.value); }} className="px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-white text-xs font-bold text-slate-700">
+                    <option value="">พนักงานขายทั้งหมด</option>
+                    {salesUsers.map((sales) => <option key={sales.id} value={sales.id}>{sales.full_name || sales.username}</option>)}
+                  </select>
+                ) : (
+                  <button type="button" onClick={() => { setPage(1); setStatusFilter(''); setFollowFilter(''); setDateFrom(''); setDateTo(''); setPackageFilter(''); setSearchInput(''); setSearch(''); }} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">ล้างตัวกรอง</button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                <label className="text-[10px] font-bold text-slate-500">สร้างตั้งแต่
+                  <input type="date" value={dateFrom} onChange={(e) => { setPage(1); setDateFrom(e.target.value); }} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
+                </label>
+                <label className="text-[10px] font-bold text-slate-500">ถึงวันที่
+                  <input type="date" value={dateTo} onChange={(e) => { setPage(1); setDateTo(e.target.value); }} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
+                </label>
+                <label className="text-[10px] font-bold text-slate-500">แพ็กเกจ
+                  <input value={packageFilter} onChange={(e) => { setPage(1); setPackageFilter(e.target.value); }} placeholder="ชื่อแพ็กเกจแบบตรงกัน" className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
+                </label>
+              </div>
+              {(search || statusFilter || followFilter || ownerFilter || dateFrom || dateTo || packageFilter) && (
+                <button
+                  type="button"
+                  onClick={() => { setPage(1); setStatusFilter(''); setFollowFilter(''); setOwnerFilter(''); setDateFrom(''); setDateTo(''); setPackageFilter(''); setSearchInput(''); setSearch(''); }}
+                  className="mt-2 text-[11px] font-bold text-slate-500 underline underline-offset-2"
+                >
+                  ล้างการค้นหาและตัวกรองทั้งหมด
+                </button>
+              )}
 
             </div>
 
@@ -1525,7 +2105,29 @@ export default function AisExpansionPage() {
                         <p className="font-black text-[#1F2937] text-base truncate">{job.customer_name || 'ไม่ระบุชื่อลูกค้า'}</p>
                         <p className="text-sm text-[#6B7280] truncate">{job.phone || 'ไม่มีเบอร์'}</p>
                         {job.package_name && <p className="text-xs text-[#374151] mt-0.5 font-semibold">{job.package_name}</p>}
+                        {(job.non_number || job.access_no) && (
+                          <p className="text-xs text-slate-600 mt-1 font-semibold">
+                            {job.non_number ? `NON ${job.non_number}` : ''}
+                            {job.non_number && job.access_no ? ' · ' : ''}
+                            {job.access_no ? `Access ${job.access_no}` : ''}
+                          </p>
+                        )}
                         {job.address && <p className="text-xs text-[#9CA3AF] mt-1 line-clamp-2">{job.address}</p>}
+                        {job.follow_up_at && !['lost', 'handed_off'].includes(job.status) && (
+                          <div className={`mt-2 rounded-xl border px-3 py-2 ${
+                            followUpState(job.follow_up_at) === 'overdue'
+                              ? 'bg-red-50 border-red-200 text-red-700'
+                              : followUpState(job.follow_up_at) === 'today'
+                                ? 'bg-sky-50 border-sky-200 text-sky-700'
+                                : 'bg-slate-50 border-slate-200 text-slate-600'
+                          }`}>
+                            <p className="text-[11px] font-black">
+                              {followUpState(job.follow_up_at) === 'overdue' ? 'เลยกำหนดติดตาม · ' : followUpState(job.follow_up_at) === 'today' ? 'ติดตามวันนี้ · ' : 'นัดติดตาม · '}
+                              {prettyThaiDate(job.follow_up_at)}{job.follow_up_time ? ` ${String(job.follow_up_time).slice(0, 5)} น.` : ''}
+                            </p>
+                            {job.follow_up_note && <p className="text-[11px] mt-0.5 line-clamp-1">{job.follow_up_note}</p>}
+                          </div>
+                        )}
                         {(job.estimated_cable_m != null || job.splitter_code || job.splitter_name) && (
                           <p className="text-xs font-semibold text-amber-700 mt-1">
                             {job.splitter_code || job.splitter_name || 'Splitter'}
@@ -1535,10 +2137,13 @@ export default function AisExpansionPage() {
                         )}
                         {isAdmin && job.owner_name && <p className="text-[11px] text-[#9CA3AF] mt-1">เซล: {job.owner_name}</p>}
                         {job.handed_off_job_id && (
-                          <p className="text-[11px] font-bold text-violet-700 mt-1">
-                            งานติดตั้ง #{job.handed_off_job_id}
-                            {job.access_no ? ` · ${job.access_no}` : ''}
-                          </p>
+                          <div className={`mt-2 rounded-xl border px-3 py-2 ${installationStatusMeta(job)?.className}`}>
+                            <p className="text-[11px] font-black">{installationStatusMeta(job)?.label}</p>
+                            <p className="text-[10px] mt-0.5 opacity-75">
+                              งานติดตั้ง #{job.handed_off_job_id}{job.access_no ? ` · Access ${job.access_no}` : ''}
+                              {job.install_plan_date ? ` · นัด ${prettyThaiDate(job.install_plan_date)}` : ''}
+                            </p>
+                          </div>
                         )}
                       </div>
                       <div className="text-right shrink-0">
@@ -1577,8 +2182,25 @@ export default function AisExpansionPage() {
                       >
                         {job.status === 'handed_off' ? 'ดูรายละเอียด' : 'แก้ไข'}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setHistoryJob(job)}
+                        className="min-h-[48px] rounded-xl text-xs font-bold bg-white border border-[#E5E7EB] text-slate-600"
+                      >
+                        ประวัติ
+                      </button>
 
-                      {(NEXT_ACTIONS[job.status] || []).slice(0, 1).map((a) => (
+                      {isAdmin && salesUsers.length > 0 && job.status !== 'handed_off' && (
+                        <button
+                          type="button"
+                          onClick={() => handleAssign(job)}
+                          className="min-h-[48px] rounded-xl text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200"
+                        >
+                          มอบหมาย
+                        </button>
+                      )}
+
+                      {(NEXT_ACTIONS[job.status] || []).map((a) => (
                         <button
                           key={a.status}
                           type="button"
@@ -1586,22 +2208,16 @@ export default function AisExpansionPage() {
                           className={`min-h-[48px] rounded-xl text-xs font-black border ${
                             a.status === 'won'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-[#A3E635]/20 text-[#1F2937] border-[#A3E635]/40'
+                              : a.status === 'lost'
+                                ? 'bg-red-50 text-red-600 border-red-200'
+                                : a.status === 'quoted'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : 'bg-[#A3E635]/20 text-[#1F2937] border-[#A3E635]/40'
                           }`}
                         >
                           {a.label}
                         </button>
                       ))}
-
-                      {(NEXT_ACTIONS[job.status] || []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => changeStatus(job, NEXT_ACTIONS[job.status][1].status)}
-                          className="min-h-[48px] rounded-xl text-xs font-bold bg-red-50 text-red-600 border border-red-200 col-span-2 sm:col-span-1"
-                        >
-                          {NEXT_ACTIONS[job.status][1].label}
-                        </button>
-                      )}
 
                       {job.status === 'won' && (
                         <button
@@ -1637,6 +2253,15 @@ export default function AisExpansionPage() {
                 ))}
               </div>
             )}
+            {!loading && pagination.total > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-bold text-slate-500">ทั้งหมด {pagination.total} รายการ · หน้า {pagination.page}/{pagination.total_pages}</p>
+                <div className="flex gap-2">
+                  <button type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} className="min-w-[88px] px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold disabled:opacity-35">ก่อนหน้า</button>
+                  <button type="button" disabled={page >= pagination.total_pages} onClick={() => setPage((value) => Math.min(pagination.total_pages, value + 1))} className="min-w-[88px] px-3 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold disabled:opacity-35">ถัดไป</button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1646,12 +2271,17 @@ export default function AisExpansionPage() {
         job={editing}
         isAdmin={isAdmin}
         salesName={user?.full_name}
+        salesUsers={salesUsers}
         onClose={() => {
           setFormOpen(false);
           setEditing(null);
         }}
-        onSaved={fetchJobs}
+        onSaved={() => {
+          fetchJobs();
+          fetchSummary();
+        }}
       />
+      <SalesHistoryModal key={historyJob?.id || 'closed'} job={historyJob} onClose={() => setHistoryJob(null)} />
     </Layout>
   );
 }

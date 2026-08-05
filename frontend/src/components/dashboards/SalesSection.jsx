@@ -7,10 +7,14 @@ import { ShortcutBtn } from './SharedComponents';
 export default function SalesSection() {
   const navigate = useNavigate();
   const [checkinData, setCheckinData] = useState(null);
+  const [salesSummary, setSalesSummary] = useState({ open: 0, follow_today: 0, follow_overdue: 0, waiting_handoff: 0, install_waiting_assignment: 0 });
   useEffect(() => {
     api.get('/checkin/today')
       .then((res) => setCheckinData(res.data))
       .catch(() => setCheckinData(null));
+    api.get('/expansion/summary')
+      .then((res) => setSalesSummary((prev) => ({ ...prev, ...(res.data || {}) })))
+      .catch(() => {});
   }, []);
 
   const handleCheckoutClick = () => {
@@ -28,6 +32,20 @@ export default function SalesSection() {
 
   return (
     <div className="space-y-4 animate-fade-in-up">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {[
+          ['ต้องทำ', salesSummary.open, 'bg-white border-slate-200 text-slate-800'],
+          ['ติดตามวันนี้', salesSummary.follow_today, 'bg-sky-50 border-sky-200 text-sky-800'],
+          ['เลยกำหนด', salesSummary.follow_overdue, 'bg-red-50 border-red-200 text-red-700'],
+          ['รอส่งติดตั้ง', salesSummary.waiting_handoff, 'bg-amber-50 border-amber-200 text-amber-800'],
+          ['รอมอบหมาย', salesSummary.install_waiting_assignment, 'bg-violet-50 border-violet-200 text-violet-800'],
+        ].map(([label, value, tone]) => (
+          <button key={label} type="button" onClick={() => navigate('/ais-expansion')} className={`rounded-2xl border p-3 text-left ${tone}`}>
+            <p className="text-[10px] font-bold opacity-75">{label}</p>
+            <p className="text-xl font-black mt-1">{value || 0}</p>
+          </button>
+        ))}
+      </div>
       <div className="bg-white rounded-2xl border border-[#E5E7EB] p-4 sm:p-5"
         style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
         <div className="flex items-center gap-2.5 min-w-0 mb-3">

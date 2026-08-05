@@ -26,6 +26,28 @@ async function lookupPackageFee(conn, packageName) {
   }
 }
 
+async function ensureInstalledSalesColumns(conn) {
+  const columns = [
+    ['seller_name', 'VARCHAR(100) NULL'],
+    ['source_sales_user_id', 'INT NULL'],
+    ['source_expansion_id', 'INT NULL'],
+  ];
+  for (const [column, definition] of columns) {
+    const [[row]] = await conn.query(
+      `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'installed_customers' AND COLUMN_NAME = ?`,
+      [column]
+    );
+    if (!Number(row?.cnt)) {
+      try {
+        await conn.query(`ALTER TABLE installed_customers ADD COLUMN \`${column}\` ${definition}`);
+      } catch (err) {
+        if (err.code !== 'ER_DUP_FIELDNAME') throw err;
+      }
+    }
+  }
+}
+
 /**
  * Sync completed install job → installed_customers registry (keyed by NON/access_no).
  * Does not overwrite cancellation if already cancelled.
@@ -34,11 +56,18 @@ async function syncInstalledFromJob(conn, jobId) {
   const [[job]] = await conn.query('SELECT * FROM jobs WHERE id = ? LIMIT 1', [jobId]);
   if (!job || job.status !== 'completed') return;
 
+  await ensureInstalledSalesColumns(conn);
+
   const nonNumber = String(job.access_no || job.non_number || '').trim();
   if (!nonNumber) return;
 
   const packageName = String(job.package || '').trim() || '-';
   const monthlyFee = await lookupPackageFee(conn, packageName);
+  let sellerName = String(job.source_sales_name || '').trim() || null;
+  if (!sellerName && job.source_sales_user_id) {
+    const [[salesUser]] = await conn.query('SELECT full_name FROM users WHERE id = ? LIMIT 1', [job.source_sales_user_id]);
+    sellerName = salesUser?.full_name || null;
+  }
   const installDateSrc = job.completed_at || job.finish_time || new Date();
   let installDate;
   if (typeof installDateSrc === 'string' && /^\d{4}-\d{2}-\d{2}/.test(installDateSrc)) {
@@ -57,8 +86,9 @@ async function syncInstalledFromJob(conn, jobId) {
     await conn.query(
       `INSERT INTO installed_customers (
          customer_name, non_number, package_name, monthly_fee,
-         install_date, job_id, status
-       ) VALUES (?, ?, ?, ?, ?, ?, 'active')
+         install_date, job_id, status, seller_name,
+         source_sales_user_id, source_expansion_id
+       ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          customer_name = IF(status = 'cancelled', customer_name, VALUES(customer_name)),
          package_name  = IF(status = 'cancelled', package_name, VALUES(package_name)),
@@ -66,6 +96,9 @@ async function syncInstalledFromJob(conn, jobId) {
            IF(VALUES(monthly_fee) > 0, VALUES(monthly_fee), monthly_fee)),
          install_date  = IF(status = 'cancelled', install_date, COALESCE(install_date, VALUES(install_date))),
          job_id        = COALESCE(VALUES(job_id), job_id),
+         seller_name   = IF(status = 'cancelled', seller_name, COALESCE(VALUES(seller_name), seller_name)),
+         source_sales_user_id = COALESCE(VALUES(source_sales_user_id), source_sales_user_id),
+         source_expansion_id = COALESCE(VALUES(source_expansion_id), source_expansion_id),
          updated_at    = CURRENT_TIMESTAMP`,
       [
         job.customer || nonNumber,
@@ -74,6 +107,9 @@ async function syncInstalledFromJob(conn, jobId) {
         monthlyFee,
         installDate,
         job.id,
+        sellerName,
+        job.source_sales_user_id || null,
+        job.source_expansion_id || null,
       ]
     );
     const [[installedCustomer]] = await conn.query(
