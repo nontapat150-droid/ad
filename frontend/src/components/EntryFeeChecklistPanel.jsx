@@ -109,7 +109,18 @@ export default function EntryFeeChecklistPanel() {
       Swal.fire('คัดลอกไม่สำเร็จ', 'เบราว์เซอร์ไม่อนุญาตให้คัดลอก', 'warning');
       return;
     }
-    setCopiedId(row.id);
+    setCopiedId(`access:${row.id}`);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1400);
+  };
+
+  const copyCustomerName = async (row) => {
+    const ok = await copyText(row.customerName);
+    if (!ok) {
+      Swal.fire('คัดลอกไม่สำเร็จ', row.customerName ? 'เบราว์เซอร์ไม่อนุญาตให้คัดลอก' : 'ไม่มีชื่อลูกค้า', 'warning');
+      return;
+    }
+    setCopiedId(`name:${row.id}`);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1400);
   };
@@ -555,13 +566,13 @@ export default function EntryFeeChecklistPanel() {
                               onClick={() => copyAccessNumber(row)}
                               title="คลิกเพื่อคัดลอก Access Number"
                               className={`group inline-flex items-center gap-1.5 max-w-full rounded-xl px-2.5 py-1.5 font-mono font-bold tracking-tight transition-all duration-150 active:scale-[0.97] border ${
-                                copiedId === row.id
+                                copiedId === `access:${row.id}`
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : 'bg-[#F9FAFB] text-[#1F2937] border-[#E5E7EB] hover:border-[#A3E635] hover:bg-[#FAFFE8]'
                               }`}
                             >
                               <span className="truncate">{row.accessNumber}</span>
-                              {copiedId === row.id ? (
+                              {copiedId === `access:${row.id}` ? (
                                 <span className="shrink-0 text-[10px] font-black text-emerald-600">คัดลอกแล้ว</span>
                               ) : (
                                 <svg className="w-3.5 h-3.5 shrink-0 text-[#9CA3AF] group-hover:text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -570,8 +581,30 @@ export default function EntryFeeChecklistPanel() {
                               )}
                             </button>
                           </td>
-                          <td className="px-3 py-3 text-[#1F2937] max-w-[200px] truncate font-medium" title={row.customerName}>
-                            {row.customerName || '—'}
+                          <td className="px-3 py-3 max-w-[220px]">
+                            {row.customerName ? (
+                              <button
+                                type="button"
+                                onClick={() => copyCustomerName(row)}
+                                title="คลิกเพื่อคัดลอกชื่อลูกค้า"
+                                className={`group inline-flex items-center gap-1.5 max-w-full rounded-xl px-2.5 py-1.5 font-medium transition-all duration-150 active:scale-[0.97] border ${
+                                  copiedId === `name:${row.id}`
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-[#F9FAFB] text-[#1F2937] border-[#E5E7EB] hover:border-[#A3E635] hover:bg-[#FAFFE8]'
+                                }`}
+                              >
+                                <span className="truncate">{row.customerName}</span>
+                                {copiedId === `name:${row.id}` ? (
+                                  <span className="shrink-0 text-[10px] font-black text-emerald-600">คัดลอกแล้ว</span>
+                                ) : (
+                                  <svg className="w-3.5 h-3.5 shrink-0 text-[#9CA3AF] group-hover:text-[#65a30d]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-[#D1D5DB]">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-bold bg-[#1F2937] text-[#A3E635]">
