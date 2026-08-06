@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import {
+  CHECK_STATUS,
   exportEntryFeeChecklist,
   parseEntryFeeChecklistSheet,
   readExcelToAoA,
@@ -63,30 +64,25 @@ function ProgressRing({ value, max }) {
 }
 
 function StatusToggle({ value, onChange }) {
+  const options = [
+    { key: CHECK_STATUS.HAS, label: 'มี', active: 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25', idle: 'text-[#6B7280] hover:text-emerald-700 hover:bg-emerald-50' },
+    { key: CHECK_STATUS.MISSING, label: 'ไม่มี', active: 'bg-rose-500 text-white shadow-sm shadow-rose-500/25', idle: 'text-[#6B7280] hover:text-rose-700 hover:bg-rose-50' },
+    { key: CHECK_STATUS.ONSITE, label: 'หน้างาน', active: 'bg-sky-500 text-white shadow-sm shadow-sky-500/25', idle: 'text-[#6B7280] hover:text-sky-700 hover:bg-sky-50' },
+  ];
   return (
     <div className="inline-flex rounded-xl bg-[#F3F4F6] p-0.5 border border-[#E5E7EB]">
-      <button
-        type="button"
-        onClick={() => onChange(value === true ? null : true)}
-        className={`min-w-[52px] px-2.5 py-1.5 rounded-[10px] text-xs font-bold transition-all duration-150 active:scale-[0.97] ${
-          value === true
-            ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
-            : 'text-[#6B7280] hover:text-emerald-700 hover:bg-emerald-50'
-        }`}
-      >
-        มี
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(value === false ? null : false)}
-        className={`min-w-[52px] px-2.5 py-1.5 rounded-[10px] text-xs font-bold transition-all duration-150 active:scale-[0.97] ${
-          value === false
-            ? 'bg-rose-500 text-white shadow-sm shadow-rose-500/25'
-            : 'text-[#6B7280] hover:text-rose-700 hover:bg-rose-50'
-        }`}
-      >
-        ไม่มี
-      </button>
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          type="button"
+          onClick={() => onChange(value === opt.key ? null : opt.key)}
+          className={`min-w-[54px] px-2 py-1.5 rounded-[10px] text-[11px] font-bold transition-all duration-150 active:scale-[0.97] ${
+            value === opt.key ? opt.active : opt.idle
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -97,6 +93,7 @@ export default function EntryFeeChecklistPanel() {
   const [importMeta, setImportMeta] = useState(null);
   const [q, setQ] = useState('');
   const [teamFilter, setTeamFilter] = useState('');
+  const [areaFilter, setAreaFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -133,49 +130,61 @@ export default function EntryFeeChecklistPanel() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
   }, [rows]);
 
+  const areas = useMemo(() => {
+    const set = new Set();
+    rows.forEach((r) => {
+      if (r.areaName) set.add(r.areaName);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return rows.filter((row) => {
       if (teamFilter && row.teamName !== teamFilter) return false;
-      if (statusFilter === 'checked' && row.hasData == null) return false;
-      if (statusFilter === 'unchecked' && row.hasData != null) return false;
-      if (statusFilter === 'has' && row.hasData !== true) return false;
-      if (statusFilter === 'missing' && row.hasData !== false) return false;
+      if (areaFilter && row.areaName !== areaFilter) return false;
+      if (statusFilter === 'checked' && row.checkStatus == null) return false;
+      if (statusFilter === 'unchecked' && row.checkStatus != null) return false;
+      if (statusFilter === CHECK_STATUS.HAS && row.checkStatus !== CHECK_STATUS.HAS) return false;
+      if (statusFilter === CHECK_STATUS.MISSING && row.checkStatus !== CHECK_STATUS.MISSING) return false;
+      if (statusFilter === CHECK_STATUS.ONSITE && row.checkStatus !== CHECK_STATUS.ONSITE) return false;
       if (!query) return true;
       return (
         row.accessNumber.toLowerCase().includes(query) ||
         row.customerName.toLowerCase().includes(query) ||
         row.teamName.toLowerCase().includes(query) ||
+        String(row.areaName || '').toLowerCase().includes(query) ||
         String(row.appointmentDate).toLowerCase().includes(query)
       );
     });
-  }, [rows, q, teamFilter, statusFilter]);
+  }, [rows, q, teamFilter, areaFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const total = rows.length;
-    const has = rows.filter((r) => r.hasData === true).length;
-    const missing = rows.filter((r) => r.hasData === false).length;
-    const unchecked = total - has - missing;
-    return { total, has, missing, unchecked, done: has + missing };
+    const has = rows.filter((r) => r.checkStatus === CHECK_STATUS.HAS).length;
+    const missing = rows.filter((r) => r.checkStatus === CHECK_STATUS.MISSING).length;
+    const onsite = rows.filter((r) => r.checkStatus === CHECK_STATUS.ONSITE).length;
+    const unchecked = total - has - missing - onsite;
+    return { total, has, missing, onsite, unchecked, done: has + missing + onsite };
   }, [rows]);
 
-  const setHasData = (id, value) => {
+  const setCheckStatus = (id, value) => {
     setRows((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, hasData: value } : row))
+      prev.map((row) => (row.id === id ? { ...row, checkStatus: value } : row))
     );
   };
 
   const markAllFiltered = (value) => {
     const ids = new Set(filtered.map((r) => r.id));
     setRows((prev) =>
-      prev.map((row) => (ids.has(row.id) ? { ...row, hasData: value } : row))
+      prev.map((row) => (ids.has(row.id) ? { ...row, checkStatus: value } : row))
     );
   };
 
   const clearChecksFiltered = () => {
     const ids = new Set(filtered.map((r) => r.id));
     setRows((prev) =>
-      prev.map((row) => (ids.has(row.id) ? { ...row, hasData: null } : row))
+      prev.map((row) => (ids.has(row.id) ? { ...row, checkStatus: null } : row))
     );
   };
 
@@ -205,6 +214,7 @@ export default function EntryFeeChecklistPanel() {
       });
       setQ('');
       setTeamFilter('');
+      setAreaFilter('');
       setStatusFilter('');
       await Swal.fire({
         icon: 'success',
@@ -284,15 +294,17 @@ export default function EntryFeeChecklistPanel() {
                 ตรวจรายการ / กรองข้อมูล
               </h2>
               <p className="text-sm text-[#6B7280] mt-2 leading-relaxed max-w-xl">
-                Import รายการจาก Excel แล้วติ๊กว่า <span className="font-bold text-emerald-700">มี</span> หรือ{' '}
-                <span className="font-bold text-rose-600">ไม่มี</span> จากนั้น Export คอลัมน์ต่อท้ายได้ทันที
+                Import รายการจาก Excel แล้วติ๊กว่า{' '}
+                <span className="font-bold text-emerald-700">มี</span> /{' '}
+                <span className="font-bold text-rose-600">ไม่มี</span> /{' '}
+                <span className="font-bold text-sky-600">หน้างาน</span> จากนั้น Export คอลัมน์ต่อท้ายได้ทันที
                 — ไม่ผูกกับประวัติในระบบ
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {[
                   ['1', 'Import Excel'],
-                  ['2', 'ติ๊ก มี / ไม่มี'],
+                  ['2', 'ติ๊ก มี / ไม่มี / หน้างาน'],
                   ['3', 'Export ผลตรวจ'],
                 ].map(([n, label], i) => (
                   <div
@@ -369,7 +381,7 @@ export default function EntryFeeChecklistPanel() {
           <p className="font-bold text-[#1F2937] text-lg">ลากไฟล์ Excel มาวางที่นี่</p>
           <p className="text-sm text-[#6B7280] mt-2">หรือคลิกเพื่อเลือกไฟล์ · รองรับ .xlsx / .xls</p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-[11px] font-semibold text-[#9CA3AF]">
-            {['Appointment Date', 'Access Number', 'Customer Name', 'ค่าแรกเข้า=800', 'ทีมช่าง'].map((tag) => (
+            {['Appointment Date', 'Access Number', 'Customer Name', 'ค่าแรกเข้า=800', 'ทีมช่าง', 'พื้นที่'].map((tag) => (
               <span key={tag} className="px-2.5 py-1 rounded-lg bg-[#F3F4F6] border border-[#E5E7EB] text-[#6B7280]">
                 {tag}
               </span>
@@ -381,7 +393,7 @@ export default function EntryFeeChecklistPanel() {
       {rows.length > 0 && (
         <>
           {/* Stats + progress */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             <div
               className="col-span-2 lg:col-span-1 rounded-2xl border border-[#E5E7EB] bg-white p-4 flex items-center gap-3"
               style={{ boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
@@ -397,8 +409,9 @@ export default function EntryFeeChecklistPanel() {
 
             {[
               { key: '', label: 'ทั้งหมด', value: stats.total, active: statusFilter === '', tone: 'hover:border-[#A3E635]' },
-              { key: 'has', label: 'มี', value: stats.has, active: statusFilter === 'has', tone: 'hover:border-emerald-400', activeCls: 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100' },
-              { key: 'missing', label: 'ไม่มี', value: stats.missing, active: statusFilter === 'missing', tone: 'hover:border-rose-300', activeCls: 'border-rose-300 bg-rose-50 ring-2 ring-rose-100' },
+              { key: CHECK_STATUS.HAS, label: 'มี', value: stats.has, active: statusFilter === CHECK_STATUS.HAS, tone: 'hover:border-emerald-400', activeCls: 'border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100' },
+              { key: CHECK_STATUS.MISSING, label: 'ไม่มี', value: stats.missing, active: statusFilter === CHECK_STATUS.MISSING, tone: 'hover:border-rose-300', activeCls: 'border-rose-300 bg-rose-50 ring-2 ring-rose-100' },
+              { key: CHECK_STATUS.ONSITE, label: 'หน้างาน', value: stats.onsite, active: statusFilter === CHECK_STATUS.ONSITE, tone: 'hover:border-sky-300', activeCls: 'border-sky-300 bg-sky-50 ring-2 ring-sky-100' },
               { key: 'unchecked', label: 'ยังไม่ติ๊ก', value: stats.unchecked, active: statusFilter === 'unchecked', tone: 'hover:border-amber-300', activeCls: 'border-amber-300 bg-amber-50 ring-2 ring-amber-100' },
             ].map((item) => (
               <button
@@ -442,30 +455,44 @@ export default function EntryFeeChecklistPanel() {
                   {importMeta.mappedColumns?.teamName
                     ? `ทีมช่างจาก “${importMeta.mappedColumns.teamName}”`
                     : 'ไม่พบคอลัมน์ทีมช่าง'}
+                  {' · '}
+                  {importMeta.mappedColumns?.areaName
+                    ? `พื้นที่จาก “${importMeta.mappedColumns.areaName}”`
+                    : 'ไม่พบคอลัมน์พื้นที่'}
                 </span>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-2">
-              <div className="relative xl:col-span-4">
+              <div className="relative xl:col-span-3">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="ค้นหา Access / ชื่อ / ทีม"
+                  placeholder="ค้นหา Access / ชื่อ / ทีม / พื้นที่"
                   className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/35 focus:border-[#A3E635] transition-shadow"
                 />
               </div>
               <select
                 value={teamFilter}
                 onChange={(e) => setTeamFilter(e.target.value)}
-                className="xl:col-span-3 px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/35"
+                className="xl:col-span-2 px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/35"
               >
                 <option value="">ทุกทีมช่าง</option>
                 {teams.map((team) => (
                   <option key={team} value={team}>{team}</option>
+                ))}
+              </select>
+              <select
+                value={areaFilter}
+                onChange={(e) => setAreaFilter(e.target.value)}
+                className="xl:col-span-2 px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] text-sm outline-none focus:ring-2 focus:ring-[#A3E635]/35"
+              >
+                <option value="">ทุกพื้นที่</option>
+                {areas.map((area) => (
+                  <option key={area} value={area}>{area}</option>
                 ))}
               </select>
               <select
@@ -476,31 +503,40 @@ export default function EntryFeeChecklistPanel() {
                 <option value="">ทุกสถานะ</option>
                 <option value="unchecked">ยังไม่ติ๊ก</option>
                 <option value="checked">ติ๊กแล้ว</option>
-                <option value="has">มี</option>
-                <option value="missing">ไม่มี</option>
+                <option value={CHECK_STATUS.HAS}>มี</option>
+                <option value={CHECK_STATUS.MISSING}>ไม่มี</option>
+                <option value={CHECK_STATUS.ONSITE}>หน้างาน</option>
               </select>
               <div className="xl:col-span-3 flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => markAllFiltered(true)}
+                  onClick={() => markAllFiltered(CHECK_STATUS.HAS)}
                   disabled={!filtered.length}
-                  className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-40 active:scale-[0.97] transition-all"
+                  className="flex-1 px-2 py-2 rounded-xl text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-40 active:scale-[0.97] transition-all"
                 >
-                  ติ๊กมีทั้งหมด
+                  มีทั้งหมด
                 </button>
                 <button
                   type="button"
-                  onClick={() => markAllFiltered(false)}
+                  onClick={() => markAllFiltered(CHECK_STATUS.MISSING)}
                   disabled={!filtered.length}
-                  className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 disabled:opacity-40 active:scale-[0.97] transition-all"
+                  className="flex-1 px-2 py-2 rounded-xl text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 disabled:opacity-40 active:scale-[0.97] transition-all"
                 >
-                  ติ๊กไม่มี
+                  ไม่มี
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAllFiltered(CHECK_STATUS.ONSITE)}
+                  disabled={!filtered.length}
+                  className="flex-1 px-2 py-2 rounded-xl text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 disabled:opacity-40 active:scale-[0.97] transition-all"
+                >
+                  หน้างาน
                 </button>
                 <button
                   type="button"
                   onClick={clearChecksFiltered}
                   disabled={!filtered.length}
-                  className="px-3 py-2 rounded-xl text-xs font-bold bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] disabled:opacity-40 active:scale-[0.97] transition-all"
+                  className="px-2 py-2 rounded-xl text-[11px] font-bold bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] disabled:opacity-40 active:scale-[0.97] transition-all"
                 >
                   ล้าง
                 </button>
@@ -524,7 +560,7 @@ export default function EntryFeeChecklistPanel() {
             </div>
 
             <div className="overflow-x-auto max-h-[min(62vh,720px)] overflow-y-auto">
-              <table className="w-full text-sm min-w-[920px]">
+              <table className="w-full text-sm min-w-[1020px]">
                 <thead className="bg-[#F9FAFB] text-[#6B7280] text-left sticky top-0 z-10 shadow-[0_1px_0_#E5E7EB]">
                   <tr>
                     <th className="px-3 py-3 font-semibold w-12">#</th>
@@ -533,24 +569,27 @@ export default function EntryFeeChecklistPanel() {
                     <th className="px-3 py-3 font-semibold">ชื่อลูกค้า</th>
                     <th className="px-3 py-3 font-semibold text-right">ค่าแรกเข้า</th>
                     <th className="px-3 py-3 font-semibold">ทีมช่าง</th>
-                    <th className="px-3 py-3 font-semibold text-center min-w-[140px]">ตรวจสถานะ</th>
+                    <th className="px-3 py-3 font-semibold">พื้นที่</th>
+                    <th className="px-3 py-3 font-semibold text-center min-w-[190px]">ตรวจสถานะ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!filtered.length ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-16 text-center text-[#9CA3AF]">
+                      <td colSpan={8} className="px-3 py-16 text-center text-[#9CA3AF]">
                         ไม่พบรายการตามเงื่อนไขกรอง
                       </td>
                     </tr>
                   ) : (
                     filtered.map((row, idx) => {
                       const rowTone =
-                        row.hasData === true
+                        row.checkStatus === CHECK_STATUS.HAS
                           ? 'bg-emerald-50/40'
-                          : row.hasData === false
+                          : row.checkStatus === CHECK_STATUS.MISSING
                             ? 'bg-rose-50/40'
-                            : 'bg-white';
+                            : row.checkStatus === CHECK_STATUS.ONSITE
+                              ? 'bg-sky-50/40'
+                              : 'bg-white';
                       return (
                         <tr
                           key={row.id}
@@ -620,10 +659,19 @@ export default function EntryFeeChecklistPanel() {
                               <span className="text-[#D1D5DB]">—</span>
                             )}
                           </td>
+                          <td className="px-3 py-3 max-w-[140px]">
+                            {row.areaName ? (
+                              <span className="inline-flex max-w-full truncate px-2 py-0.5 rounded-lg text-xs font-semibold bg-lime-50 text-[#3f6212] border border-lime-200" title={row.areaName}>
+                                {row.areaName}
+                              </span>
+                            ) : (
+                              <span className="text-[#D1D5DB]">—</span>
+                            )}
+                          </td>
                           <td className="px-3 py-3 text-center">
                             <StatusToggle
-                              value={row.hasData}
-                              onChange={(v) => setHasData(row.id, v)}
+                              value={row.checkStatus}
+                              onChange={(v) => setCheckStatus(row.id, v)}
                             />
                           </td>
                         </tr>
@@ -635,7 +683,7 @@ export default function EntryFeeChecklistPanel() {
             </div>
 
             <div className="px-4 py-3 text-xs text-[#9CA3AF] border-t border-[#F3F4F6] flex flex-wrap items-center justify-between gap-2 bg-[#F9FAFB]/60">
-              <span>Export จะต่อคอลัมน์ <b className="text-emerald-700">มี</b> และ <b className="text-rose-600">ไม่มี</b> ด้านหลังตาราง</span>
+              <span>Export จะต่อคอลัมน์ <b className="text-emerald-700">มี</b> / <b className="text-rose-600">ไม่มี</b> / <b className="text-sky-600">หน้างาน</b> ด้านหลังตาราง</span>
               <button
                 type="button"
                 onClick={() => {
@@ -643,6 +691,7 @@ export default function EntryFeeChecklistPanel() {
                   setImportMeta(null);
                   setQ('');
                   setTeamFilter('');
+                  setAreaFilter('');
                   setStatusFilter('');
                 }}
                 className="font-semibold text-[#9CA3AF] hover:text-rose-600 transition-colors"

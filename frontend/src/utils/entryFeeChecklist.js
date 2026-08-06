@@ -1,5 +1,11 @@
 import * as XLSX from 'xlsx';
 
+export const CHECK_STATUS = Object.freeze({
+  HAS: 'has',
+  MISSING: 'missing',
+  ONSITE: 'onsite',
+});
+
 function normalizeHeader(h) {
   return String(h || '')
     .trim()
@@ -71,6 +77,7 @@ const COLUMN_ALIASES = {
   customerName: ['customer name', 'customer', 'name', 'ชื่อลูกค้า', 'ชื่อ'],
   entryFee: ['ค่าแรกเข้า', 'entry fee', 'entryfee', 'fee', 'ค่าเข้า'],
   teamName: ['ทีมช่าง', 'ทีม', 'team', 'ช่าง', 'technician team', 'tech team'],
+  areaName: ['พื้นที่', 'area', 'area name', 'เขต', 'โซน', 'zone', 'province', 'จังหวัด', 'อำเภอ', 'ตำบล'],
 };
 
 /**
@@ -88,12 +95,13 @@ export function parseEntryFeeChecklistSheet(sheetRows) {
   const idxCustomer = findColumnIndex(headers, COLUMN_ALIASES.customerName);
   const idxFee = findColumnIndex(headers, COLUMN_ALIASES.entryFee);
   const idxTeam = findColumnIndex(headers, COLUMN_ALIASES.teamName);
+  const idxArea = findColumnIndex(headers, COLUMN_ALIASES.areaName);
 
   if (idxAccess < 0 || idxFee < 0) {
     return {
       rows: [],
       skipped: 0,
-      mappedColumns: { idxAppointment, idxAccess, idxCustomer, idxFee, idxTeam, headers },
+      mappedColumns: { idxAppointment, idxAccess, idxCustomer, idxFee, idxTeam, idxArea, headers },
       error: 'ไม่พบคอลัมน์ Access Number หรือ ค่าแรกเข้า ในไฟล์',
     };
   }
@@ -125,7 +133,9 @@ export function parseEntryFeeChecklistSheet(sheetRows) {
       customerName: idxCustomer >= 0 ? String(raw[idxCustomer] ?? '').trim() : '',
       entryFee: 800,
       teamName: idxTeam >= 0 ? String(raw[idxTeam] ?? '').trim() : '',
-      hasData: null, // true = มี, false = ไม่มี, null = ยังไม่ติ๊ก
+      areaName: idxArea >= 0 ? String(raw[idxArea] ?? '').trim() : '',
+      // null | 'has' | 'missing' | 'onsite'
+      checkStatus: null,
     });
   }
 
@@ -138,6 +148,7 @@ export function parseEntryFeeChecklistSheet(sheetRows) {
       customerName: idxCustomer >= 0 ? headers[idxCustomer] : null,
       entryFee: headers[idxFee],
       teamName: idxTeam >= 0 ? headers[idxTeam] : null,
+      areaName: idxArea >= 0 ? headers[idxArea] : null,
     },
     error: null,
   };
@@ -151,7 +162,7 @@ export async function readExcelToAoA(file) {
 }
 
 /**
- * Export checklist rows with two trailing columns: มี | ไม่มี
+ * Export checklist rows with trailing columns: มี | ไม่มี | หน้างาน
  */
 export function exportEntryFeeChecklist(rows, filename) {
   const data = (rows || []).map((row) => ({
@@ -160,8 +171,10 @@ export function exportEntryFeeChecklist(rows, filename) {
     'Customer Name': row.customerName || '',
     'ค่าแรกเข้า': row.entryFee ?? 800,
     'ทีมช่าง': row.teamName || '',
-    มี: row.hasData === true ? '✓' : '',
-    ไม่มี: row.hasData === false ? '✓' : '',
+    'พื้นที่': row.areaName || '',
+    มี: row.checkStatus === CHECK_STATUS.HAS ? '✓' : '',
+    ไม่มี: row.checkStatus === CHECK_STATUS.MISSING ? '✓' : '',
+    หน้างาน: row.checkStatus === CHECK_STATUS.ONSITE ? '✓' : '',
   }));
 
   const ws = XLSX.utils.json_to_sheet(data);
