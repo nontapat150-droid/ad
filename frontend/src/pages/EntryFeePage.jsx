@@ -15,6 +15,7 @@ import { getImageUrl } from '../utils/imageUtils';
 import { AppSelectField } from '../components/DispatchFilterFields';
 import ManualModal from '../components/ManualModal';
 import ManualHelpButton from '../components/ManualHelpButton';
+import EntryFeeChecklistPanel from '../components/EntryFeeChecklistPanel';
 
 const CustomMonthPicker = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -139,7 +140,7 @@ export default function EntryFeePage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showManualModal, setShowManualModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('record'); // 'record' | 'history'
+  const [activeTab, setActiveTab] = useState('record'); // 'record' | 'history' | 'checklist'
 
   // --- RECORD STATE ---
   const [accessNo, setAccessNo] = useState('');
@@ -385,13 +386,26 @@ export default function EntryFeePage() {
           >
             ประวัติการบันทึก
           </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('checklist')}
+            className={`px-5 py-2 rounded-full font-bold text-sm transition-all whitespace-nowrap ${
+              activeTab === 'checklist' 
+                ? 'bg-gradient-to-r from-[#A3E635] to-[#84cc16] text-[#1F2937] shadow-sm border border-[#65a30d]/20' 
+                : 'bg-white text-[#6B7280] border border-[#E5E7EB] hover:bg-[#F9FAFB] hover:text-[#1F2937]'
+            }`}
+          >
+            ตรวจรายการ
+          </button>
         </div>
 
         {/* ── Main Content ───────────────────────────────── */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-0">
-          <div className="max-w-4xl mx-auto w-full">
+          <div className={`${activeTab === 'checklist' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
             
-            {activeTab === 'record' ? (
+            {activeTab === 'checklist' ? (
+              <EntryFeeChecklistPanel />
+            ) : activeTab === 'record' ? (
               <div 
                 className="bg-white rounded-2xl md:rounded-3xl p-6 md:p-8 shadow-sm border border-[#E5E7EB]"
                 style={{ animation: 'fadeInUp 0.3s ease-out forwards' }}
