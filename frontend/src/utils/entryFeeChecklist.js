@@ -17,18 +17,23 @@ function normalizeHeader(h) {
 function headerScore(header, keys) {
   const h = normalizeHeader(header);
   if (!h) return -1;
+  let best = -1;
   for (const key of keys) {
     const k = normalizeHeader(key);
-    if (h === k) return 100;
-    if (h.includes(k) || k.includes(h)) return 80;
+    if (!k) continue;
+    // Exact match wins; longer keys beat shorter ones on ties.
+    if (h === k) best = Math.max(best, 1000 + k.length);
+    // Header contains the alias (e.g. "พื้นที่ติดตั้ง" contains "พื้นที่")
+    else if (h.includes(k) && k.length >= 2) best = Math.max(best, 500 + k.length);
   }
-  return -1;
+  return best;
 }
 
-function findColumnIndex(headers, keys) {
+function findColumnIndex(headers, keys, used = new Set()) {
   let best = -1;
   let bestScore = -1;
   headers.forEach((header, idx) => {
+    if (used.has(idx)) return;
     const score = headerScore(header, keys);
     if (score > bestScore) {
       bestScore = score;
@@ -74,10 +79,12 @@ function formatCellDate(value) {
 const COLUMN_ALIASES = {
   appointmentDate: ['appointment date', 'appointment', 'วันนัด', 'วันที่นัด', 'วันที่นัดหมาย', 'plan date', 'plan arrival'],
   accessNumber: ['access number', 'access no', 'access_no', 'access', 'เลข access', 'accessnumber'],
-  customerName: ['customer name', 'customer', 'name', 'ชื่อลูกค้า', 'ชื่อ'],
-  entryFee: ['ค่าแรกเข้า', 'entry fee', 'entryfee', 'fee', 'ค่าเข้า'],
-  teamName: ['ทีมช่าง', 'ทีม', 'team', 'ช่าง', 'technician team', 'tech team'],
-  areaName: ['พื้นที่', 'area', 'area name', 'เขต', 'โซน', 'zone', 'province', 'จังหวัด', 'อำเภอ', 'ตำบล'],
+  // Prefer specific labels; avoid bare "name" stealing "Area Name"
+  customerName: ['customer name', 'ชื่อลูกค้า', 'customer', 'ชื่อ'],
+  entryFee: ['ค่าแรกเข้า', 'entry fee', 'entryfee', 'ค่าเข้า', 'fee'],
+  teamName: ['ทีมช่าง', 'technician team', 'tech team', 'ทีม', 'team'],
+  // Primary only — do NOT alias จังหวัด/อำเภอ/ตำบล (those steal the real พื้นที่ column)
+  areaName: ['พื้นที่', 'area name', 'area', 'โซน', 'zone'],
 };
 
 /**
@@ -90,12 +97,20 @@ export function parseEntryFeeChecklistSheet(sheetRows) {
   }
 
   const headers = sheetRows[0].map((h) => String(h ?? ''));
-  const idxAppointment = findColumnIndex(headers, COLUMN_ALIASES.appointmentDate);
-  const idxAccess = findColumnIndex(headers, COLUMN_ALIASES.accessNumber);
-  const idxCustomer = findColumnIndex(headers, COLUMN_ALIASES.customerName);
-  const idxFee = findColumnIndex(headers, COLUMN_ALIASES.entryFee);
-  const idxTeam = findColumnIndex(headers, COLUMN_ALIASES.teamName);
-  const idxArea = findColumnIndex(headers, COLUMN_ALIASES.areaName);
+  const used = new Set();
+  const claim = (keys) => {
+    const idx = findColumnIndex(headers, keys, used);
+    if (idx >= 0) used.add(idx);
+    return idx;
+  };
+
+  // Claim required / unique columns first so พื้นที่ cannot collide with them
+  const idxAccess = claim(COLUMN_ALIASES.accessNumber);
+  const idxFee = claim(COLUMN_ALIASES.entryFee);
+  const idxAppointment = claim(COLUMN_ALIASES.appointmentDate);
+  const idxCustomer = claim(COLUMN_ALIASES.customerName);
+  const idxTeam = claim(COLUMN_ALIASES.teamName);
+  const idxArea = claim(COLUMN_ALIASES.areaName);
 
   if (idxAccess < 0 || idxFee < 0) {
     return {
