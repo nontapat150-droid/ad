@@ -154,11 +154,31 @@ export function parseEntryFeeChecklistSheet(sheetRows) {
   };
 }
 
-export async function readExcelToAoA(file) {
+/**
+ * Read Excel file into workbook meta + sheet helpers.
+ * Returns sheet names so the UI can let users pick a tab after upload.
+ */
+export async function readExcelWorkbook(file) {
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+  const sheetNames = Array.isArray(wb.SheetNames) ? wb.SheetNames.filter(Boolean) : [];
+  return {
+    fileName: file.name || 'workbook.xlsx',
+    sheetNames,
+    getSheetRows(sheetName) {
+      const name = sheetName || sheetNames[0];
+      if (!name || !wb.Sheets[name]) {
+        throw new Error('ไม่พบแท็บที่เลือกในไฟล์');
+      }
+      return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: true });
+    },
+  };
+}
+
+/** @deprecated Prefer readExcelWorkbook + sheet picker */
+export async function readExcelToAoA(file, sheetName) {
+  const workbook = await readExcelWorkbook(file);
+  return workbook.getSheetRows(sheetName);
 }
 
 /**

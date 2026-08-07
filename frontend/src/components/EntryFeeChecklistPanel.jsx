@@ -4,7 +4,7 @@ import {
   CHECK_STATUS,
   exportEntryFeeChecklist,
   parseEntryFeeChecklistSheet,
-  readExcelToAoA,
+  readExcelWorkbook,
 } from '../utils/entryFeeChecklist';
 
 async function copyText(text) {
@@ -99,6 +99,8 @@ export default function EntryFeeChecklistPanel() {
   const [dragOver, setDragOver] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const copiedTimerRef = useRef(null);
+  const [sheetPicker, setSheetPicker] = useState(null); // { fileName, sheetNames, getSheetRows, selected }
+  const [confirmingSheet, setConfirmingSheet] = useState(false);
 
   const copyAccessNumber = async (row) => {
     const ok = await copyText(row.accessNumber);
@@ -188,27 +190,27 @@ export default function EntryFeeChecklistPanel() {
     );
   };
 
-  const applyImportFile = async (file) => {
-    if (!file) return;
-    setImporting(true);
+  const importFromSheet = async (workbook, sheetName) => {
+    setConfirmingSheet(true);
     try {
-      const aoa = await readExcelToAoA(file);
+      const aoa = workbook.getSheetRows(sheetName);
       const result = parseEntryFeeChecklistSheet(aoa);
       if (result.error) {
         await Swal.fire('นำเข้าไม่สำเร็จ', result.error, 'error');
-        return;
+        return false;
       }
       if (!result.rows.length) {
         await Swal.fire(
           'ไม่พบรายการ',
-          `ไม่มีแถวที่ค่าแรกเข้า = 800${result.skipped ? ` (ข้าม ${result.skipped} แถว)` : ''}`,
+          `แท็บ “${sheetName}” ไม่มีแถวที่ค่าแรกเข้า = 800${result.skipped ? ` (ข้าม ${result.skipped} แถว)` : ''}`,
           'warning'
         );
-        return;
+        return false;
       }
       setRows(result.rows);
       setImportMeta({
-        fileName: file.name,
+        fileName: workbook.fileName,
+        sheetName,
         skipped: result.skipped,
         mappedColumns: result.mappedColumns,
       });
@@ -216,19 +218,52 @@ export default function EntryFeeChecklistPanel() {
       setTeamFilter('');
       setAreaFilter('');
       setStatusFilter('');
+      setSheetPicker(null);
       await Swal.fire({
         icon: 'success',
         title: 'นำเข้าแล้ว',
-        html: `ได้ <b>${result.rows.length}</b> รายการ (ค่าแรกเข้า 800)` +
+        html: `แท็บ <b>${sheetName}</b><br/>ได้ <b>${result.rows.length}</b> รายการ (ค่าแรกเข้า 800)` +
           (result.skipped ? `<br/>ข้าม ${result.skipped} แถว` : ''),
         timer: 2000,
         showConfirmButton: false,
+      });
+      return true;
+    } catch (err) {
+      await Swal.fire('ผิดพลาด', err.message || 'อ่านแท็บไม่สำเร็จ', 'error');
+      return false;
+    } finally {
+      setConfirmingSheet(false);
+    }
+  };
+
+  const applyImportFile = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const workbook = await readExcelWorkbook(file);
+      if (!workbook.sheetNames.length) {
+        await Swal.fire('นำเข้าไม่สำเร็จ', 'ไม่พบแท็บในไฟล์ Excel', 'error');
+        return;
+      }
+
+      // Always let the user pick a tab after upload.
+      setSheetPicker({
+        fileName: workbook.fileName,
+        sheetNames: workbook.sheetNames,
+        getSheetRows: workbook.getSheetRows,
+        selected: workbook.sheetNames[0],
+        workbook,
       });
     } catch (err) {
       await Swal.fire('ผิดพลาด', err.message || 'อ่านไฟล์ไม่สำเร็จ', 'error');
     } finally {
       setImporting(false);
     }
+  };
+
+  const confirmSheetImport = async () => {
+    if (!sheetPicker?.workbook || !sheetPicker.selected) return;
+    await importFromSheet(sheetPicker.workbook, sheetPicker.selected);
   };
 
   const handleImport = async (e) => {
@@ -446,6 +481,11 @@ export default function EntryFeeChecklistPanel() {
                   </svg>
                   {importMeta.fileName}
                 </span>
+                {importMeta.sheetName && (
+                  <span className="px-2.5 py-1 rounded-lg bg-lime-50 text-[#3f6212] border border-lime-200 font-semibold">
+                    แท็บ: {importMeta.sheetName}
+                  </span>
+                )}
                 {importMeta.skipped > 0 && (
                   <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-100 font-semibold">
                     ข้าม {importMeta.skipped} แถว
@@ -701,6 +741,97 @@ export default function EntryFeeChecklistPanel() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Sheet picker after upload */}
+      {sheetPicker && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-[#1F2937]/55 backdrop-blur-[2px]">
+          <div
+            className="w-full max-w-md rounded-3xl bg-white border border-[#E5E7EB] shadow-2xl overflow-hidden"
+            style={{ animation: 'fadeInUp 0.22s ease-out forwards' }}
+          >
+            <div className="px-5 py-4 border-b border-[#F3F4F6] bg-gradient-to-r from-white to-[#FAFFE8]/70">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-[#9CA3AF]">เลือกแท็บ Excel</p>
+                  <h3 className="font-black text-[#1F2937] mt-0.5">จะนำเข้าจากแท็บไหน?</h3>
+                  <p className="text-xs text-[#6B7280] mt-1 truncate max-w-[280px]" title={sheetPicker.fileName}>
+                    {sheetPicker.fileName}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !confirmingSheet && setSheetPicker(null)}
+                  className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#1F2937] hover:bg-[#F3F4F6] transition-colors"
+                  disabled={confirmingSheet}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 max-h-[50vh] overflow-y-auto space-y-2">
+              {sheetPicker.sheetNames.map((name) => {
+                const active = sheetPicker.selected === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setSheetPicker((prev) => prev ? { ...prev, selected: name } : prev)}
+                    className={`w-full text-left px-4 py-3 rounded-2xl border transition-all duration-150 active:scale-[0.99] ${
+                      active
+                        ? 'border-[#84cc16] bg-[#FAFFE8] ring-2 ring-[#A3E635]/25'
+                        : 'border-[#E5E7EB] bg-white hover:border-[#A3E635] hover:bg-[#F9FAFB]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                          active
+                            ? 'bg-gradient-to-br from-[#A3E635] to-[#84cc16] text-[#1F2937]'
+                            : 'bg-[#F3F4F6] text-[#6B7280]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h6l2 2h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-[#1F2937] truncate">{name}</p>
+                        <p className="text-[11px] text-[#9CA3AF]">{active ? 'เลือกอยู่' : 'แตะเพื่อเลือก'}</p>
+                      </div>
+                      {active && (
+                        <span className="text-[10px] font-black text-[#65a30d] shrink-0">เลือกแล้ว</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="px-4 py-4 border-t border-[#F3F4F6] flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSheetPicker(null)}
+                disabled={confirmingSheet}
+                className="flex-1 py-3 rounded-2xl text-sm font-bold border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F9FAFB] disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={confirmSheetImport}
+                disabled={confirmingSheet || !sheetPicker.selected}
+                className="flex-[1.4] py-3 rounded-2xl text-sm font-bold text-[#1F2937] disabled:opacity-60 active:scale-[0.98] transition-transform"
+                style={{ background: 'linear-gradient(135deg, #A3E635, #84cc16)' }}
+              >
+                {confirmingSheet ? 'กำลังนำเข้า...' : `นำเข้าแท็บ “${sheetPicker.selected}”`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
