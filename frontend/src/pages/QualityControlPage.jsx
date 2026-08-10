@@ -34,12 +34,39 @@ const DEFAULT_QC_SETTINGS = {
   fraud: { enabled: true, threshold_rate: 3, months: 4 },
   churn: { enabled: true, threshold_rate: 1.5, months: 8 },
 };
+const BILL_STATUS_OPTIONS = [
+  ['paid', 'จ่ายแล้ว'],
+  ['outstanding', 'ยอดค้าง'],
+  ['overdue', 'เกินกำหนด'],
+  ['reserved', 'สำรองบิล'],
+  ['note', 'หมายเหตุ'],
+  ['unknown', 'รอตรวจสอบ'],
+];
+const DEFAULT_BILL_FILTERS = {
+  query: '',
+  billNumber: '1',
+  month: 'all',
+  status: 'all',
+  dueState: 'all',
+  amountMin: '',
+  amountMax: '',
+  amountSource: 'all',
+  taskStatus: 'all',
+  assignee: 'all',
+};
 
 function formatDate(value) {
   if (!value) return '-';
   const iso = String(value).slice(0, 10);
   const [year, month, day] = iso.split('-');
   return year && month && day ? `${day}/${month}/${year}` : iso;
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function formatMonth(value) {
@@ -54,6 +81,136 @@ function formatMoney(value) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
+}
+
+function billStatusLabel(status) {
+  if (status === 'missing') return 'ไม่มีข้อมูลบิล';
+  return BILL_STATUS_OPTIONS.find(([key]) => key === status)?.[1] || status || 'ไม่ระบุ';
+}
+
+function monthDistance(startMonth, endMonth) {
+  const [startYear, startValue] = String(startMonth || '').slice(0, 7).split('-').map(Number);
+  const [endYear, endValue] = String(endMonth || '').slice(0, 7).split('-').map(Number);
+  if (!startYear || !startValue || !endYear || !endValue) return null;
+  return ((endYear - startYear) * 12) + endValue - startValue;
+}
+
+function addMonthsToDate(value, delta) {
+  const match = String(value || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const target = new Date(Date.UTC(year, month - 1 + delta, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
+function dueDateForBill(customer, billNumber) {
+  const firstMonth = String(customer.first_due_month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!firstMonth) return addMonthsToDate(customer.first_due_date, billNumber - 1);
+  const target = new Date(Date.UTC(Number(firstMonth[1]), Number(firstMonth[2]) - 1 + billNumber - 1, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  const dueDay = Math.min(Math.max(1, Number(customer.payment_due_day) || 1), lastDay);
+  target.setUTCDate(dueDay);
+  return target.toISOString().slice(0, 10);
+}
+
+function resolvedBillAmount(customer, bill) {
+  if (bill.bill_status === 'paid') {
+    if (bill.paid_amount != null && bill.paid_amount !== '') {
+      return { amount: Number(bill.paid_amount) || 0, source: 'recorded', sourceLabel: 'ยอดชำระจริง' };
+    }
+    if (Number(bill.estimated_total) > 0) {
+      return { amount: Number(bill.estimated_total), source: 'reference', sourceLabel: 'ประมาณจากรอบบิล' };
+    }
+    if (Number(customer.monthly_fee) > 0) {
+      return { amount: Number(customer.monthly_fee), source: 'reference', sourceLabel: 'อ้างอิงราคาแพ็กเกจ' };
+    }
+    return { amount: 0, source: 'missing', sourceLabel: 'ยังไม่มียอด' };
+  }
+
+  if (Number(bill.amount) > 0 || ['outstanding', 'overdue', 'reserved'].includes(bill.bill_status)) {
+    return { amount: Number(bill.amount) || 0, source: 'recorded', sourceLabel: 'ยอดที่บันทึก' };
+  }
+  if (Number(bill.estimated_total) > 0) {
+    return { amount: Number(bill.estimated_total), source: 'reference', sourceLabel: 'ประมาณจากรอบบิล' };
+  }
+  return { amount: 0, source: 'missing', sourceLabel: 'ยังไม่มียอด' };
+}
+
+function billDueState(bill) {
+  if (bill.bill_status === 'paid') return 'paid';
+  if (bill.bill_status === 'missing') return 'missing';
+  if (bill.bill_status === 'overdue') return 'overdue';
+  const dueDate = String(bill.due_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return 'missing';
+  const today = new Date();
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if (dueDate > todayIso) return 'not_due';
+  if (dueDate === todayIso) return 'due_today';
+  return 'overdue';
+}
+
+function buildBillLedger(customers) {
+  return (customers || []).flatMap((customer) => [...(customer.bills || [])]
+    .sort((a, b) => String(a.due_date || a.bill_month).localeCompare(String(b.due_date || b.bill_month)))
+    .map((bill, index) => {
+    const amountDetails = resolvedBillAmount(customer, bill);
+    const monthIndex = monthDistance(customer.first_due_month || customer.first_due_date, bill.bill_month);
+    const billNumber = monthIndex != null ? monthIndex + 1 : index + 1;
+    return {
+      key: `${customer.id}-${bill.bill_month}`,
+      customer,
+      customer_id: customer.id,
+      customer_name: customer.customer_name || '',
+      non_number: customer.non_number || '',
+      package_name: customer.package_name || '',
+      monthly_fee: Number(customer.monthly_fee) || 0,
+      seller_name: customer.seller_name || '',
+      bill_number: billNumber,
+      bill_month: bill.bill_month,
+      bill_status: bill.bill_status || 'unknown',
+      status_label: billStatusLabel(bill.bill_status),
+      due_date: bill.due_date,
+      raw_value: bill.raw_value || '',
+      bill_source: bill.bill_source || 'import',
+      paid_amount: bill.paid_amount,
+      amount: amountDetails.amount,
+      amount_source: amountDetails.source,
+      amount_source_label: amountDetails.sourceLabel,
+      payment_state: bill.bill_status === 'paid' ? 'paid' : 'unpaid',
+      due_state: billDueState(bill),
+    };
+  }));
+}
+
+function missingBillRow(customer, billNumber) {
+  const dueDate = dueDateForBill(customer, billNumber);
+  return {
+    key: `${customer.id}-missing-${billNumber}`,
+    customer,
+    customer_id: customer.id,
+    customer_name: customer.customer_name || '',
+    non_number: customer.non_number || '',
+    package_name: customer.package_name || '',
+    monthly_fee: Number(customer.monthly_fee) || 0,
+    seller_name: customer.seller_name || '',
+    bill_number: billNumber,
+    bill_month: dueDate?.slice(0, 7) || '',
+    bill_status: 'missing',
+    status_label: 'ไม่มีข้อมูลบิล',
+    due_date: dueDate,
+    raw_value: '',
+    bill_source: '',
+    paid_amount: null,
+    amount: 0,
+    amount_source: 'missing',
+    amount_source_label: 'ยังไม่มีข้อมูลยอด',
+    payment_state: 'unpaid',
+    due_state: 'missing',
+  };
 }
 
 function isSuspended(value) {
@@ -301,6 +458,8 @@ export default function QualityControlPage() {
                   <MetricCard icon={CircleDollarSign} label="ยอดค้างรวม" value={`${formatMoney(result.outstanding_total)} ฿`} note={`ระงับ/หนี้ ${Number(result.suspended_customers).toLocaleString('th-TH')} ราย`} tone="info" />
                 </section>
 
+                <BillPaymentExplorer result={result} onViewCustomer={setSelectedCustomer} onRefresh={runCalculate} />
+
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -474,6 +633,473 @@ function MetricCard({ icon: Icon, label, value, note, tone = 'default' }) {
   );
 }
 
+function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
+  const [filters, setFilters] = useState(DEFAULT_BILL_FILTERS);
+  const [billPage, setBillPage] = useState(1);
+  const [billPageSize, setBillPageSize] = useState(25);
+  const [exportingBills, setExportingBills] = useState(false);
+  const [followUpEditor, setFollowUpEditor] = useState(null);
+  const [followUpUsers, setFollowUpUsers] = useState([]);
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const ledger = useMemo(() => buildBillLedger(result?.customers), [result]);
+  const followUpsByCustomerBill = useMemo(() => new Map((result?.follow_ups || []).map((task) => [
+    `${task.installed_customer_id}-${task.bill_month || `number-${task.bill_number}`}`,
+    task,
+  ])), [result]);
+
+  useEffect(() => {
+    let active = true;
+    axios.get('/users').then((response) => {
+      if (!active) return;
+      const allowedRoles = new Set(['super_admin', 'admin']);
+      const rows = (response.data || []).filter((user) => (
+        user.status === 'approved'
+        && (user.roles || [user.role]).some((role) => allowedRoles.has(role))
+      ));
+      setFollowUpUsers(rows.sort((a, b) => String(a.full_name || a.username).localeCompare(String(b.full_name || b.username), 'th')));
+    }).catch(() => {
+      if (active) setFollowUpUsers([]);
+    });
+    return () => { active = false; };
+  }, []);
+  const maxBillNumber = useMemo(() => Math.max(
+    1,
+    Number(result?.active_config?.months) || 1,
+    ...ledger.map((row) => Number(row.bill_number) || 1)
+  ), [ledger, result]);
+  const selectedBillNumber = Math.min(maxBillNumber, Math.max(1, Number(filters.billNumber) || 1));
+  const selectedBills = useMemo(() => {
+    const byCustomerAndNumber = new Map(ledger.map((row) => [`${row.customer_id}-${row.bill_number}`, row]));
+    return (result?.customers || []).map((customer) => {
+      const row = byCustomerAndNumber.get(`${customer.id}-${selectedBillNumber}`)
+        || missingBillRow(customer, selectedBillNumber);
+      return {
+        ...row,
+        follow_up: followUpsByCustomerBill.get(`${customer.id}-${row.bill_month}`)
+          || followUpsByCustomerBill.get(`${customer.id}-number-${selectedBillNumber}`)
+          || null,
+      };
+    });
+  }, [followUpsByCustomerBill, ledger, result, selectedBillNumber]);
+  const months = useMemo(() => Array.from(new Set(selectedBills.map((row) => row.bill_month).filter(Boolean))).sort().reverse(), [selectedBills]);
+
+  const matchedBills = useMemo(() => {
+    const query = filters.query.trim().toLowerCase();
+    const minimum = filters.amountMin === '' ? null : Number(filters.amountMin);
+    const maximum = filters.amountMax === '' ? null : Number(filters.amountMax);
+    return selectedBills.filter((row) => {
+      if (filters.month !== 'all' && row.bill_month !== filters.month) return false;
+      if (filters.amountSource === 'recorded' && row.amount_source !== 'recorded') return false;
+      if (filters.amountSource === 'reference' && row.amount_source !== 'reference') return false;
+      if (filters.amountSource === 'missing' && row.amount_source !== 'missing') return false;
+      if (filters.taskStatus === 'none' && row.follow_up) return false;
+      if (filters.taskStatus === 'unassigned' && row.follow_up?.status !== 'unassigned') return false;
+      if (filters.taskStatus === 'active' && !['assigned', 'in_progress', 'waiting_customer', 'unreachable'].includes(row.follow_up?.status)) return false;
+      if (filters.taskStatus === 'completed' && row.follow_up?.status !== 'completed') return false;
+      if (filters.assignee !== 'all' && String(row.follow_up?.assigned_to || '') !== filters.assignee) return false;
+      if (minimum != null && Number.isFinite(minimum) && row.amount < minimum) return false;
+      if (maximum != null && Number.isFinite(maximum) && row.amount > maximum) return false;
+      if (!query) return true;
+      return [row.customer_name, row.non_number, row.package_name, row.seller_name, row.raw_value]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    }).sort((a, b) => String(b.bill_month).localeCompare(String(a.bill_month))
+      || String(a.customer_name).localeCompare(String(b.customer_name), 'th'));
+  }, [filters, selectedBills]);
+
+  const paymentCounts = useMemo(() => ({
+    all: matchedBills.length,
+    paid: matchedBills.filter((row) => row.payment_state === 'paid').length,
+    unpaid: matchedBills.filter((row) => row.payment_state === 'unpaid').length,
+  }), [matchedBills]);
+
+  const paymentOverview = useMemo(() => {
+    const paidRows = matchedBills.filter((row) => row.payment_state === 'paid');
+    const unpaidRows = matchedBills.filter((row) => row.payment_state === 'unpaid');
+    return {
+      paidAmount: paidRows.reduce((sum, row) => sum + row.amount, 0),
+      unpaidAmount: unpaidRows.reduce((sum, row) => sum + row.amount, 0),
+      missingCustomers: unpaidRows.filter((row) => row.bill_status === 'missing').length,
+    };
+  }, [matchedBills]);
+
+  const paymentFilteredBills = useMemo(() => (
+    filters.status === 'all'
+      ? matchedBills
+      : matchedBills.filter((row) => row.payment_state === filters.status)
+  ), [filters.status, matchedBills]);
+
+  const dueCounts = useMemo(() => {
+    const unpaidRows = matchedBills.filter((row) => row.payment_state === 'unpaid');
+    return {
+      all: unpaidRows.length,
+      not_due: unpaidRows.filter((row) => row.due_state === 'not_due').length,
+      due_today: unpaidRows.filter((row) => row.due_state === 'due_today').length,
+      overdue: unpaidRows.filter((row) => row.due_state === 'overdue').length,
+      missing: unpaidRows.filter((row) => row.due_state === 'missing').length,
+    };
+  }, [matchedBills]);
+
+  const filteredBills = useMemo(() => (
+    filters.dueState === 'all'
+      ? paymentFilteredBills
+      : paymentFilteredBills.filter((row) => row.due_state === filters.dueState)
+  ), [filters.dueState, paymentFilteredBills]);
+
+  const summary = useMemo(() => {
+    const uniqueCustomers = new Set(filteredBills.map((row) => row.customer_id)).size;
+    const totalAmount = filteredBills.reduce((sum, row) => sum + row.amount, 0);
+    const recordedAmount = filteredBills
+      .filter((row) => row.amount_source === 'recorded')
+      .reduce((sum, row) => sum + row.amount, 0);
+    const referenceAmount = filteredBills
+      .filter((row) => row.amount_source === 'reference')
+      .reduce((sum, row) => sum + row.amount, 0);
+    const paidRows = filteredBills.filter((row) => row.payment_state === 'paid');
+    const unpaidRows = filteredBills.filter((row) => row.payment_state === 'unpaid');
+    return {
+      uniqueCustomers,
+      totalAmount,
+      recordedAmount,
+      referenceAmount,
+      paidCustomers: paidRows.length,
+      unpaidCustomers: unpaidRows.length,
+      paidAmount: paidRows.reduce((sum, row) => sum + row.amount, 0),
+      unpaidAmount: unpaidRows.reduce((sum, row) => sum + row.amount, 0),
+      missingCustomers: unpaidRows.filter((row) => row.bill_status === 'missing').length,
+    };
+  }, [filteredBills]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBills.length / billPageSize));
+  const currentPage = Math.min(billPage, totalPages);
+  const pageRows = filteredBills.slice((currentPage - 1) * billPageSize, currentPage * billPageSize);
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => value !== DEFAULT_BILL_FILTERS[key]);
+  const scopeLabel = filters.dueState !== 'all'
+    ? ({ not_due: 'ยังไม่ถึงกำหนด', due_today: 'ครบกำหนดวันนี้', overdue: 'เกินกำหนด', missing: 'ไม่มีข้อมูลบิล' }[filters.dueState] || 'ตามกำหนดชำระ')
+    : filters.status === 'paid'
+      ? 'เฉพาะชำระแล้ว'
+      : filters.status === 'unpaid'
+        ? 'เฉพาะยังไม่ชำระ'
+        : 'ทุกสถานะ';
+
+  const updateFilter = (key) => (event) => {
+    setFilters((current) => ({
+      ...current,
+      [key]: event.target.value,
+      ...(key === 'billNumber' ? { month: 'all', dueState: 'all' } : {}),
+    }));
+    setBillPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters(DEFAULT_BILL_FILTERS);
+    setBillPage(1);
+  };
+
+  const openFollowUpEditor = (row) => {
+    const task = row.follow_up;
+    setFollowUpEditor({
+      row,
+      assigned_to: task?.assigned_to ?? '',
+      status: task?.status || 'unassigned',
+      priority: task?.priority || (row.due_state === 'overdue' ? 'high' : 'normal'),
+      due_date: dateInput(task?.due_date || row.due_date),
+      next_follow_up_at: dateTimeInput(task?.next_follow_up_at),
+      contact_result: task?.contact_result || '',
+      note: task?.note || '',
+    });
+  };
+
+  const saveFollowUp = async (event) => {
+    event.preventDefault();
+    if (!followUpEditor?.row?.bill_month) {
+      Swal.fire('ยังสร้างงานไม่ได้', 'ลูกค้ารายนี้ไม่มีเดือนบิลสำหรับงวดที่เลือก กรุณาตรวจสอบวันครบชำระก่อน', 'warning');
+      return;
+    }
+    setSavingFollowUp(true);
+    try {
+      await axios.post('/installed-customers/qc-follow-ups', {
+        installed_customer_id: followUpEditor.row.customer_id,
+        task_type: 'billing',
+        bill_month: followUpEditor.row.bill_month,
+        bill_number: followUpEditor.row.bill_number,
+        assigned_to: followUpEditor.assigned_to || null,
+        status: followUpEditor.status,
+        priority: followUpEditor.priority,
+        due_date: followUpEditor.due_date || null,
+        next_follow_up_at: followUpEditor.next_follow_up_at || null,
+        contact_result: followUpEditor.contact_result,
+        note: followUpEditor.note,
+      });
+      setFollowUpEditor(null);
+      await onRefresh();
+      Swal.fire({ icon: 'success', title: 'บันทึกงานติดตามแล้ว', timer: 1300, showConfirmButton: false });
+    } catch (error) {
+      Swal.fire('บันทึกงานติดตามไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
+    } finally {
+      setSavingFollowUp(false);
+    }
+  };
+
+  const exportFilteredBills = async () => {
+    if (!filteredBills.length || exportingBills) return;
+    setExportingBills(true);
+    try {
+      const { exportBillPaymentsWorkbook } = await import('../utils/qcExport');
+      await exportBillPaymentsWorkbook({
+        rows: filteredBills,
+        filters: { ...filters, billNumber: String(selectedBillNumber) },
+        summary,
+        refMonth: result?.ref_month,
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Export รายการบิลแล้ว',
+        text: `บิลที่ ${selectedBillNumber} จำนวน ${summary.uniqueCustomers.toLocaleString('th-TH')} ราย`,
+        timer: 1800,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire('Export รายการบิลไม่สำเร็จ', error.message, 'error');
+    } finally {
+      setExportingBills(false);
+    }
+  };
+
+  return (
+    <>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><WalletCards className="h-4.5 w-4.5" /></div>
+              <div>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">ตรวจการชำระตามลำดับบิลหลังติดตั้ง</h2>
+                <p className="mt-0.5 text-xs text-slate-500">เลือกบิลที่ 1, 2, 3… แล้วแยกรายชื่อลูกค้าที่ชำระแล้วและยังไม่ชำระทันที</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={clearFilters} disabled={!hasActiveFilters} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"><X className="h-3.5 w-3.5" /> ล้างตัวกรอง</button>
+            <button type="button" onClick={exportFilteredBills} disabled={!filteredBills.length || exportingBills} className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#78BE20] dark:text-slate-950"><Download className="h-3.5 w-3.5" /> {exportingBills ? 'กำลัง Export...' : 'Export ตามตัวกรอง'}</button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-lime-200 bg-lime-50/60 p-3 dark:border-lime-900 dark:bg-lime-950/30 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-xs font-black text-lime-950 dark:text-lime-200">เลือกงวดที่ต้องการตรวจ</span>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="เลือกลำดับบิล">
+            {Array.from({ length: maxBillNumber }, (_, index) => index + 1).map((number) => (
+              <button key={number} type="button" onClick={() => { setFilters((current) => ({ ...current, billNumber: String(number), month: 'all', dueState: 'all' })); setBillPage(1); }} aria-pressed={selectedBillNumber === number} className={`h-9 min-w-16 rounded-lg border px-3 text-xs font-black transition focus:outline-none focus:ring-4 focus:ring-lime-100 ${selectedBillNumber === number ? 'border-lime-500 bg-[#78BE20] text-slate-950 shadow-sm' : 'border-lime-200 bg-white text-lime-900 hover:border-lime-400 dark:border-lime-800 dark:bg-slate-950 dark:text-lime-300'}`}>บิล {number}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="relative sm:col-span-2 xl:col-span-2">
+            <span className="sr-only">ค้นหาลูกค้า</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={filters.query} onChange={updateFilter('query')} placeholder="ค้นหาชื่อ, NON, แพ็กเกจ, ผู้ขาย" className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950" />
+          </label>
+          <select value={filters.month} onChange={updateFilter('month')} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950">
+            <option value="all">ทุกเดือนปฏิทิน</option>
+            {months.map((item) => <option key={item} value={item}>{formatMonth(item)}</option>)}
+          </select>
+          <select value={filters.amountSource} onChange={updateFilter('amountSource')} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950">
+            <option value="all">ทุกแหล่งยอด</option>
+            <option value="recorded">ยอดบันทึกจริง</option>
+            <option value="reference">ยอดอ้างอิง/ประมาณ</option>
+            <option value="missing">ยังไม่มียอด</option>
+          </select>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" min="0" step="0.01" value={filters.amountMin} onChange={updateFilter('amountMin')} placeholder="ยอดต่ำสุด" aria-label="ยอดต่ำสุด" className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-lime-500 dark:border-slate-700 dark:bg-slate-950" />
+            <input type="number" min="0" step="0.01" value={filters.amountMax} onChange={updateFilter('amountMax')} placeholder="ยอดสูงสุด" aria-label="ยอดสูงสุด" className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-lime-500 dark:border-slate-700 dark:bg-slate-950" />
+          </div>
+        </div>
+
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:max-w-2xl">
+          <select value={filters.taskStatus} onChange={updateFilter('taskStatus')} aria-label="กรองสถานะงานติดตาม" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">งานติดตามทุกสถานะ</option><option value="none">ยังไม่มีงานติดตาม</option><option value="unassigned">งานยังไม่มอบหมาย</option><option value="active">งานกำลังดำเนินการ</option><option value="completed">งานปิดแล้ว</option></select>
+          <select value={filters.assignee} onChange={updateFilter('assignee')} aria-label="กรองผู้รับผิดชอบ" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">ผู้รับผิดชอบทั้งหมด</option>{followUpUsers.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.username}</option>)}</select>
+        </div>
+
+        <p className="mt-2 rounded-lg bg-lime-50 px-3 py-2 text-xs font-semibold text-lime-900 dark:bg-lime-950/50 dark:text-lime-300"><b>หลักการนับ:</b> บิลที่ 1 คือรอบครบชำระครั้งแรกหลังติดตั้งตามตาราง AIS และบิลที่ 2 คือรอบเดือนถัดไป หากไม่มีข้อมูลของงวดที่เลือก ระบบจะจัดไว้ใน “ยังไม่ชำระ” พร้อมป้าย “ไม่มีข้อมูลบิล”</p>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3" role="group" aria-label="กรองสถานะการชำระ">
+          {[
+            ['all', 'ลูกค้าทั้งหมด', 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'],
+            ['paid', 'ชำระแล้ว', 'border-emerald-400 bg-emerald-100 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200'],
+            ['unpaid', 'ยังไม่ชำระ', 'border-rose-400 bg-rose-100 text-rose-900 dark:border-rose-700 dark:bg-rose-950 dark:text-rose-200'],
+          ].map(([key, label, activeClass]) => (
+            <button key={key} type="button" onClick={() => { setFilters((current) => ({ ...current, status: key, dueState: 'all' })); setBillPage(1); }} aria-pressed={filters.status === key} className={`flex min-h-12 items-center justify-between rounded-xl border px-4 text-left text-sm font-black transition focus:outline-none focus:ring-4 focus:ring-lime-100 ${filters.status === key ? activeClass : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'}`}>
+              <span>{label}</span><span className="text-lg">{paymentCounts[key].toLocaleString('th-TH')}</span>
+            </button>
+          ))}
+        </div>
+
+        {filters.status === 'unpaid' && (
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="กรองตามกำหนดชำระ">
+            {[
+              ['all', 'ทุกกลุ่มติดตาม'],
+              ['not_due', 'ยังไม่ถึงกำหนด'],
+              ['due_today', 'ครบกำหนดวันนี้'],
+              ['overdue', 'เกินกำหนด'],
+              ['missing', 'ไม่มีข้อมูลบิล'],
+            ].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => { setFilters((current) => ({ ...current, dueState: key })); setBillPage(1); }} aria-pressed={filters.dueState === key} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition ${filters.dueState === key ? 'border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'}`}>{label} <span className="ml-1 opacity-70">{dueCounts[key].toLocaleString('th-TH')}</span></button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <BillSummaryCard label={`ลูกค้าในบิลที่ ${selectedBillNumber}`} value={`${summary.uniqueCustomers.toLocaleString('th-TH')} ราย`} note={`กำลังแสดง ${scopeLabel}`} />
+          <BillSummaryCard label="ชำระแล้ว" value={`${paymentCounts.paid.toLocaleString('th-TH')} ราย`} note={`ยอด ${formatMoney(paymentOverview.paidAmount)} บาท`} tone="success" />
+          <BillSummaryCard label="ยังไม่ชำระ/รอตรวจ" value={`${paymentCounts.unpaid.toLocaleString('th-TH')} ราย`} note={`ยอดติดตาม ${formatMoney(paymentOverview.unpaidAmount)} บาท`} tone="danger" />
+          <BillSummaryCard label="ไม่มีข้อมูลบิล" value={`${paymentOverview.missingCustomers.toLocaleString('th-TH')} ราย`} note="รวมอยู่ในกลุ่มยังไม่ชำระ" tone="warning" />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1510px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs font-bold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+            <tr>
+              <th className="w-16 px-4 py-3 text-center">ลำดับ</th>
+              <th className="min-w-[160px] px-4 py-3">ลำดับบิล / เดือน</th>
+              <th className="min-w-[300px] px-4 py-3">ลูกค้า / NON / แพ็กเกจ</th>
+              <th className="min-w-[160px] px-4 py-3">ผู้ขาย</th>
+              <th className="min-w-[180px] px-4 py-3">ผลการชำระ</th>
+              <th className="min-w-[150px] px-4 py-3 text-right">ยอด</th>
+              <th className="min-w-[190px] px-4 py-3">ความน่าเชื่อถือของยอด</th>
+              <th className="min-w-[180px] px-4 py-3">กำหนดชำระ</th>
+              <th className="min-w-[220px] px-4 py-3">งานติดตาม</th>
+              <th className="w-28 px-4 py-3 text-center">ข้อมูล</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((row, index) => (
+              <tr key={row.key} className="border-t border-slate-100 transition hover:bg-lime-50/40 dark:border-slate-800 dark:hover:bg-lime-950/20">
+                <td className="px-4 py-3 text-center text-xs text-slate-400">{(currentPage - 1) * billPageSize + index + 1}</td>
+                <td className="px-4 py-3"><div className="font-black text-slate-900 dark:text-white">บิลที่ {row.bill_number}</div><div className="mt-1 text-xs font-semibold text-slate-500">{formatMonth(row.bill_month)}</div></td>
+                <td className="px-4 py-3">
+                  <div className="font-bold text-slate-900 dark:text-white">{row.customer_name || '-'}</div>
+                  <div className="mt-1 font-mono text-xs font-bold text-slate-500">{row.non_number || '-'}</div>
+                  <div className="mt-1 max-w-[360px] truncate text-xs text-slate-500" title={row.package_name}>{row.package_name || '-'}</div>
+                </td>
+                <td className="px-4 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300">{row.seller_name || '-'}</td>
+                <td className="px-4 py-3"><PaymentStateBadge state={row.payment_state} /><div className="mt-1.5"><BillStatusBadge status={row.bill_status} /></div></td>
+                <td className="px-4 py-3 text-right"><div className="font-black text-slate-900 dark:text-white">{formatMoney(row.amount)} บาท</div>{row.raw_value && <div className="mt-1 max-w-[180px] truncate text-xs text-slate-400" title={row.raw_value}>{row.raw_value}</div>}</td>
+                <td className="px-4 py-3"><AmountSourceBadge source={row.amount_source} label={row.amount_source_label} /></td>
+                <td className="px-4 py-3"><DueStateBadge state={row.due_state} /><div className="mt-1.5 text-xs font-semibold text-slate-500">{formatDate(row.due_date)}</div></td>
+                <td className="px-4 py-3">
+                  {row.follow_up ? <><TaskStatusBadge status={row.follow_up.status} /><div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200">{row.follow_up.assignee_name || 'ยังไม่มอบหมาย'}</div><button type="button" onClick={() => openFollowUpEditor(row)} className="mt-1 text-xs font-black text-sky-700 hover:underline dark:text-sky-300">แก้ไขงานติดตาม</button></> : row.payment_state === 'unpaid' ? <button type="button" onClick={() => openFollowUpEditor(row)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"><Plus className="h-3.5 w-3.5" /> สร้างงานติดตาม</button> : <span className="text-xs text-slate-400">ไม่ต้องติดตาม</span>}
+                </td>
+                <td className="px-4 py-3 text-center"><button type="button" onClick={() => onViewCustomer(row.customer)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:border-lime-400 hover:bg-lime-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"><Eye className="h-3.5 w-3.5" /> ดูบิล</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!pageRows.length && <div className="py-12 text-center text-sm font-semibold text-slate-500">ไม่พบลูกค้าในบิลที่ {selectedBillNumber} ตามตัวกรองที่เลือก</div>}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2"><span>แสดง</span><select value={billPageSize} onChange={(event) => { setBillPageSize(Number(event.target.value)); setBillPage(1); }} className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold dark:border-slate-700 dark:bg-slate-900">{[25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}</select><span>จาก {filteredBills.length.toLocaleString('th-TH')} ราย</span></div>
+        <div className="flex items-center gap-2"><button type="button" onClick={() => setBillPage((value) => Math.max(1, value - 1))} disabled={currentPage <= 1} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900" aria-label="หน้าบิลก่อนหน้า"><ChevronLeft className="h-4 w-4" /></button><span className="min-w-24 text-center font-bold">หน้า {currentPage} / {totalPages}</span><button type="button" onClick={() => setBillPage((value) => Math.min(totalPages, value + 1))} disabled={currentPage >= totalPages} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900" aria-label="หน้าบิลถัดไป"><ChevronRight className="h-4 w-4" /></button></div>
+      </div>
+      </section>
+      {followUpEditor && <FollowUpTaskModal value={followUpEditor} onChange={setFollowUpEditor} users={followUpUsers} saving={savingFollowUp} onSubmit={saveFollowUp} onClose={() => setFollowUpEditor(null)} />}
+    </>
+  );
+}
+
+function BillSummaryCard({ label, value, note, tone = 'default' }) {
+  const tones = {
+    default: 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950',
+    success: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40',
+    danger: 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/40',
+    warning: 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40',
+  };
+  return <div className={`rounded-xl border px-3 py-2.5 ${tones[tone]}`}><p className="text-[11px] font-bold text-slate-500">{label}</p><p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{value}</p><p className="mt-0.5 text-[11px] text-slate-500">{note}</p></div>;
+}
+
+function BillStatusBadge({ status }) {
+  const tones = {
+    paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    outstanding: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    overdue: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+    reserved: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+    note: 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300',
+    unknown: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    missing: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+  };
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${tones[status] || tones.unknown}`}>{billStatusLabel(status)}</span>;
+}
+
+function PaymentStateBadge({ state }) {
+  return state === 'paid'
+    ? <span className="inline-flex rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-black text-white">ชำระแล้ว</span>
+    : <span className="inline-flex rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-black text-white">ยังไม่ชำระ</span>;
+}
+
+function DueStateBadge({ state }) {
+  const states = {
+    paid: ['ชำระแล้ว', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'],
+    not_due: ['ยังไม่ถึงกำหนด', 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'],
+    due_today: ['ครบกำหนดวันนี้', 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'],
+    overdue: ['เกินกำหนด', 'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300'],
+    missing: ['ไม่มีข้อมูลบิล', 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'],
+  };
+  const [label, className] = states[state] || states.missing;
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${className}`}>{label}</span>;
+}
+
+function TaskStatusBadge({ status }) {
+  const states = {
+    unassigned: ['ยังไม่มอบหมาย', 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'],
+    assigned: ['มอบหมายแล้ว', 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'],
+    in_progress: ['กำลังติดตาม', 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'],
+    waiting_customer: ['รอลูกค้า', 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'],
+    completed: ['ปิดงานแล้ว', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'],
+    unreachable: ['ติดต่อไม่ได้', 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'],
+  };
+  const [label, className] = states[status] || states.unassigned;
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${className}`}>{label}</span>;
+}
+
+function FollowUpTaskModal({ value, onChange, users, saving, onSubmit, onClose }) {
+  const update = (key) => (event) => onChange((current) => ({ ...current, [key]: event.target.value }));
+  const row = value.row;
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="follow-up-title">
+      <button type="button" onClick={onClose} className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" aria-label="ปิดหน้ามอบหมายงาน" />
+      <form onSubmit={onSubmit} className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <div><h3 id="follow-up-title" className="font-black text-slate-900 dark:text-white">มอบหมายงานติดตามบิลที่ {row.bill_number}</h3><p className="mt-1 text-xs text-slate-500">{row.customer_name} · NON {row.non_number} · {formatMonth(row.bill_month)}</p></div>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="ปิด"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
+          <EditField label="ผู้รับผิดชอบ"><select value={value.assigned_to} onChange={update('assigned_to')} className={fieldClass}><option value="">ยังไม่มอบหมาย</option>{users.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.username}</option>)}</select></EditField>
+          <EditField label="สถานะงาน"><select value={value.status} onChange={update('status')} className={fieldClass}><option value="unassigned">ยังไม่มอบหมาย</option><option value="assigned">มอบหมายแล้ว</option><option value="in_progress">กำลังติดตาม</option><option value="waiting_customer">รอลูกค้า</option><option value="unreachable">ติดต่อไม่ได้</option><option value="completed">ปิดงานแล้ว</option></select></EditField>
+          <EditField label="ความสำคัญ"><select value={value.priority} onChange={update('priority')} className={fieldClass}><option value="low">ต่ำ</option><option value="normal">ปกติ</option><option value="high">สูง</option><option value="urgent">เร่งด่วน</option></select></EditField>
+          <EditField label="กำหนดดำเนินการ"><input type="date" value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
+          <EditField label="นัดติดตามครั้งถัดไป"><input type="datetime-local" value={value.next_follow_up_at} onChange={update('next_follow_up_at')} className={fieldClass} /></EditField>
+          <EditField label="ผลการติดต่อ"><input value={value.contact_result} onChange={update('contact_result')} placeholder="เช่น รับสาย / ขอเลื่อน / ติดต่อไม่ได้" className={fieldClass} /></EditField>
+          <EditField label="รายละเอียดการติดตาม" className="sm:col-span-2"><textarea rows={4} value={value.note} onChange={update('note')} placeholder="บันทึกสิ่งที่ต้องดำเนินการหรือผลการพูดคุย" className={`${fieldClass} h-auto py-2`} /></EditField>
+        </div>
+
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900"><button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">ยกเลิก</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#78BE20] px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกงานติดตาม</button></div>
+      </form>
+    </div>
+  );
+}
+
+function AmountSourceBadge({ source, label }) {
+  const tones = {
+    recorded: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+    reference: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+    missing: 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400',
+  };
+  return <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-bold ${tones[source] || tones.missing}`}>{label}</span>;
+}
+
 function StatusBadge({ value }) {
   if (!value) return <span className="text-xs text-slate-400">-</span>;
   const className = /(terminate|disconnect|cancel|ยกเลิก|ตัดบริการ)/i.test(value)
@@ -512,17 +1138,14 @@ function EmptyTable({ hasSearch }) {
   );
 }
 
-const BILL_STATUS_OPTIONS = [
-  ['paid', 'จ่ายแล้ว'],
-  ['outstanding', 'ยอดค้าง'],
-  ['overdue', 'เกินกำหนด'],
-  ['reserved', 'สำรองบิล'],
-  ['note', 'หมายเหตุ'],
-  ['unknown', 'ไม่ระบุสถานะ'],
-];
-
 function dateInput(value) {
   return value ? String(value).slice(0, 10) : '';
+}
+
+function dateTimeInput(value) {
+  if (!value) return '';
+  const text = String(value).replace(' ', 'T');
+  return text.slice(0, 16);
 }
 
 function aisDueDayPreview(installDate) {
@@ -562,6 +1185,7 @@ function customerFormValues(customer) {
     tracking_summary: customer.tracking_summary || '',
     bill_check_date: dateInput(customer.bill_check_date),
     expected_terminate_at: dateInput(customer.expected_terminate_at),
+    change_reason: '',
   };
 }
 
@@ -577,12 +1201,27 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [billEditor, setBillEditor] = useState(null);
   const [savingBill, setSavingBill] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(true);
+  const [auditVersion, setAuditVersion] = useState(0);
   const outcome = rowOutcome(customer, type);
   const billsByMonth = new Map((customer.bills || []).map((bill) => [bill.bill_month, bill]));
   const visibleBillMonths = Array.from(new Set([
     ...billMonths,
     ...(customer.bills || []).map((bill) => bill.bill_month),
   ])).sort();
+
+  useEffect(() => {
+    let active = true;
+    axios.get(`/installed-customers/${customer.id}/qc-history`).then((response) => {
+      if (active) setAuditLogs(response.data || []);
+    }).catch(() => {
+      if (active) setAuditLogs([]);
+    }).finally(() => {
+      if (active) setLoadingAudit(false);
+    });
+    return () => { active = false; };
+  }, [auditVersion, customer.id]);
 
   const beginCustomerEdit = () => {
     setCustomerForm(customerFormValues(customer));
@@ -602,6 +1241,8 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
       });
       setEditingCustomer(false);
       await onRefresh();
+      setLoadingAudit(true);
+      setAuditVersion((value) => value + 1);
       Swal.fire({ icon: 'success', title: 'บันทึกข้อมูลแล้ว', timer: 1400, showConfirmButton: false });
     } catch (error) {
       Swal.fire('บันทึกไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
@@ -616,8 +1257,10 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
       bill_month: month,
       bill_status: bill?.bill_status || 'paid',
       amount: bill?.amount ?? '',
+      paid_amount: bill?.paid_amount ?? '',
       raw_value: bill?.raw_value || '',
       due_date: dateInput(bill?.due_date),
+      change_reason: '',
     });
   };
 
@@ -636,11 +1279,15 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
       await axios.put(`/installed-customers/${customer.id}/bills/${billEditor.bill_month}`, {
         bill_status: billEditor.bill_status,
         amount: billEditor.amount === '' ? 0 : Number(billEditor.amount),
+        paid_amount: billEditor.paid_amount === '' ? null : Number(billEditor.paid_amount),
         raw_value: billEditor.raw_value,
         due_date: billEditor.due_date || null,
+        change_reason: billEditor.change_reason,
       });
       setBillEditor(null);
       await onRefresh();
+      setLoadingAudit(true);
+      setAuditVersion((value) => value + 1);
       Swal.fire({ icon: 'success', title: 'บันทึกบิลแล้ว', timer: 1200, showConfirmButton: false });
     } catch (error) {
       Swal.fire('บันทึกบิลไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
@@ -651,6 +1298,10 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
 
   const deleteBill = async () => {
     if (!billEditor?.originalMonth) return;
+    if (!String(billEditor.change_reason || '').trim()) {
+      Swal.fire('กรุณาระบุเหตุผล', 'ต้องระบุเหตุผลก่อนลบบิลเพื่อบันทึกประวัติการแก้ไข', 'warning');
+      return;
+    }
     const confirmed = await Swal.fire({
       icon: 'warning',
       title: `ลบบิล ${formatMonth(billEditor.originalMonth)}?`,
@@ -663,9 +1314,11 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
     if (!confirmed.isConfirmed) return;
     setSavingBill(true);
     try {
-      await axios.delete(`/installed-customers/${customer.id}/bills/${billEditor.originalMonth}`);
+      await axios.delete(`/installed-customers/${customer.id}/bills/${billEditor.originalMonth}`, { data: { change_reason: billEditor.change_reason } });
       setBillEditor(null);
       await onRefresh();
+      setLoadingAudit(true);
+      setAuditVersion((value) => value + 1);
     } catch (error) {
       Swal.fire('ลบบิลไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
     } finally {
@@ -759,6 +1412,10 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
             </div>
           </DetailSection>
 
+          <DetailSection title="ประวัติการแก้ไขและติดตาม">
+            {loadingAudit ? <div className="flex items-center gap-2 py-4 text-sm font-semibold text-slate-500"><RefreshCw className="h-4 w-4 animate-spin" /> กำลังโหลดประวัติ...</div> : auditLogs.length ? <div className="space-y-2">{auditLogs.map((log) => <AuditLogItem key={log.id} log={log} />)}</div> : <p className="py-3 text-sm text-slate-500">ยังไม่มีประวัติการแก้ไขผ่านระบบ</p>}
+          </DetailSection>
+
           <DetailSection title="ที่มาของข้อมูล">
             <DetailGrid items={[
               ['ชีตต้นฉบับ', customer.source_sheet],
@@ -816,6 +1473,7 @@ function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
             {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
             <EditField label="สรุปสำรอง/ยกเลิก" className="sm:col-span-2"><textarea rows={2} value={form.tracking_summary} onChange={update('tracking_summary')} className={`${fieldClass} h-auto py-2`} /></EditField>
             <EditField label="ผลการติดตาม / AE Remark" className="sm:col-span-2"><textarea rows={4} value={form.ae_remark} onChange={update('ae_remark')} className={`${fieldClass} h-auto py-2`} /></EditField>
+            <EditField label="เหตุผลการแก้ไขครั้งนี้" required className="sm:col-span-2"><input required value={form.change_reason} onChange={update('change_reason')} placeholder="เช่น อัปเดตจากการตรวจสอบกับลูกค้า" className={fieldClass} /></EditField>
           </div>
         </div>
       </div>
@@ -845,7 +1503,6 @@ function BillEditor({ value, onChange, saving, onSubmit, onCancel, onDelete }) {
     onChange((current) => ({
       ...current,
       bill_status: billStatus,
-      amount: billStatus === 'paid' ? 0 : current.amount,
       raw_value: billStatus === 'paid' ? 'จ่ายแล้ว' : (current.bill_status === 'paid' ? '' : current.raw_value),
     }));
   };
@@ -860,9 +1517,14 @@ function BillEditor({ value, onChange, saving, onSubmit, onCancel, onDelete }) {
         <EditField label="เดือนบิล" required><input required type="month" disabled={Boolean(value.originalMonth)} value={value.bill_month} onChange={update('bill_month')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-500`} /></EditField>
         <EditField label="วันครบชำระ"><input type="date" value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
         <EditField label="สถานะบิล" required><select value={value.bill_status} onChange={updateStatus} className={fieldClass}>{BILL_STATUS_OPTIONS.map(([status, label]) => <option key={status} value={status}>{label}</option>)}</select></EditField>
-        <EditField label="ยอดเงิน (บาท)"><input type="number" min="0" step="0.01" disabled={!needsAmount} value={value.bill_status === 'paid' ? 0 : value.amount} onChange={update('amount')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /></EditField>
+        <EditField label={value.bill_status === 'paid' ? 'ยอดชำระจริง (บาท)' : 'ยอดเงิน (บาท)'}>
+          {value.bill_status === 'paid'
+            ? <><input type="number" min="0" step="0.01" value={value.paid_amount} onChange={update('paid_amount')} placeholder="กรอกเมื่อทราบยอดจริง" className={fieldClass} /><span className="mt-1 block text-[11px] font-medium text-slate-400">เว้นว่างได้ ระบบจะแสดงยอดประมาณพร้อมป้ายกำกับ</span></>
+            : <input type="number" min="0" step="0.01" disabled={!needsAmount} value={value.amount} onChange={update('amount')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} />}
+        </EditField>
         <EditField label="ข้อความที่ต้องการแสดง"><input value={value.raw_value} onChange={update('raw_value')} placeholder={value.bill_status === 'paid' ? 'จ่ายแล้ว' : 'เช่น สำรอง 643.07'} className={fieldClass} /></EditField>
       </div>
+      <div className="mt-3"><EditField label="เหตุผลการแก้ไขบิล" required><input required value={value.change_reason} onChange={update('change_reason')} placeholder="เช่น ตรวจสอบยอดจากเอกสาร Billing แล้ว" className={fieldClass} /></EditField></div>
       <div className="mt-4 flex flex-wrap justify-between gap-2">
         <div>{value.originalMonth && <button type="button" onClick={onDelete} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-50 disabled:opacity-50"><Trash2 className="h-4 w-4" /> ลบบิลเดือนนี้</button>}</div>
         <div className="flex gap-2"><button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">ยกเลิก</button><button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white hover:bg-sky-800 disabled:opacity-50">{saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} บันทึกบิล</button></div>
@@ -883,6 +1545,37 @@ function InfoPanel({ label, children }) {
   return <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><p className="mb-1 text-xs font-bold text-slate-500">{label}</p>{children}</div>;
 }
 
+function AuditLogItem({ log }) {
+  const actionLabels = {
+    customer_updated: 'แก้ไขข้อมูลลูกค้า',
+    bill_created: 'เพิ่มบิล',
+    bill_updated: 'แก้ไขบิล',
+    bill_deleted: 'ลบบิล',
+    follow_up_created: 'สร้างงานติดตาม',
+    follow_up_updated: 'อัปเดตงานติดตาม',
+    follow_up_auto_completed: 'ระบบปิดงานติดตามอัตโนมัติ',
+  };
+  const oldValue = log.old_value || {};
+  const newValue = log.new_value || {};
+  let detail = log.bill_month ? formatMonth(log.bill_month) : '';
+  if (log.entity_type === 'bill') {
+    const oldStatus = oldValue.bill_status ? billStatusLabel(oldValue.bill_status) : null;
+    const newStatus = newValue.bill_status ? billStatusLabel(newValue.bill_status) : null;
+    if (oldStatus || newStatus) detail = `${detail}${detail ? ' · ' : ''}${oldStatus || 'ไม่มีข้อมูล'} → ${newStatus || 'ลบข้อมูล'}`;
+  } else if (log.entity_type === 'follow_up_task') {
+    const status = newValue.status ? ({ unassigned: 'ยังไม่มอบหมาย', assigned: 'มอบหมายแล้ว', in_progress: 'กำลังติดตาม', waiting_customer: 'รอลูกค้า', completed: 'ปิดงานแล้ว', unreachable: 'ติดต่อไม่ได้' }[newValue.status] || newValue.status) : '';
+    detail = [detail, status, newValue.assignee_name].filter(Boolean).join(' · ');
+  } else if (log.entity_type === 'customer' && oldValue.qc_status !== newValue.qc_status) {
+    detail = `CM: ${oldValue.qc_status || '-'} → ${newValue.qc_status || '-'}`;
+  }
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-black text-slate-800 dark:text-slate-100">{actionLabels[log.action] || log.action}</p>{detail && <p className="mt-0.5 text-xs font-semibold text-slate-500">{detail}</p>}</div><time className="text-[11px] font-semibold text-slate-400">{formatDateTime(log.created_at)}</time></div>
+      <p className="mt-2 text-xs text-slate-500">โดย {log.actor_name || log.actor_username || 'ระบบ'}{log.reason ? ` · ${log.reason}` : ''}</p>
+    </div>
+  );
+}
+
 function BillCard({ month, bill, onEdit }) {
   const tone = !bill
     ? 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950'
@@ -891,7 +1584,11 @@ function BillCard({ month, bill, onEdit }) {
       : ['outstanding', 'overdue'].includes(bill.bill_status)
         ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
         : 'border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300';
-  const value = !bill ? 'ไม่มีข้อมูล' : bill.bill_status === 'paid' ? 'จ่ายแล้ว' : bill.raw_value || `${formatMoney(bill.amount)} บาท`;
+  const value = !bill
+    ? 'ไม่มีข้อมูล'
+    : bill.bill_status === 'paid'
+      ? (bill.paid_amount != null ? `จ่ายแล้ว ${formatMoney(bill.paid_amount)} บาท` : 'จ่ายแล้ว · ยังไม่ระบุยอดจริง')
+      : bill.raw_value || `${formatMoney(bill.amount)} บาท`;
   const sourceLabel = bill?.bill_source === 'auto' ? 'ระบบสร้าง' : bill?.bill_source === 'manual' ? 'แก้ไขเอง' : 'จากไฟล์';
   return (
     <button type="button" onClick={onEdit} className={`group relative min-h-24 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-lime-100 ${tone}`}>

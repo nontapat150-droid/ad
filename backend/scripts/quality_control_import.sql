@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS installed_customer_bills (
   bill_month CHAR(7) NOT NULL,
   bill_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
   amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  paid_amount DECIMAL(12,2) DEFAULT NULL,
   raw_value VARCHAR(255) DEFAULT NULL,
   imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_customer_bill_month (installed_customer_id, bill_month),
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS installed_customer_bills (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE installed_customer_bills
+  ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(12,2) DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS due_date DATE DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS billing_period_start DATE DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS billing_period_end DATE DEFAULT NULL,
@@ -59,4 +61,45 @@ CREATE TABLE IF NOT EXISTS quality_import_runs (
   imported_by INT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_quality_import_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS quality_follow_up_tasks (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  installed_customer_id INT NOT NULL,
+  task_type VARCHAR(20) NOT NULL DEFAULT 'billing',
+  bill_month CHAR(7) DEFAULT NULL,
+  bill_number TINYINT UNSIGNED DEFAULT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'unassigned',
+  priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+  assigned_to INT DEFAULT NULL,
+  due_date DATE DEFAULT NULL,
+  next_follow_up_at DATETIME DEFAULT NULL,
+  contact_result VARCHAR(100) DEFAULT NULL,
+  note TEXT DEFAULT NULL,
+  created_by INT DEFAULT NULL,
+  updated_by INT DEFAULT NULL,
+  completed_at DATETIME DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_qfut_customer_type_bill (installed_customer_id, task_type, bill_month),
+  KEY idx_qfut_status_due (status, due_date),
+  KEY idx_qfut_assignee (assigned_to),
+  CONSTRAINT fk_qfut_customer FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS quality_audit_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  installed_customer_id INT NOT NULL,
+  bill_month CHAR(7) DEFAULT NULL,
+  entity_type VARCHAR(30) NOT NULL,
+  entity_id BIGINT DEFAULT NULL,
+  action VARCHAR(50) NOT NULL,
+  old_json LONGTEXT DEFAULT NULL,
+  new_json LONGTEXT DEFAULT NULL,
+  reason VARCHAR(255) DEFAULT NULL,
+  actor_id INT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_qal_customer_created (installed_customer_id, created_at),
+  KEY idx_qal_entity (entity_type, entity_id),
+  CONSTRAINT fk_qal_customer FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

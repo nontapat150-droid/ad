@@ -85,6 +85,16 @@ function parseDate(value) {
   return null;
 }
 
+function parseDateTime(value) {
+  if (value == null || value === '') return null;
+  const text = String(value).trim().replace('T', ' ');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text} 00:00:00`;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?$/.test(text)) {
+    return text.length === 16 ? `${text}:00` : text.slice(0, 19);
+  }
+  return null;
+}
+
 // ── Ensure tables exist (safe for first use if migrate not run) ──────────────
 async function ensureTables(conn) {
   await conn.query(`
@@ -153,6 +163,7 @@ async function ensureTables(conn) {
       bill_month CHAR(7) NOT NULL,
       bill_status VARCHAR(30) NOT NULL DEFAULT 'unknown',
       amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+      paid_amount DECIMAL(12,2) DEFAULT NULL,
       raw_value VARCHAR(255) DEFAULT NULL,
       imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uq_customer_bill_month (installed_customer_id, bill_month),
@@ -163,6 +174,7 @@ async function ensureTables(conn) {
   `);
 
   const billColumns = [
+    ['paid_amount', 'DECIMAL(12,2) DEFAULT NULL'],
     ['due_date', 'DATE DEFAULT NULL'],
     ['billing_period_start', 'DATE DEFAULT NULL'],
     ['billing_period_end', 'DATE DEFAULT NULL'],
@@ -194,6 +206,51 @@ async function ensureTables(conn) {
       imported_by INT DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       KEY idx_quality_import_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS quality_follow_up_tasks (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      installed_customer_id INT NOT NULL,
+      task_type VARCHAR(20) NOT NULL DEFAULT 'billing',
+      bill_month CHAR(7) DEFAULT NULL,
+      bill_number TINYINT UNSIGNED DEFAULT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'unassigned',
+      priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+      assigned_to INT DEFAULT NULL,
+      due_date DATE DEFAULT NULL,
+      next_follow_up_at DATETIME DEFAULT NULL,
+      contact_result VARCHAR(100) DEFAULT NULL,
+      note TEXT DEFAULT NULL,
+      created_by INT DEFAULT NULL,
+      updated_by INT DEFAULT NULL,
+      completed_at DATETIME DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_qfut_customer_type_bill (installed_customer_id, task_type, bill_month),
+      KEY idx_qfut_status_due (status, due_date),
+      KEY idx_qfut_assignee (assigned_to),
+      CONSTRAINT fk_qfut_customer FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS quality_audit_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      installed_customer_id INT NOT NULL,
+      bill_month CHAR(7) DEFAULT NULL,
+      entity_type VARCHAR(30) NOT NULL,
+      entity_id BIGINT DEFAULT NULL,
+      action VARCHAR(50) NOT NULL,
+      old_json LONGTEXT DEFAULT NULL,
+      new_json LONGTEXT DEFAULT NULL,
+      reason VARCHAR(255) DEFAULT NULL,
+      actor_id INT DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_qal_customer_created (installed_customer_id, created_at),
+      KEY idx_qal_entity (entity_type, entity_id),
+      CONSTRAINT fk_qal_customer FOREIGN KEY (installed_customer_id) REFERENCES installed_customers(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -269,6 +326,48 @@ async function getDb() {
     tablesReady = true;
   }
   return pool;
+}
+
+function auditJson(value) {
+  if (value == null) return null;
+  try {
+    return JSON.stringify(value, (_key, item) => {
+      if (item instanceof Date) return item.toISOString();
+      return item;
+    });
+  } catch {
+    return JSON.stringify({ value: String(value) });
+  }
+}
+
+async function writeQualityAudit(db, {
+  customerId,
+  billMonth = null,
+  entityType,
+  entityId = null,
+  action,
+  oldValue = null,
+  newValue = null,
+  reason = null,
+  actorId = null,
+}) {
+  await db.query(
+    `INSERT INTO quality_audit_logs
+       (installed_customer_id, bill_month, entity_type, entity_id, action,
+        old_json, new_json, reason, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      customerId,
+      billMonth,
+      entityType,
+      entityId,
+      action,
+      auditJson(oldValue),
+      auditJson(newValue),
+      reason ? String(reason).trim().slice(0, 255) : null,
+      actorId || null,
+    ]
+  );
 }
 
 async function getAutoBillingMonths(db) {
@@ -489,6 +588,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               c.seller_name, c.contact_phone, c.subdistrict, c.district,
               c.qc_status, c.billing_status, c.status_changed_at, c.ae_remark,
               c.payment_due_day, c.first_due_date, c.payment_due_source,
+              DATE_FORMAT(c.first_due_date, '%Y-%m') AS first_due_month,
               c.install_month_label, c.tracking_summary,
               c.bill_check_date, c.expected_terminate_at, c.source_row_number,
               c.source_sheet, c.last_imported_at,
@@ -519,14 +619,30 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     );
 
     const [billRows] = await db.query(
-      `SELECT b.installed_customer_id, b.bill_month, b.bill_status, b.amount, b.raw_value,
-              b.due_date, b.billing_period_start, b.billing_period_end,
+      `SELECT b.installed_customer_id, b.bill_month, b.bill_status, b.amount, b.paid_amount, b.raw_value,
+              DATE_FORMAT(b.due_date, '%Y-%m-%d') AS due_date,
+              b.billing_period_start, b.billing_period_end,
               b.service_days, b.days_in_month, b.estimated_amount,
               b.estimated_vat, b.estimated_total, b.vat_rate, b.bill_source
        FROM installed_customer_bills b
        JOIN installed_customers c ON c.id = b.installed_customer_id
        WHERE c.install_date BETWEEN ? AND ?
        ORDER BY b.bill_month ASC, b.installed_customer_id ASC`,
+      [start, end]
+    );
+
+    const [followUpRows] = await db.query(
+      `SELECT t.id, t.installed_customer_id, t.task_type, t.bill_month, t.bill_number,
+              t.status, t.priority, t.assigned_to,
+              DATE_FORMAT(t.due_date, '%Y-%m-%d') AS due_date,
+              DATE_FORMAT(t.next_follow_up_at, '%Y-%m-%dT%H:%i') AS next_follow_up_at,
+              t.contact_result, t.note, t.completed_at, t.created_at, t.updated_at,
+              u.full_name AS assignee_name, u.username AS assignee_username
+       FROM quality_follow_up_tasks t
+       JOIN installed_customers c ON c.id = t.installed_customer_id
+       LEFT JOIN users u ON u.id = t.assigned_to
+       WHERE c.install_date BETWEEN ? AND ?
+       ORDER BY t.updated_at DESC`,
       [start, end]
     );
 
@@ -539,6 +655,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
         bill_month: bill.bill_month,
         bill_status: bill.bill_status,
         amount: Number(bill.amount) || 0,
+        paid_amount: bill.paid_amount == null ? null : Number(bill.paid_amount),
         raw_value: bill.raw_value,
         due_date: bill.due_date,
         billing_period_start: bill.billing_period_start,
@@ -595,11 +712,147 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       suspended_customers: suspendedCustomers,
       outstanding_customers: outstandingCustomers,
       bill_months: Array.from(billMonthSet).sort(),
+      follow_ups: followUpRows.map((task) => ({
+        ...task,
+        bill_number: task.bill_number == null ? null : Number(task.bill_number),
+        assigned_to: task.assigned_to == null ? null : Number(task.assigned_to),
+      })),
       customers: normalizedCustomers,
       detail,
     });
   } catch (err) {
     console.error('qc:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/qc-follow-ups', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const db = await getDb();
+    const customerId = Number(req.body.installed_customer_id);
+    const taskType = String(req.body.task_type || 'billing').trim().toLowerCase();
+    const billMonth = String(req.body.bill_month || '').trim() || null;
+    const billNumber = req.body.bill_number == null || req.body.bill_number === ''
+      ? null
+      : Number(req.body.bill_number);
+    if (!Number.isInteger(customerId) || customerId <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
+    if (!['billing', 'fraud', 'churn'].includes(taskType)) return res.status(400).json({ error: 'ประเภทงานติดตามไม่ถูกต้อง' });
+    if (taskType === 'billing' && !isValidYm(billMonth)) return res.status(400).json({ error: 'กรุณาระบุเดือนบิลให้ถูกต้อง' });
+    if (billNumber != null && (!Number.isInteger(billNumber) || billNumber < 1 || billNumber > 36)) {
+      return res.status(400).json({ error: 'ลำดับบิลต้องอยู่ระหว่าง 1–36' });
+    }
+
+    const [[customer]] = await db.query('SELECT id, customer_name, non_number FROM installed_customers WHERE id = ? LIMIT 1', [customerId]);
+    if (!customer) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
+
+    const allowedStatuses = ['unassigned', 'assigned', 'in_progress', 'waiting_customer', 'completed', 'unreachable'];
+    const allowedPriorities = ['low', 'normal', 'high', 'urgent'];
+    let status = String(req.body.status || 'unassigned').trim().toLowerCase();
+    const priority = String(req.body.priority || 'normal').trim().toLowerCase();
+    if (!allowedStatuses.includes(status)) return res.status(400).json({ error: 'สถานะงานติดตามไม่ถูกต้อง' });
+    if (!allowedPriorities.includes(priority)) return res.status(400).json({ error: 'ระดับความสำคัญไม่ถูกต้อง' });
+
+    const assignedTo = req.body.assigned_to == null || req.body.assigned_to === '' ? null : Number(req.body.assigned_to);
+    if (assignedTo != null) {
+      if (!Number.isInteger(assignedTo) || assignedTo <= 0) return res.status(400).json({ error: 'ผู้รับผิดชอบไม่ถูกต้อง' });
+      const [[assignee]] = await db.query('SELECT id FROM users WHERE id = ? AND status = ? LIMIT 1', [assignedTo, 'approved']);
+      if (!assignee) return res.status(400).json({ error: 'ไม่พบผู้รับผิดชอบที่พร้อมใช้งาน' });
+      if (status === 'unassigned') status = 'assigned';
+    } else if (status === 'assigned') {
+      status = 'unassigned';
+    }
+
+    const dueDate = parseDate(req.body.due_date);
+    const nextFollowUpAt = parseDateTime(req.body.next_follow_up_at);
+    const contactResult = String(req.body.contact_result || '').trim().slice(0, 100) || null;
+    const note = String(req.body.note || '').trim().slice(0, 5000) || null;
+    const actorId = Number(req.user?.id) || null;
+    const uniqueBillMonth = billMonth || null;
+    const [[existing]] = await db.query(
+      `SELECT * FROM quality_follow_up_tasks
+       WHERE installed_customer_id = ? AND task_type = ? AND bill_month <=> ? LIMIT 1`,
+      [customerId, taskType, uniqueBillMonth]
+    );
+
+    await db.query(
+      `INSERT INTO quality_follow_up_tasks
+         (installed_customer_id, task_type, bill_month, bill_number, status, priority,
+          assigned_to, due_date, next_follow_up_at, contact_result, note,
+          created_by, updated_by, completed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? = 'completed', NOW(), NULL))
+       ON DUPLICATE KEY UPDATE
+         bill_number = VALUES(bill_number), status = VALUES(status), priority = VALUES(priority),
+         assigned_to = VALUES(assigned_to), due_date = VALUES(due_date),
+         next_follow_up_at = VALUES(next_follow_up_at), contact_result = VALUES(contact_result),
+         note = VALUES(note), updated_by = VALUES(updated_by),
+         completed_at = IF(VALUES(status) = 'completed', COALESCE(completed_at, NOW()), NULL)`,
+      [
+        customerId, taskType, uniqueBillMonth, billNumber, status, priority,
+        assignedTo, dueDate, nextFollowUpAt, contactResult, note,
+        actorId, actorId, status,
+      ]
+    );
+
+    const [[task]] = await db.query(
+      `SELECT t.*, DATE_FORMAT(t.due_date, '%Y-%m-%d') AS due_date,
+              DATE_FORMAT(t.next_follow_up_at, '%Y-%m-%dT%H:%i') AS next_follow_up_at,
+              u.full_name AS assignee_name, u.username AS assignee_username
+       FROM quality_follow_up_tasks t
+       LEFT JOIN users u ON u.id = t.assigned_to
+       WHERE t.installed_customer_id = ? AND t.task_type = ? AND t.bill_month <=> ? LIMIT 1`,
+      [customerId, taskType, uniqueBillMonth]
+    );
+    await writeQualityAudit(db, {
+      customerId,
+      billMonth: uniqueBillMonth,
+      entityType: 'follow_up_task',
+      entityId: task.id,
+      action: existing ? 'follow_up_updated' : 'follow_up_created',
+      oldValue: existing,
+      newValue: task,
+      reason: note || contactResult,
+      actorId,
+    });
+    res.json({
+      ...task,
+      assigned_to: task.assigned_to == null ? null : Number(task.assigned_to),
+      bill_number: task.bill_number == null ? null : Number(task.bill_number),
+    });
+  } catch (err) {
+    console.error('qc follow-up upsert:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/qc-history', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const db = await getDb();
+    const customerId = Number(req.params.id);
+    if (!Number.isInteger(customerId) || customerId <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
+    const [rows] = await db.query(
+      `SELECT a.id, a.bill_month, a.entity_type, a.entity_id, a.action,
+              a.old_json, a.new_json, a.reason, a.actor_id, a.created_at,
+              u.full_name AS actor_name, u.username AS actor_username
+       FROM quality_audit_logs a
+       LEFT JOIN users u ON u.id = a.actor_id
+       WHERE a.installed_customer_id = ?
+       ORDER BY a.created_at DESC, a.id DESC
+       LIMIT 100`,
+      [customerId]
+    );
+    const parseJson = (value) => {
+      if (!value) return null;
+      try { return typeof value === 'string' ? JSON.parse(value) : value; } catch { return null; }
+    };
+    res.json(rows.map((row) => ({
+      ...row,
+      old_value: parseJson(row.old_json),
+      new_value: parseJson(row.new_json),
+      old_json: undefined,
+      new_json: undefined,
+    })));
+  } catch (err) {
+    console.error('qc history:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -780,6 +1033,7 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
              VALUES ${placeholders}
              ON DUPLICATE KEY UPDATE
                bill_status = VALUES(bill_status), amount = VALUES(amount),
+               paid_amount = IF(VALUES(bill_status) = 'paid', paid_amount, NULL),
                raw_value = VALUES(raw_value), bill_source = 'import', imported_at = CURRENT_TIMESTAMP`,
             billValues
           );
@@ -1171,6 +1425,16 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       payment_due_day,
     });
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
+    await writeQualityAudit(db, {
+      customerId: id,
+      entityType: 'customer',
+      entityId: id,
+      action: 'customer_updated',
+      oldValue: existing,
+      newValue: row,
+      reason: req.body.change_reason || null,
+      actorId: req.user?.id,
+    });
     res.json(row);
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -1195,7 +1459,7 @@ router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, 
     );
     if (!customer) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
     const [[existingBill]] = await db.query(
-      'SELECT due_date FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
+      'SELECT * FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
       [id, billMonth]
     );
 
@@ -1208,6 +1472,14 @@ router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, 
     let amount = req.body.amount == null || req.body.amount === '' ? 0 : Number(req.body.amount);
     if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: 'ยอดบิลต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป' });
     if (billStatus === 'paid') amount = 0;
+
+    let paidAmount = null;
+    if (billStatus === 'paid' && req.body.paid_amount != null && req.body.paid_amount !== '') {
+      paidAmount = Number(req.body.paid_amount);
+      if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+        return res.status(400).json({ error: 'ยอดชำระจริงต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป' });
+      }
+    }
 
     let rawValue = String(req.body.raw_value || '').trim().slice(0, 255) || null;
     if (!rawValue) {
@@ -1226,23 +1498,68 @@ router.put('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (req, 
 
     await db.query(
       `INSERT INTO installed_customer_bills
-         (installed_customer_id, bill_month, bill_status, amount, raw_value, due_date, bill_source)
-       VALUES (?, ?, ?, ?, ?, ?, 'manual')
+         (installed_customer_id, bill_month, bill_status, amount, paid_amount, raw_value, due_date, bill_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')
        ON DUPLICATE KEY UPDATE
-         bill_status = VALUES(bill_status), amount = VALUES(amount),
+         bill_status = VALUES(bill_status), amount = VALUES(amount), paid_amount = VALUES(paid_amount),
          raw_value = VALUES(raw_value), due_date = VALUES(due_date),
          bill_source = 'manual', imported_at = CURRENT_TIMESTAMP`,
-      [id, billMonth, billStatus, amount, rawValue, dueDate]
+      [id, billMonth, billStatus, amount, paidAmount, rawValue, dueDate]
     );
     const [[bill]] = await db.query(
-      `SELECT installed_customer_id, bill_month, bill_status, amount, raw_value, due_date,
+      `SELECT id, installed_customer_id, bill_month, bill_status, amount, paid_amount, raw_value, due_date,
               billing_period_start, billing_period_end, service_days, days_in_month,
               estimated_amount, estimated_vat, estimated_total, vat_rate, bill_source, imported_at
        FROM installed_customer_bills
        WHERE installed_customer_id = ? AND bill_month = ?`,
       [id, billMonth]
     );
-    res.json({ ...bill, amount: Number(bill.amount) || 0 });
+    await writeQualityAudit(db, {
+      customerId: id,
+      billMonth,
+      entityType: 'bill',
+      entityId: bill.id || existingBill?.id || null,
+      action: existingBill ? 'bill_updated' : 'bill_created',
+      oldValue: existingBill,
+      newValue: bill,
+      reason: req.body.change_reason || null,
+      actorId: req.user?.id,
+    });
+    if (billStatus === 'paid') {
+      const [openTasks] = await db.query(
+        `SELECT * FROM quality_follow_up_tasks
+         WHERE installed_customer_id = ? AND task_type = 'billing' AND bill_month = ?
+           AND status <> 'completed'`,
+        [id, billMonth]
+      );
+      if (openTasks.length) {
+        await db.query(
+          `UPDATE quality_follow_up_tasks
+           SET status = 'completed', completed_at = NOW(), updated_by = ?
+           WHERE installed_customer_id = ? AND task_type = 'billing' AND bill_month = ?
+             AND status <> 'completed'`,
+          [req.user?.id || null, id, billMonth]
+        );
+        for (const task of openTasks) {
+          await writeQualityAudit(db, {
+            customerId: id,
+            billMonth,
+            entityType: 'follow_up_task',
+            entityId: task.id,
+            action: 'follow_up_auto_completed',
+            oldValue: task,
+            newValue: { ...task, status: 'completed' },
+            reason: 'ระบบปิดงานอัตโนมัติหลังบันทึกว่าชำระแล้ว',
+            actorId: req.user?.id,
+          });
+        }
+      }
+    }
+    res.json({
+      ...bill,
+      amount: Number(bill.amount) || 0,
+      paid_amount: bill.paid_amount == null ? null : Number(bill.paid_amount),
+    });
   } catch (err) {
     console.error('installed bill upsert:', err);
     res.status(500).json({ error: err.message });
@@ -1256,11 +1573,25 @@ router.delete('/:id/bills/:billMonth', auth, requireRole(ADMIN_ROLES), async (re
     const billMonth = String(req.params.billMonth || '').trim();
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'รหัสลูกค้าไม่ถูกต้อง' });
     if (!isValidYm(billMonth)) return res.status(400).json({ error: 'เดือนบิลต้องเป็นรูปแบบ YYYY-MM' });
+    const [[existingBill]] = await db.query(
+      'SELECT * FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
+      [id, billMonth]
+    );
     const [result] = await db.query(
       'DELETE FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ?',
       [id, billMonth]
     );
     if (!result.affectedRows) return res.status(404).json({ error: 'ไม่พบข้อมูลบิลเดือนนี้' });
+    await writeQualityAudit(db, {
+      customerId: id,
+      billMonth,
+      entityType: 'bill',
+      entityId: existingBill?.id || null,
+      action: 'bill_deleted',
+      oldValue: existingBill,
+      reason: req.body?.change_reason || null,
+      actorId: req.user?.id,
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('installed bill delete:', err);
