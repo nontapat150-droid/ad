@@ -227,6 +227,7 @@ function rowOutcome(row, type) {
 export default function QualityControlPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [pageTab, setPageTab] = useState('qc');
   const [qcType, setQcType] = useState('fraud');
   const [month, setMonth] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
@@ -385,8 +386,8 @@ export default function QualityControlPage() {
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">ควบคุมคุณภาพ Fraud / Churn</h1>
-              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">ตรวจลูกค้าทั้งหมด สถานะ CM และบิลรายเดือนจากข้อมูลนำเข้าล่าสุด</p>
+              <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">ควบคุมคุณภาพ</h1>
+              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Fraud / Churn และการตรวจชำระตามลำดับบิลหลังติดตั้ง</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -394,10 +395,12 @@ export default function QualityControlPage() {
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">นำเข้าข้อมูล</span>
             </button>
-            <button type="button" onClick={exportWorkbook} disabled={!result?.customers?.length || exporting} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#78BE20] dark:text-slate-950">
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">{exporting ? 'กำลัง Export...' : 'Export Excel'}</span>
-            </button>
+            {pageTab === 'qc' && (
+              <button type="button" onClick={exportWorkbook} disabled={!result?.customers?.length || exporting} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#78BE20] dark:text-slate-950">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">{exporting ? 'กำลัง Export...' : 'Export Excel'}</span>
+              </button>
+            )}
             <ThemeToggle />
             <NotificationBell />
           </div>
@@ -405,6 +408,36 @@ export default function QualityControlPage() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1680px] space-y-5 p-4 sm:p-6">
+            <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              {[
+                { id: 'qc', label: 'Fraud / Churn', hint: 'อัตราและรายชื่อเคส', icon: ShieldAlert },
+                { id: 'billing', label: 'ตรวจชำระบิล', hint: 'แยกชำระแล้ว / ยังไม่ชำระ', icon: WalletCards },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const active = pageTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setPageTab(tab.id)}
+                    className={`flex min-w-[180px] flex-1 items-center gap-3 rounded-xl px-4 py-3 text-left transition ${
+                      active
+                        ? 'bg-[#78BE20] text-slate-950 shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className={`grid h-9 w-9 place-items-center rounded-lg ${active ? 'bg-white/30' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black">{tab.label}</span>
+                      <span className={`block truncate text-[11px] ${active ? 'text-slate-800/80' : 'text-slate-400'}`}>{tab.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-6">
                 <div>
@@ -417,9 +450,11 @@ export default function QualityControlPage() {
                     </button>
                   </div>
                   <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {anyQcEnabled
-                      ? <>ระบบเลือกเฉพาะเดือนติดตั้งที่มีข้อมูลจริง และนับเดือนที่เลือกเป็นเดือนสุดท้ายของช่วงตรวจสอบ ลูกค้าที่ Terminate/Disconnect ภายในอายุ {activeQcConfig.months} เดือนจะถูกนับเป็นเคส</>
-                      : <>ขณะนี้ปิดการตรวจ Fraud และ Churn ทั้งหมด กรุณาเปิดใช้งานจากเมนูตั้งค่าระบบก่อนคำนวณ</>}
+                    {pageTab === 'billing'
+                      ? <>เลือกเดือนติดตั้งอ้างอิงชุดเดียวกับ Fraud/Churn แล้วตรวจการชำระตามลำดับบิลที่ 1, 2, 3… ของลูกค้าในชุดนั้น</>
+                      : anyQcEnabled
+                        ? <>ระบบเลือกเฉพาะเดือนติดตั้งที่มีข้อมูลจริง และนับเดือนที่เลือกเป็นเดือนสุดท้ายของช่วงตรวจสอบ ลูกค้าที่ Terminate/Disconnect ภายในอายุ {activeQcConfig.months} เดือนจะถูกนับเป็นเคส</>
+                        : <>ขณะนี้ปิดการตรวจ Fraud และ Churn ทั้งหมด กรุณาเปิดใช้งานจากเมนูตั้งค่าระบบก่อนคำนวณ</>}
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -449,6 +484,9 @@ export default function QualityControlPage() {
             </section>
 
             {loading && !result ? <LoadingState /> : result ? (
+              pageTab === 'billing' ? (
+                <BillPaymentExplorer result={result} onViewCustomer={setSelectedCustomer} onRefresh={runCalculate} />
+              ) : (
               <>
                 <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <MetricCard icon={Users} label="ลูกค้าในช่วง" value={result.total_installs} note={`${formatMonth(result.cohort_start_month)} – ${formatMonth(result.cohort_end_month)}`} />
@@ -457,8 +495,6 @@ export default function QualityControlPage() {
                   <MetricCard icon={WalletCards} label="ลูกค้ามีบิลค้าง" value={result.outstanding_customers} note={`${Number(result.outstanding_bills).toLocaleString('th-TH')} บิลในช่วงตรวจ`} tone="warning" />
                   <MetricCard icon={CircleDollarSign} label="ยอดค้างรวม" value={`${formatMoney(result.outstanding_total)} ฿`} note={`ระงับ/หนี้ ${Number(result.suspended_customers).toLocaleString('th-TH')} ราย`} tone="info" />
                 </section>
-
-                <BillPaymentExplorer result={result} onViewCustomer={setSelectedCustomer} onRefresh={runCalculate} />
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="border-b border-slate-200 p-4 dark:border-slate-800 sm:p-5">
@@ -580,6 +616,7 @@ export default function QualityControlPage() {
                   </div>
                 </section>
               </>
+              )
             ) : (
               <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
                 <FileSpreadsheet className="mx-auto h-10 w-10 text-slate-300" />
