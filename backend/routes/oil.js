@@ -193,7 +193,7 @@ router.post(
     } = req.body;
 
     if (!license_plate || !liters || !mileage || !price_per_liter) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'ข้อมูลไม่ครบ: ต้องมีทะเบียนรถ จำนวนลิตร เลขไมล์ และราคาต่อลิตร' });
     }
 
     const userRoles = req.user.roles || [req.user.role];
@@ -235,7 +235,9 @@ router.post(
 
       if (existing.length > 0) {
         conn.release();
-        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
+        return res.status(409).json({
+          error: 'บันทึกไม่สำเร็จ เพราะพบรายการอื่นของทีมนี้ที่เลขไมล์เท่ากัน หรือเลขไมล์/เวลาใกล้กันเกินไป (ต่างไม่เกิน 50 กม. และไม่เกิน 2 ชม.) กรุณาตรวจเลขไมล์หรือวันเวลาแล้วลองใหม่',
+        });
       }
 
       await conn.beginTransaction();
@@ -526,7 +528,7 @@ router.put(
     const userRoles = req.user.roles || [req.user.role];
     const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
     if (!isAdmin) {
-      return res.status(403).json({ error: 'Forbidden' });
+      return res.status(403).json({ error: 'บัญชีนี้ไม่มีสิทธิ์แก้ไขรายการน้ำมัน' });
     }
 
     const conn = await pool.getConnection();
@@ -538,7 +540,7 @@ router.put(
       const [old] = await conn.query('SELECT * FROM oil_records WHERE id = ?', [recordId]);
       if (old.length === 0) {
         await conn.rollback();
-        return res.status(404).json({ error: 'Record not found' });
+        return res.status(404).json({ error: 'ไม่พบรายการน้ำมันนี้ในระบบ อาจถูกลบไปแล้ว' });
       }
 
       // Update basic details.
@@ -607,7 +609,9 @@ router.put(
 
         if (existing.length > 0) {
           await conn.rollback();
-          return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
+          return res.status(409).json({
+            error: 'บันทึกไม่สำเร็จ เพราะพบรายการอื่นของทีมนี้ที่เลขไมล์เท่ากัน หรือเลขไมล์/เวลาใกล้กันเกินไป (ต่างไม่เกิน 50 กม. และไม่เกิน 2 ชม.) กรุณาตรวจเลขไมล์หรือวันเวลาแล้วลองใหม่',
+          });
         }
       }
 
@@ -655,11 +659,11 @@ router.put(
       }
 
       await conn.commit();
-      res.json({ message: 'Updated successfully' });
+      res.json({ message: 'อัปเดตรายการน้ำมันสำเร็จ' });
     } catch (err) {
       await conn.rollback();
       console.error('Update oil record error:', err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: 'เซิร์ฟเวอร์มีปัญหาขณะบันทึก กรุณาลองใหม่อีกครั้ง' });
     } finally {
       conn.release();
     }
@@ -671,7 +675,7 @@ router.delete('/records/:id', auth, async (req, res) => {
   const userRoles = req.user.roles || [req.user.role];
   const isAdmin = userRoles.some(r => ADMIN_ROLES.includes(r));
   if (!isAdmin) {
-    return res.status(403).json({ error: 'Forbidden' });
+    return res.status(403).json({ error: 'บัญชีนี้ไม่มีสิทธิ์ลบรายการน้ำมัน' });
   }
 
   const conn = await pool.getConnection();

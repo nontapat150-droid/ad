@@ -1,11 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import Swal from 'sweetalert2';
 import { DateTimePicker } from './DateTimePicker';
 import { format } from 'date-fns';
 import { AppSelectField } from './DispatchFilterFields';
 import { buildLicensePlateOptions } from '../utils/oilPlates';
+import {
+  formatOilSaveSummary,
+  showOilError,
+  showOilSuccess,
+  showOilWarning,
+} from '../utils/oilAlerts';
 
 const TECH_ROLE_LABELS = {
   sales: 'เซล',
@@ -98,15 +103,26 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!String(form.license_plate || '').trim()) {
-      return Swal.fire({ icon: 'warning', title: 'เลือกทะเบียนรถ', text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ' });
+      return showOilWarning('ยังไม่ได้เลือกทะเบียนรถ', 'กรุณาเลือกทะเบียนรถจากรายการในระบบก่อนกดบันทึก');
     }
-    if (images.length > 5) return Swal.fire({ icon: 'warning', text: 'อัปโหลดรูปภาพได้สูงสุด 5 รูป' });
+    if (!form.mileage && form.mileage !== 0) {
+      return showOilWarning('ยังไม่ได้กรอกเลขไมล์', 'กรุณาระบุเลขไมล์ปัจจุบันของรถก่อนบันทึก');
+    }
+    if (!form.liters && form.liters !== 0) {
+      return showOilWarning('ยังไม่ได้กรอกจำนวนลิตร', 'กรุณาระบุปริมาณน้ำมันที่เติม (ลิตร) ก่อนบันทึก');
+    }
+    if (!form.total_price && form.total_price !== 0 && !form.price_per_liter) {
+      return showOilWarning('ยังไม่ได้กรอกยอดเงิน', 'กรุณาระบุราคาต่อลิตรหรือยอดรวมก่อนบันทึก');
+    }
+    if (images.length > 5) {
+      return showOilWarning('รูปภาพเกินจำนวน', 'อัปโหลดหลักฐานได้สูงสุด 5 รูปต่อรายการ');
+    }
     
     setLoading(true);
     try {
       const formData = new FormData();
       Object.keys(form).forEach(key => {
-        formData.append(key, form[key]);
+        formData.append(key, form[key] == null ? '' : String(form[key]));
       });
       images.forEach(img => formData.append('images', img));
 
@@ -138,15 +154,22 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
         });
         setImages([]);
       }
+
+      await showOilSuccess({
+        title: 'บันทึกสำเร็จ',
+        detail: formatOilSaveSummary({
+          licensePlate: form.license_plate,
+          mileage: form.mileage,
+          liters: form.liters,
+          totalPrice: form.total_price,
+          isEdit: false,
+        }),
+      });
       
       onSuccess();
       if (!inline && onClose) onClose();
     } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        text: err.response?.data?.error || err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล'
-      });
+      await showOilError(err, 'บันทึก');
     } finally {
       setLoading(false);
     }
@@ -168,7 +191,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length + images.length > 5) {
-      return Swal.fire({ icon: 'warning', text: 'อัปโหลดรูปภาพได้สูงสุด 5 รูป' });
+      return showOilWarning('รูปภาพเกินจำนวน', 'อัปโหลดหลักฐานได้สูงสุด 5 รูปต่อรายการ');
     }
     setImages(prev => [...prev, ...files]);
   };

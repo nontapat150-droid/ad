@@ -7,6 +7,12 @@ import { DateTimePicker } from './DateTimePicker';
 import { format } from 'date-fns';
 import { AppSelectField } from './DispatchFilterFields';
 import { buildLicensePlateOptions } from '../utils/oilPlates';
+import {
+  formatOilSaveSummary,
+  showOilError,
+  showOilSuccess,
+  showOilWarning,
+} from '../utils/oilAlerts';
 
 export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -91,25 +97,16 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
     if (!String(formData.license_plate || '').trim()) {
-      return Swal.fire({
-        icon: 'warning',
-        title: 'เลือกทะเบียนรถ',
-        text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ',
-        customClass: { container: 'swal-over-oil-modal' },
-        didOpen: () => {
-          const el = document.querySelector('.swal-over-oil-modal');
-          if (el) el.style.zIndex = '200000';
-        },
-      });
+      return showOilWarning('ยังไม่ได้เลือกทะเบียนรถ', 'กรุณาเลือกทะเบียนรถจากรายการในระบบก่อนกดบันทึก');
     }
     if (!formData.mileage && formData.mileage !== 0) {
-      return Swal.fire({ icon: 'warning', title: 'กรอกเลขไมล์', text: 'กรุณาระบุเลขไมล์' });
+      return showOilWarning('ยังไม่ได้กรอกเลขไมล์', 'กรุณาระบุเลขไมล์ปัจจุบันของรถก่อนบันทึก');
     }
     if (!formData.liters && formData.liters !== 0) {
-      return Swal.fire({ icon: 'warning', title: 'กรอกจำนวนลิตร', text: 'กรุณาระบุจำนวนลิตร' });
+      return showOilWarning('ยังไม่ได้กรอกจำนวนลิตร', 'กรุณาระบุปริมาณน้ำมันที่เติม (ลิตร) ก่อนบันทึก');
     }
     if (!formData.total_price && formData.total_price !== 0) {
-      return Swal.fire({ icon: 'warning', title: 'กรอกยอดรวม', text: 'กรุณาระบุยอดรวม' });
+      return showOilWarning('ยังไม่ได้กรอกยอดรวม', 'กรุณาระบุยอดเงินที่จ่าย (บาท) ก่อนบันทึก');
     }
     setLoading(true);
 
@@ -136,32 +133,25 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
         headers: { 'Content-Type': undefined },
       });
 
-      // Recalculate
-      await api.post('/oil/recalculate');
+      try {
+        await api.post('/oil/recalculate');
+      } catch {
+        // Save already succeeded; recalculate failure should not look like a failed save.
+      }
 
-      await Swal.fire({
-        icon: 'success',
-        title: 'อัปเดตข้อมูลสำเร็จ',
-        showConfirmButton: false,
-        timer: 1500,
-        customClass: { container: 'swal-over-oil-modal' },
-        didOpen: () => {
-          const el = document.querySelector('.swal-over-oil-modal');
-          if (el) el.style.zIndex = '200000';
-        },
+      await showOilSuccess({
+        title: 'แก้ไขสำเร็จ',
+        detail: formatOilSaveSummary({
+          licensePlate: formData.license_plate,
+          mileage: formData.mileage,
+          liters: formData.liters,
+          totalPrice: formData.total_price,
+          isEdit: true,
+        }),
       });
       onSuccess();
     } catch (err) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        text: err.response?.data?.error || 'ไม่สามารถบันทึกได้',
-        customClass: { container: 'swal-over-oil-modal' },
-        didOpen: () => {
-          const el = document.querySelector('.swal-over-oil-modal');
-          if (el) el.style.zIndex = '200000';
-        },
-      });
+      await showOilError(err, 'แก้ไข');
     } finally {
       setLoading(false);
     }
@@ -171,24 +161,37 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
     try {
       const result = await Swal.fire({
         title: 'ยืนยันการลบ?',
-        text: "คุณแน่ใจหรือไม่ที่จะลบรายการเติมน้ำมันนี้? การกระทำนี้ไม่สามารถย้อนกลับได้",
+        html: '<p class="text-sm text-slate-600 text-left">คุณแน่ใจหรือไม่ที่จะลบรายการเติมน้ำมันนี้?<br/>การกระทำนี้ไม่สามารถย้อนกลับได้</p>',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#ef4444',
         cancelButtonColor: '#94a3b8',
         confirmButtonText: 'ใช่, ลบเลย!',
-        cancelButtonText: 'ยกเลิก'
+        cancelButtonText: 'ยกเลิก',
+        customClass: { container: 'swal-over-oil-modal', popup: 'rounded-2xl' },
+        didOpen: () => {
+          const el = document.querySelector('.swal-over-oil-modal');
+          if (el) el.style.zIndex = '200000';
+        },
       });
 
       if (result.isConfirmed) {
         setLoading(true);
         await api.delete(`/oil/records/${record.id}`);
-        await api.post('/oil/recalculate');
-        Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', showConfirmButton: false, timer: 1500 });
+        try {
+          await api.post('/oil/recalculate');
+        } catch {
+          /* ignore */
+        }
+        await showOilSuccess({
+          title: 'ลบรายการสำเร็จ',
+          detail: 'ลบรายการเติมน้ำมันออกจากระบบแล้ว และอัปเดตสรุปข้อมูลเรียบร้อย',
+          timer: 2000,
+        });
         onSuccess();
       }
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถลบได้' });
+      await showOilError(err, 'ลบ');
     } finally {
       setLoading(false);
     }
