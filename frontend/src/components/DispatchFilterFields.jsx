@@ -75,7 +75,7 @@ function useOutsideClose(ref, open, onClose) {
   }, [open, ref, onClose]);
 }
 
-export function TimePickerColumns({ hour, minute, onHourChange, onMinuteChange, step = 1 }) {
+export function TimePickerColumns({ hour, minute, onHourChange, onMinuteChange, step = 1, listHeightClass = 'h-36' }) {
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')), []);
   const minutes = useMemo(
     () => Array.from({ length: Math.ceil(60 / step) }, (_, i) => (i * step).toString().padStart(2, '0')),
@@ -83,25 +83,31 @@ export function TimePickerColumns({ hour, minute, onHourChange, onMinuteChange, 
   );
 
   return (
-    <div className="flex gap-2">
-      <TimeColumn label="ชม." value={hour} options={hours} onSelect={onHourChange} />
-      <TimeColumn label="นาที" value={minute} options={minutes} onSelect={onMinuteChange} />
+    <div className="flex gap-2 w-[148px] shrink-0">
+      <TimeColumn label="ชม." value={hour} options={hours} onSelect={onHourChange} listHeightClass={listHeightClass} />
+      <TimeColumn label="นาที" value={minute} options={minutes} onSelect={onMinuteChange} listHeightClass={listHeightClass} />
     </div>
   );
 }
 
-function TimeColumn({ label, value, options, onSelect }) {
+function TimeColumn({ label, value, options, onSelect, listHeightClass = 'h-36' }) {
   return (
     <div className="flex-1 min-w-0">
-      <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide text-center mb-1.5">{label}</p>
-      <ul className="max-h-40 overflow-y-auto py-1 rounded-lg border border-[#F3F4F6] bg-[#FAFAFA]" style={{ scrollbarWidth: 'thin' }}>
+      <p className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wide text-center mb-1.5 leading-none">{label}</p>
+      <ul
+        className={cn(
+          'overflow-y-auto overflow-x-hidden overscroll-contain py-1 rounded-lg border border-[#F3F4F6] bg-[#FAFAFA]',
+          listHeightClass
+        )}
+        style={{ scrollbarWidth: 'thin', scrollbarGutter: 'stable' }}
+      >
         {options.map((opt) => (
-          <li key={opt}>
+          <li key={opt} className="shrink-0">
             <button
               type="button"
               onClick={() => onSelect(opt)}
               className={cn(
-                'w-full px-2 py-2 text-sm font-bold transition-colors text-center',
+                'w-full px-2 py-1.5 text-sm font-bold transition-colors text-center leading-none',
                 value === opt ? 'bg-[#A3E635]/20 text-[#1F2937]' : 'text-[#374151] hover:bg-white'
               )}
             >

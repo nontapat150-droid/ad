@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import { DateTimePicker } from './DateTimePicker';
 import { format } from 'date-fns';
 import { AppSelectField } from './DispatchFilterFields';
+import { buildLicensePlateOptions } from '../utils/oilPlates';
 
 const TECH_ROLE_LABELS = {
   sales: 'เซล',
@@ -24,9 +25,12 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const [techs, setTechs] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [selectedTech, setSelectedTech] = useState(null);
 
   useEffect(() => {
+    api.get('/users/teams').then((res) => setTeams(res.data || [])).catch(console.error);
+
     if (isAdmin) {
       api.get('/users').then(res => {
         setTechs((res.data || []).filter(u => 
@@ -69,10 +73,19 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
   const [fillerId, setFillerId] = useState('');
   const [isTripMileage, setIsTripMileage] = useState(false);
 
+  const plateOptions = useMemo(
+    () => buildLicensePlateOptions(teams, form.license_plate),
+    [teams, form.license_plate]
+  );
+
   const handleTechChange = (tId) => {
     const tech = techs.find(t => String(t.id) === String(tId));
     setSelectedTech(tech || null);
-    setForm(prev => ({ ...prev, tech_id: tId }));
+    setForm(prev => ({
+      ...prev,
+      tech_id: tId,
+      license_plate: tech?.team_name || tech?.vehicle_plate || prev.license_plate,
+    }));
   };
 
   useEffect(() => {
@@ -84,6 +97,9 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!String(form.license_plate || '').trim()) {
+      return Swal.fire({ icon: 'warning', title: 'เลือกทะเบียนรถ', text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ' });
+    }
     if (images.length > 5) return Swal.fire({ icon: 'warning', text: 'อัปโหลดรูปภาพได้สูงสุด 5 รูป' });
     
     setLoading(true);
@@ -284,17 +300,17 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Vehicle Plate */}
-          <div>
-            <label className="block text-sm font-bold text-[#1F2937] mb-2">ทะเบียนรถยนต์ / จักรยานยนต์</label>
-            <input
-              required
-              name="license_plate"
-              value={form.license_plate}
-              onChange={handleChange}
-              className="w-full px-4 py-3.5 rounded-xl border border-[#E5E7EB] outline-none transition-all uppercase font-medium bg-white focus:border-[#A3E635] focus:ring-2 focus:ring-[#A3E635]/20"
-              placeholder="เช่น กท 1234 หรือ 1กต 5678"
-            />
-          </div>
+          <AppSelectField
+            label="ทะเบียนรถยนต์ / จักรยานยนต์"
+            value={String(form.license_plate || '')}
+            onChange={(v) => setForm((prev) => ({ ...prev, license_plate: v }))}
+            options={plateOptions}
+            placeholder="เลือกทะเบียนรถในระบบ"
+            searchable
+            searchAlways
+            searchPlaceholder="ค้นหาทะเบียน / ชื่อทีม..."
+            allowClear={false}
+          />
 
           <div className="grid grid-cols-2 gap-5">
             {/* Date Time */}

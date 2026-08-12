@@ -92,14 +92,15 @@ export function DateTimePicker({ value, onChange, placeholder = "เลือก
             initialFocus
             locale={th}
           />
-          <div className="p-4 border-t border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-[#4B5563] mb-2">
+          <div className="p-4 border-t border-[#F3F4F6] bg-[#F9FAFB] flex items-center justify-between gap-3 shrink-0 overflow-hidden h-[200px] box-border">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#4B5563] shrink-0">
               <Clock className="w-4 h-4 text-[#A3E635]" />
               ระบุเวลา
             </div>
             <TimePickerColumns
               hour={hour}
               minute={minute}
+              listHeightClass="h-36"
               onHourChange={(val) => handleTimeChange('hour', val)}
               onMinuteChange={(val) => handleTimeChange('minute', val)}
             />

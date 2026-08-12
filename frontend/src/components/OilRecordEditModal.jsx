@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../api/axios';
 import Swal from 'sweetalert2';
-import { getImageUrl } from '../utils/imageUtils';
 import ImageWithFallback from './common/ImageWithFallback';
 import { useAuth } from '../context/AuthContext';
 import { DateTimePicker } from './DateTimePicker';
 import { format } from 'date-fns';
 import { AppSelectField } from './DispatchFilterFields';
+import { buildLicensePlateOptions } from '../utils/oilPlates';
 
 export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -25,7 +25,13 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   const [newImages, setNewImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [usersList, setUsersList] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [isTripMileage, setIsTripMileage] = useState(false);
+
+  const plateOptions = useMemo(
+    () => buildLicensePlateOptions(teams, formData.license_plate),
+    [teams, formData.license_plate]
+  );
 
   useEffect(() => {
     if (record) {
@@ -46,28 +52,27 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
       setIsTripMileage(record.is_trip === 1 || record.is_trip === true || record.is_trip === 'true');
     }
     
-    // Fetch users for the dropdown
     api.get('/users').then(res => {
-      setUsersList(res.data);
+      setUsersList(res.data || []);
+    }).catch(console.error);
+
+    api.get('/users/teams').then(res => {
+      setTeams(res.data || []);
     }).catch(console.error);
   }, [record]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    setFormData(prev => {
-      const newData = { ...prev, [name]: value };
-      
-      // Auto-update license plate when tech changes
-      if (name === 'tech_id') {
-        const selectedUser = usersList.find(u => u.id.toString() === value);
-        if (selectedUser && selectedUser.team_name) {
-          newData.license_plate = selectedUser.team_name;
-        }
-      }
-      
-      return newData;
-    });
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleTechChange = (techId) => {
+    const selectedUser = usersList.find((u) => String(u.id) === String(techId));
+    setFormData((prev) => ({
+      ...prev,
+      tech_id: techId,
+      license_plate: selectedUser?.team_name || selectedUser?.vehicle_plate || prev.license_plate,
+    }));
   };
 
   const handleRemoveExistingImage = (img) => {
@@ -85,6 +90,9 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!String(formData.license_plate || '').trim()) {
+      return Swal.fire({ icon: 'warning', title: 'เลือกทะเบียนรถ', text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ' });
+    }
     setLoading(true);
 
     try {
@@ -175,16 +183,29 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
               <AppSelectField
                 label="ช่างผู้เบิก"
                 value={String(formData.tech_id || '')}
-                onChange={(v) => setFormData({ ...formData, tech_id: v })}
-                options={usersList.map((u) => ({ value: String(u.id), label: u.full_name }))}
+                onChange={handleTechChange}
+                options={usersList.map((u) => ({
+                  value: String(u.id),
+                  label: u.full_name,
+                  sublabel: u.team_name || undefined,
+                  searchText: `${u.full_name} ${u.team_name || ''} ${u.username || ''}`,
+                }))}
                 placeholder="เลือกช่าง"
                 searchable
+                searchAlways
                 allowClear={false}
               />
-              <div>
-                <label className="block text-sm font-bold text-[#042C53] mb-1.5">ทะเบียนรถ *</label>
-                <input type="text" name="license_plate" value={formData.license_plate} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] bg-slate-50" />
-              </div>
+              <AppSelectField
+                label="ทะเบียนรถ *"
+                value={String(formData.license_plate || '')}
+                onChange={(v) => setFormData((prev) => ({ ...prev, license_plate: v }))}
+                options={plateOptions}
+                placeholder="เลือกทะเบียนรถในระบบ"
+                searchable
+                searchAlways
+                searchPlaceholder="ค้นหาทะเบียน / ชื่อทีม..."
+                allowClear={false}
+              />
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">เลขไมล์ *</label>
                 <input type="number" name="mileage" value={formData.mileage} onChange={handleChange} required className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-[#185FA5]/30 outline-none text-sm font-bold text-[#042C53] bg-slate-50" />
