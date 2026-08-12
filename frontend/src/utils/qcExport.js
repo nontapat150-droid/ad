@@ -310,7 +310,7 @@ export function buildBillPaymentsWorkbook({ rows, filters, summary }) {
   });
   worksheet.properties.defaultRowHeight = 20;
 
-  worksheet.mergeCells('A1:Q1');
+  worksheet.mergeCells('A1:S1');
   const titleCell = worksheet.getCell('A1');
   titleCell.value = `รายงานตรวจสอบการชำระบิลที่ ${filters?.billNumber || rows[0]?.bill_number || 1} ตามเลข NON`;
   titleCell.font = { name: 'Aptos', size: 16, bold: true, color: { argb: 'FF172033' } };
@@ -318,17 +318,15 @@ export function buildBillPaymentsWorkbook({ rows, filters, summary }) {
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF7D6' } };
   worksheet.getRow(1).height = 28;
 
-  const statusLabel = filters?.status === 'all'
-    ? 'ชำระแล้วและยังไม่ชำระ'
-    : filters?.status === 'paid'
-      ? 'ชำระแล้ว'
-      : 'ยังไม่ชำระ';
+  const paymentStateLabels = { all: 'ทุกสถานะ', paid: 'ชำระแล้ว', unpaid: 'ยังไม่ชำระ', not_due: 'ยังไม่ถึงกำหนด', missing: 'ไม่มีข้อมูลบิล' };
+  const statusLabel = paymentStateLabels[filters?.status] || 'ทุกสถานะ';
   const sourceLabels = { all: 'ทุกแหล่งยอด', recorded: 'ยอดบันทึกจริง', reference: 'ยอดอ้างอิง/ประมาณ', missing: 'ยังไม่มียอด' };
-  worksheet.mergeCells('A2:Q2');
+  worksheet.mergeCells('A2:S2');
   worksheet.getCell('A2').value = [
     `ลำดับ: บิลที่ ${filters?.billNumber || rows[0]?.bill_number || 1}`,
     `เดือนปฏิทิน: ${filters?.month === 'all' ? 'ทุกเดือน' : monthHeader(filters?.month)}`,
-    `ผลการชำระ: ${statusLabel}`,
+    `วันที่ติดตั้ง: ${filters?.installFrom || 'ไม่จำกัด'} ถึง ${filters?.installTo || 'ไม่จำกัด'}`,
+    `สถานะการชำระ: ${statusLabel}`,
     `แหล่งยอด: ${sourceLabels[filters?.amountSource] || 'ทุกแหล่งยอด'}`,
     `ช่วงยอด: ${filters?.amountMin || '0'} - ${filters?.amountMax || 'ไม่จำกัด'} บาท`,
     `ผลลัพธ์: ${Number(summary?.uniqueCustomers || rows.length).toLocaleString('th-TH')} ราย`,
@@ -337,22 +335,22 @@ export function buildBillPaymentsWorkbook({ rows, filters, summary }) {
   worksheet.getCell('A2').alignment = { vertical: 'middle', wrapText: true };
   worksheet.getRow(2).height = 28;
 
-  worksheet.mergeCells('A3:Q3');
-  worksheet.getCell('A3').value = `ชำระแล้ว ${Number(summary?.paidCustomers || 0).toLocaleString('th-TH')} ราย / ${Number(summary?.paidAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท · ยังไม่ชำระ ${Number(summary?.unpaidCustomers || 0).toLocaleString('th-TH')} ราย / ${Number(summary?.unpaidAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+  worksheet.mergeCells('A3:S3');
+  worksheet.getCell('A3').value = `ชำระแล้ว ${Number(summary?.paidCustomers || 0).toLocaleString('th-TH')} ราย / ${Number(summary?.paidAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท · ยังไม่ชำระ ${Number(summary?.unpaidCustomers || 0).toLocaleString('th-TH')} ราย / ${Number(summary?.unpaidAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท · ยังไม่ถึงกำหนด ${Number(summary?.notDueCustomers || 0).toLocaleString('th-TH')} ราย · ไม่มีข้อมูล ${Number(summary?.missingCustomers || 0).toLocaleString('th-TH')} ราย`;
   worksheet.getCell('A3').font = { name: 'Aptos', size: 10, bold: true, color: { argb: 'FF334155' } };
   worksheet.getCell('A3').alignment = { vertical: 'middle' };
 
-  const headers = ['ลำดับ', 'งวดบิลที่', 'เดือนบิล', 'ชื่อลูกค้า', 'เลข NON', 'ผู้ขาย', 'แพ็กเกจ', 'ผลการชำระ', 'สถานะบิลละเอียด', 'สถานะกำหนดชำระ', 'ยอด (บาท)', 'ความน่าเชื่อถือของยอด', 'วันครบชำระ', 'ผู้รับผิดชอบ', 'สถานะงานติดตาม', 'ที่มาข้อมูลบิล', 'หมายเหตุ/ค่าต้นฉบับ'];
+  const headers = ['ลำดับ', 'งวดบิลที่', 'เดือนบิล', 'ชื่อลูกค้า', 'เลข NON', 'วันที่ติดตั้งสำเร็จ', 'ผู้ขาย', 'แพ็กเกจ', 'สถานะการชำระ', 'สถานะบิลละเอียด', 'สถานะกำหนดชำระ', 'ยอด (บาท)', 'ความน่าเชื่อถือของยอด', 'วันครบชำระ', 'ผู้รับผิดชอบ', 'สถานะติดตาม', 'ผู้เปลี่ยนสถานะล่าสุด', 'ที่มาข้อมูลบิล', 'หมายเหตุ/ค่าต้นฉบับ'];
   const headerRow = worksheet.getRow(4);
   headerRow.values = headers;
   headerRow.height = 32;
-  headers.forEach((_, index) => styleHeader(headerRow.getCell(index + 1), index < 6 ? 'FFB7DEE8' : 'FFEAF7D6'));
+  headers.forEach((_, index) => styleHeader(headerRow.getCell(index + 1), index < 7 ? 'FFB7DEE8' : 'FFEAF7D6'));
 
-  const widths = [8, 12, 13, 30, 18, 20, 44, 16, 18, 18, 16, 24, 15, 22, 18, 17, 32];
+  const widths = [8, 12, 13, 30, 18, 16, 20, 44, 20, 18, 18, 16, 24, 15, 22, 18, 22, 17, 32];
   widths.forEach((width, index) => { worksheet.getColumn(index + 1).width = width; });
   const billSourceLabels = { manual: 'แก้ไขผ่านเว็บ', import: 'นำเข้าจากไฟล์', auto: 'ระบบคำนวณ' };
   const dueStateLabels = { paid: 'ชำระแล้ว', not_due: 'ยังไม่ถึงกำหนด', due_today: 'ครบกำหนดวันนี้', overdue: 'เกินกำหนด', missing: 'ไม่มีข้อมูลบิล' };
-  const taskStatusLabels = { unassigned: 'ยังไม่มอบหมาย', assigned: 'มอบหมายแล้ว', in_progress: 'กำลังติดตาม', waiting_customer: 'รอลูกค้า', completed: 'ปิดงานแล้ว', unreachable: 'ติดต่อไม่ได้' };
+  const taskStatusLabels = { unassigned: 'รอดำเนินการ', assigned: 'รอดำเนินการ', in_progress: 'กำลังติดตาม', waiting_customer: 'กำลังติดตาม', completed: 'ชำระแล้ว', unreachable: 'กำลังติดตาม' };
 
   rows.forEach((item, index) => {
     const row = worksheet.getRow(index + 5);
@@ -362,9 +360,10 @@ export function buildBillPaymentsWorkbook({ rows, filters, summary }) {
       item.bill_month ? monthHeader(item.bill_month) : '-',
       cleanText(item.customer_name),
       String(item.non_number || ''),
+      toDate(item.install_date),
       cleanText(item.seller_name),
       exportPackageName(item.package_name, item.monthly_fee),
-      item.payment_state === 'paid' ? 'ชำระแล้ว' : 'ยังไม่ชำระ',
+      paymentStateLabels[item.payment_state] || item.payment_state || '-',
       item.status_label || item.bill_status,
       dueStateLabels[item.due_state] || '-',
       Number(item.amount) || 0,
@@ -372,30 +371,33 @@ export function buildBillPaymentsWorkbook({ rows, filters, summary }) {
       toDate(item.due_date),
       item.follow_up?.assignee_name || '-',
       taskStatusLabels[item.follow_up?.status] || (item.follow_up ? item.follow_up.status : 'ยังไม่มีงาน'),
+      item.follow_up?.updated_by_name || item.follow_up?.updated_by_username || '-',
       billSourceLabels[item.bill_source] || item.bill_source || '-',
       cleanText(item.raw_value),
     ];
     row.height = 26;
-    for (let column = 1; column <= 17; column++) {
+    for (let column = 1; column <= 19; column++) {
       styleDataCell(row.getCell(column), column);
       row.getCell(column).font = { name: 'Aptos', size: 10, color: { argb: 'FF172033' } };
     }
     row.getCell(5).numFmt = '@';
-    row.getCell(11).numFmt = '#,##0.00';
-    row.getCell(11).alignment = { vertical: 'middle', horizontal: 'right' };
-    row.getCell(13).numFmt = 'd/m/yyyy';
-    row.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: item.payment_state === 'paid' ? 'FFDCFCE7' : 'FFFEE2E2' } };
+    row.getCell(6).numFmt = 'd/m/yyyy';
+    row.getCell(12).numFmt = '#,##0.00';
+    row.getCell(12).alignment = { vertical: 'middle', horizontal: 'right' };
+    row.getCell(14).numFmt = 'd/m/yyyy';
+    const paymentFill = { paid: 'FFDCFCE7', unpaid: 'FFFEE2E2', not_due: 'FFE0F2FE', missing: 'FFF1F5F9' };
+    row.getCell(9).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: paymentFill[item.payment_state] || 'FFF1F5F9' } };
     if (item.amount_source === 'recorded') {
-      row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+      row.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
     } else if (item.amount_source === 'reference') {
-      row.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      row.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
     }
     if (item.due_state === 'overdue') {
-      row.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+      row.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
     }
   });
 
-  worksheet.autoFilter = { from: 'A4', to: 'Q4' };
+  worksheet.autoFilter = { from: 'A4', to: 'S4' };
   worksheet.pageSetup = {
     orientation: 'landscape',
     fitToPage: true,

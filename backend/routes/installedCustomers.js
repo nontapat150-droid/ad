@@ -637,10 +637,12 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               DATE_FORMAT(t.due_date, '%Y-%m-%d') AS due_date,
               DATE_FORMAT(t.next_follow_up_at, '%Y-%m-%dT%H:%i') AS next_follow_up_at,
               t.contact_result, t.note, t.completed_at, t.created_at, t.updated_at,
-              u.full_name AS assignee_name, u.username AS assignee_username
+              u.full_name AS assignee_name, u.username AS assignee_username,
+              updater.full_name AS updated_by_name, updater.username AS updated_by_username
        FROM quality_follow_up_tasks t
        JOIN installed_customers c ON c.id = t.installed_customer_id
        LEFT JOIN users u ON u.id = t.assigned_to
+       LEFT JOIN users updater ON updater.id = t.updated_by
        WHERE c.install_date BETWEEN ? AND ?
        ORDER BY t.updated_at DESC`,
       [start, end]
@@ -745,9 +747,9 @@ router.post('/qc-follow-ups', auth, requireRole(ADMIN_ROLES), async (req, res) =
     const [[customer]] = await db.query('SELECT id, customer_name, non_number FROM installed_customers WHERE id = ? LIMIT 1', [customerId]);
     if (!customer) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
 
-    const allowedStatuses = ['unassigned', 'assigned', 'in_progress', 'waiting_customer', 'completed', 'unreachable'];
+    const allowedStatuses = ['assigned', 'in_progress', 'completed'];
     const allowedPriorities = ['low', 'normal', 'high', 'urgent'];
-    let status = String(req.body.status || 'unassigned').trim().toLowerCase();
+    let status = String(req.body.status || 'assigned').trim().toLowerCase();
     const priority = String(req.body.priority || 'normal').trim().toLowerCase();
     if (!allowedStatuses.includes(status)) return res.status(400).json({ error: 'สถานะงานติดตามไม่ถูกต้อง' });
     if (!allowedPriorities.includes(priority)) return res.status(400).json({ error: 'ระดับความสำคัญไม่ถูกต้อง' });
@@ -766,13 +768,37 @@ router.post('/qc-follow-ups', auth, requireRole(ADMIN_ROLES), async (req, res) =
     const nextFollowUpAt = parseDateTime(req.body.next_follow_up_at);
     const contactResult = String(req.body.contact_result || '').trim().slice(0, 100) || null;
     const note = String(req.body.note || '').trim().slice(0, 5000) || null;
-    const actorId = Number(req.user?.id) || null;
+    const actorId = Number(req.user?.id);
+    if (!Number.isInteger(actorId) || actorId <= 0) {
+      return res.status(401).json({ error: 'ไม่พบผู้ใช้งานที่กำลังบันทึกสถานะ กรุณาเข้าสู่ระบบใหม่' });
+    }
     const uniqueBillMonth = billMonth || null;
     const [[existing]] = await db.query(
       `SELECT * FROM quality_follow_up_tasks
        WHERE installed_customer_id = ? AND task_type = ? AND bill_month <=> ? LIMIT 1`,
       [customerId, taskType, uniqueBillMonth]
     );
+
+    let billBefore = null;
+    let paidAmount = null;
+    if (taskType === 'billing' && status === 'completed') {
+      [[billBefore]] = await db.query(
+        'SELECT * FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
+        [customerId, uniqueBillMonth]
+      );
+      if (!billBefore) {
+        return res.status(400).json({ error: 'ไม่พบบิลรอบนี้ กรุณาเพิ่มข้อมูลบิลก่อนยืนยันว่าชำระแล้ว' });
+      }
+      const fallbackPaidAmount = billBefore.paid_amount == null
+        ? (Number(billBefore.amount) || 0)
+        : Number(billBefore.paid_amount);
+      paidAmount = req.body.paid_amount == null || req.body.paid_amount === ''
+        ? fallbackPaidAmount
+        : Number(req.body.paid_amount);
+      if (!Number.isFinite(paidAmount) || paidAmount < 0) {
+        return res.status(400).json({ error: 'ยอดชำระจริงต้องเป็นตัวเลขตั้งแต่ 0 บาทขึ้นไป' });
+      }
+    }
 
     await db.query(
       `INSERT INTO quality_follow_up_tasks
@@ -796,9 +822,11 @@ router.post('/qc-follow-ups', auth, requireRole(ADMIN_ROLES), async (req, res) =
     const [[task]] = await db.query(
       `SELECT t.*, DATE_FORMAT(t.due_date, '%Y-%m-%d') AS due_date,
               DATE_FORMAT(t.next_follow_up_at, '%Y-%m-%dT%H:%i') AS next_follow_up_at,
-              u.full_name AS assignee_name, u.username AS assignee_username
+              u.full_name AS assignee_name, u.username AS assignee_username,
+              updater.full_name AS updated_by_name, updater.username AS updated_by_username
        FROM quality_follow_up_tasks t
        LEFT JOIN users u ON u.id = t.assigned_to
+       LEFT JOIN users updater ON updater.id = t.updated_by
        WHERE t.installed_customer_id = ? AND t.task_type = ? AND t.bill_month <=> ? LIMIT 1`,
       [customerId, taskType, uniqueBillMonth]
     );
@@ -813,6 +841,32 @@ router.post('/qc-follow-ups', auth, requireRole(ADMIN_ROLES), async (req, res) =
       reason: note || contactResult,
       actorId,
     });
+    if (billBefore) {
+      await db.query(
+        `UPDATE installed_customer_bills
+         SET bill_status = 'paid', amount = 0, paid_amount = ?, raw_value = 'จ่ายแล้ว',
+             bill_source = 'manual', imported_at = CURRENT_TIMESTAMP
+         WHERE installed_customer_id = ? AND bill_month = ?`,
+        [paidAmount, customerId, uniqueBillMonth]
+      );
+      const [[billAfter]] = await db.query(
+        'SELECT * FROM installed_customer_bills WHERE installed_customer_id = ? AND bill_month = ? LIMIT 1',
+        [customerId, uniqueBillMonth]
+      );
+      if (billBefore.bill_status !== 'paid' || Number(billBefore.paid_amount) !== paidAmount) {
+        await writeQualityAudit(db, {
+          customerId,
+          billMonth: uniqueBillMonth,
+          entityType: 'bill',
+          entityId: billAfter.id,
+          action: 'bill_marked_paid_from_follow_up',
+          oldValue: billBefore,
+          newValue: billAfter,
+          reason: note || contactResult || 'ยืนยันการชำระจากงานติดตาม',
+          actorId,
+        });
+      }
+    }
     res.json({
       ...task,
       assigned_to: task.assigned_to == null ? null : Number(task.assigned_to),
