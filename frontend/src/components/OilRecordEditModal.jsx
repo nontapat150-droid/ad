@@ -89,16 +89,35 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!String(formData.license_plate || '').trim()) {
-      return Swal.fire({ icon: 'warning', title: 'เลือกทะเบียนรถ', text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ' });
+      return Swal.fire({
+        icon: 'warning',
+        title: 'เลือกทะเบียนรถ',
+        text: 'กรุณาเลือกทะเบียนรถจากรายการในระบบ',
+        customClass: { container: 'swal-over-oil-modal' },
+        didOpen: () => {
+          const el = document.querySelector('.swal-over-oil-modal');
+          if (el) el.style.zIndex = '200000';
+        },
+      });
+    }
+    if (!formData.mileage && formData.mileage !== 0) {
+      return Swal.fire({ icon: 'warning', title: 'กรอกเลขไมล์', text: 'กรุณาระบุเลขไมล์' });
+    }
+    if (!formData.liters && formData.liters !== 0) {
+      return Swal.fire({ icon: 'warning', title: 'กรอกจำนวนลิตร', text: 'กรุณาระบุจำนวนลิตร' });
+    }
+    if (!formData.total_price && formData.total_price !== 0) {
+      return Swal.fire({ icon: 'warning', title: 'กรอกยอดรวม', text: 'กรุณาระบุยอดรวม' });
     }
     setLoading(true);
 
     try {
       const fd = new FormData();
-      Object.keys(formData).forEach(key => {
-        fd.append(key, formData[key]);
+      Object.keys(formData).forEach((key) => {
+        const value = formData[key];
+        fd.append(key, value == null ? '' : String(value));
       });
       
       // existing images that are kept
@@ -113,16 +132,36 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
       }
 
       await api.put(`/oil/records/${record.id}`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        // Let the browser set multipart boundary (required for multer to read fields)
+        headers: { 'Content-Type': undefined },
       });
 
       // Recalculate
       await api.post('/oil/recalculate');
 
-      Swal.fire({ icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ', showConfirmButton: false, timer: 1500 });
+      await Swal.fire({
+        icon: 'success',
+        title: 'อัปเดตข้อมูลสำเร็จ',
+        showConfirmButton: false,
+        timer: 1500,
+        customClass: { container: 'swal-over-oil-modal' },
+        didOpen: () => {
+          const el = document.querySelector('.swal-over-oil-modal');
+          if (el) el.style.zIndex = '200000';
+        },
+      });
       onSuccess();
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.response?.data?.error || 'ไม่สามารถบันทึกได้' });
+      await Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: err.response?.data?.error || 'ไม่สามารถบันทึกได้',
+        customClass: { container: 'swal-over-oil-modal' },
+        didOpen: () => {
+          const el = document.querySelector('.swal-over-oil-modal');
+          if (el) el.style.zIndex = '200000';
+        },
+      });
     } finally {
       setLoading(false);
     }
@@ -167,16 +206,16 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <form id="editOilForm" onSubmit={handleSubmit} className="space-y-4">
+          <form id="editOilForm" onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-[#042C53] mb-1.5">วันที่/เวลา *</label>
                 <DateTimePicker
                   value={formData.date_recorded ? new Date(formData.date_recorded) : null}
-                  onChange={(d) => setFormData({
-                    ...formData,
+                  onChange={(d) => setFormData((prev) => ({
+                    ...prev,
                     date_recorded: d ? format(d, "yyyy-MM-dd'T'HH:mm") : '',
-                  })}
+                  }))}
                   placeholder="เลือกวันและเวลา"
                 />
               </div>
@@ -288,7 +327,12 @@ export default function OilRecordEditModal({ record, onClose, onSuccess }) {
             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-sm">
               ยกเลิก
             </button>
-            <button type="submit" form="editOilForm" disabled={loading} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-md transition-all active:scale-95 text-sm flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold shadow-md transition-all active:scale-95 text-sm flex items-center gap-2 disabled:opacity-60"
+            >
               {loading ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
             </button>
           </div>

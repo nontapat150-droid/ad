@@ -547,44 +547,68 @@ router.put(
       const price_per_liter = parseFloat(liters) > 0 ? (parseFloat(total_price) / parseFloat(liters)).toFixed(2) : 0;
       
       const newIsTrip = is_trip !== undefined ? (is_trip === 'true' || is_trip === true) : old[0].is_trip;
-      const newMileage = mileage || old[0].mileage;
+      const newMileage = mileage != null && mileage !== '' ? mileage : old[0].mileage;
       const cleanNewMileage = String(newMileage).replace(/,/g, '').trim();
       const newTechId = tech_id || old[0].tech_id;
       const techChanged = tech_id != null && String(tech_id) !== String(old[0].tech_id);
+      const plateValue = String(license_plate || old[0].license_plate || '').trim();
 
-      // Keep historical team unless admin reassigns to a different tech
+      // Keep historical team unless plate maps to another team, or admin reassigns tech
       const [targetUser] = await conn.query('SELECT team_id FROM users WHERE id = ?', [newTechId]);
       const targetUserTeamId = targetUser.length > 0 ? targetUser[0].team_id : null;
       let recordTeamId = old[0].team_id;
-      if (techChanged) {
+
+      const [matchedTeams] = await conn.query(
+        `SELECT id FROM teams
+         WHERE (is_active = 1 OR is_active IS NULL)
+           AND (
+             TRIM(IFNULL(vehicle_plate, '')) = ?
+             OR TRIM(team_name) = ?
+           )
+         ORDER BY CASE WHEN TRIM(IFNULL(vehicle_plate, '')) = ? THEN 0 ELSE 1 END, id ASC
+         LIMIT 1`,
+        [plateValue, plateValue, plateValue]
+      );
+      if (matchedTeams.length > 0) {
+        recordTeamId = matchedTeams[0].id;
+      } else if (techChanged) {
         recordTeamId = targetUserTeamId;
       } else if (recordTeamId == null) {
         recordTeamId = targetUserTeamId;
       }
 
       const targetDate = date_recorded ? new Date(date_recorded) : new Date(old[0].date_recorded);
+      const oldMileage = String(old[0].mileage ?? '').replace(/,/g, '').trim();
+      const mileageChanged = cleanNewMileage !== oldMileage;
+      const oldDateMs = new Date(old[0].date_recorded).getTime();
+      const newDateMs = targetDate.getTime();
+      const dateChanged = Number.isFinite(oldDateMs) && Number.isFinite(newDateMs)
+        ? Math.abs(oldDateMs - newDateMs) > 60_000
+        : Boolean(date_recorded);
 
-      // Check for duplicate record based on mileage and historical team (excluding current)
-      const [existing] = await conn.query(
-        `SELECT r.id 
-         FROM oil_records r
-         WHERE r.id != ?
-           AND r.team_id <=> ?
-           AND (
-             r.mileage = ?
-             OR 
-             (
-               ABS(r.mileage - ?) <= 50
-               AND ABS(TIMESTAMPDIFF(MINUTE, r.date_recorded, ?)) <= 120
-             )
-           )`,
-        [recordId, recordTeamId, cleanNewMileage, cleanNewMileage, targetDate]
-      );
+      // Only block on duplicate mileage/time when those fields actually change.
+      // Editing plate / liters / price alone must not fail the save.
+      if (mileageChanged || dateChanged) {
+        const [existing] = await conn.query(
+          `SELECT r.id 
+           FROM oil_records r
+           WHERE r.id != ?
+             AND r.team_id <=> ?
+             AND (
+               r.mileage = ?
+               OR 
+               (
+                 ABS(r.mileage - ?) <= 50
+                 AND ABS(TIMESTAMPDIFF(MINUTE, r.date_recorded, ?)) <= 120
+               )
+             )`,
+          [recordId, recordTeamId, cleanNewMileage, cleanNewMileage, targetDate]
+        );
 
-      if (existing.length > 0) {
-        await conn.rollback();
-        conn.release();
-        return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
+        if (existing.length > 0) {
+          await conn.rollback();
+          return res.status(409).json({ error: 'ตรวจพบข้อมูลซ้ำซ้อนหรือผิดปกติ: ทีมของคุณมีการบันทึกน้ำมันในช่วงเวลา (ไม่เกิน 2 ชม.) และเลขไมล์ที่ใกล้เคียงกันมากเกินไปแล้ว!' });
+        }
       }
 
       await conn.query(
@@ -594,9 +618,9 @@ router.put(
         [
           newTechId,
           recordTeamId,
-          license_plate || old[0].license_plate, 
+          plateValue || old[0].license_plate, 
           liters || old[0].liters, 
-          mileage || old[0].mileage, 
+          cleanNewMileage || old[0].mileage, 
           price_per_liter, 
           total_price || old[0].total_price, 
           (date_recorded ? date_recorded.replace('T', ' ') : null) || old[0].date_recorded,

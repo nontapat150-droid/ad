@@ -122,7 +122,7 @@ export default function OilRecordModal({ onClose, onSuccess, inline = false }) {
       }
 
       await api.post('/oil/records', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': undefined },
       });
       
       // Reset form if inline
