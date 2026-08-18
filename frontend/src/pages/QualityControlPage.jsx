@@ -259,9 +259,9 @@ function isSuspended(value) {
 }
 
 function rowOutcome(row, type) {
-  if (row.is_case) return { key: 'case', label: type === 'fraud' ? 'Fraud' : 'Churn', tone: 'danger' };
-  if (isSuspended(row.qc_status)) return { key: 'suspended', label: 'เฝ้าระวัง', tone: 'warning' };
-  return { key: 'normal', label: 'ผ่านเงื่อนไข', tone: 'success' };
+  const subject = type === 'fraud' ? 'Fraud' : 'Churn';
+  if (row.is_case) return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger' };
+  return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success' };
 }
 
 export default function QualityControlPage() {
@@ -326,7 +326,9 @@ export default function QualityControlPage() {
     }
     setLoading(true);
     try {
-      const response = await axios.get('/installed-customers/qc', { params: { type: qcType, month } });
+      const response = await axios.get('/installed-customers/qc', {
+        params: { type: qcType, month, scope: pageTab === 'billing' ? 'billing' : 'qc' },
+      });
       setResult(response.data);
       return response.data;
     } catch (error) {
@@ -337,7 +339,7 @@ export default function QualityControlPage() {
     } finally {
       setLoading(false);
     }
-  }, [month, qcSettings, qcType]);
+  }, [month, pageTab, qcSettings, qcType]);
 
   const refreshCustomer = useCallback(async (customerId) => {
     const nextResult = await runCalculate();
@@ -411,7 +413,7 @@ export default function QualityControlPage() {
   };
 
   const viewCounts = useMemo(() => {
-    const counts = { all: 0, case: 0, outstanding: 0, suspended: 0, normal: 0 };
+    const counts = { all: 0, case: 0, outstanding: 0, normal: 0 };
     for (const row of result?.customers || []) {
       counts.all += 1;
       counts[rowOutcome(row, qcType).key] += 1;
@@ -427,12 +429,10 @@ export default function QualityControlPage() {
   const selectWorkMode = (mode) => {
     if (mode === 'billing') {
       setPageTab('billing');
-      const billingType = qcSettings.churn?.enabled ? 'churn' : 'fraud';
-      if (billingType !== qcType) setResult(null);
-      setQcType(billingType);
+      setResult(null);
     } else {
       setPageTab('qc');
-      if (mode !== qcType) setResult(null);
+      setResult(null);
       setQcType(mode);
     }
     setView('all');
@@ -510,7 +510,9 @@ export default function QualityControlPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-500">ขอบเขตที่กำลังตรวจ</p>
                   <h2 className="mt-1 text-base font-black text-slate-900 dark:text-white">{pageTab === 'billing' ? 'การชำระเงินตามรอบบิล' : `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`}</h2>
-                  <p className="mt-1 text-xs text-slate-500">{pageTab === 'billing' ? `แสดงบิลหลังติดตั้งสูงสุด ${activeQcConfig.months} งวด` : `ตรวจย้อนหลัง ${activeQcConfig.months} เดือน · เกณฑ์ ${activeQcConfig.threshold_rate}%`}</p>
+                  <p className="mt-1 text-xs text-slate-500">{pageTab === 'billing'
+                    ? `เฉพาะลูกค้าที่ติดตั้งในเดือนที่เลือก · แสดงบิลสูงสุด ${result?.billing_months || Math.max(qcSettings.fraud?.months || 4, qcSettings.churn?.months || 8)} งวด`
+                    : `กลุ่มติดตั้งย้อนหลัง ${activeQcConfig.months} เดือน · ตัดสินจากการยกเลิกภายใน ${result?.case_window_months || qcSettings.fraud?.months || 4} เดือน`}</p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                   <div className="min-w-[230px]">
@@ -523,7 +525,7 @@ export default function QualityControlPage() {
                       </select>
                     </div>
                   </div>
-                  <button type="button" onClick={runCalculate} disabled={!month || loading || !activeQcConfig.enabled} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={runCalculate} disabled={!month || loading || (pageTab === 'billing' ? !anyQcEnabled : !activeQcConfig.enabled)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     โหลดข้อมูลล่าสุด
                   </button>
@@ -531,9 +533,9 @@ export default function QualityControlPage() {
               </div>
               {result && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-                  <span><b>ช่วงติดตั้ง:</b> {formatMonth(result.cohort_start_month)} – {formatMonth(result.cohort_end_month)}</span>
+                  <span><b>{pageTab === 'billing' ? 'เดือนติดตั้งที่เลือก:' : 'ช่วงติดตั้ง:'}</b> {pageTab === 'billing' ? formatMonth(result.cohort_end_month) : `${formatMonth(result.cohort_start_month)} – ${formatMonth(result.cohort_end_month)}`}</span>
                   <span><b>ข้อมูลทั้งหมด:</b> {Number(result.total_installs).toLocaleString('th-TH')} ราย</span>
-                  <span className="text-slate-400">CM คือผล Fraud/Churn · การชำระเงินอ้างอิงจากบิลจริง</span>
+                  <span className="text-slate-400">{pageTab === 'billing' ? 'การชำระเงินอ้างอิงจากบิลจริงของลูกค้ากลุ่มนี้' : `CM ตัดสินจากสถานะและวันที่ยกเลิกจริงภายใน ${result.case_window_months} เดือน`}</span>
                 </div>
               )}
             </section>
@@ -566,8 +568,7 @@ export default function QualityControlPage() {
                         ['all', 'ทั้งหมด'],
                         ['case', `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
                         ['outstanding', 'มียอดค้าง'],
-                        ['suspended', 'CM เฝ้าระวัง'],
-                        ['normal', 'CM ผ่านเกณฑ์'],
+                        ['normal', `ไม่เข้าเงื่อนไข ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
                       ].map(([key, label]) => (
                         <button key={key} type="button" onClick={() => setView(key)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition ${view === key ? 'border-lime-400 bg-lime-100 text-lime-900 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}>
                           {label} <span className="ml-1 opacity-70">{viewCounts[key].toLocaleString('th-TH')}</span>
@@ -619,7 +620,8 @@ export default function QualityControlPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <OutcomeBadge outcome={outcome} />
-                                <div className="mt-1.5 text-[11px] text-slate-400">CM จากไฟล์: {row.qc_status || 'ไม่มีข้อมูล'}</div>
+                                <div className="mt-1.5 text-[11px] font-semibold text-slate-500">{row.cm_reason || 'คำนวณจากสถานะและวันที่จริง'}</div>
+                                <div className="mt-1 text-[11px] text-slate-400">ข้อมูล CM ต้นทาง: {row.qc_status || 'ไม่มีข้อมูล'}</div>
                               </td>
                               <td className="px-4 py-3">
                                 <CmPaymentStatusBadge state={cmPayment} />
@@ -682,6 +684,7 @@ export default function QualityControlPage() {
         <CustomerDetailDrawer
           customer={selectedCustomer}
           type={qcType}
+          caseWindowMonths={result?.case_window_months || qcSettings.fraud?.months || 4}
           billMonths={result?.bill_months || []}
           onClose={() => setSelectedCustomer(null)}
           onRefresh={() => refreshCustomer(selectedCustomer.id)}
@@ -768,7 +771,7 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
   }, []);
   const maxBillNumber = useMemo(() => Math.max(
     1,
-    Number(result?.active_config?.months) || 1,
+    Number(result?.billing_months) || 1,
     ...ledger.map((row) => Number(row.bill_number) || 1)
   ), [ledger, result]);
   const selectedBillNumber = Math.min(maxBillNumber, Math.max(1, Number(filters.billNumber) || 1));
@@ -1323,7 +1326,38 @@ function nextMonth(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }) {
+function addMonthsClamped(value, months) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const targetFirst = new Date(Date.UTC(year, month - 1 + Number(months || 0), 1));
+  const lastDay = new Date(Date.UTC(targetFirst.getUTCFullYear(), targetFirst.getUTCMonth() + 1, 0)).getUTCDate();
+  targetFirst.setUTCDate(Math.min(day, lastDay));
+  return targetFirst.toISOString().slice(0, 10);
+}
+
+function cmOutcomeFromForm(form, type, caseWindowMonths) {
+  const subject = type === 'fraud' ? 'Fraud' : 'Churn';
+  const safeMonths = Math.max(1, Number(caseWindowMonths) || 4);
+  if (form.status !== 'cancelled') {
+    return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: 'สถานะระบบยังใช้งานอยู่' };
+  }
+  if (!form.install_date || !form.cancelled_at) {
+    return { key: 'incomplete', label: 'ข้อมูลยังไม่ครบ', tone: 'warning', reason: 'ต้องมีวันติดตั้งและวันที่ยกเลิกก่อนคำนวณ CM' };
+  }
+  if (form.cancelled_at < form.install_date) {
+    return { key: 'incomplete', label: 'วันที่ไม่ถูกต้อง', tone: 'warning', reason: 'วันที่ยกเลิกต้องไม่อยู่ก่อนวันติดตั้ง' };
+  }
+  const cutoff = addMonthsClamped(form.install_date, safeMonths);
+  if (form.cancelled_at < cutoff) {
+    return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger', reason: `ยกเลิกภายใน ${safeMonths} เดือนหลังติดตั้ง` };
+  }
+  return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: `ยกเลิกหลังพ้นเกณฑ์ ${safeMonths} เดือน` };
+}
+
+function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, onClose, onRefresh }) {
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [detailTab, setDetailTab] = useState(customer.selected_bill_context ? 'bills' : 'overview');
   const [customerForm, setCustomerForm] = useState(() => customerFormValues(customer));
@@ -1494,6 +1528,8 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
             <CustomerEditForm
               form={customerForm}
               setForm={setCustomerForm}
+              type={type}
+              caseWindowMonths={caseWindowMonths}
               saving={savingCustomer}
               onSubmit={saveCustomer}
               onCancel={() => setEditingCustomer(false)}
@@ -1502,7 +1538,7 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
             <>
               <DetailSection title="CM และการชำระเงิน">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <InfoPanel label={`CM ${type === 'fraud' ? 'Fraud' : 'Churn'}`}><OutcomeBadge outcome={outcome} /></InfoPanel>
+                  <InfoPanel label={`CM ${type === 'fraud' ? 'Fraud' : 'Churn'}`}><OutcomeBadge outcome={outcome} /><p className="mt-1 text-[11px] font-semibold text-slate-500">{customer.cm_reason || `คำนวณจากข้อมูลจริงภายใน ${caseWindowMonths} เดือน`}</p></InfoPanel>
                   <InfoPanel label={selectedBillContext ? `การชำระเงิน · บิลที่ ${selectedBillContext.bill_number}` : 'การชำระเงินล่าสุด'}><CmPaymentStatusBadge state={displayedCmPayment} />{selectedBillContext && <p className="mt-1 text-[11px] text-slate-500">ครบกำหนด {formatDate(selectedBillContext.due_date)} · ยอด {formatMoney(selectedBillContext.amount)} บาท</p>}</InfoPanel>
                   <InfoPanel label="สถานะ CM จากไฟล์ต้นทาง"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
                   <InfoPanel label="ข้อมูล Billing จากไฟล์ต้นทาง"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{customer.billing_status || '-'}</p></InfoPanel>
@@ -1587,8 +1623,9 @@ function CustomerDetailDrawer({ customer, type, billMonths, onClose, onRefresh }
 
 const fieldClass = 'mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100';
 
-function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
+function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSubmit, onCancel }) {
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const cmPreview = cmOutcomeFromForm(form, type, caseWindowMonths);
   return (
     <form onSubmit={onSubmit} className="overflow-hidden rounded-2xl border-2 border-lime-300 bg-white shadow-sm dark:border-lime-800 dark:bg-slate-900">
       <div className="border-b border-lime-200 bg-lime-50 px-4 py-3 dark:border-lime-900 dark:bg-lime-950/50">
@@ -1597,6 +1634,11 @@ function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
       </div>
 
       <div className="space-y-5 p-4 sm:p-5">
+        <div className={`rounded-xl border p-3 ${cmPreview.tone === 'danger' ? 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30' : cmPreview.tone === 'warning' ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'}`}>
+          <p className="text-xs font-black text-slate-500">ผล CM หลังบันทึก</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2"><OutcomeBadge outcome={cmPreview} /><span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{cmPreview.reason}</span></div>
+          <p className="mt-1 text-[11px] text-slate-500">ผลนี้คำนวณอัตโนมัติจากสถานะระบบ วันติดตั้ง และวันที่ยกเลิก ไม่ได้อิงข้อความ CM จากไฟล์ต้นทาง</p>
+        </div>
         <div>
           <EditGroupTitle>ข้อมูลหลัก</EditGroupTitle>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -1624,7 +1666,7 @@ function CustomerEditForm({ form, setForm, saving, onSubmit, onCancel }) {
             <EditField label="วิธีกำหนดรอบชำระ"><select value={form.payment_due_mode} onChange={update('payment_due_mode')} className={fieldClass}><option value="auto">อัตโนมัติตามวันติดตั้ง AIS</option><option value="manual">กำหนดวันที่เอง</option></select></EditField>
             <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" disabled={form.payment_due_mode === 'auto'} value={form.payment_due_mode === 'auto' ? aisDueDayPreview(form.install_date) : form.payment_due_day} onChange={update('payment_due_day')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /><span className="mt-1 block text-[11px] font-medium text-slate-400">โหมดอัตโนมัติจะคำนวณใหม่เมื่อเปลี่ยนวันติดตั้ง</span></EditField>
             <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
-            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก"><input type="date" value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
+            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก" required><input required type="date" min={form.install_date || undefined} value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
             {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
             <EditField label="สรุปสำรอง/ยกเลิก" className="sm:col-span-2"><textarea rows={2} value={form.tracking_summary} onChange={update('tracking_summary')} className={`${fieldClass} h-auto py-2`} /></EditField>
             <EditField label="ผลการติดตาม / AE Remark" className="sm:col-span-2"><textarea rows={4} value={form.ae_remark} onChange={update('ae_remark')} className={`${fieldClass} h-auto py-2`} /></EditField>

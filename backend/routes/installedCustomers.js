@@ -521,12 +521,16 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const db = await getDb();
     const type = String(req.query.type || '').toLowerCase();
     const month = String(req.query.month || '').trim();
+    const scope = String(req.query.scope || 'qc').trim().toLowerCase();
 
     if (type !== 'fraud' && type !== 'churn') {
       return res.status(400).json({ error: 'type ต้องเป็น fraud หรือ churn' });
     }
     if (!isValidYm(month)) {
       return res.status(400).json({ error: 'month ต้องเป็นรูปแบบ YYYY-MM' });
+    }
+    if (!['qc', 'billing'].includes(scope)) {
+      return res.status(400).json({ error: 'scope ต้องเป็น qc หรือ billing' });
     }
 
     const settings = await getFraudChurnSettings(db);
@@ -539,9 +543,14 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       });
     }
 
-    const monthsBack = activeConfig.months;
-    // นับรวมเดือนอ้างอิงเป็นเดือนสุดท้ายของช่วงตรวจสอบ
-    const cohortStartMonth = shiftMonth(month, -(monthsBack - 1));
+    // ช่วงกลุ่มติดตั้งและอายุที่ใช้ตัดสิน CM เป็นคนละเงื่อนไข:
+    // Fraud = กลุ่มติดตั้งย้อนหลังตามค่าตั้ง Fraud, Churn = ตามค่าตั้ง Churn
+    // แต่ทั้งคู่ตัดสินจากการยกเลิกภายในอายุ Fraud หลังติดตั้ง (ค่าเริ่มต้น 4 เดือน)
+    // หน้าการชำระเงินต้องแสดงเฉพาะลูกค้าที่ติดตั้งในเดือนที่ผู้ใช้เลือก
+    const cohortMonths = scope === 'billing' ? 1 : activeConfig.months;
+    const caseWindowMonths = Math.max(1, Number(settings.fraud?.months) || 4);
+    const billingMonths = billingMonthsFromQcSettings(settings);
+    const cohortStartMonth = shiftMonth(month, -(cohortMonths - 1));
     const { start } = monthBounds(cohortStartMonth);
     const { end } = monthBounds(month);
 
@@ -557,7 +566,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
          ) AS cases
        FROM installed_customers
        WHERE install_date BETWEEN ? AND ?`,
-      [monthsBack, start, end]
+      [caseWindowMonths, start, end]
     );
 
     const total = Number(summary?.total_installs) || 0;
@@ -577,9 +586,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
            ELSE 0 END), 0) AS outstanding_bills
        FROM installed_customer_bills b
        JOIN installed_customers c ON c.id = b.installed_customer_id
-       WHERE c.install_date BETWEEN ? AND ?
-         AND b.bill_month BETWEEN ? AND ?`,
-      [start, end, cohortStartMonth, month]
+       WHERE c.install_date BETWEEN ? AND ?`,
+      [start, end]
     );
 
     const [customers] = await db.query(
@@ -615,7 +623,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        ) b ON b.installed_customer_id = c.id
        WHERE c.install_date BETWEEN ? AND ?
        ORDER BY c.install_date ASC, COALESCE(c.source_row_number, 999999), c.non_number ASC`,
-      [monthsBack, start, end]
+      [caseWindowMonths, start, end]
     );
 
     const [billRows] = await db.query(
@@ -676,6 +684,17 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const normalizedCustomers = customers.map((customer) => ({
       ...customer,
       is_case: Boolean(customer.is_case),
+      cm_status: Boolean(customer.is_case) ? type : 'not_case',
+      cm_reason: Boolean(customer.is_case)
+        ? `ยกเลิกภายใน ${caseWindowMonths} เดือนหลังติดตั้ง`
+        : (customer.status !== 'cancelled'
+          ? 'สถานะระบบยังใช้งานอยู่'
+          : (!customer.cancelled_at
+            ? 'สถานะยกเลิก แต่ยังไม่มีวันที่ยกเลิก'
+            : (new Date(customer.cancelled_at) < new Date(customer.install_date)
+              ? 'วันที่ยกเลิกอยู่ก่อนวันติดตั้ง ข้อมูลไม่ถูกต้อง'
+              : `ยกเลิกหลังพ้นเกณฑ์ ${caseWindowMonths} เดือน`))),
+      case_window_months: caseWindowMonths,
       outstanding_total: Number(customer.outstanding_total) || 0,
       outstanding_bills: Number(customer.outstanding_bills) || 0,
       paid_bills: Number(customer.paid_bills) || 0,
@@ -686,19 +705,21 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const suspendedCustomers = normalizedCustomers.filter((customer) => /suspend|debt/i.test(customer.qc_status || '')).length;
     const outstandingCustomers = new Set(
       billRows
-        .filter((bill) => bill.bill_month >= cohortStartMonth
-          && bill.bill_month <= month
-          && ['outstanding', 'overdue'].includes(bill.bill_status))
+        .filter((bill) => ['outstanding', 'overdue'].includes(bill.bill_status))
         .map((bill) => bill.installed_customer_id)
     ).size;
 
     res.json({
       type,
+      scope,
       ref_month: month,
       cohort_month: cohortStartMonth,
       cohort_start_month: cohortStartMonth,
       cohort_end_month: month,
-      months_back: monthsBack,
+      months_back: cohortMonths,
+      cohort_months: cohortMonths,
+      case_window_months: caseWindowMonths,
+      billing_months: billingMonths,
       cohort_start: start,
       cohort_end: end,
       total_installs: total,
@@ -1428,6 +1449,12 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cancelled_at = status === 'cancelled'
       ? dateField('cancelled_at', existing.cancelled_at)
       : null;
+    if (status === 'cancelled' && !cancelled_at) {
+      return res.status(400).json({ error: 'สถานะยกเลิกต้องระบุวันที่ยกเลิก เพื่อคำนวณ CM ให้ถูกต้อง' });
+    }
+    if (cancelled_at && cancelled_at < install_date) {
+      return res.status(400).json({ error: 'วันที่ยกเลิกต้องไม่อยู่ก่อนวันติดตั้ง' });
+    }
     const cancel_reason = status === 'cancelled'
       ? textField('cancel_reason', existing.cancel_reason)
       : null;
