@@ -553,6 +553,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cohortStartMonth = shiftMonth(month, -(cohortMonths - 1));
     const { start } = monthBounds(cohortStartMonth);
     const { end } = monthBounds(month);
+    const [[clock]] = await db.query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS as_of_date");
+    const asOfDate = clock?.as_of_date;
 
     const [[summary]] = await db.query(
       `SELECT
@@ -561,6 +563,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
            CASE WHEN status = 'cancelled'
              AND cancelled_at IS NOT NULL
              AND cancelled_at >= install_date
+             AND cancelled_at <= CURDATE()
              AND cancelled_at < DATE_ADD(install_date, INTERVAL ? MONTH)
            THEN 1 ELSE 0 END
          ) AS cases
@@ -593,6 +596,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const [customers] = await db.query(
       `SELECT c.id, c.customer_name, c.non_number, c.package_name, c.monthly_fee,
               c.install_date, c.status, c.cancelled_at, c.cancel_reason,
+              DATE_FORMAT(c.cancelled_at, '%Y-%m-%d') AS cancelled_date,
               c.seller_name, c.contact_phone, c.subdistrict, c.district,
               c.qc_status, c.billing_status, c.status_changed_at, c.ae_remark,
               c.payment_due_day, c.first_due_date, c.payment_due_source,
@@ -602,9 +606,12 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               c.source_sheet, c.last_imported_at,
               DATE_ADD(c.install_date, INTERVAL 127 DAY) AS tracking_due_at,
               DATEDIFF(DATE_ADD(c.install_date, INTERVAL 127 DAY), CURDATE()) + 1 AS tracking_days_remaining,
+              DATE_FORMAT(DATE_ADD(c.install_date, INTERVAL ? MONTH), '%Y-%m-%d') AS cm_cutoff_date,
+              DATEDIFF(DATE_ADD(c.install_date, INTERVAL ? MONTH), CURDATE()) AS cm_days_remaining,
               CASE WHEN c.status = 'cancelled'
                      AND c.cancelled_at IS NOT NULL
                      AND c.cancelled_at >= c.install_date
+                     AND c.cancelled_at <= CURDATE()
                      AND c.cancelled_at < DATE_ADD(c.install_date, INTERVAL ? MONTH)
                    THEN 1 ELSE 0 END AS is_case,
               COALESCE(b.outstanding_total, 0) AS outstanding_total,
@@ -623,7 +630,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        ) b ON b.installed_customer_id = c.id
        WHERE c.install_date BETWEEN ? AND ?
        ORDER BY c.install_date ASC, COALESCE(c.source_row_number, 999999), c.non_number ASC`,
-      [caseWindowMonths, start, end]
+      [caseWindowMonths, caseWindowMonths, caseWindowMonths, start, end]
     );
 
     const [billRows] = await db.query(
@@ -681,26 +688,50 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       billsByCustomer.set(bill.installed_customer_id, list);
     }
 
-    const normalizedCustomers = customers.map((customer) => ({
-      ...customer,
-      is_case: Boolean(customer.is_case),
-      cm_status: Boolean(customer.is_case) ? type : 'not_case',
-      cm_reason: Boolean(customer.is_case)
-        ? `ยกเลิกภายใน ${caseWindowMonths} เดือนหลังติดตั้ง`
-        : (customer.status !== 'cancelled'
-          ? 'สถานะระบบยังใช้งานอยู่'
-          : (!customer.cancelled_at
-            ? 'สถานะยกเลิก แต่ยังไม่มีวันที่ยกเลิก'
-            : (new Date(customer.cancelled_at) < new Date(customer.install_date)
-              ? 'วันที่ยกเลิกอยู่ก่อนวันติดตั้ง ข้อมูลไม่ถูกต้อง'
-              : `ยกเลิกหลังพ้นเกณฑ์ ${caseWindowMonths} เดือน`))),
-      case_window_months: caseWindowMonths,
-      outstanding_total: Number(customer.outstanding_total) || 0,
-      outstanding_bills: Number(customer.outstanding_bills) || 0,
-      paid_bills: Number(customer.paid_bills) || 0,
-      bill_rows: Number(customer.bill_rows) || 0,
-      bills: billsByCustomer.get(customer.id) || [],
-    }));
+    const normalizedCustomers = customers.map((customer) => {
+      const isCase = Boolean(customer.is_case);
+      const cancelledDate = customer.cancelled_date || null;
+      const installDate = parseDate(customer.install_date);
+      const invalidCancellation = customer.status === 'cancelled'
+        && (!cancelledDate || !installDate || cancelledDate < installDate);
+      const cancellationIsFuture = Boolean(cancelledDate && asOfDate && cancelledDate > asOfDate);
+      const isMonitoring = !isCase
+        && !invalidCancellation
+        && Number(customer.cm_days_remaining) > 0;
+      const cmStatus = isCase
+        ? type
+        : invalidCancellation
+          ? 'incomplete'
+          : isMonitoring
+            ? 'monitoring'
+            : 'not_case';
+      const cmReason = isCase
+        ? `ยกเลิกจริงภายใน ${caseWindowMonths} เดือนหลังติดตั้ง`
+        : invalidCancellation
+          ? 'ข้อมูลยกเลิกไม่ครบหรือวันที่ยกเลิกไม่ถูกต้อง'
+          : isMonitoring
+            ? (cancellationIsFuture
+              ? `วันที่ยกเลิก ${cancelledDate} ยังมาไม่ถึง · อยู่ระหว่างตรวจถึง ${customer.cm_cutoff_date}`
+              : `ยังใช้งาน ณ ${asOfDate} · เหลือ ${Number(customer.cm_days_remaining)} วันถึงวันสรุปผล`)
+            : (cancellationIsFuture
+              ? `วันที่ยกเลิก ${cancelledDate} ยังมาไม่ถึง และอยู่นอกช่วง CM ${caseWindowMonths} เดือน`
+              : customer.status === 'cancelled' && cancelledDate
+              ? `ยกเลิกจริงหลังพ้นเกณฑ์ ${caseWindowMonths} เดือน`
+              : `ครบช่วงตรวจแล้วและยังใช้งาน ณ ${asOfDate}`);
+      return {
+        ...customer,
+        is_case: isCase,
+        cm_status: cmStatus,
+        cm_reason: cmReason,
+        cm_as_of_date: asOfDate,
+        case_window_months: caseWindowMonths,
+        outstanding_total: Number(customer.outstanding_total) || 0,
+        outstanding_bills: Number(customer.outstanding_bills) || 0,
+        paid_bills: Number(customer.paid_bills) || 0,
+        bill_rows: Number(customer.bill_rows) || 0,
+        bills: billsByCustomer.get(customer.id) || [],
+      };
+    });
     const detail = normalizedCustomers.filter((customer) => customer.is_case);
     const suspendedCustomers = normalizedCustomers.filter((customer) => /suspend|debt/i.test(customer.qc_status || '')).length;
     const outstandingCustomers = new Set(
@@ -712,6 +743,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.json({
       type,
       scope,
+      as_of_date: asOfDate,
       ref_month: month,
       cohort_month: cohortStartMonth,
       cohort_start_month: cohortStartMonth,
@@ -724,6 +756,8 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       cohort_end: end,
       total_installs: total,
       cases,
+      monitoring_customers: normalizedCustomers.filter((customer) => customer.cm_status === 'monitoring').length,
+      incomplete_customers: normalizedCustomers.filter((customer) => customer.cm_status === 'incomplete').length,
       rate,
       threshold_rate: thresholdRate,
       active_config: activeConfig,
@@ -1455,6 +1489,12 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (cancelled_at && cancelled_at < install_date) {
       return res.status(400).json({ error: 'วันที่ยกเลิกต้องไม่อยู่ก่อนวันติดตั้ง' });
     }
+    if (cancelled_at) {
+      const [[clock]] = await db.query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today");
+      if (cancelled_at > clock.today) {
+        return res.status(400).json({ error: 'วันที่ยกเลิกจริงต้องไม่เกินวันปัจจุบัน หากเป็นวันที่คาดการณ์ให้กรอกในช่องคาดการณ์ Terminate' });
+      }
+    }
     const cancel_reason = status === 'cancelled'
       ? textField('cancel_reason', existing.cancel_reason)
       : null;
@@ -1691,6 +1731,10 @@ router.post('/:id/cancel', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cancel_reason = req.body.cancel_reason != null
       ? String(req.body.cancel_reason).trim() || null
       : null;
+    const [[clock]] = await db.query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today");
+    if (cancelled_at > clock.today) {
+      return res.status(400).json({ error: 'วันที่ยกเลิกจริงต้องไม่เกินวันปัจจุบัน' });
+    }
 
     await db.query(
       `UPDATE installed_customers

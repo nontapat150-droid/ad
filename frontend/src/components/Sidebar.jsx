@@ -111,6 +111,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       else if (key === 'customers')     navigate('/customers');
       else if (key === 'installed_customers') navigate('/installed-customers');
       else if (key === 'quality_control') navigate('/quality-control');
+      else if (key === 'quality_control_billing_test') navigate('/quality-control/billing-test');
       else if (key === 'ais_expansion') navigate('/ais-expansion');
       else if (key === 'oil_history')   navigate('/oil-history');
       else if (key === 'settings')      navigate('/settings');
@@ -125,6 +126,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       ...(isSuperAdmin ? [{ key: 'users', label: 'จัดการผู้ใช้', icon: UsersIcon }] : []),
       { key: 'installed_customers', label: 'ลูกค้าติดตั้งสำเร็จ', icon: InstalledIcon },
       { key: 'quality_control', label: 'ควบคุมคุณภาพ', icon: QcIcon },
+      { key: 'quality_control_billing_test', label: 'ตรวจชำระบิล (ทดสอบ)', icon: QcIcon },
       { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
       { key: 'contractor_inventory', label: 'สรุปอุปกรณ์รับเหมา', icon: InventoryIcon },
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),

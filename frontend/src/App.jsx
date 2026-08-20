@@ -139,6 +139,7 @@ function AppRoutes() {
       <Route path="/contractor-inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><ContractorInventoryPage /></ProtectedRoute>} />
       <Route path="/installed-customers" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><InstalledCustomersPage /></ProtectedRoute>} />
       <Route path="/quality-control" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><QualityControlPage /></ProtectedRoute>} />
+      <Route path="/quality-control/billing-test" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><QualityControlPage previewMode="billing" sidebarActiveKey="quality_control_billing_test" /></ProtectedRoute>} />
       <Route path="/report" element={<ProtectedRoute><ReportIssuePage /></ProtectedRoute>} />
 
       {/* Default: redirect based on role */}

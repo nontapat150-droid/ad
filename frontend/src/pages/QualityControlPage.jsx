@@ -70,6 +70,20 @@ function formatDate(value) {
   return year && month && day ? `${day}/${month}/${year}` : iso;
 }
 
+function todayInBangkok() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function daysBetweenIso(from, to) {
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  return Math.ceil((end.getTime() - start.getTime()) / 86400000);
+}
+
 function formatDateTime(value) {
   if (!value) return '-';
   const date = new Date(value);
@@ -260,14 +274,17 @@ function isSuspended(value) {
 
 function rowOutcome(row, type) {
   const subject = type === 'fraud' ? 'Fraud' : 'Churn';
-  if (row.is_case) return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger' };
+  if (row.cm_status === type || row.is_case) return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger' };
+  if (row.cm_status === 'monitoring') return { key: 'monitoring', label: 'อยู่ระหว่างตรวจ', tone: 'info' };
+  if (row.cm_status === 'incomplete') return { key: 'incomplete', label: 'ข้อมูล CM ไม่ครบ', tone: 'warning' };
   return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success' };
 }
 
-export default function QualityControlPage() {
+export default function QualityControlPage({ previewMode = 'qc', sidebarActiveKey = 'quality_control' } = {}) {
+  const isBillingPreview = previewMode === 'billing';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [pageTab, setPageTab] = useState('qc');
+  const [pageTab, setPageTab] = useState(isBillingPreview ? 'billing' : 'qc');
   const [qcType, setQcType] = useState('fraud');
   const [month, setMonth] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
@@ -320,14 +337,25 @@ export default function QualityControlPage() {
 
   const runCalculate = useCallback(async () => {
     if (!month) return;
-    if (!qcSettings[qcType]?.enabled) {
+    const billingScope = isBillingPreview || pageTab === 'billing';
+    const qcEnabled = Boolean(qcSettings.fraud?.enabled || qcSettings.churn?.enabled);
+    if (billingScope) {
+      if (!qcEnabled) {
+        setResult(null);
+        return null;
+      }
+    } else if (!qcSettings[qcType]?.enabled) {
       setResult(null);
       return null;
     }
     setLoading(true);
     try {
       const response = await axios.get('/installed-customers/qc', {
-        params: { type: qcType, month, scope: pageTab === 'billing' ? 'billing' : 'qc' },
+        params: {
+          type: qcType,
+          month,
+          scope: billingScope ? 'billing' : 'qc',
+        },
       });
       setResult(response.data);
       return response.data;
@@ -339,7 +367,7 @@ export default function QualityControlPage() {
     } finally {
       setLoading(false);
     }
-  }, [month, pageTab, qcSettings, qcType]);
+  }, [month, pageTab, qcSettings, qcType, isBillingPreview]);
 
   const refreshCustomer = useCallback(async (customerId) => {
     const nextResult = await runCalculate();
@@ -413,7 +441,7 @@ export default function QualityControlPage() {
   };
 
   const viewCounts = useMemo(() => {
-    const counts = { all: 0, case: 0, outstanding: 0, normal: 0 };
+    const counts = { all: 0, case: 0, monitoring: 0, incomplete: 0, outstanding: 0, normal: 0 };
     for (const row of result?.customers || []) {
       counts.all += 1;
       counts[rowOutcome(row, qcType).key] += 1;
@@ -425,8 +453,13 @@ export default function QualityControlPage() {
 
   const activeQcConfig = qcSettings[qcType] || DEFAULT_QC_SETTINGS[qcType];
   const anyQcEnabled = Boolean(qcSettings.fraud?.enabled || qcSettings.churn?.enabled);
-  const workMode = pageTab === 'billing' ? 'billing' : qcType;
+  const workMode = isBillingPreview || pageTab === 'billing' ? 'billing' : qcType;
+  const modeNavItems = [
+    { id: 'fraud', label: 'CM Fraud', description: `ตรวจย้อนหลัง ${qcSettings.fraud?.months || 4} เดือน`, icon: ShieldAlert, enabled: qcSettings.fraud?.enabled },
+    { id: 'churn', label: 'CM Churn', description: `ตรวจย้อนหลัง ${qcSettings.churn?.months || 8} เดือน`, icon: Users, enabled: qcSettings.churn?.enabled },
+  ];
   const selectWorkMode = (mode) => {
+    if (isBillingPreview) return;
     if (mode === 'billing') {
       setPageTab('billing');
       setResult(null);
@@ -441,7 +474,7 @@ export default function QualityControlPage() {
 
   return (
     <div className="flex h-dvh overflow-hidden bg-[#F4F7F2] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey="quality_control" />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeKey={sidebarActiveKey} />
 
       <div className="flex min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-width)]">
         <header className="z-30 flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-6">
@@ -453,8 +486,14 @@ export default function QualityControlPage() {
               <ShieldAlert className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">ควบคุมคุณภาพ</h1>
-              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Fraud / Churn และการตรวจชำระตามลำดับบิลหลังติดตั้ง</p>
+              <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">
+                {isBillingPreview ? 'ตรวจชำระบิล (ทดสอบ)' : 'ควบคุมคุณภาพ'}
+              </h1>
+              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">
+                {isBillingPreview
+                  ? 'หน้าทดสอบแยกจาก CM Fraud/Churn — ใช้ตรวจบิลตามลำดับหลังติดตั้ง'
+                  : 'Fraud / Churn สำหรับตรวจ CM'}
+              </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -462,7 +501,7 @@ export default function QualityControlPage() {
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">นำเข้าข้อมูล</span>
             </button>
-            {pageTab === 'qc' && (
+            {pageTab === 'qc' && !isBillingPreview && (
               <button type="button" onClick={exportWorkbook} aria-label="Export Excel ตามผลตรวจ" disabled={!result?.customers?.length || exporting} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-sm font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#78BE20] dark:text-slate-950">
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">{exporting ? 'กำลัง Export...' : 'Export Excel'}</span>
@@ -475,12 +514,20 @@ export default function QualityControlPage() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1680px] space-y-4 p-3 sm:p-5">
-            <nav className="grid gap-2 sm:grid-cols-3" aria-label="เลือกงานควบคุมคุณภาพ">
-              {[
-                { id: 'fraud', label: 'CM Fraud', description: `ตรวจย้อนหลัง ${qcSettings.fraud?.months || 4} เดือน`, icon: ShieldAlert, enabled: qcSettings.fraud?.enabled },
-                { id: 'churn', label: 'CM Churn', description: `ตรวจย้อนหลัง ${qcSettings.churn?.months || 8} เดือน`, icon: Users, enabled: qcSettings.churn?.enabled },
-                { id: 'billing', label: 'การชำระเงิน', description: 'ตรวจบิลและติดตามยอดค้าง', icon: WalletCards, enabled: anyQcEnabled },
-              ].map((item) => {
+            {isBillingPreview && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="font-black">โหมดทดสอบ</p>
+                <p className="mt-1 text-xs leading-5 text-amber-900/90 dark:text-amber-200/90">
+                  หน้านี้แยกจากเมนู <b>ควบคุมคุณภาพ</b> หลัก เพื่อทดลองใช้งานก่อนนำไปใช้จริง
+                  {' '}·{' '}
+                  <a href="/quality-control" className="font-bold underline underline-offset-2">กลับหน้า CM Fraud/Churn</a>
+                </p>
+              </div>
+            )}
+
+            {!isBillingPreview && (
+            <nav className="grid gap-2 sm:grid-cols-2" aria-label="เลือกงานควบคุมคุณภาพ">
+              {modeNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = workMode === item.id;
                 return (
@@ -502,15 +549,16 @@ export default function QualityControlPage() {
                 );
               })}
             </nav>
+            )}
 
-            <WorkflowGuide mode={workMode} />
+            {pageTab === 'qc' && <WorkflowGuide mode={workMode} />}
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-500">ขอบเขตที่กำลังตรวจ</p>
-                  <h2 className="mt-1 text-base font-black text-slate-900 dark:text-white">{pageTab === 'billing' ? 'การชำระเงินตามรอบบิล' : `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`}</h2>
-                  <p className="mt-1 text-xs text-slate-500">{pageTab === 'billing'
+                  <h2 className="mt-1 text-base font-black text-slate-900 dark:text-white">{(isBillingPreview || pageTab === 'billing') ? 'การชำระเงินตามรอบบิล' : `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`}</h2>
+                  <p className="mt-1 text-xs text-slate-500">{(isBillingPreview || pageTab === 'billing')
                     ? `เฉพาะลูกค้าที่ติดตั้งในเดือนที่เลือก · แสดงบิลสูงสุด ${result?.billing_months || Math.max(qcSettings.fraud?.months || 4, qcSettings.churn?.months || 8)} งวด`
                     : `กลุ่มติดตั้งย้อนหลัง ${activeQcConfig.months} เดือน · ตัดสินจากการยกเลิกภายใน ${result?.case_window_months || qcSettings.fraud?.months || 4} เดือน`}</p>
                 </div>
@@ -519,13 +567,13 @@ export default function QualityControlPage() {
                     <label htmlFor="qc-month" className="mb-1 block text-xs font-bold normal-case tracking-normal text-slate-500">เดือนที่ติดตั้งสำเร็จ</label>
                     <div className="relative">
                       <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <select id="qc-month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={loadingOptions || !availableMonths.length || !anyQcEnabled} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                      <select id="qc-month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={loadingOptions || !availableMonths.length || ((isBillingPreview || pageTab === 'billing') ? !anyQcEnabled : !activeQcConfig.enabled)} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
                         {!availableMonths.length && <option value="">ยังไม่มีข้อมูลติดตั้ง</option>}
                         {availableMonths.map((item) => <option key={item.value} value={item.value}>{formatMonth(item.value)} · {item.total.toLocaleString('th-TH')} ราย</option>)}
                       </select>
                     </div>
                   </div>
-                  <button type="button" onClick={runCalculate} disabled={!month || loading || (pageTab === 'billing' ? !anyQcEnabled : !activeQcConfig.enabled)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="button" onClick={runCalculate} disabled={!month || loading || ((isBillingPreview || pageTab === 'billing') ? !anyQcEnabled : !activeQcConfig.enabled)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     โหลดข้อมูลล่าสุด
                   </button>
@@ -533,15 +581,15 @@ export default function QualityControlPage() {
               </div>
               {result && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-                  <span><b>{pageTab === 'billing' ? 'เดือนติดตั้งที่เลือก:' : 'ช่วงติดตั้ง:'}</b> {pageTab === 'billing' ? formatMonth(result.cohort_end_month) : `${formatMonth(result.cohort_start_month)} – ${formatMonth(result.cohort_end_month)}`}</span>
+                  <span><b>{(isBillingPreview || pageTab === 'billing') ? 'เดือนติดตั้งที่เลือก:' : 'ช่วงติดตั้ง:'}</b> {(isBillingPreview || pageTab === 'billing') ? formatMonth(result.cohort_end_month) : `${formatMonth(result.cohort_start_month)} – ${formatMonth(result.cohort_end_month)}`}</span>
                   <span><b>ข้อมูลทั้งหมด:</b> {Number(result.total_installs).toLocaleString('th-TH')} ราย</span>
-                  <span className="text-slate-400">{pageTab === 'billing' ? 'การชำระเงินอ้างอิงจากบิลจริงของลูกค้ากลุ่มนี้' : `CM ตัดสินจากสถานะและวันที่ยกเลิกจริงภายใน ${result.case_window_months} เดือน`}</span>
+                  <span className="text-slate-400">{(isBillingPreview || pageTab === 'billing') ? 'การชำระเงินอ้างอิงจากบิลจริงของลูกค้ากลุ่มนี้' : `CM คำนวณใหม่ ณ ${formatDate(result.as_of_date)} จากสถานะและวันที่จริง · ไม่ใช้สถานะ Excel เป็นผลสรุป`}</span>
                 </div>
               )}
             </section>
 
             {loading && !result ? <LoadingState /> : result ? (
-              pageTab === 'billing' ? (
+              (isBillingPreview || pageTab === 'billing') ? (
                 <BillPaymentExplorer result={result} onViewCustomer={setSelectedCustomer} onRefresh={runCalculate} />
               ) : (
               <>
@@ -566,9 +614,11 @@ export default function QualityControlPage() {
                     <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                       {[
                         ['all', 'ทั้งหมด'],
-                        ['case', `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
-                        ['outstanding', 'มียอดค้าง'],
+                        ['case', `เข้า ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
+                        ['monitoring', 'อยู่ระหว่างตรวจ'],
                         ['normal', `ไม่เข้าเงื่อนไข ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
+                        ...(viewCounts.incomplete > 0 ? [['incomplete', 'ข้อมูลไม่ครบ']] : []),
+                        ['outstanding', 'มียอดค้าง'],
                       ].map(([key, label]) => (
                         <button key={key} type="button" onClick={() => setView(key)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition ${view === key ? 'border-lime-400 bg-lime-100 text-lime-900 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}>
                           {label} <span className="ml-1 opacity-70">{viewCounts[key].toLocaleString('th-TH')}</span>
@@ -788,8 +838,6 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
       };
     });
   }, [followUpsByCustomerBill, ledger, result, selectedBillNumber]);
-  const months = useMemo(() => Array.from(new Set(selectedBills.map((row) => row.bill_month).filter(Boolean))).sort().reverse(), [selectedBills]);
-
   const matchedBills = useMemo(() => {
     const query = filters.query.trim().toLowerCase();
     const minimum = filters.amountMin === '' ? null : Number(filters.amountMin);
@@ -883,7 +931,7 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
   const currentPage = Math.min(billPage, totalPages);
   const pageRows = filteredBills.slice((currentPage - 1) * billPageSize, currentPage * billPageSize);
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => value !== DEFAULT_BILL_FILTERS[key]);
-  const advancedFilterCount = ['month', 'amountMin', 'amountMax', 'amountSource', 'taskStatus', 'assignee']
+  const advancedFilterCount = ['installFrom', 'installTo', 'taskStatus', 'assignee']
     .filter((key) => filters[key] !== DEFAULT_BILL_FILTERS[key]).length;
   const scopeLabel = filters.dueState !== 'all'
     ? ({ due_today: 'ครบกำหนดวันนี้', overdue: 'เกินกำหนด' }[filters.dueState] || 'ตามกำหนดชำระ')
@@ -1012,8 +1060,8 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
             <div className="flex items-center gap-2">
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><WalletCards className="h-4.5 w-4.5" /></div>
               <div>
-                <h2 className="text-base font-black text-slate-900 dark:text-white">สถานะการชำระเงิน</h2>
-                <p className="mt-0.5 text-xs text-slate-500">เลือกงวดบิล แล้วดูว่าใครชำระแล้ว ใครต้องติดตาม และใครยังไม่ถึงกำหนด</p>
+                <h2 className="text-base font-black text-slate-900 dark:text-white">ตรวจบิลทีละรอบ</h2>
+                <p className="mt-0.5 text-xs text-slate-500">เลือกเลขบิลด้านล่าง แล้วกดสถานะที่ต้องการดูได้ทันที</p>
               </div>
             </div>
           </div>
@@ -1023,8 +1071,8 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-lime-200 bg-lime-50/60 p-3 dark:border-lime-900 dark:bg-lime-950/30 sm:flex-row sm:items-center">
-          <span className="shrink-0 text-xs font-black text-lime-950 dark:text-lime-200">เลือกงวดที่ต้องการตรวจ</span>
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-lime-300 bg-lime-50 p-3 dark:border-lime-900 dark:bg-lime-950/30 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-sm font-black text-lime-950 dark:text-lime-200">1. เลือกรอบบิล</span>
           <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0" role="group" aria-label="เลือกลำดับบิล">
             {Array.from({ length: maxBillNumber }, (_, index) => index + 1).map((number) => (
               <button key={number} type="button" onClick={() => { setFilters((current) => ({ ...current, billNumber: String(number), month: 'all', dueState: 'all' })); setBillPage(1); }} aria-pressed={selectedBillNumber === number} className={`h-9 min-w-16 rounded-lg border px-3 text-xs font-black transition focus:outline-none focus:ring-4 focus:ring-lime-100 ${selectedBillNumber === number ? 'border-lime-500 bg-[#78BE20] text-slate-950 shadow-sm' : 'border-lime-200 bg-white text-lime-900 hover:border-lime-400 dark:border-lime-800 dark:bg-slate-950 dark:text-lime-300'}`}>บิล {number}</button>
@@ -1032,33 +1080,25 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 md:grid-cols-[minmax(280px,1fr)_180px_180px]">
+        <div className="mt-3">
           <label className="relative">
             <span className="sr-only">ค้นหาลูกค้า</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={filters.query} onChange={updateFilter('query')} placeholder="ค้นหาชื่อ, NON, แพ็กเกจ, ผู้ขาย" className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950" />
+            <input value={filters.query} onChange={updateFilter('query')} placeholder="ค้นหาชื่อลูกค้า, NON หรือแพ็กเกจ" className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950" />
           </label>
-          <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งตั้งแต่</span><input type="date" value={filters.installFrom} max={filters.installTo || undefined} onChange={updateFilter('installFrom')} className="h-10 pt-3 text-xs font-bold" aria-label="ติดตั้งสำเร็จตั้งแต่วันที่" /></label>
-          <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งถึง</span><input type="date" value={filters.installTo} min={filters.installFrom || undefined} onChange={updateFilter('installTo')} className="h-10 pt-3 text-xs font-bold" aria-label="ติดตั้งสำเร็จถึงวันที่" /></label>
         </div>
 
         <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-950/50">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300">ตัวกรองเพิ่มเติม{advancedFilterCount > 0 ? ` (${advancedFilterCount})` : ''}</summary>
-          <div className="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2 xl:grid-cols-5 dark:border-slate-800">
-            <select value={filters.month} onChange={updateFilter('month')} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">ทุกเดือนปฏิทิน</option>{months.map((item) => <option key={item} value={item}>{formatMonth(item)}</option>)}</select>
-            <select value={filters.amountSource} onChange={updateFilter('amountSource')} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">ทุกแหล่งยอด</option><option value="recorded">ยอดบันทึกจริง</option><option value="reference">ยอดอ้างอิง/ประมาณ</option><option value="missing">ยังไม่มียอด</option></select>
+          <summary className="cursor-pointer px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300">ตัวเลือกเพิ่มเติม{advancedFilterCount > 0 ? ` · ใช้อยู่ ${advancedFilterCount}` : ' · วันที่ติดตั้งและผู้รับผิดชอบ'}</summary>
+          <div className="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-800">
+            <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งตั้งแต่</span><input type="date" value={filters.installFrom} max={filters.installTo || undefined} onChange={updateFilter('installFrom')} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 pt-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-950" aria-label="ติดตั้งสำเร็จตั้งแต่วันที่" /></label>
+            <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งถึง</span><input type="date" value={filters.installTo} min={filters.installFrom || undefined} onChange={updateFilter('installTo')} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 pt-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-950" aria-label="ติดตั้งสำเร็จถึงวันที่" /></label>
             <select value={filters.taskStatus} onChange={updateFilter('taskStatus')} aria-label="กรองสถานะงานติดตาม" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">งานติดตามทุกสถานะ</option><option value="none">ยังไม่มีงานติดตาม</option><option value="pending">รอดำเนินการ</option><option value="in_progress">กำลังติดตาม</option><option value="completed">ชำระแล้ว</option></select>
             <select value={filters.assignee} onChange={updateFilter('assignee')} aria-label="กรองผู้รับผิดชอบ" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">ผู้รับผิดชอบทั้งหมด</option>{followUpUsers.map((user) => <option key={user.id} value={user.id}>{user.full_name || user.username}</option>)}</select>
-            <div className="grid grid-cols-2 gap-2"><input type="number" min="0" step="0.01" value={filters.amountMin} onChange={updateFilter('amountMin')} placeholder="ยอดต่ำสุด" aria-label="ยอดต่ำสุด" className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /><input type="number" min="0" step="0.01" value={filters.amountMax} onChange={updateFilter('amountMax')} placeholder="ยอดสูงสุด" aria-label="ยอดสูงสุด" className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></div>
           </div>
         </details>
 
-        <details className="mt-2 text-xs text-slate-500">
-          <summary className="w-fit cursor-pointer font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300">วิธีนับรอบบิล</summary>
-          <p className="mt-2 rounded-lg bg-lime-50 px-3 py-2 font-semibold text-lime-900 dark:bg-lime-950/50 dark:text-lime-300">กรองจากวันที่ติดตั้งสำเร็จ แล้วคำนวณบิลที่ 1 จากรอบ AIS; รายการที่ยังไม่ถึงกำหนดและรายการที่ไม่มีข้อมูลบิลจะไม่ถูกนับเป็น “ยังไม่ชำระ”</p>
-        </details>
-
-        <p className="mt-4 text-xs font-black text-slate-600 dark:text-slate-300">เลือกสถานะการชำระที่ต้องการดู</p>
+        <p className="mt-4 text-sm font-black text-slate-700 dark:text-slate-200">2. เลือกสถานะการชำระ</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-3" role="group" aria-label="กรองสถานะการชำระตามรอบบิล">
           {[
             ['all', 'ลูกค้าทั้งหมด', 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'],
@@ -1101,34 +1141,30 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] text-left text-sm">
+        <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-bold text-slate-600 dark:bg-slate-950 dark:text-slate-300">
             <tr>
-              <th className="w-16 px-4 py-3 text-center">ลำดับ</th>
-              <th className="min-w-[250px] px-4 py-3">ลูกค้า / NON</th>
-              <th className="min-w-[230px] px-4 py-3">แพ็กเกจ</th>
-              <th className="min-w-[180px] px-4 py-3">รอบบิล</th>
-              <th className="min-w-[190px] px-4 py-3">การชำระเงิน / ยอด</th>
-              <th className="min-w-[220px] px-4 py-3">สถานะติดตาม</th>
-              <th className="w-28 px-4 py-3 text-center">ข้อมูล</th>
+              <th className="min-w-[300px] px-4 py-3">ลูกค้า</th>
+              <th className="min-w-[190px] px-4 py-3">บิลรอบนี้</th>
+              <th className="min-w-[190px] px-4 py-3">การชำระเงิน</th>
+              <th className="min-w-[230px] px-4 py-3">การติดตาม</th>
+              <th className="w-40 px-4 py-3 text-center">ดำเนินการ</th>
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((row, index) => (
+            {pageRows.map((row) => (
               <tr key={row.key} className="border-t border-slate-100 transition hover:bg-lime-50/40 dark:border-slate-800 dark:hover:bg-lime-950/20">
-                <td className="px-4 py-3 text-center text-xs text-slate-400">{(currentPage - 1) * billPageSize + index + 1}</td>
                 <td className="px-4 py-3">
                   <div className="font-bold text-slate-900 dark:text-white">{row.customer_name || '-'}</div>
-                  <div className="mt-1 font-mono text-xs font-bold text-slate-500">{row.non_number || '-'}</div>
-                  <div className="mt-1 text-[11px] font-semibold text-slate-400">ติดตั้ง {formatDate(row.install_date)}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500"><span className="font-mono font-bold">NON {row.non_number || '-'}</span><span>·</span><span>ติดตั้ง {formatDate(row.install_date)}</span></div>
+                  <div className="mt-1 max-w-[360px] truncate text-xs font-semibold text-slate-600 dark:text-slate-300" title={row.package_name}>{row.package_name || 'ยังไม่ระบุแพ็กเกจ'} · {formatMoney(row.monthly_fee)} บาท/เดือน</div>
                 </td>
-                <td className="px-4 py-3"><div className="max-w-[260px] truncate font-semibold text-slate-800 dark:text-slate-100" title={row.package_name}>{row.package_name || '-'}</div><div className="mt-1 text-xs text-slate-500">{formatMoney(row.monthly_fee)} บาท/เดือน</div></td>
-                <td className="px-4 py-3"><div className="font-black text-slate-900 dark:text-white">บิลที่ {row.bill_number} · {formatMonth(row.bill_month)}</div><div className="mt-1.5"><DueStateBadge state={row.due_state} /></div><div className="mt-1 text-xs font-semibold text-slate-500">ครบกำหนด {formatDate(row.due_date)}</div></td>
-                <td className="px-4 py-3"><CmPaymentStatusBadge row={row} /><div className="mt-2 font-black text-slate-900 dark:text-white">{formatMoney(row.amount)} บาท</div><div className="mt-0.5 text-[11px] text-slate-400">{row.amount_source_label}</div></td>
+                <td className="px-4 py-3"><div className="font-black text-slate-900 dark:text-white">บิลที่ {row.bill_number}</div><div className="mt-0.5 text-xs font-semibold text-slate-500">{formatMonth(row.bill_month)} · ครบกำหนด {formatDate(row.due_date)}</div><div className="mt-1.5"><DueStateBadge state={row.due_state} /></div></td>
+                <td className="px-4 py-3"><div className="flex flex-wrap items-center gap-2"><CmPaymentStatusBadge row={row} /><span className="font-black text-slate-900 dark:text-white">{formatMoney(row.amount)} บาท</span></div><div className="mt-1 text-[11px] text-slate-400">{row.amount_source_label}</div></td>
                 <td className="px-4 py-3">
-                  {row.follow_up ? <><TaskStatusBadge status={row.follow_up.status} /><div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200">ผู้รับผิดชอบ: {row.follow_up.assignee_name || 'ยังไม่มอบหมาย'}</div><div className="mt-1 text-[11px] text-slate-400">อัปเดตโดย {row.follow_up.updated_by_name || row.follow_up.updated_by_username || 'ระบบ'} · {formatDateTime(row.follow_up.updated_at)}</div><button type="button" onClick={() => openFollowUpEditor(row)} className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300">อัปเดตสถานะ</button></> : row.payment_state === 'unpaid' ? <button type="button" onClick={() => openFollowUpEditor(row)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-black text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"><Plus className="h-3.5 w-3.5" /> เริ่มติดตาม</button> : <span className="text-xs text-slate-400">ยังไม่ต้องติดตาม</span>}
+                  {row.follow_up ? <><TaskStatusBadge status={row.follow_up.status} /><div className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200">{row.follow_up.assignee_name || 'ยังไม่มอบหมายผู้รับผิดชอบ'}</div><button type="button" onClick={() => openFollowUpEditor(row)} className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300">อัปเดตการติดตาม</button></> : row.payment_state === 'unpaid' ? <button type="button" onClick={() => openFollowUpEditor(row)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-black text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"><Plus className="h-3.5 w-3.5" /> เริ่มติดตาม</button> : <span className="text-xs font-semibold text-slate-400">ไม่ต้องติดตามในตอนนี้</span>}
                 </td>
-                <td className="px-4 py-3 text-center"><button type="button" onClick={() => onViewCustomer({ ...row.customer, selected_bill_context: row })} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-lime-400 hover:bg-lime-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"><Eye className="h-3.5 w-3.5" /> ดูบิล</button></td>
+                <td className="px-4 py-3 text-center"><button type="button" onClick={() => onViewCustomer({ ...row.customer, selected_bill_context: row })} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-black text-white hover:bg-slate-800 dark:bg-[#78BE20] dark:text-slate-950"><Eye className="h-3.5 w-3.5" /> ดูรายละเอียด</button></td>
               </tr>
             ))}
           </tbody>
@@ -1341,8 +1377,13 @@ function addMonthsClamped(value, months) {
 function cmOutcomeFromForm(form, type, caseWindowMonths) {
   const subject = type === 'fraud' ? 'Fraud' : 'Churn';
   const safeMonths = Math.max(1, Number(caseWindowMonths) || 4);
+  const today = todayInBangkok();
+  const cutoff = addMonthsClamped(form.install_date, safeMonths);
   if (form.status !== 'cancelled') {
-    return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: 'สถานะระบบยังใช้งานอยู่' };
+    if (cutoff && today < cutoff) {
+      return { key: 'monitoring', label: 'อยู่ระหว่างตรวจ', tone: 'info', reason: `ยังใช้งาน ณ ${formatDate(today)} · เหลือ ${daysBetweenIso(today, cutoff)} วันถึงวันสรุปผล` };
+    }
+    return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: `ครบช่วงตรวจแล้วและยังใช้งาน ณ ${formatDate(today)}` };
   }
   if (!form.install_date || !form.cancelled_at) {
     return { key: 'incomplete', label: 'ข้อมูลยังไม่ครบ', tone: 'warning', reason: 'ต้องมีวันติดตั้งและวันที่ยกเลิกก่อนคำนวณ CM' };
@@ -1350,9 +1391,11 @@ function cmOutcomeFromForm(form, type, caseWindowMonths) {
   if (form.cancelled_at < form.install_date) {
     return { key: 'incomplete', label: 'วันที่ไม่ถูกต้อง', tone: 'warning', reason: 'วันที่ยกเลิกต้องไม่อยู่ก่อนวันติดตั้ง' };
   }
-  const cutoff = addMonthsClamped(form.install_date, safeMonths);
+  if (form.cancelled_at > today) {
+    return { key: 'incomplete', label: 'วันที่ยังมาไม่ถึง', tone: 'warning', reason: 'วันที่ยกเลิกจริงต้องไม่เกินวันปัจจุบัน' };
+  }
   if (form.cancelled_at < cutoff) {
-    return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger', reason: `ยกเลิกภายใน ${safeMonths} เดือนหลังติดตั้ง` };
+    return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger', reason: `ยกเลิกจริงภายใน ${safeMonths} เดือนหลังติดตั้ง` };
   }
   return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: `ยกเลิกหลังพ้นเกณฑ์ ${safeMonths} เดือน` };
 }
@@ -1514,9 +1557,9 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
         {!editingCustomer && (
           <nav className="flex gap-1 border-b border-slate-200 bg-white px-4 py-2 dark:border-slate-800 dark:bg-slate-900 sm:px-6" aria-label="รายละเอียดลูกค้า">
             {[
-              ['overview', 'ภาพรวม'],
-              ['bills', `บิลรายเดือน (${visibleBillMonths.length})`],
-              ['history', 'ประวัติ'],
+              ['overview', 'ข้อมูลลูกค้า'],
+              ['bills', `บิลทุกรอบ (${visibleBillMonths.length})`],
+              ['history', 'ประวัติการแก้ไข'],
             ].map(([key, label]) => (
               <button key={key} type="button" onClick={() => setDetailTab(key)} aria-pressed={detailTab === key} className={`min-h-10 rounded-lg px-3 text-sm font-black transition ${detailTab === key ? 'bg-[#78BE20] text-slate-950' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>{label}</button>
             ))}
@@ -1540,7 +1583,7 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
                 <div className="grid gap-3 sm:grid-cols-2">
                   <InfoPanel label={`CM ${type === 'fraud' ? 'Fraud' : 'Churn'}`}><OutcomeBadge outcome={outcome} /><p className="mt-1 text-[11px] font-semibold text-slate-500">{customer.cm_reason || `คำนวณจากข้อมูลจริงภายใน ${caseWindowMonths} เดือน`}</p></InfoPanel>
                   <InfoPanel label={selectedBillContext ? `การชำระเงิน · บิลที่ ${selectedBillContext.bill_number}` : 'การชำระเงินล่าสุด'}><CmPaymentStatusBadge state={displayedCmPayment} />{selectedBillContext && <p className="mt-1 text-[11px] text-slate-500">ครบกำหนด {formatDate(selectedBillContext.due_date)} · ยอด {formatMoney(selectedBillContext.amount)} บาท</p>}</InfoPanel>
-                  <InfoPanel label="สถานะ CM จากไฟล์ต้นทาง"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
+                  <InfoPanel label="ข้อมูล CM จาก Excel (ใช้อ้างอิง)"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
                   <InfoPanel label="ข้อมูล Billing จากไฟล์ต้นทาง"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{customer.billing_status || '-'}</p></InfoPanel>
                   <InfoPanel label="เดือนที่เปลี่ยนสถานะ"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.status_changed_at)}</p></InfoPanel>
                   <InfoPanel label="วันที่เช็คยอด"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.bill_check_date)}</p></InfoPanel>
@@ -1592,8 +1635,20 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
           ) : null}
 
           {!editingCustomer && detailTab === 'bills' && <DetailSection title={`บิลรายเดือน · ค้าง ${Number(customer.outstanding_bills).toLocaleString('th-TH')} บิล รวม ${formatMoney(customer.outstanding_total)} บาท`}>
+            {selectedBillContext && (
+              <div className="mb-4 rounded-2xl border-2 border-lime-400 bg-lime-50 p-4 dark:border-lime-800 dark:bg-lime-950/40">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-black text-lime-800 dark:text-lime-300">บิลที่เปิดมาจากหน้ารายการ</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2"><span className="text-lg font-black text-slate-950 dark:text-white">บิลที่ {selectedBillContext.bill_number} · {formatMonth(selectedBillContext.bill_month)}</span><CmPaymentStatusBadge row={selectedBillContext} /></div>
+                    <p className="mt-1 text-xs font-semibold text-slate-600 dark:text-slate-300">ยอด {formatMoney(selectedBillContext.amount)} บาท · ครบกำหนด {formatDate(selectedBillContext.due_date)}</p>
+                  </div>
+                  <button type="button" onClick={() => openBillEditor(selectedBillContext.bill_month, billsByMonth.get(selectedBillContext.bill_month))} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 hover:bg-lime-500"><Pencil className="h-4 w-4" /> แก้ไขบิลรอบนี้</button>
+                </div>
+              </div>
+            )}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">กดการ์ดเดือนเพื่อแก้ไข หรือเพิ่มเดือนใหม่ได้ทันที</p>
+              <p className="text-xs text-slate-500">บิลทุกรอบเรียงตามเดือน กดรอบที่ต้องการเพื่อแก้ไข</p>
               <button type="button" onClick={addBill} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-slate-800 dark:bg-[#78BE20] dark:text-slate-950"><Plus className="h-4 w-4" /> เพิ่มบิลรายเดือน</button>
             </div>
             {billEditor && (
@@ -1607,7 +1662,7 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
               />
             )}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleBillMonths.map((ym) => <BillCard key={ym} month={ym} bill={billsByMonth.get(ym)} onEdit={() => openBillEditor(ym, billsByMonth.get(ym))} />)}
+              {visibleBillMonths.map((ym) => <BillCard key={ym} month={ym} bill={billsByMonth.get(ym)} selected={selectedBillContext?.bill_month === ym} onEdit={() => openBillEditor(ym, billsByMonth.get(ym))} />)}
               {!visibleBillMonths.length && <p className="text-sm text-slate-500">ยังไม่มีข้อมูลบิลรายเดือน กด “เพิ่มบิลรายเดือน” เพื่อเริ่มบันทึก</p>}
             </div>
           </DetailSection>}
@@ -1634,7 +1689,7 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
       </div>
 
       <div className="space-y-5 p-4 sm:p-5">
-        <div className={`rounded-xl border p-3 ${cmPreview.tone === 'danger' ? 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30' : cmPreview.tone === 'warning' ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'}`}>
+        <div className={`rounded-xl border p-3 ${cmPreview.tone === 'danger' ? 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30' : cmPreview.tone === 'warning' ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30' : cmPreview.tone === 'info' ? 'border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'}`}>
           <p className="text-xs font-black text-slate-500">ผล CM หลังบันทึก</p>
           <div className="mt-1 flex flex-wrap items-center gap-2"><OutcomeBadge outcome={cmPreview} /><span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{cmPreview.reason}</span></div>
           <p className="mt-1 text-[11px] text-slate-500">ผลนี้คำนวณอัตโนมัติจากสถานะระบบ วันติดตั้ง และวันที่ยกเลิก ไม่ได้อิงข้อความ CM จากไฟล์ต้นทาง</p>
@@ -1658,7 +1713,7 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
           <EditGroupTitle>สถานะและการติดตาม</EditGroupTitle>
           <div className="grid gap-3 sm:grid-cols-2">
             <EditField label="สถานะระบบ"><select value={form.status} onChange={update('status')} className={fieldClass}><option value="active">ใช้งาน</option><option value="cancelled">ยกเลิก</option></select></EditField>
-            <EditField label="CM สถานะจากไฟล์ต้นทาง"><input value={form.qc_status} onChange={update('qc_status')} placeholder="เช่น Active, Suspend - Debt" className={fieldClass} /></EditField>
+            <EditField label="ข้อมูล CM จาก Excel (ใช้อ้างอิง)"><input value={form.qc_status} onChange={update('qc_status')} placeholder="เช่น Active, Suspend - Debt" className={fieldClass} /><span className="mt-1 block text-[11px] font-medium text-slate-400">ช่องนี้ไม่ใช่ผล CM สุดท้าย ระบบจะคำนวณผลจริงตามวันที่ปัจจุบัน</span></EditField>
             <EditField label="Billing จากไฟล์ต้นทาง"><input value={form.billing_status} onChange={update('billing_status')} className={fieldClass} /></EditField>
             <EditField label="วันที่เปลี่ยนสถานะ"><input type="date" value={form.status_changed_at} onChange={update('status_changed_at')} className={fieldClass} /></EditField>
             <EditField label="วันที่เช็คยอด"><input type="date" value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
@@ -1666,7 +1721,7 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
             <EditField label="วิธีกำหนดรอบชำระ"><select value={form.payment_due_mode} onChange={update('payment_due_mode')} className={fieldClass}><option value="auto">อัตโนมัติตามวันติดตั้ง AIS</option><option value="manual">กำหนดวันที่เอง</option></select></EditField>
             <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" disabled={form.payment_due_mode === 'auto'} value={form.payment_due_mode === 'auto' ? aisDueDayPreview(form.install_date) : form.payment_due_day} onChange={update('payment_due_day')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /><span className="mt-1 block text-[11px] font-medium text-slate-400">โหมดอัตโนมัติจะคำนวณใหม่เมื่อเปลี่ยนวันติดตั้ง</span></EditField>
             <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
-            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก" required><input required type="date" min={form.install_date || undefined} value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
+            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิกจริง" required><input required type="date" min={form.install_date || undefined} max={todayInBangkok()} value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /><span className="mt-1 block text-[11px] font-medium text-slate-400">หากยังไม่ยกเลิกจริง ให้ใช้ช่อง “คาดการณ์ Terminate” แทน</span></EditField>}
             {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
             <EditField label="สรุปสำรอง/ยกเลิก" className="sm:col-span-2"><textarea rows={2} value={form.tracking_summary} onChange={update('tracking_summary')} className={`${fieldClass} h-auto py-2`} /></EditField>
             <EditField label="ผลการติดตาม / AE Remark" className="sm:col-span-2"><textarea rows={4} value={form.ae_remark} onChange={update('ae_remark')} className={`${fieldClass} h-auto py-2`} /></EditField>
@@ -1774,7 +1829,7 @@ function AuditLogItem({ log }) {
   );
 }
 
-function BillCard({ month, bill, onEdit }) {
+function BillCard({ month, bill, selected = false, onEdit }) {
   const tone = !bill
     ? 'border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-950'
     : bill.bill_status === 'paid'
@@ -1789,9 +1844,9 @@ function BillCard({ month, bill, onEdit }) {
       : bill.raw_value || `${formatMoney(bill.amount)} บาท`;
   const sourceLabel = bill?.bill_source === 'auto' ? 'ระบบสร้าง' : bill?.bill_source === 'manual' ? 'แก้ไขเอง' : 'จากไฟล์';
   return (
-    <button type="button" onClick={onEdit} className={`group relative min-h-24 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-lime-100 ${tone}`}>
+    <button type="button" onClick={onEdit} aria-current={selected ? 'true' : undefined} className={`group relative min-h-24 rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-lime-100 ${tone} ${selected ? 'ring-2 ring-lime-500 ring-offset-2 dark:ring-offset-slate-900' : ''}`}>
       <Pencil className="absolute right-3 top-3 h-3.5 w-3.5 opacity-0 transition group-hover:opacity-70 group-focus:opacity-70" />
-      <p className="pr-6 text-xs font-bold opacity-70">{formatMonth(month)}</p>
+      <p className="pr-6 text-xs font-bold opacity-70">{formatMonth(month)}{selected ? ' · รอบที่เลือก' : ''}</p>
       <p className="mt-2 whitespace-normal break-words text-sm font-black leading-5" title={String(value)}>{value}</p>
       {bill && <p className="mt-1 text-[11px] font-semibold opacity-70">ครบชำระ {formatDate(bill.due_date)} · {sourceLabel}</p>}
       {bill?.bill_source === 'auto' && Number(bill.estimated_total) > 0 && <p className="mt-1 text-[11px] opacity-70">ก่อน VAT {formatMoney(bill.estimated_amount)} + VAT {formatMoney(bill.estimated_vat)} บาท</p>}
