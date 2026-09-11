@@ -164,8 +164,8 @@ export function buildQualityWorkbook(result) {
   worksheet.mergeCells('A1:H1');
   worksheet.getCell('A1').value = `***Up File ${updatedLabel} แล้ว`;
   worksheet.getCell('A1').font = { name: 'Angsana New', size: 13, bold: true, color: { argb: 'FFFF0000' } };
-  worksheet.getCell('A6').value = `กลุ่มลูกค้า Fraud : ${monthRangeLabel(fraudStart, result.ref_month)}`;
-  worksheet.getCell('A7').value = `กลุ่มลูกค้า Churn : ${monthRangeLabel(churnStart, result.ref_month)}`;
+  worksheet.getCell('A6').value = result.date_range_mode === 'custom' ? `กรอง${result.date_type === 'status_changed' ? 'วันที่เปลี่ยนสถานะจริง' : 'วันที่ติดตั้ง'}: ${result.cohort_start} – ${result.cohort_end}` : `กลุ่มลูกค้า Fraud : ${monthRangeLabel(fraudStart, result.ref_month)}`;
+  worksheet.getCell('A7').value = result.date_range_mode === 'custom' ? `สถานะล่าสุด ณ ${result.status_as_of} · ${result.customers.length} รายการตามตัวกรอง` : `กลุ่มลูกค้า Churn : ${monthRangeLabel(churnStart, result.ref_month)}`;
   for (const address of ['A6', 'A7']) worksheet.getCell(address).font = { name: 'Angsana New', size: 13 };
 
   worksheet.getCell('N8').value = '***ช่องสำคัญห้ามลบ';
@@ -252,12 +252,12 @@ export function buildQualityWorkbook(result) {
       null,
       toDate(customer.expected_terminate_at),
       cleanText(customer.billing_status),
-      cleanText(customer.qc_status),
-      toDate(customer.status_changed_at),
+      cleanText(customer.service_status_label || customer.qc_status),
+      toDate(customer.service_status_date || customer.status_changed_at),
       cleanText(customer.ae_remark),
       cleanText(customer.billing_status),
-      cleanText(customer.qc_status),
-      toDate(customer.status_changed_at),
+      cleanText(customer.service_status_label || customer.qc_status),
+      toDate(customer.service_status_date || customer.status_changed_at),
       cleanText(customer.ae_remark),
     ];
 

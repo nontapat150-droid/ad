@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -29,6 +28,13 @@ import ThemeToggle from '../components/ThemeToggle';
 import QualityStatusImportModal from '../components/QualityStatusImportModal';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axios';
+
+const SERVICE_STATUS_OPTIONS = [['active', 'Active · ใช้งานปกติ'], ['suspend', 'Suspend · ระงับชั่วคราว'], ['terminate', 'Terminate · ยกเลิกบริการ'], ['unknown', 'รอตรวจสอบสถานะ']];
+function todayInBangkok() { return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); }
+function monthDateRange(month) {
+  const [year, value] = month.split('-').map(Number);
+  return { from: month + '-01', to: month + '-' + new Date(Date.UTC(year, value, 0)).getUTCDate() };
+}
 
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const DEFAULT_QC_SETTINGS = {
@@ -260,6 +266,7 @@ function isSuspended(value) {
 
 function rowOutcome(row, type) {
   const subject = type === 'fraud' ? 'Fraud' : 'Churn';
+  if (row.cm_status === 'incomplete') return { key: 'incomplete', label: 'รอยืนยันวันที่จริง', tone: 'warning' };
   if (row.is_case) return { key: 'case', label: `เข้าเงื่อนไข ${subject}`, tone: 'danger' };
   return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success' };
 }
@@ -270,6 +277,10 @@ export default function QualityControlPage() {
   const [pageTab, setPageTab] = useState('qc');
   const [qcType, setQcType] = useState('fraud');
   const [month, setMonth] = useState('');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [dateType, setDateType] = useState('install');
+  const requestRef = useRef(null);
+  const rangeError = !dateRange.from || !dateRange.to ? 'เลือกวันที่เริ่มต้นและสิ้นสุด' : dateRange.from > dateRange.to ? 'วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด' : '';
   const [availableMonths, setAvailableMonths] = useState([]);
   const [qcSettings, setQcSettings] = useState(DEFAULT_QC_SETTINGS);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -294,6 +305,7 @@ export default function QualityControlPage() {
         ? response.data.settings
         : DEFAULT_QC_SETTINGS;
       setAvailableMonths(months);
+      setDateRange((current) => current.from && preserveMonth ? current : response.data?.latest_month ? monthDateRange(response.data.latest_month) : monthDateRange(todayInBangkok().slice(0, 7)));
       setQcSettings(nextSettings);
       setQcType((current) => {
         if (nextSettings[current]?.enabled) return current;
@@ -319,7 +331,10 @@ export default function QualityControlPage() {
   }, [loadOptions]);
 
   const runCalculate = useCallback(async () => {
-    if (!month) return;
+    requestRef.current?.abort();
+    if (rangeError) { setResult(null); setLoading(false); return; }
+    const controller = new AbortController();
+    requestRef.current = controller;
     if (!qcSettings[qcType]?.enabled) {
       setResult(null);
       return null;
@@ -327,19 +342,22 @@ export default function QualityControlPage() {
     setLoading(true);
     try {
       const response = await axios.get('/installed-customers/qc', {
-        params: { type: qcType, month, scope: pageTab === 'billing' ? 'billing' : 'qc' },
+        params: { type: qcType, month, date_from: dateRange.from, date_to: dateRange.to, date_type: dateType, scope: pageTab === 'billing' ? 'billing' : 'qc' },
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return null;
       setResult(response.data);
       return response.data;
     } catch (error) {
+      if (controller.signal.aborted) return null;
       setResult(null);
       if (error.response?.data?.settings) setQcSettings(error.response.data.settings);
       Swal.fire('คำนวณไม่สำเร็จ', error.response?.data?.error || error.message, 'error');
       return null;
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [month, pageTab, qcSettings, qcType]);
+  }, [month, dateRange, dateType, rangeError, pageTab, qcSettings, qcType]);
 
   const refreshCustomer = useCallback(async (customerId) => {
     const nextResult = await runCalculate();
@@ -353,6 +371,7 @@ export default function QualityControlPage() {
     // Recalculate when the user changes the QC scope.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void runCalculate();
+    return () => requestRef.current?.abort();
   }, [runCalculate]);
 
   const sellers = useMemo(() => Array.from(new Set(
@@ -366,7 +385,7 @@ export default function QualityControlPage() {
       if (view === 'outstanding' && Number(row.outstanding_bills) <= 0) return false;
       if (!['all', 'outstanding'].includes(view) && outcome.key !== view) return false;
       if (seller !== 'all' && row.seller_name !== seller) return false;
-      if (lifecycle !== 'all' && row.status !== lifecycle) return false;
+      if (lifecycle !== 'all' && row.service_status !== lifecycle) return false;
       if (!query) return true;
       return [row.customer_name, row.non_number, row.package_name, row.seller_name, row.district, row.qc_status]
         .some((value) => String(value || '').toLowerCase().includes(query));
@@ -384,15 +403,15 @@ export default function QualityControlPage() {
   const pageRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const exportWorkbook = async () => {
-    if (!result?.customers?.length || exporting) return;
+    if (!filteredRows.length || exporting) return;
     setExporting(true);
     try {
       const { exportQualityWorkbook } = await import('../utils/qcExport');
-      await exportQualityWorkbook(result);
+      await exportQualityWorkbook({ ...result, customers: filteredRows });
       Swal.fire({
         icon: 'success',
         title: 'สร้างไฟล์เรียบร้อย',
-        text: `Export ลูกค้าทั้งหมด ${result.customers.length.toLocaleString('th-TH')} รายการ ตามรูปแบบไฟล์ต้นฉบับแล้ว`,
+        text: `Export ลูกค้าทั้งหมด ${filteredRows.length.toLocaleString('th-TH')} รายการ ตามรูปแบบไฟล์ต้นฉบับแล้ว`,
         timer: 2200,
         showConfirmButton: false,
       });
@@ -413,7 +432,7 @@ export default function QualityControlPage() {
   };
 
   const viewCounts = useMemo(() => {
-    const counts = { all: 0, case: 0, outstanding: 0, normal: 0 };
+    const counts = { all: 0, case: 0, outstanding: 0, normal: 0, incomplete: 0 };
     for (const row of result?.customers || []) {
       counts.all += 1;
       counts[rowOutcome(row, qcType).key] += 1;
@@ -423,7 +442,6 @@ export default function QualityControlPage() {
   }, [result, qcType]);
   const qcAdvancedFilterCount = Number(seller !== 'all') + Number(lifecycle !== 'all') + Number(sortBy !== 'install_asc');
 
-  const activeQcConfig = qcSettings[qcType] || DEFAULT_QC_SETTINGS[qcType];
   const anyQcEnabled = Boolean(qcSettings.fraud?.enabled || qcSettings.churn?.enabled);
   const workMode = pageTab === 'billing' ? 'billing' : qcType;
   const selectWorkMode = (mode) => {
@@ -454,7 +472,7 @@ export default function QualityControlPage() {
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-base font-bold text-slate-900 dark:text-white sm:text-lg">ควบคุมคุณภาพ</h1>
-              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">Fraud / Churn และการตรวจชำระตามลำดับบิลหลังติดตั้ง</p>
+              <p className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">ตรวจสถานะลูกค้า วันที่เปลี่ยนสถานะ และการชำระเงิน</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -477,8 +495,8 @@ export default function QualityControlPage() {
           <div className="mx-auto w-full max-w-[1680px] space-y-4 p-3 sm:p-5">
             <nav className="grid gap-2 sm:grid-cols-3" aria-label="เลือกงานควบคุมคุณภาพ">
               {[
-                { id: 'fraud', label: 'CM Fraud', description: `ตรวจย้อนหลัง ${qcSettings.fraud?.months || 4} เดือน`, icon: ShieldAlert, enabled: qcSettings.fraud?.enabled },
-                { id: 'churn', label: 'CM Churn', description: `ตรวจย้อนหลัง ${qcSettings.churn?.months || 8} เดือน`, icon: Users, enabled: qcSettings.churn?.enabled },
+                { id: 'fraud', label: 'CM Fraud', description: 'ตรวจเงื่อนไข Fraud ในช่วงวันที่ที่เลือก', icon: ShieldAlert, enabled: qcSettings.fraud?.enabled },
+                { id: 'churn', label: 'CM Churn', description: 'ตรวจเงื่อนไข Churn ในช่วงวันที่ที่เลือก', icon: Users, enabled: qcSettings.churn?.enabled },
                 { id: 'billing', label: 'การชำระเงิน', description: 'ตรวจบิลและติดตามยอดค้าง', icon: WalletCards, enabled: anyQcEnabled },
               ].map((item) => {
                 const Icon = item.icon;
@@ -510,41 +528,40 @@ export default function QualityControlPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-500">ขอบเขตที่กำลังตรวจ</p>
                   <h2 className="mt-1 text-base font-black text-slate-900 dark:text-white">{pageTab === 'billing' ? 'การชำระเงินตามรอบบิล' : `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`}</h2>
-                  <p className="mt-1 text-xs text-slate-500">{pageTab === 'billing'
-                    ? `เฉพาะลูกค้าที่ติดตั้งในเดือนที่เลือก · แสดงบิลสูงสุด ${result?.billing_months || Math.max(qcSettings.fraud?.months || 4, qcSettings.churn?.months || 8)} งวด`
-                    : `กลุ่มติดตั้งย้อนหลัง ${activeQcConfig.months} เดือน · ตัดสินจากการยกเลิกภายใน ${result?.case_window_months || qcSettings.fraud?.months || 4} เดือน`}</p>
+                  <p className="mt-1 text-xs text-slate-500">เลือกประเภทวันที่ แล้วกำหนดช่วงเริ่มต้น–สิ้นสุด ระบบรวมข้อมูลข้ามเดือนให้</p>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <div className="min-w-[230px]">
-                    <label htmlFor="qc-month" className="mb-1 block text-xs font-bold normal-case tracking-normal text-slate-500">เดือนที่ติดตั้งสำเร็จ</label>
-                    <div className="relative">
-                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <select id="qc-month" value={month} onChange={(event) => setMonth(event.target.value)} disabled={loadingOptions || !availableMonths.length || !anyQcEnabled} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-10 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                        {!availableMonths.length && <option value="">ยังไม่มีข้อมูลติดตั้ง</option>}
-                        {availableMonths.map((item) => <option key={item.value} value={item.value}>{formatMonth(item.value)} · {item.total.toLocaleString('th-TH')} ราย</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <button type="button" onClick={runCalculate} disabled={!month || loading || (pageTab === 'billing' ? !anyQcEnabled : !activeQcConfig.enabled)} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 shadow-sm transition hover:bg-[#69AA18] disabled:cursor-not-allowed disabled:opacity-50">
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    โหลดข้อมูลล่าสุด
-                  </button>
-                </div>
+                <button type="button" onClick={runCalculate} disabled={Boolean(rangeError) || loading || !anyQcEnabled} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#78BE20] px-4 text-sm font-black text-slate-950 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />โหลดข้อมูลล่าสุด</button>
               </div>
+              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">กรองจากวันที่<select value={dateType} onChange={(event) => { setDateType(event.target.value); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="install">วันที่ติดตั้ง</option><option value="status_changed">วันที่เปลี่ยนสถานะจริง</option></select></label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่เริ่มต้น<input type="date" required value={dateRange.from} max={dateRange.to || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, from: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่สิ้นสุด<input type="date" required value={dateRange.to} min={dateRange.from || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, to: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">เลือกเดือนติดตั้งอย่างรวดเร็ว<select value={dateType === 'install' && dateRange.from === monthDateRange(month || todayInBangkok().slice(0,7)).from && dateRange.to === monthDateRange(month || todayInBangkok().slice(0,7)).to ? month : ''} onChange={(event) => { if (!event.target.value) return; setMonth(event.target.value); setDateRange(monthDateRange(event.target.value)); setDateType('install'); setPage(1); }} disabled={loadingOptions} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="">กำหนดช่วงวันที่เอง</option>{availableMonths.map((item) => <option key={item.value} value={item.value}>{formatMonth(item.value)}</option>)}</select></label>
+              </div>
+              {rangeError && <p role="alert" className="px-4 pb-3 text-sm font-bold text-rose-600">{rangeError}</p>}
+              {dateType === 'status_changed' && <p className="px-4 pb-3 text-xs text-slate-500">รวมวันเริ่มต้นและวันสิ้นสุด · รายการที่ยังไม่มีวันที่เปลี่ยนสถานะจริงจะไม่อยู่ในผลกรองนี้</p>}
               {result && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-                  <span><b>{pageTab === 'billing' ? 'เดือนติดตั้งที่เลือก:' : 'ช่วงติดตั้ง:'}</b> {pageTab === 'billing' ? formatMonth(result.cohort_end_month) : `${formatMonth(result.cohort_start_month)} – ${formatMonth(result.cohort_end_month)}`}</span>
+                  <span><b>{result.date_type === 'status_changed' ? 'วันที่เปลี่ยนสถานะ:' : 'วันที่ติดตั้ง:'}</b> {formatDate(result.cohort_start)} – {formatDate(result.cohort_end)}</span><span><b>สถานะล่าสุด ณ:</b> {formatDate(result.status_as_of)}</span>
                   <span><b>ข้อมูลทั้งหมด:</b> {Number(result.total_installs).toLocaleString('th-TH')} ราย</span>
                   <span className="text-slate-400">{pageTab === 'billing' ? 'การชำระเงินอ้างอิงจากบิลจริงของลูกค้ากลุ่มนี้' : `CM ตัดสินจากสถานะและวันที่ยกเลิกจริงภายใน ${result.case_window_months} เดือน`}</span>
                 </div>
               )}
             </section>
 
-            {loading && !result ? <LoadingState /> : result ? (
+            {loading ? <LoadingState /> : result ? (
               pageTab === 'billing' ? (
                 <BillPaymentExplorer result={result} onViewCustomer={setSelectedCustomer} onRefresh={runCalculate} />
               ) : (
               <>
+                <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="สรุปสถานะลูกค้า">
+                  {SERVICE_STATUS_OPTIONS.map(([key, label]) => (
+                    <button key={key} type="button" onClick={() => { setLifecycle(key); setView('all'); setPage(1); }} aria-pressed={lifecycle === key} className={`rounded-2xl border bg-white p-4 text-left dark:bg-slate-900 ${lifecycle === key ? 'border-lime-500 ring-2 ring-lime-200' : 'border-slate-200 dark:border-slate-800'}`}>
+                      <StatusBadge value={label} />
+                      <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{result.customers.filter((row) => row.service_status === key).length.toLocaleString('th-TH')} <span className="text-sm font-medium text-slate-500">ราย</span></p>
+                    </button>
+                  ))}
+                </section>
                 <section className="grid gap-3 sm:grid-cols-3">
                   <MetricCard icon={Users} label={`CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`} value={`${result.rate}%`} note={`${Number(result.cases).toLocaleString('th-TH')} จาก ${Number(result.total_installs).toLocaleString('th-TH')} ราย · เกณฑ์ ${result.threshold_rate}%`} tone={Number(result.over_limit) > 0 ? 'danger' : 'success'} />
                   <MetricCard icon={XCircle} label={`ลูกค้าเข้าเกณฑ์ ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`} value={`${Number(result.cases).toLocaleString('th-TH')} ราย`} note={Number(result.over_limit) > 0 ? `เกินจำนวนที่ยอมรับ ${Number(result.over_limit).toLocaleString('th-TH')} ราย` : 'จำนวนยังอยู่ในเกณฑ์'} tone={Number(result.over_limit) > 0 ? 'danger' : 'success'} />
@@ -568,6 +585,7 @@ export default function QualityControlPage() {
                         ['all', 'ทั้งหมด'],
                         ['case', `CM ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
                         ['outstanding', 'มียอดค้าง'],
+                        ['incomplete', 'รอยืนยันวันที่จริง'],
                         ['normal', `ไม่เข้าเงื่อนไข ${qcType === 'fraud' ? 'Fraud' : 'Churn'}`],
                       ].map(([key, label]) => (
                         <button key={key} type="button" onClick={() => setView(key)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition ${view === key ? 'border-lime-400 bg-lime-100 text-lime-900 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-200' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}>
@@ -575,14 +593,14 @@ export default function QualityControlPage() {
                         </button>
                       ))}
                     </div>
-                    <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-950/50">
-                      <summary className="cursor-pointer px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300">ตัวกรองเพิ่มเติม{qcAdvancedFilterCount > 0 ? ` (${qcAdvancedFilterCount})` : ''}</summary>
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-950/50">
+                      <div className="flex items-center justify-between px-3 py-2"><span className="text-xs font-black text-slate-600 dark:text-slate-300">กรองสถานะลูกค้าและผู้ขาย{qcAdvancedFilterCount > 0 ? ` (${qcAdvancedFilterCount})` : ''}</span><button type="button" onClick={clearQcFilters} className="text-xs font-bold text-lime-700">ล้างตัวกรองรายการ</button></div>
                       <div className="grid gap-2 border-t border-slate-200 p-3 sm:grid-cols-3 dark:border-slate-800">
                         <select value={seller} onChange={(event) => setSeller(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">ผู้ขายทั้งหมด</option>{sellers.map((name) => <option key={name} value={name}>{name}</option>)}</select>
-                        <select value={lifecycle} onChange={(event) => setLifecycle(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">สถานะระบบทั้งหมด</option><option value="active">ยังใช้งาน</option><option value="cancelled">ยกเลิกแล้ว</option></select>
+                        <select aria-label="สถานะลูกค้า" value={lifecycle} onChange={(event) => setLifecycle(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="all">สถานะลูกค้าทั้งหมด</option>{SERVICE_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
                         <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950"><option value="install_asc">วันติดตั้ง: เก่าไปใหม่</option><option value="outstanding_desc">ยอดค้างมากสุด</option><option value="name_asc">ชื่อลูกค้า ก–ฮ</option><option value="status">สถานะ CM</option></select>
                       </div>
-                    </details>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -591,6 +609,7 @@ export default function QualityControlPage() {
                         <tr>
                           <th className="w-16 px-4 py-3 text-center">ลำดับ</th>
                           <th className="min-w-[250px] px-4 py-3">ลูกค้า / NON</th>
+                          <th className="min-w-[240px] px-4 py-3">สถานะลูกค้า / วันที่มีผลจริง</th>
                           <th className="min-w-[250px] px-4 py-3">แพ็กเกจ</th>
                           <th className="min-w-[190px] px-4 py-3">วันที่ติดตั้ง</th>
                           <th className="min-w-[170px] px-4 py-3">CM {qcType === 'fraud' ? 'Fraud' : 'Churn'}</th>
@@ -608,6 +627,9 @@ export default function QualityControlPage() {
                               <td className="px-4 py-3">
                                 <div className="font-bold text-slate-900 dark:text-white">{row.customer_name || '-'}</div>
                                 <div className="mt-1 flex items-center gap-2 text-xs text-slate-500"><span className="font-mono font-bold text-slate-700 dark:text-slate-300">{row.non_number}</span><span>·</span><span>{row.contact_phone || 'ไม่มีเบอร์ติดต่อ'}</span></div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <ServiceStatusInfo customer={row} />
                               </td>
                               <td className="px-4 py-3">
                                 <div className="max-w-[330px] truncate font-semibold text-slate-700 dark:text-slate-200" title={row.package_name}>{row.package_name || '-'}</div>
@@ -718,7 +740,7 @@ function WorkflowGuide({ mode }) {
   const subject = mode === 'fraud' ? 'Fraud' : 'Churn';
   const steps = isBilling
     ? ['เลือกงวดบิลที่ต้องการตรวจ', 'เลือก ชำระแล้ว หรือ ยังไม่ชำระ', 'เริ่มติดตามหรือยืนยันยอดชำระ']
-    : ['เลือกเดือนที่ติดตั้งสำเร็จ', `ตรวจผล CM ${subject}`, 'เปิดข้อมูลลูกค้าที่ต้องดำเนินการ'];
+    : ['เลือกประเภทวันที่และช่วงวันที่', 'กรอง Active / Suspend / Terminate', `ตรวจวันที่จริงและผล ${subject}`];
   return (
     <section className="rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 dark:border-sky-900 dark:bg-sky-950/30" aria-labelledby="workflow-guide-title">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -1230,13 +1252,17 @@ function FollowUpTaskModal({ value, onChange, users, currentUser, saving, onSubm
   );
 }
 
+function ServiceStatusInfo({ customer }) {
+  return <div><StatusBadge value={customer.service_status_label || customer.qc_status || 'รอตรวจสอบสถานะ'} /><p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300">วันที่มีผล: {formatDate(customer.service_status_date)}</p>{customer.service_status_issue && <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">{customer.service_status_issue}</p>}</div>;
+}
+
 function StatusBadge({ value }) {
   if (!value) return <span className="text-xs text-slate-400">-</span>;
   const className = /(terminate|disconnect|cancel|ยกเลิก|ตัดบริการ)/i.test(value)
     ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
     : isSuspended(value)
       ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-      : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+      : /^active|ใช้งานปกติ/i.test(value) ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
   return <span className={`inline-flex max-w-[210px] truncate rounded-full px-2.5 py-1 text-xs font-bold ${className}`} title={value}>{value}</span>;
 }
 
@@ -1304,11 +1330,12 @@ function customerFormValues(customer) {
     subdistrict: customer.subdistrict || '',
     district: customer.district || '',
     status: customer.status || 'active',
+    service_status: customer.service_status === 'unknown' ? '' : customer.service_status || (customer.status === 'cancelled' ? 'terminate' : isSuspended(customer.qc_status) ? 'suspend' : 'active'),
     cancelled_at: dateInput(customer.cancelled_at),
     cancel_reason: customer.cancel_reason || '',
     qc_status: customer.qc_status || '',
     billing_status: customer.billing_status || '',
-    status_changed_at: dateInput(customer.status_changed_at),
+    status_changed_at: dateInput(customer.service_status_date || customer.status_changed_at),
     ae_remark: customer.ae_remark || '',
     payment_due_day: customer.payment_due_day ?? '',
     payment_due_mode: customer.payment_due_source === 'auto' ? 'auto' : 'manual',
@@ -1342,11 +1369,12 @@ function cmOutcomeFromForm(form, type, caseWindowMonths) {
   const subject = type === 'fraud' ? 'Fraud' : 'Churn';
   const safeMonths = Math.max(1, Number(caseWindowMonths) || 4);
   if (form.status !== 'cancelled') {
-    return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: 'สถานะระบบยังใช้งานอยู่' };
+    return { key: 'normal', label: `ไม่เข้าเงื่อนไข ${subject}`, tone: 'success', reason: 'ยังไม่ยกเลิกบริการ' };
   }
   if (!form.install_date || !form.cancelled_at) {
     return { key: 'incomplete', label: 'ข้อมูลยังไม่ครบ', tone: 'warning', reason: 'ต้องมีวันติดตั้งและวันที่ยกเลิกก่อนคำนวณ CM' };
   }
+  if (form.cancelled_at > todayInBangkok()) return { key: 'incomplete', label: 'รอยืนยันวันที่จริง', tone: 'warning', reason: 'วันที่ยกเลิกอยู่ในอนาคต' };
   if (form.cancelled_at < form.install_date) {
     return { key: 'incomplete', label: 'วันที่ไม่ถูกต้อง', tone: 'warning', reason: 'วันที่ยกเลิกต้องไม่อยู่ก่อนวันติดตั้ง' };
   }
@@ -1540,9 +1568,9 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
                 <div className="grid gap-3 sm:grid-cols-2">
                   <InfoPanel label={`CM ${type === 'fraud' ? 'Fraud' : 'Churn'}`}><OutcomeBadge outcome={outcome} /><p className="mt-1 text-[11px] font-semibold text-slate-500">{customer.cm_reason || `คำนวณจากข้อมูลจริงภายใน ${caseWindowMonths} เดือน`}</p></InfoPanel>
                   <InfoPanel label={selectedBillContext ? `การชำระเงิน · บิลที่ ${selectedBillContext.bill_number}` : 'การชำระเงินล่าสุด'}><CmPaymentStatusBadge state={displayedCmPayment} />{selectedBillContext && <p className="mt-1 text-[11px] text-slate-500">ครบกำหนด {formatDate(selectedBillContext.due_date)} · ยอด {formatMoney(selectedBillContext.amount)} บาท</p>}</InfoPanel>
-                  <InfoPanel label="สถานะ CM จากไฟล์ต้นทาง"><StatusBadge value={customer.qc_status || customer.status} /></InfoPanel>
+                  <InfoPanel label="สถานะลูกค้าล่าสุด"><ServiceStatusInfo customer={customer} /></InfoPanel>
                   <InfoPanel label="ข้อมูล Billing จากไฟล์ต้นทาง"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{customer.billing_status || '-'}</p></InfoPanel>
-                  <InfoPanel label="เดือนที่เปลี่ยนสถานะ"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.status_changed_at)}</p></InfoPanel>
+                  <InfoPanel label="วันที่เปลี่ยนสถานะจริง"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.status_changed_at)}</p></InfoPanel>
                   <InfoPanel label="วันที่เช็คยอด"><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatDate(customer.bill_check_date)}</p></InfoPanel>
                 </div>
                 <div className="mt-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><p className="text-xs font-bold text-slate-500">ผลการติดตาม / AE Remark</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{customer.ae_remark || '-'}</p></div>
@@ -1585,7 +1613,7 @@ function CustomerDetailDrawer({ customer, type, caseWindowMonths, billMonths, on
                   ['ชีตต้นฉบับ', customer.source_sheet],
                   ['แถวต้นฉบับ', customer.source_row_number],
                   ['นำเข้าล่าสุด', formatDate(customer.last_imported_at)],
-                  ['สถานะระบบ', customer.status === 'cancelled' ? 'ยกเลิกแล้ว' : 'ยังใช้งาน'],
+                  ['สถานะลูกค้า', customer.service_status_label || customer.qc_status || 'รอตรวจสอบ'],
                 ]} /></div>
               </details>
             </>
@@ -1657,16 +1685,16 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
         <div>
           <EditGroupTitle>สถานะและการติดตาม</EditGroupTitle>
           <div className="grid gap-3 sm:grid-cols-2">
-            <EditField label="สถานะระบบ"><select value={form.status} onChange={update('status')} className={fieldClass}><option value="active">ใช้งาน</option><option value="cancelled">ยกเลิก</option></select></EditField>
-            <EditField label="CM สถานะจากไฟล์ต้นทาง"><input value={form.qc_status} onChange={update('qc_status')} placeholder="เช่น Active, Suspend - Debt" className={fieldClass} /></EditField>
+            <EditField label="สถานะลูกค้าจริง" required><select required value={form.service_status} onChange={(event) => setForm((current) => ({ ...current, service_status: event.target.value, status: event.target.value === 'terminate' ? 'cancelled' : 'active', status_changed_at: '', cancelled_at: '' }))} className={fieldClass}><option value="">เลือกสถานะจริง</option>{SERVICE_STATUS_OPTIONS.filter(([value]) => value !== 'unknown').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></EditField>
+            <EditField label="ข้อมูลสถานะต้นทางเดิม"><p className="py-2 text-sm text-slate-500">{form.qc_status || 'ไม่มีข้อมูล'}</p></EditField>
             <EditField label="Billing จากไฟล์ต้นทาง"><input value={form.billing_status} onChange={update('billing_status')} className={fieldClass} /></EditField>
-            <EditField label="วันที่เปลี่ยนสถานะ"><input type="date" value={form.status_changed_at} onChange={update('status_changed_at')} className={fieldClass} /></EditField>
+            <EditField label="วันที่เปลี่ยนสถานะจริง" required><input required type="date" min={form.install_date || undefined} max={todayInBangkok()} value={form.status_changed_at} onChange={(event) => setForm((current) => ({ ...current, status_changed_at: event.target.value, cancelled_at: current.service_status === 'terminate' ? event.target.value : '' }))} className={fieldClass} /><span className="mt-1 block text-xs text-slate-500">วันที่เริ่มมีผลจริง ไม่ใช่วันที่ตรวจข้อมูลหรือนำเข้าไฟล์</span></EditField>
             <EditField label="วันที่เช็คยอด"><input type="date" value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
             <EditField label="คาดการณ์ Terminate"><input type="date" value={form.expected_terminate_at} onChange={update('expected_terminate_at')} className={fieldClass} /></EditField>
             <EditField label="วิธีกำหนดรอบชำระ"><select value={form.payment_due_mode} onChange={update('payment_due_mode')} className={fieldClass}><option value="auto">อัตโนมัติตามวันติดตั้ง AIS</option><option value="manual">กำหนดวันที่เอง</option></select></EditField>
             <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" disabled={form.payment_due_mode === 'auto'} value={form.payment_due_mode === 'auto' ? aisDueDayPreview(form.install_date) : form.payment_due_day} onChange={update('payment_due_day')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /><span className="mt-1 block text-[11px] font-medium text-slate-400">โหมดอัตโนมัติจะคำนวณใหม่เมื่อเปลี่ยนวันติดตั้ง</span></EditField>
             <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
-            {form.status === 'cancelled' && <EditField label="วันที่ยกเลิก" required><input required type="date" min={form.install_date || undefined} value={form.cancelled_at} onChange={update('cancelled_at')} className={fieldClass} /></EditField>}
+            {form.service_status === 'terminate' && <p className="text-xs text-slate-500">วันยกเลิกบริการจะใช้วันที่เปลี่ยนสถานะจริงด้านบน</p>}
             {form.status === 'cancelled' && <EditField label="เหตุผลยกเลิก"><input value={form.cancel_reason} onChange={update('cancel_reason')} className={fieldClass} /></EditField>}
             <EditField label="สรุปสำรอง/ยกเลิก" className="sm:col-span-2"><textarea rows={2} value={form.tracking_summary} onChange={update('tracking_summary')} className={`${fieldClass} h-auto py-2`} /></EditField>
             <EditField label="ผลการติดตาม / AE Remark" className="sm:col-span-2"><textarea rows={4} value={form.ae_remark} onChange={update('ae_remark')} className={`${fieldClass} h-auto py-2`} /></EditField>
@@ -1745,6 +1773,7 @@ function InfoPanel({ label, children }) {
 function AuditLogItem({ log }) {
   const actionLabels = {
     customer_updated: 'แก้ไขข้อมูลลูกค้า',
+    customer_status_imported: 'นำเข้าสถานะลูกค้าตามวันที่จริง',
     bill_created: 'เพิ่มบิล',
     bill_updated: 'แก้ไขบิล',
     bill_deleted: 'ลบบิล',
@@ -1763,8 +1792,8 @@ function AuditLogItem({ log }) {
   } else if (log.entity_type === 'follow_up_task') {
     const status = newValue.status ? ({ unassigned: 'รอดำเนินการ', assigned: 'รอดำเนินการ', in_progress: 'กำลังติดตาม', waiting_customer: 'กำลังติดตาม', completed: 'ชำระแล้ว', unreachable: 'กำลังติดตาม' }[newValue.status] || newValue.status) : '';
     detail = [detail, status, newValue.assignee_name].filter(Boolean).join(' · ');
-  } else if (log.entity_type === 'customer' && oldValue.qc_status !== newValue.qc_status) {
-    detail = `CM: ${oldValue.qc_status || '-'} → ${newValue.qc_status || '-'}`;
+  } else if (log.entity_type === 'customer') {
+    detail = `สถานะลูกค้า: ${oldValue.qc_status || '-'} → ${newValue.qc_status || '-'} · วันที่มีผลจริง ${formatDate(newValue.status_changed_at || newValue.cancelled_at)}`;
   }
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">

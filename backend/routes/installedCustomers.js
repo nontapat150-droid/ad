@@ -10,6 +10,8 @@ const {
   syncAutoBillingSchedule,
 } = require('../utils/billingSchedule');
 
+const { bangkokToday, dateOnly, serviceStatus, validateStatusDate, resolveImportStatus, qualityOutcome } = require('../utils/qualityStatus');
+
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 const PENDING_PACKAGE_NAME = 'รอระบุชื่อแพ็กเกจ';
@@ -53,13 +55,6 @@ function isValidYm(value) {
   return month >= 1 && month <= 12;
 }
 
-function lifecycleFromQcStatus(value) {
-  const status = String(value || '').trim().toLowerCase();
-  if (!status) return null;
-  if (/(terminate|disconnect|cancel|ยกเลิก|ตัดบริการ)/i.test(status)) return 'cancelled';
-  if (/(active|เปิดใช้งาน|ใช้งานปกติ)/i.test(status)) return 'active';
-  return null;
-}
 
 function parseDate(value) {
   if (value == null || value === '') return null;
@@ -526,7 +521,15 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (type !== 'fraud' && type !== 'churn') {
       return res.status(400).json({ error: 'type ต้องเป็น fraud หรือ churn' });
     }
-    if (!isValidYm(month)) {
+    const dateFrom = String(req.query.date_from || '').trim();
+    const dateTo = String(req.query.date_to || '').trim();
+    const dateType = String(req.query.date_type || 'install').trim();
+    const customRange = Boolean(dateFrom || dateTo);
+    if (!['install', 'status_changed'].includes(dateType)) return res.status(400).json({ error: 'ประเภทวันที่ไม่ถูกต้อง' });
+    if (customRange && (dateOnly(dateFrom) !== dateFrom || dateOnly(dateTo) !== dateTo || !dateFrom || !dateTo || dateFrom > dateTo)) {
+      return res.status(400).json({ error: 'กรุณาระบุวันที่เริ่มต้นและสิ้นสุดให้ถูกต้อง โดยวันเริ่มต้นต้องไม่เกินวันสิ้นสุด' });
+    }
+    if (!customRange && !isValidYm(month)) {
       return res.status(400).json({ error: 'month ต้องเป็นรูปแบบ YYYY-MM' });
     }
     if (!['qc', 'billing'].includes(scope)) {
@@ -550,31 +553,15 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const cohortMonths = scope === 'billing' ? 1 : activeConfig.months;
     const caseWindowMonths = Math.max(1, Number(settings.fraud?.months) || 4);
     const billingMonths = billingMonthsFromQcSettings(settings);
-    const cohortStartMonth = shiftMonth(month, -(cohortMonths - 1));
-    const { start } = monthBounds(cohortStartMonth);
-    const { end } = monthBounds(month);
-
-    const [[summary]] = await db.query(
-      `SELECT
-         COUNT(*) AS total_installs,
-         SUM(
-           CASE WHEN status = 'cancelled'
-             AND cancelled_at IS NOT NULL
-             AND cancelled_at >= install_date
-             AND cancelled_at < DATE_ADD(install_date, INTERVAL ? MONTH)
-           THEN 1 ELSE 0 END
-         ) AS cases
-       FROM installed_customers
-       WHERE install_date BETWEEN ? AND ?`,
-      [caseWindowMonths, start, end]
-    );
-
-    const total = Number(summary?.total_installs) || 0;
-    const cases = Number(summary?.cases) || 0;
-    const rate = total > 0 ? Number(((cases / total) * 100).toFixed(2)) : 0;
-
-    const thresholdRate = activeConfig.threshold_rate;
-    const allowedCases = Math.floor((total * thresholdRate) / 100);
+    const cohortStartMonth = customRange ? dateFrom.slice(0, 7) : shiftMonth(month, -(cohortMonths - 1));
+    const start = customRange ? dateFrom : monthBounds(cohortStartMonth).start;
+    const end = customRange ? dateTo : monthBounds(month).end;
+    const today = bangkokToday();
+    // Only select actual status dates; expected termination/check dates are not effective dates.
+    const dateColumn = customRange && dateType === 'status_changed'
+      ? "CASE WHEN c.status = 'cancelled' THEN COALESCE(GREATEST(c.cancelled_at, c.status_changed_at), c.cancelled_at, c.status_changed_at) ELSE c.status_changed_at END"
+      : 'c.install_date';
+    const dateWhere = `${dateColumn} BETWEEN ? AND ?`;
 
     const [[billSummary]] = await db.query(
       `SELECT
@@ -586,7 +573,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
            ELSE 0 END), 0) AS outstanding_bills
        FROM installed_customer_bills b
        JOIN installed_customers c ON c.id = b.installed_customer_id
-       WHERE c.install_date BETWEEN ? AND ?`,
+       WHERE ${dateWhere}`,
       [start, end]
     );
 
@@ -602,11 +589,6 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               c.source_sheet, c.last_imported_at,
               DATE_ADD(c.install_date, INTERVAL 127 DAY) AS tracking_due_at,
               DATEDIFF(DATE_ADD(c.install_date, INTERVAL 127 DAY), CURDATE()) + 1 AS tracking_days_remaining,
-              CASE WHEN c.status = 'cancelled'
-                     AND c.cancelled_at IS NOT NULL
-                     AND c.cancelled_at >= c.install_date
-                     AND c.cancelled_at < DATE_ADD(c.install_date, INTERVAL ? MONTH)
-                   THEN 1 ELSE 0 END AS is_case,
               COALESCE(b.outstanding_total, 0) AS outstanding_total,
               COALESCE(b.outstanding_bills, 0) AS outstanding_bills,
               COALESCE(b.paid_bills, 0) AS paid_bills,
@@ -621,9 +603,9 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
          FROM installed_customer_bills
          GROUP BY installed_customer_id
        ) b ON b.installed_customer_id = c.id
-       WHERE c.install_date BETWEEN ? AND ?
+       WHERE ${dateWhere}
        ORDER BY c.install_date ASC, COALESCE(c.source_row_number, 999999), c.non_number ASC`,
-      [caseWindowMonths, start, end]
+      [start, end]
     );
 
     const [billRows] = await db.query(
@@ -634,7 +616,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
               b.estimated_vat, b.estimated_total, b.vat_rate, b.bill_source
        FROM installed_customer_bills b
        JOIN installed_customers c ON c.id = b.installed_customer_id
-       WHERE c.install_date BETWEEN ? AND ?
+       WHERE ${dateWhere}
        ORDER BY b.bill_month ASC, b.installed_customer_id ASC`,
       [start, end]
     );
@@ -651,7 +633,7 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
        JOIN installed_customers c ON c.id = t.installed_customer_id
        LEFT JOIN users u ON u.id = t.assigned_to
        LEFT JOIN users updater ON updater.id = t.updated_by
-       WHERE c.install_date BETWEEN ? AND ?
+       WHERE ${dateWhere}
        ORDER BY t.updated_at DESC`,
       [start, end]
     );
@@ -683,17 +665,11 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 
     const normalizedCustomers = customers.map((customer) => ({
       ...customer,
-      is_case: Boolean(customer.is_case),
-      cm_status: Boolean(customer.is_case) ? type : 'not_case',
-      cm_reason: Boolean(customer.is_case)
-        ? `ยกเลิกภายใน ${caseWindowMonths} เดือนหลังติดตั้ง`
-        : (customer.status !== 'cancelled'
-          ? 'สถานะระบบยังใช้งานอยู่'
-          : (!customer.cancelled_at
-            ? 'สถานะยกเลิก แต่ยังไม่มีวันที่ยกเลิก'
-            : (new Date(customer.cancelled_at) < new Date(customer.install_date)
-              ? 'วันที่ยกเลิกอยู่ก่อนวันติดตั้ง ข้อมูลไม่ถูกต้อง'
-              : `ยกเลิกหลังพ้นเกณฑ์ ${caseWindowMonths} เดือน`))),
+      install_date: dateOnly(customer.install_date),
+      cancelled_at: dateOnly(customer.cancelled_at),
+      status_changed_at: dateOnly(customer.status_changed_at),
+      ...serviceStatus(customer, today),
+      ...qualityOutcome(customer, caseWindowMonths, today),
       case_window_months: caseWindowMonths,
       outstanding_total: Number(customer.outstanding_total) || 0,
       outstanding_bills: Number(customer.outstanding_bills) || 0,
@@ -701,8 +677,13 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       bill_rows: Number(customer.bill_rows) || 0,
       bills: billsByCustomer.get(customer.id) || [],
     }));
+    const total = normalizedCustomers.length;
+    const cases = normalizedCustomers.filter((customer) => customer.is_case).length;
+    const rate = total ? Number(((cases / total) * 100).toFixed(2)) : 0;
+    const thresholdRate = activeConfig.threshold_rate;
+    const allowedCases = Math.floor((total * thresholdRate) / 100);
     const detail = normalizedCustomers.filter((customer) => customer.is_case);
-    const suspendedCustomers = normalizedCustomers.filter((customer) => /suspend|debt/i.test(customer.qc_status || '')).length;
+    const suspendedCustomers = normalizedCustomers.filter((customer) => customer.service_status === 'suspend').length;
     const outstandingCustomers = new Set(
       billRows
         .filter((bill) => ['outstanding', 'overdue'].includes(bill.bill_status))
@@ -712,10 +693,13 @@ router.get('/qc', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     res.json({
       type,
       scope,
-      ref_month: month,
+      ref_month: customRange ? end.slice(0, 7) : month,
+      date_type: dateType,
+      date_range_mode: customRange ? 'custom' : 'cohort',
+      status_as_of: today,
       cohort_month: cohortStartMonth,
-      cohort_start_month: cohortStartMonth,
-      cohort_end_month: month,
+      cohort_start_month: start.slice(0, 7),
+      cohort_end_month: end.slice(0, 7),
       months_back: cohortMonths,
       cohort_months: cohortMonths,
       case_window_months: caseWindowMonths,
@@ -996,15 +980,7 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
         }
         if (!Number.isFinite(monthlyFee) || monthlyFee < 0) monthlyFee = 0;
 
-        const qcStatus = String(row.qc_status || '').trim() || existing?.qc_status || null;
-        const lifecycle = lifecycleFromQcStatus(qcStatus);
-        const status = lifecycle || existing?.status || 'active';
-        const statusChangedAt = parseDate(row.status_changed_at || row.status_observed_at)
-          || parseDate(existing?.status_changed_at);
-        const cancelledAt = status === 'cancelled'
-          ? (statusChangedAt || parseDate(existing?.cancelled_at))
-          : null;
-        const cancelReason = status === 'cancelled' ? qcStatus : null;
+        const { qcStatus, status, statusChangedAt, cancelledAt, cancelReason } = resolveImportStatus(row, existing, installDate);
         const dueDayValue = Number(row.payment_due_day);
         const hasImportedDueDay = Number.isInteger(dueDayValue) && dueDayValue >= 1 && dueDayValue <= 31;
         const paymentDueSource = hasImportedDueDay
@@ -1113,6 +1089,12 @@ router.post('/import-quality-status', auth, requireRole(ADMIN_ROLES), async (req
             billValues
           );
         }
+        const [[importedCustomer]] = await conn.query('SELECT * FROM installed_customers WHERE id = ?', [customerId]);
+        await writeQualityAudit(conn, {
+          customerId, entityType: 'customer', entityId: customerId,
+          action: 'customer_status_imported', oldValue: existing || null, newValue: importedCustomer,
+          reason: sourceFile || 'นำเข้าข้อมูลควบคุมคุณภาพ', actorId: req.user?.id,
+        });
         await conn.query(`RELEASE SAVEPOINT qc_import_row`);
         if (rowAction === 'inserted') inserted++;
         else updated++;
@@ -1399,9 +1381,7 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       : existing.package_name;
     const install_date = req.body.install_date != null
       ? parseDate(req.body.install_date)
-      : (existing.install_date instanceof Date
-        ? existing.install_date.toISOString().slice(0, 10)
-        : String(existing.install_date).slice(0, 10));
+      : dateOnly(existing.install_date);
 
     const textField = (key, fallback, maxLength = 255) => {
       if (!Object.prototype.hasOwnProperty.call(req.body, key)) return fallback;
@@ -1422,7 +1402,13 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     if (!install_date) return res.status(400).json({ error: 'กรุณาระบุวันติดตั้ง' });
     if (Number.isNaN(monthly_fee) || monthly_fee < 0) monthly_fee = 0;
 
-    const status = Object.prototype.hasOwnProperty.call(req.body, 'status')
+    const requestedServiceStatus = req.body.service_status;
+    if (requestedServiceStatus != null && !['active', 'suspend', 'terminate'].includes(requestedServiceStatus)) {
+      return res.status(400).json({ error: 'กรุณาเลือก Active, Suspend หรือ Terminate' });
+    }
+    const status = requestedServiceStatus != null
+      ? (requestedServiceStatus === 'terminate' ? 'cancelled' : 'active')
+      : Object.prototype.hasOwnProperty.call(req.body, 'status')
       ? String(req.body.status || '').trim().toLowerCase()
       : existing.status;
     if (!['active', 'cancelled'].includes(status)) {
@@ -1447,7 +1433,7 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const first_due_date = calculateFirstDueDate(install_date, payment_due_day);
 
     const cancelled_at = status === 'cancelled'
-      ? dateField('cancelled_at', existing.cancelled_at)
+      ? (requestedServiceStatus === 'terminate' ? dateOnly(req.body.status_changed_at) : dateField('cancelled_at', existing.cancelled_at))
       : null;
     if (status === 'cancelled' && !cancelled_at) {
       return res.status(400).json({ error: 'สถานะยกเลิกต้องระบุวันที่ยกเลิก เพื่อคำนวณ CM ให้ถูกต้อง' });
@@ -1462,9 +1448,15 @@ router.put('/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const contact_phone = textField('contact_phone', existing.contact_phone, 100);
     const subdistrict = textField('subdistrict', existing.subdistrict, 100);
     const district = textField('district', existing.district, 100);
-    const qc_status = textField('qc_status', existing.qc_status, 100);
+    const qc_status = requestedServiceStatus != null
+      ? ({ active: 'Active', suspend: 'Suspend', terminate: 'Terminate' }[requestedServiceStatus])
+      : textField('qc_status', existing.qc_status, 100);
     const billing_status = textField('billing_status', existing.billing_status, 100);
     const status_changed_at = dateField('status_changed_at', existing.status_changed_at);
+    if (requestedServiceStatus != null) {
+      const statusDateError = validateStatusDate(req.body.status_changed_at, install_date);
+      if (statusDateError) return res.status(400).json({ error: statusDateError });
+    }
     const ae_remark = textField('ae_remark', existing.ae_remark, 10000);
     const install_month_label = textField('install_month_label', existing.install_month_label, 20);
     const tracking_summary = textField('tracking_summary', existing.tracking_summary, 255);
@@ -1687,16 +1679,18 @@ router.post('/:id/cancel', auth, requireRole(ADMIN_ROLES), async (req, res) => {
     const [[existing]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
     if (!existing) return res.status(404).json({ error: 'ไม่พบข้อมูลลูกค้า' });
 
-    const cancelled_at = parseDate(req.body.cancelled_at) || new Date().toISOString().slice(0, 10);
+    const cancelled_at = dateOnly(req.body.cancelled_at);
+    const dateError = validateStatusDate(cancelled_at, existing.install_date);
+    if (dateError) return res.status(400).json({ error: dateError });
     const cancel_reason = req.body.cancel_reason != null
       ? String(req.body.cancel_reason).trim() || null
       : null;
 
     await db.query(
       `UPDATE installed_customers
-       SET status = 'cancelled', cancelled_at = ?, cancel_reason = ?
+       SET status = 'cancelled', cancelled_at = ?, cancel_reason = ?, qc_status = 'Terminate', status_changed_at = ?
        WHERE id = ?`,
-      [cancelled_at, cancel_reason, id]
+      [cancelled_at, cancel_reason, cancelled_at, id]
     );
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
     res.json(row);
@@ -1715,9 +1709,9 @@ router.post('/:id/reactivate', auth, requireRole(ADMIN_ROLES), async (req, res) 
 
     await db.query(
       `UPDATE installed_customers
-       SET status = 'active', cancelled_at = NULL, cancel_reason = NULL
+       SET status = 'active', cancelled_at = NULL, cancel_reason = NULL, qc_status = 'Active', status_changed_at = ?
        WHERE id = ?`,
-      [id]
+      [bangkokToday(), id]
     );
     const [[row]] = await db.query('SELECT * FROM installed_customers WHERE id = ?', [id]);
     res.json(row);

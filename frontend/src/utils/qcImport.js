@@ -234,7 +234,7 @@ export function parseQualitySheet(workbook, sheetName) {
     .map((header, index) => ((header.includes('cmสถานะ') || header.includes('สถานะcm')) ? index : -1))
     .filter((index) => index >= 0);
   const statusDateIndexes = headers
-    .map((header, index) => (header.includes('เดือนที่เปลี่ยนสถานะ') ? index : -1))
+    .map((header, index) => (/เดือนที่เปลี่ยนสถานะ|วันที่เปลี่ยนสถานะ/.test(header) ? index : -1))
     .filter((index) => index >= 0);
   const remarkIndexes = headers
     .map((header, index) => ((header.includes('aeremark') || header.includes('ผลการติดตาม')) ? index : -1))
@@ -264,10 +264,19 @@ export function parseQualitySheet(workbook, sheetName) {
     const packagePriceOnly = priceOnlyPackage(packageText);
     const packageName = packagePriceOnly != null ? PENDING_PACKAGE_NAME : packageText;
     const installDate = idxRegister >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, idxRegister)) : null;
-    const statusValue = latestValue(sheet, rowIndex, statusIndexes);
+    // Keep each status paired with its own effective date. Column order alone
+    // does not tell us which status is newest in a workbook with repeated blocks.
+    const statusSnapshots = statusIndexes.map((column, index) => ({
+      column,
+      value: cleanCellText(cellDisplay(sheet, rowIndex, column)),
+      changedAt: statusDateIndexes[index] == null ? null
+        : parseExcelDate(cellValue(sheet, rowIndex, statusDateIndexes[index])),
+    })).filter((item) => item.value);
+    const statusValue = statusSnapshots.sort((a, b) =>
+      String(b.changedAt || '').localeCompare(String(a.changedAt || '')) || b.column - a.column
+    )[0] || { value: '', column: -1, changedAt: null };
     const fallbackStatus = idxFallbackStatus >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxFallbackStatus)) : '';
     const qcStatus = statusValue.value || fallbackStatus;
-    const statusDate = latestValue(sheet, rowIndex, statusDateIndexes);
     const billing = latestValue(sheet, rowIndex, billingIndexes);
     const remark = latestValue(sheet, rowIndex, remarkIndexes);
     const checkDate = idxCheckDate >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, idxCheckDate)) : null;
@@ -315,7 +324,7 @@ export function parseQualitySheet(workbook, sheetName) {
       district: idxDistrict >= 0 ? cleanCellText(cellDisplay(sheet, rowIndex, idxDistrict)) : '',
       qc_status: qcStatus,
       billing_status: billing.value,
-      status_changed_at: statusDate.column >= 0 ? parseExcelDate(cellDisplay(sheet, rowIndex, statusDate.column)) : null,
+      status_changed_at: statusValue.changedAt,
       status_observed_at: statusObservedAt,
       ae_remark: remark.value,
       payment_due_day: Number.isInteger(paymentDueDay) && paymentDueDay >= 1 && paymentDueDay <= 31 ? paymentDueDay : null,
