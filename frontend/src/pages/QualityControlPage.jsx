@@ -26,6 +26,7 @@ import Sidebar from '../components/Sidebar';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
 import QualityStatusImportModal from '../components/QualityStatusImportModal';
+import QualityDatePicker from '../components/QualityDatePicker';
 import { useAuth } from '../context/AuthContext';
 import axios from '../api/axios';
 
@@ -534,8 +535,8 @@ export default function QualityControlPage() {
               </div>
               <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300">กรองจากวันที่<select value={dateType} onChange={(event) => { setDateType(event.target.value); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="install">วันที่ติดตั้ง</option><option value="status_changed">วันที่เปลี่ยนสถานะจริง</option></select></label>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่เริ่มต้น<input type="date" required value={dateRange.from} max={dateRange.to || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, from: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่สิ้นสุด<input type="date" required value={dateRange.to} min={dateRange.from || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, to: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่เริ่มต้น<QualityDatePicker aria-label="วันที่เริ่มต้น"  required value={dateRange.from} max={dateRange.to || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, from: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300">วันที่สิ้นสุด<QualityDatePicker aria-label="วันที่สิ้นสุด"  required value={dateRange.to} min={dateRange.from || undefined} onChange={(event) => { setDateRange((current) => ({ ...current, to: event.target.value })); setPage(1); }} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
                 <label className="text-xs font-bold text-slate-600 dark:text-slate-300">เลือกเดือนติดตั้งอย่างรวดเร็ว<select value={dateType === 'install' && dateRange.from === monthDateRange(month || todayInBangkok().slice(0,7)).from && dateRange.to === monthDateRange(month || todayInBangkok().slice(0,7)).to ? month : ''} onChange={(event) => { if (!event.target.value) return; setMonth(event.target.value); setDateRange(monthDateRange(event.target.value)); setDateType('install'); setPage(1); }} disabled={loadingOptions} className="mt-1 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="">กำหนดช่วงวันที่เอง</option>{availableMonths.map((item) => <option key={item.value} value={item.value}>{formatMonth(item.value)}</option>)}</select></label>
               </div>
               {rangeError && <p role="alert" className="px-4 pb-3 text-sm font-bold text-rose-600">{rangeError}</p>}
@@ -740,7 +741,7 @@ function WorkflowGuide({ mode }) {
   const subject = mode === 'fraud' ? 'Fraud' : 'Churn';
   const steps = isBilling
     ? ['เลือกงวดบิลที่ต้องการตรวจ', 'เลือก ชำระแล้ว หรือ ยังไม่ชำระ', 'เริ่มติดตามหรือยืนยันยอดชำระ']
-    : ['เลือกประเภทวันที่และช่วงวันที่', 'กรอง Active / Suspend / Terminate', `ตรวจวันที่จริงและผล ${subject}`];
+    : ['เลือกช่วงวันที่', 'status การชำระเงินของลูกค้า', `ตรวจวันที่จริงและผล ${subject}`];
   return (
     <section className="rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 dark:border-sky-900 dark:bg-sky-950/30" aria-labelledby="workflow-guide-title">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -1060,8 +1061,8 @@ function BillPaymentExplorer({ result, onViewCustomer, onRefresh }) {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={filters.query} onChange={updateFilter('query')} placeholder="ค้นหาชื่อ, NON, แพ็กเกจ, ผู้ขาย" className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-lime-500 focus:ring-4 focus:ring-lime-100 dark:border-slate-700 dark:bg-slate-950" />
           </label>
-          <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งตั้งแต่</span><input type="date" value={filters.installFrom} max={filters.installTo || undefined} onChange={updateFilter('installFrom')} className="h-10 pt-3 text-xs font-bold" aria-label="ติดตั้งสำเร็จตั้งแต่วันที่" /></label>
-          <label className="relative"><span className="pointer-events-none absolute left-3 top-1.5 text-[10px] font-bold text-slate-400">ติดตั้งถึง</span><input type="date" value={filters.installTo} min={filters.installFrom || undefined} onChange={updateFilter('installTo')} className="h-10 pt-3 text-xs font-bold" aria-label="ติดตั้งสำเร็จถึงวันที่" /></label>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300"><span className="mb-1 block">ติดตั้งตั้งแต่</span><QualityDatePicker  value={filters.installFrom} max={filters.installTo || undefined} onChange={updateFilter('installFrom')} className="h-11 text-sm font-semibold" aria-label="ติดตั้งสำเร็จตั้งแต่วันที่" /></label>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300"><span className="mb-1 block">ติดตั้งถึง</span><QualityDatePicker  value={filters.installTo} min={filters.installFrom || undefined} onChange={updateFilter('installTo')} className="h-11 text-sm font-semibold" aria-label="ติดตั้งสำเร็จถึงวันที่" /></label>
         </div>
 
         <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-950/50">
@@ -1240,7 +1241,7 @@ function FollowUpTaskModal({ value, onChange, users, currentUser, saving, onSubm
             <summary className="cursor-pointer px-3 py-2 text-xs font-black text-slate-600 dark:text-slate-300">ตัวเลือกเพิ่มเติม: ความสำคัญและวันติดตาม</summary>
             <div className="grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-3 dark:border-slate-700">
               <EditField label="ความสำคัญ"><select value={value.priority} onChange={update('priority')} className={fieldClass}><option value="low">ต่ำ</option><option value="normal">ปกติ</option><option value="high">สูง</option><option value="urgent">เร่งด่วน</option></select></EditField>
-              <EditField label="กำหนดดำเนินการ"><input type="date" value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
+              <EditField label="กำหนดดำเนินการ"><QualityDatePicker aria-label="วันครบกำหนด"  value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
               <EditField label="นัดติดตามครั้งถัดไป"><input type="datetime-local" value={value.next_follow_up_at} onChange={update('next_follow_up_at')} className={fieldClass} /></EditField>
             </div>
           </details>
@@ -1674,7 +1675,7 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
             <EditField label="Access Number / NON" required><input required value={form.non_number} onChange={update('non_number')} className={fieldClass} /></EditField>
             <EditField label="ชื่อแพ็กเกจ" required className="sm:col-span-2"><input required value={form.package_name} onChange={update('package_name')} className={fieldClass} /></EditField>
             <EditField label="ค่าใช้จ่ายต่อเดือน"><input type="number" min="0" step="0.01" value={form.monthly_fee} onChange={update('monthly_fee')} className={fieldClass} /></EditField>
-            <EditField label="วันติดตั้ง" required><input required type="date" value={form.install_date} onChange={update('install_date')} className={fieldClass} /></EditField>
+            <EditField label="วันติดตั้ง" required><QualityDatePicker aria-label="วันติดตั้ง" required  value={form.install_date} onChange={update('install_date')} className={fieldClass} /></EditField>
             <EditField label="เบอร์ติดต่อ"><input value={form.contact_phone} onChange={update('contact_phone')} className={fieldClass} /></EditField>
             <EditField label="ผู้ขาย"><input value={form.seller_name} onChange={update('seller_name')} className={fieldClass} /></EditField>
             <EditField label="ตำบล"><input value={form.subdistrict} onChange={update('subdistrict')} className={fieldClass} /></EditField>
@@ -1688,9 +1689,9 @@ function CustomerEditForm({ form, setForm, type, caseWindowMonths, saving, onSub
             <EditField label="สถานะลูกค้าจริง" required><select required value={form.service_status} onChange={(event) => setForm((current) => ({ ...current, service_status: event.target.value, status: event.target.value === 'terminate' ? 'cancelled' : 'active', status_changed_at: '', cancelled_at: '' }))} className={fieldClass}><option value="">เลือกสถานะจริง</option>{SERVICE_STATUS_OPTIONS.filter(([value]) => value !== 'unknown').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></EditField>
             <EditField label="ข้อมูลสถานะต้นทางเดิม"><p className="py-2 text-sm text-slate-500">{form.qc_status || 'ไม่มีข้อมูล'}</p></EditField>
             <EditField label="Billing จากไฟล์ต้นทาง"><input value={form.billing_status} onChange={update('billing_status')} className={fieldClass} /></EditField>
-            <EditField label="วันที่เปลี่ยนสถานะจริง" required><input required type="date" min={form.install_date || undefined} max={todayInBangkok()} value={form.status_changed_at} onChange={(event) => setForm((current) => ({ ...current, status_changed_at: event.target.value, cancelled_at: current.service_status === 'terminate' ? event.target.value : '' }))} className={fieldClass} /><span className="mt-1 block text-xs text-slate-500">วันที่เริ่มมีผลจริง ไม่ใช่วันที่ตรวจข้อมูลหรือนำเข้าไฟล์</span></EditField>
-            <EditField label="วันที่เช็คยอด"><input type="date" value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
-            <EditField label="คาดการณ์ Terminate"><input type="date" value={form.expected_terminate_at} onChange={update('expected_terminate_at')} className={fieldClass} /></EditField>
+            <EditField label="วันที่เปลี่ยนสถานะจริง" required><QualityDatePicker aria-label="วันที่เปลี่ยนสถานะจริง" required  min={form.install_date || undefined} max={todayInBangkok()} value={form.status_changed_at} onChange={(event) => setForm((current) => ({ ...current, status_changed_at: event.target.value, cancelled_at: current.service_status === 'terminate' ? event.target.value : '' }))} className={fieldClass} /><span className="mt-1 block text-xs text-slate-500">วันที่เริ่มมีผลจริง ไม่ใช่วันที่ตรวจข้อมูลหรือนำเข้าไฟล์</span></EditField>
+            <EditField label="วันที่เช็คยอด"><QualityDatePicker aria-label="วันที่เช็คยอด"  value={form.bill_check_date} onChange={update('bill_check_date')} className={fieldClass} /></EditField>
+            <EditField label="คาดการณ์ Terminate"><QualityDatePicker aria-label="คาดการณ์ Terminate"  value={form.expected_terminate_at} onChange={update('expected_terminate_at')} className={fieldClass} /></EditField>
             <EditField label="วิธีกำหนดรอบชำระ"><select value={form.payment_due_mode} onChange={update('payment_due_mode')} className={fieldClass}><option value="auto">อัตโนมัติตามวันติดตั้ง AIS</option><option value="manual">กำหนดวันที่เอง</option></select></EditField>
             <EditField label="กำหนดชำระ (วันที่ 1–31)"><input type="number" min="1" max="31" disabled={form.payment_due_mode === 'auto'} value={form.payment_due_mode === 'auto' ? aisDueDayPreview(form.install_date) : form.payment_due_day} onChange={update('payment_due_day')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-400`} /><span className="mt-1 block text-[11px] font-medium text-slate-400">โหมดอัตโนมัติจะคำนวณใหม่เมื่อเปลี่ยนวันติดตั้ง</span></EditField>
             <EditField label="เดือนติดตั้งสำเร็จ"><input value={form.install_month_label} onChange={update('install_month_label')} placeholder="เช่น Aug" className={fieldClass} /></EditField>
@@ -1740,7 +1741,7 @@ function BillEditor({ value, onChange, saving, onSubmit, onCancel, onDelete }) {
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <EditField label="เดือนบิล" required><input required type="month" disabled={Boolean(value.originalMonth)} value={value.bill_month} onChange={update('bill_month')} className={`${fieldClass} disabled:bg-slate-100 disabled:text-slate-500`} /></EditField>
-        <EditField label="วันครบชำระ"><input type="date" value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
+        <EditField label="วันครบชำระ"><QualityDatePicker aria-label="วันครบกำหนด"  value={value.due_date} onChange={update('due_date')} className={fieldClass} /></EditField>
         <EditField label="สถานะบิล" required><select value={value.bill_status} onChange={updateStatus} className={fieldClass}>{BILL_STATUS_OPTIONS.map(([status, label]) => <option key={status} value={status}>{label}</option>)}</select></EditField>
         <EditField label={value.bill_status === 'paid' ? 'ยอดชำระจริง (บาท)' : 'ยอดเงิน (บาท)'}>
           {value.bill_status === 'paid'
