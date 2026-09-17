@@ -230,7 +230,7 @@ export default function ExpansionMapPicker({
       popupOverlay.setPosition(evt.coordinate);
       const r = parseFloat(radiusInput) || 500;
       drawCustomer(parseFloat(latStr), parseFloat(lonStr), r);
-      onPickRef.current?.({ lat: parseFloat(latStr), lng: parseFloat(lonStr) });
+      onPickRef.current?.({ lat: parseFloat(latStr), lng: parseFloat(lonStr), source: 'map' });
     });
 
     return () => {
@@ -258,12 +258,12 @@ export default function ExpansionMapPicker({
     }
   }, [mode, drawSplittersAndLine]);
 
-  const applyCoords = (latNum, lonNum) => {
+  const applyCoords = (latNum, lonNum, source = 'manual') => {
     const r = parseFloat(radiusInput) || 500;
     drawCustomer(latNum, lonNum, r);
     setClickedCoord({ lat: latNum.toFixed(6), lon: lonNum.toFixed(6) });
     setCoordInput(`${latNum}, ${lonNum}`);
-    onPickRef.current?.({ lat: latNum, lng: lonNum });
+    onPickRef.current?.({ lat: latNum, lng: lonNum, source });
     if (popupOverlayRef.current && mapInstanceRef.current) {
       popupOverlayRef.current.setPosition(fromLonLat([lonNum, latNum]));
     }
@@ -287,7 +287,7 @@ export default function ExpansionMapPicker({
       setSearchError('พิกัดต้องเป็นตัวเลข');
       return;
     }
-    applyCoords(latNum, lonNum);
+    applyCoords(latNum, lonNum, 'manual');
   };
 
   const handleGps = () => {
@@ -300,7 +300,7 @@ export default function ExpansionMapPicker({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setGpsLoading(false);
-        applyCoords(pos.coords.latitude, pos.coords.longitude);
+        applyCoords(pos.coords.latitude, pos.coords.longitude, 'gps');
       },
       () => {
         setGpsLoading(false);
@@ -370,7 +370,7 @@ export default function ExpansionMapPicker({
             disabled={gpsLoading}
             className="px-3 py-2 text-sm font-bold rounded-xl bg-sky-50 text-sky-700 border border-sky-200 disabled:opacity-60"
           >
-            {gpsLoading ? '...' : 'GPS'}
+            {gpsLoading ? 'กำลังระบุ...' : mode === 'sales' ? '⌖ ตำแหน่งฉัน' : 'GPS'}
           </button>
         )}
       </form>

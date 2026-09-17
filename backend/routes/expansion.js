@@ -21,8 +21,6 @@ const STATUS_TRANSITIONS = {
   lost: ['quoted', 'survey', 'draft'],
   handed_off: [],
 };
-const MIN_PHOTOS = 3;
-const MAX_PHOTOS = 10;
 
 let schemaReady = false;
 let schemaPromise = null;
@@ -111,10 +109,6 @@ async function ensureExpansionSchema(db = pool) {
     await addColumnIfMissing(db, 'expansion_jobs', 'geo_address', 'TEXT NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'geo_source', 'VARCHAR(30) NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'geo_captured_at', 'DATETIME NULL');
-    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lat', 'DECIMAL(10,7) NULL');
-    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lng', 'DECIMAL(10,7) NULL');
-    await addColumnIfMissing(db, 'expansion_job_photos', 'source_address', 'TEXT NULL');
-    await addColumnIfMissing(db, 'expansion_job_photos', 'captured_at', 'DATETIME NULL');
     await db.query(
       `UPDATE expansion_jobs
        SET non_number = TRIM(install_date_text), install_date_text = NULL
@@ -134,6 +128,10 @@ async function ensureExpansionSchema(db = pool) {
         KEY idx_exp_photos_job (expansion_job_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lat', 'DECIMAL(10,7) NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lng', 'DECIMAL(10,7) NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_address', 'TEXT NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'captured_at', 'DATETIME NULL');
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS expansion_job_history (
@@ -356,14 +354,6 @@ function trimOrNull(v) {
   return s || null;
 }
 
-async function getPhotoCount(db, expansionId) {
-  const [[{ cnt }]] = await db.query(
-    'SELECT COUNT(*) AS cnt FROM expansion_job_photos WHERE expansion_job_id = ?',
-    [expansionId]
-  );
-  return Number(cnt) || 0;
-}
-
 async function loadPhotos(db, expansionId) {
   const [rows] = await db.query(
     `SELECT id, expansion_job_id, image_path, uploaded_by, source_lat, source_lng,
@@ -376,26 +366,17 @@ async function loadPhotos(db, expansionId) {
   return rows;
 }
 
-function validateSalesRequired(body, { photoCount = null, requirePhotos = true } = {}) {
+function validateSalesFields(body) {
   const errors = [];
-  if (!trimOrNull(body.customer_name)) errors.push('กรุณากรอกชื่อผู้ติดต่อ (ลูกค้า/บริษัท)');
-  if (!trimOrNull(body.id_card)) errors.push('กรุณากรอกเลขอ้างอิง (บัตรประชาชน/ผู้เสียภาษี)');
-  if (!trimOrNull(body.address)) errors.push('กรุณากรอกที่อยู่ติดตั้ง');
-  if (!trimOrNull(body.phone)) errors.push('กรุณากรอกเบอร์ติดต่อ');
-  if (!trimOrNull(body.package_name)) errors.push('กรุณากรอกแพ็กเกจ');
-  if (!trimOrNull(body.contract_info)) errors.push('กรุณากรอกสัญญา');
-  if (!trimOrNull(body.occupation)) errors.push('กรุณากรอกอาชีพ/ผู้ติดต่อ');
-  if (!trimOrNull(body.install_date) && !trimOrNull(body.install_date_text)) {
-    errors.push('กรุณาระบุขอวันติดตั้ง (วันที่หรือเลข NON)');
-  }
-  if (parseCoord(body.lat) == null || parseCoord(body.lng) == null) {
-    errors.push('กรุณาปักพิกัดบ้านลูกค้า');
-  } else if (parseCoord(body.lat) < 5 || parseCoord(body.lat) > 21 || parseCoord(body.lng) < 97 || parseCoord(body.lng) > 106.5) {
+  const lat = parseCoord(body.lat);
+  const lng = parseCoord(body.lng);
+  if ((lat == null) !== (lng == null)) {
+    errors.push('พิกัดบ้านต้องระบุละติจูดและลองจิจูดให้ครบคู่กัน');
+  } else if (lat != null && (lat < 5 || lat > 21 || lng < 97 || lng > 106.5)) {
     errors.push('พิกัดอยู่นอกพื้นที่ประเทศไทย กรุณาตรวจสอบอีกครั้ง');
   }
-  if (parseDecimal(body.estimated_cable_m) == null) {
-    errors.push('กรุณากรอกระยะสายประมาณ');
-  } else if (parseDecimal(body.estimated_cable_m) < 0) {
+  const cableDistance = parseDecimal(body.estimated_cable_m);
+  if (cableDistance != null && cableDistance < 0) {
     errors.push('ระยะสายต้องไม่ติดลบ');
   }
   const phoneDigits = normalizeDigits(body.phone);
@@ -408,10 +389,6 @@ function validateSalesRequired(body, { photoCount = null, requirePhotos = true }
   }
   if (!validISODate(body.install_date)) errors.push('วันที่ติดตั้งไม่ถูกต้อง');
   if (!validISODate(body.follow_up_at)) errors.push('วันที่ติดตามไม่ถูกต้อง');
-  if (requirePhotos && photoCount != null) {
-    if (photoCount < MIN_PHOTOS) errors.push(`ต้องอัปโหลดรูปอย่างน้อย ${MIN_PHOTOS} รูป`);
-    if (photoCount > MAX_PHOTOS) errors.push(`อัปโหลดรูปได้ไม่เกิน ${MAX_PHOTOS} รูป`);
-  }
   return errors;
 }
 
@@ -919,7 +896,7 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
     if (nextStatus === 'handed_off') nextStatus = 'draft';
 
     // Photos are uploaded after create; full photo validation runs on PUT.
-    const fieldErrors = validateSalesRequired({ ...fields }, { requirePhotos: false });
+    const fieldErrors = validateSalesFields({ ...fields });
     if (fieldErrors.length) {
       return res.status(400).json({ error: fieldErrors[0], errors: fieldErrors });
     }
@@ -995,7 +972,7 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
     });
 
     const row = await fetchJobWithExtras(pool, result.insertId);
-    res.status(201).json({ ...row, photos_required: true, min_photos: MIN_PHOTOS, max_photos: MAX_PHOTOS });
+    res.status(201).json({ ...row, photos_required: false, min_photos: 0, max_photos: null });
   } catch (err) {
     console.error('expansion create:', err);
     res.status(500).json({ error: 'Server error', detail: err.message });
@@ -1020,7 +997,6 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
     if (req.body.owner_user_id && nextOwnerId !== Number(existing.owner_user_id) && !(await validateSalesOwner(pool, nextOwnerId))) {
       return res.status(400).json({ error: 'ผู้รับผิดชอบต้องเป็นบัญชีพนักงานขายที่ใช้งานอยู่' });
     }
-    const photoCount = await getPhotoCount(pool, existing.id);
     const statusOnly =
       Object.keys(req.body).every((k) => ['status', 'lost_reason'].includes(k));
 
@@ -1039,15 +1015,8 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
       }
     }
 
-    if (nextStatus === 'lost' && !(fields.lost_reason || existing.lost_reason)) {
-      return res.status(400).json({ error: 'กรุณาระบุเหตุผลเมื่อสถานะเป็นไม่ได้' });
-    }
-
     if (!statusOnly) {
-      const errors = validateSalesRequired(
-        { ...fields, lost_reason: fields.lost_reason },
-        { photoCount, requirePhotos: true }
-      );
+      const errors = validateSalesFields({ ...fields, lost_reason: fields.lost_reason });
       if (errors.length) {
         return res.status(400).json({ error: errors[0], errors });
       }
@@ -1160,7 +1129,7 @@ router.post(
   auth,
   requireRole(ALLOWED_ROLES),
   setUpload('expansion'),
-  upload.array('images', MAX_PHOTOS),
+  upload.array('images'),
   async (req, res) => {
     try {
       await ensureExpansionSchema();
@@ -1174,13 +1143,6 @@ router.post(
       const files = req.files || [];
       if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์รูป' });
       const metadata = parsePhotoMetadata(req.body?.photo_metadata, files.length);
-
-      const current = await getPhotoCount(pool, existing.id);
-      if (current + files.length > MAX_PHOTOS) {
-        return res.status(400).json({
-          error: `อัปโหลดรูปได้ไม่เกิน ${MAX_PHOTOS} รูป (มีอยู่ ${current} รูป)`,
-        });
-      }
 
       const inserted = [];
       for (const [index, file] of files.entries()) {

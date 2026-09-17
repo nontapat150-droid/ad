@@ -74,8 +74,9 @@ export function drawCheckinWatermark(ctx, {
   const now = new Date();
   const dateStr = now.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const latStr = Number.isFinite(lat) ? Number(lat).toFixed(6) : '0.000000';
-  const lngStr = Number.isFinite(lng) ? Number(lng).toFixed(6) : '0.000000';
+  const hasCoordinates = lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+  const latStr = hasCoordinates ? Number(lat).toFixed(6) : 'ไม่ระบุพิกัด';
+  const lngStr = hasCoordinates ? Number(lng).toFixed(6) : '';
 
   const pad = Math.round(h * 0.016);
   const titleFont = Math.round(h * 0.027);
@@ -173,7 +174,7 @@ export function drawCheckinWatermark(ctx, {
 
   ctx.font = `600 ${bodyFont}px 'Courier New', monospace`;
   ctx.fillStyle = BRAND.lime;
-  ctx.fillText(`${latStr}, ${lngStr}`, textX + gpsLabelW + pad * 0.5, coordsY);
+  ctx.fillText(hasCoordinates ? `${latStr}, ${lngStr}` : latStr, textX + gpsLabelW + pad * 0.5, coordsY);
 
   // Address
   ctx.font = `${smallFont}px 'Sarabun', 'Tahoma', sans-serif`;

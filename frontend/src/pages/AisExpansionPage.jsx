@@ -38,8 +38,6 @@ const NEXT_ACTIONS = {
   handed_off: [],
 };
 
-const MIN_PHOTOS = 3;
-const MAX_PHOTOS = 10;
 const NEARBY_RADIUS_M = 3000;
 
 const inputCls =
@@ -322,6 +320,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
   const [pendingPreviews, setPendingPreviews] = useState([]);
   const [geoAddress, setGeoAddress] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
   const isEdit = Boolean(job?.id);
@@ -463,37 +462,14 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
   const validateStep = (targetStep) => {
     if (targetStep === 1) {
-      if (!form.customer_name.trim()) {
-        return form.customer_type === 'corporate'
-          ? 'กรุณากรอกชื่อบริษัท/หน่วยงาน'
-          : 'กรุณากรอกชื่อ-นามสกุลลูกค้า';
-      }
-      if (!form.id_card.trim()) {
-        return form.customer_type === 'corporate'
-          ? 'กรุณากรอกเลขผู้เสียภาษี'
-          : 'กรุณากรอกเลขบัตรประชาชน';
-      }
-      if (!form.phone.trim()) return 'กรุณากรอกเบอร์ติดต่อ';
       const phoneDigits = form.phone.replace(/\D/g, '');
-      if (phoneDigits.length < 9 || phoneDigits.length > 15) return 'เบอร์โทรศัพท์ต้องมี 9-15 หลัก';
+      if (phoneDigits && (phoneDigits.length < 9 || phoneDigits.length > 15)) return 'เบอร์โทรศัพท์ต้องมี 9-15 หลัก';
       const idDigits = form.id_card.replace(/\D/g, '');
-      if (idDigits.length !== 13) return 'เลขบัตรประชาชน/เลขผู้เสียภาษีต้องมี 13 หลัก';
-      if (!form.occupation.trim()) return form.customer_type === 'corporate' ? 'กรุณากรอกผู้ติดต่อ' : 'กรุณากรอกอาชีพ';
-      if (!form.address.trim()) return 'กรุณากรอกที่อยู่ติดตั้ง';
-      if (!form.package_name.trim()) return 'กรุณากรอกแพ็กเกจ';
-      if (!form.contract_info.trim()) return 'กรุณากรอกสัญญา';
-      if (!form.install_date && !form.install_date_text.trim()) return 'กรุณาระบุขอวันติดตั้ง หรือ เลข NON';
+      if (idDigits && idDigits.length !== 13) return 'เลขบัตรประชาชน/เลขผู้เสียภาษีต้องมี 13 หลัก';
       return null;
     }
     if (targetStep === 2) {
-      if (form.lat == null || form.lng == null) return 'กรุณาปักพิกัดบ้านลูกค้า';
-      if (form.estimated_cable_m === '' || form.estimated_cable_m == null) return 'กรุณากรอกระยะสายประมาณ';
-      if (Number(form.estimated_cable_m) < 0) return 'ระยะสายต้องไม่ติดลบ';
-      return null;
-    }
-    if (targetStep === 3) {
-      if (totalPhotos < MIN_PHOTOS) return `ต้องมีรูปอย่างน้อย ${MIN_PHOTOS} รูป`;
-      if (totalPhotos > MAX_PHOTOS) return `รูปได้ไม่เกิน ${MAX_PHOTOS} รูป`;
+      if (form.estimated_cable_m !== '' && Number(form.estimated_cable_m) < 0) return 'ระยะสายต้องไม่ติดลบ';
       return null;
     }
     return null;
@@ -568,30 +544,14 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
     );
   });
 
-  const captureCurrentLocation = async () => {
-    if (locked) return;
-    setLocationLoading(true);
-    try {
-      const coords = await getCurrentLocation();
-      await applyLocation(coords.lat, coords.lng, 'current_gps');
-    } catch (err) {
-      Swal.fire({ icon: 'warning', title: 'ระบุตำแหน่งไม่สำเร็จ', text: err.message });
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
   const addLocationPhotos = async (files, captureSource) => {
-    const room = MAX_PHOTOS - (photos.length + pendingFiles.length);
-    if (room <= 0) {
-      Swal.fire({ icon: 'warning', title: `อัปโหลดได้ไม่เกิน ${MAX_PHOTOS} รูป` });
-      return;
-    }
-    const take = files.slice(0, room);
-    const gpsFromPhoto = await Promise.all(take.map(readPhotoGps));
-    const photoCoords = gpsFromPhoto.find((coords) => coords && isThailandCoordinate(coords.lat, coords.lng));
-    let location;
+    if (photoProcessing) return;
+    const take = files;
+    setPhotoProcessing(true);
     try {
+      const gpsFromPhoto = await Promise.all(take.map(readPhotoGps));
+      const photoCoords = gpsFromPhoto.find((coords) => coords && isThailandCoordinate(coords.lat, coords.lng));
+      let location;
       if (photoCoords) {
         location = await applyLocation(photoCoords.lat, photoCoords.lng, 'photo_exif');
       } else if (isThailandCoordinate(form.lat, form.lng)) {
@@ -600,28 +560,50 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
           captured_at: localDateTime(),
         };
       } else {
-        const coords = await getCurrentLocation();
-        location = await applyLocation(coords.lat, coords.lng, captureSource || 'current_gps');
+        try {
+          const coords = await getCurrentLocation();
+          location = await applyLocation(coords.lat, coords.lng, captureSource || 'current_gps');
+        } catch {
+          location = { lat: null, lng: null, address: '', captured_at: localDateTime() };
+        }
+      }
+
+      const photoLocations = [];
+      for (const ownCoords of gpsFromPhoto) {
+        if (!ownCoords || !isThailandCoordinate(ownCoords.lat, ownCoords.lng)) {
+          photoLocations.push(location);
+          continue;
+        }
+        if (ownCoords.lat === location.lat && ownCoords.lng === location.lng) {
+          photoLocations.push(location);
+          continue;
+        }
+        try {
+          const address = await reverseAddress(ownCoords.lat, ownCoords.lng);
+          photoLocations.push({ ...location, lat: ownCoords.lat, lng: ownCoords.lng, address: address || location.address });
+        } catch {
+          photoLocations.push({ ...location, lat: ownCoords.lat, lng: ownCoords.lng });
+        }
       }
       const logoUrl = branding?.website_logo ? getImageUrl(branding.website_logo, 'branding') : null;
       const logoImg = await loadImageForCanvas(logoUrl);
-      const stamped = await Promise.all(take.map(async (file, index) => {
-        const ownCoords = gpsFromPhoto[index];
-        const metadata = ownCoords && isThailandCoordinate(ownCoords.lat, ownCoords.lng)
-          ? { ...location, lat: ownCoords.lat, lng: ownCoords.lng }
-          : location;
+      const stamped = [];
+      for (const [index, file] of take.entries()) {
+        const metadata = photoLocations[index];
         const watermarked = await createSalesLocationPhoto(file, {
           ...metadata,
           siteName: branding?.website_name || 'Bount',
           logoImg,
         });
-        return { file: watermarked, metadata };
-      }));
+        stamped.push({ file: watermarked, metadata });
+      }
       const urls = stamped.map(({ file }) => URL.createObjectURL(file));
       setPendingFiles((prev) => [...prev, ...stamped]);
       setPendingPreviews((prev) => [...prev, ...urls]);
     } catch (err) {
       Swal.fire({ icon: 'warning', title: 'เพิ่มรูปพร้อมตำแหน่งไม่สำเร็จ', text: err.message });
+    } finally {
+      setPhotoProcessing(false);
     }
   };
 
@@ -676,7 +658,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
   };
 
   const handleSave = async () => {
-    if (locked) return;
+    if (locked || photoProcessing) return;
     const errMsg = validateClient();
     if (errMsg) {
       Swal.fire({ icon: 'warning', title: errMsg });
@@ -756,9 +738,26 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
     }
   };
 
+  const handleClose = async () => {
+    if (saving || photoProcessing) return;
+    if (pendingFiles.length) {
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'รูปที่เลือกยังไม่ได้บันทึก',
+        text: 'หากปิดตอนนี้ รูปที่เพิ่มไว้จะหายไป',
+        showCancelButton: true,
+        confirmButtonText: 'ปิดโดยไม่บันทึก',
+        cancelButtonText: 'กลับไปทำต่อ',
+        confirmButtonColor: '#b45309',
+      });
+      if (!result.isConfirmed) return;
+    }
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-[#1F2937]/55 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-[#1F2937]/55 backdrop-blur-sm" onClick={handleClose} />
       <div className="relative w-full max-w-3xl bg-white rounded-t-3xl sm:rounded-3xl border border-[#E5E7EB] shadow-2xl max-h-[94vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] shrink-0">
           <div>
@@ -771,7 +770,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               </div>
             )}
           </div>
-          <button type="button" onClick={onClose} className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-[#6B7280]">
+          <button type="button" onClick={handleClose} aria-label="ปิดหน้าสร้างงานขาย" className="w-9 h-9 rounded-xl bg-[#F3F4F6] text-[#6B7280]">
             ✕
           </button>
         </div>
@@ -798,7 +797,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="ประเภทลูกค้า" required>
+            <Field label="ประเภทลูกค้า">
               <FancySelect
                 disabled={locked}
                 value={form.customer_type || 'general'}
@@ -809,27 +808,27 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                 ]}
               />
             </Field>
-            <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'} required>
+            <Field label={form.customer_type === 'corporate' ? 'ชื่อบริษัท/หน่วยงาน' : 'ชื่อ-นามสกุลลูกค้า'}>
               <input disabled={locked} value={form.customer_name} onChange={(e) => setField('customer_name', e.target.value)} className={inputCls} />
             </Field>
-            <Field label={form.customer_type === 'corporate' ? 'เลขผู้เสียภาษี' : 'เลขบัตรประชาชน'} required>
+            <Field label={form.customer_type === 'corporate' ? 'เลขผู้เสียภาษี' : 'เลขบัตรประชาชน'}>
               <input disabled={locked} value={form.id_card} onChange={(e) => setField('id_card', e.target.value)} className={inputCls} inputMode="numeric" />
             </Field>
-            <Field label="เบอร์ติดต่อ" required>
+            <Field label="เบอร์ติดต่อ">
               <input disabled={locked} value={form.phone} onChange={(e) => setField('phone', e.target.value)} className={inputCls} />
             </Field>
-            <Field label={form.customer_type === 'corporate' ? 'ผู้ติดต่อ' : 'อาชีพ'} required>
+            <Field label={form.customer_type === 'corporate' ? 'ผู้ติดต่อ' : 'อาชีพ'}>
               <input disabled={locked} value={form.occupation} onChange={(e) => setField('occupation', e.target.value)} className={inputCls} />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="ที่อยู่ติดตั้ง" required>
+              <Field label="ที่อยู่ติดตั้ง">
                 <textarea disabled={locked} value={form.address} onChange={(e) => setField('address', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
               </Field>
             </div>
-            <Field label="แพ็กเกจ" required>
+            <Field label="แพ็กเกจ">
               <input disabled={locked} value={form.package_name} onChange={(e) => setField('package_name', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="สัญญา" required>
+            <Field label="สัญญา">
               <input disabled={locked} value={form.contract_info} onChange={(e) => setField('contract_info', e.target.value)} className={inputCls} />
             </Field>
             <Field label="ขออนุมัติ">
@@ -852,7 +851,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                 onChange={(v) => setField('install_date', v)}
               />
             </Field>
-            <Field label="หมายเหตุวันติดตั้ง" required={!form.install_date}>
+            <Field label="หมายเหตุวันติดตั้ง">
               <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น รอลูกค้ายืนยันวัน" />
             </Field>
             <Field label="เลข NON (ถ้ามี)">
@@ -925,7 +924,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                 <textarea disabled={locked} value={form.tech_note} onChange={(e) => setField('tech_note', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
               </Field>
             </div>
-            <Field label="ระยะสายประมาณ (ม.)" required>
+            <Field label="ระยะสายประมาณ (ม.)">
               <input
                 disabled={locked}
                 type="number"
@@ -950,30 +949,21 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className={labelCls}>พิกัดบ้าน + Splitter</p>
-                <p className="text-xs text-[#6B7280]">ระบบเลือก Splitter ที่อยู่ใกล้ที่สุดและคำนวณระยะเส้นตรงอัตโนมัติ</p>
+                <p className="text-xs text-[#6B7280]">ไม่ต้องระบุพิกัดก็ได้ — เมื่อมีพิกัด ระบบจะเลือก Splitter ที่ใกล้ที่สุดและคำนวณระยะเส้นตรงให้อัตโนมัติ</p>
               </div>
-              {!locked && (
-                <button
-                  type="button"
-                  disabled={locationLoading}
-                  onClick={captureCurrentLocation}
-                  className="min-h-10 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-700 disabled:opacity-60"
-                >
-                  {locationLoading ? 'กำลังอ่านตำแหน่ง...' : '⌖ ใช้ตำแหน่งปัจจุบัน'}
-                </button>
-              )}
+              {locationLoading && <span className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-[11px] font-bold text-sky-700">กำลังค้นหาที่อยู่...</span>}
             </div>
             <ExpansionMapPicker
               mode="sales"
               lat={form.lat}
               lng={form.lng}
-              selectable={!locked}
+              selectable={!locked && !locationLoading && !photoProcessing}
               height="280px"
               splitters={nearby}
               selectedSplitterId={form.splitter_id}
               onSelectSplitter={selectSplitter}
-              onPick={({ lat, lng }) => {
-                applyLocation(lat, lng, 'map').catch((err) => {
+              onPick={({ lat, lng, source }) => {
+                applyLocation(lat, lng, source === 'gps' ? 'current_gps' : source || 'map').catch((err) => {
                   Swal.fire({ icon: 'warning', title: 'อ่านที่อยู่จากพิกัดไม่สำเร็จ', text: err.message });
                 });
               }}
@@ -991,24 +981,26 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className={labelCls}>
-                รูปภาพ <span className="text-red-500">*</span>
+                รูปภาพ
                 <span className="normal-case font-semibold text-[#9CA3AF] ml-1">
-                  ({totalPhotos}/{MAX_PHOTOS} อย่างน้อย {MIN_PHOTOS})
+                  ({totalPhotos} รูป)
                 </span>
               </p>
-              {!locked && totalPhotos < MAX_PHOTOS && (
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => cameraRef.current?.click()} className="min-h-9 rounded-lg border border-lime-300 bg-lime-50 px-3 text-xs font-black text-lime-800">
+              {!locked && (
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button type="button" disabled={photoProcessing || saving} onClick={() => cameraRef.current?.click()} className="min-h-9 rounded-lg border border-lime-300 bg-lime-50 px-3 text-xs font-black text-lime-800 disabled:opacity-60">
                     ◉ ถ่ายรูปหน้าบ้าน
                   </button>
-                  <button type="button" onClick={() => fileRef.current?.click()} className="min-h-9 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-3 text-xs font-bold">
+                  <button type="button" disabled={photoProcessing || saving} onClick={() => fileRef.current?.click()} className="min-h-9 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-3 text-xs font-bold disabled:opacity-60">
                     + อัปโหลดรูป
                   </button>
                 </div>
               )}
             </div>
             <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3 text-xs leading-relaxed text-sky-900">
-              รูปที่บันทึกจะมีโลโก้และชื่อเว็บไซต์ พร้อมวันเวลา พิกัด และที่อยู่จากตำแหน่งภาพ หากรูปไม่มี GPS ระบบจะใช้ตำแหน่งปัจจุบันของอุปกรณ์
+              {photoProcessing
+                ? 'กำลังอ่านพิกัด ประทับข้อมูลบนรูป และเตรียมไฟล์...'
+                : 'เพิ่มรูปได้ไม่จำกัด · รูป JPEG จะอ่าน GPS จากภาพก่อน หากไม่มีพิกัด ระบบจะขอตำแหน่งปัจจุบัน แต่ยังเพิ่มรูปได้แม้ไม่อนุญาตตำแหน่ง'}
             </div>
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPickFiles(e, 'upload')} />
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPickFiles(e, 'camera')} />
@@ -1037,6 +1029,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                     <button
                       type="button"
                       onClick={() => removePending(idx)}
+                      aria-label={`ลบรูปที่ ${idx + 1}`}
                       className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs"
                     >
                       ✕
@@ -1054,7 +1047,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
         </div>
 
         <div className="px-4 py-3 border-t border-[#E5E7EB] flex gap-2 shrink-0">
-          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-[#F3F4F6] font-bold text-[#374151] text-sm">
+          <button type="button" onClick={handleClose} disabled={saving || photoProcessing} className="flex-1 py-3 rounded-xl bg-[#F3F4F6] font-bold text-[#374151] text-sm disabled:opacity-60">
             ปิด
           </button>
           {!locked && (
@@ -1080,12 +1073,12 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               ) : (
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || photoProcessing}
                   onClick={handleSave}
                   className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937] disabled:opacity-60"
                   style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
                 >
-                  {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+                  {saving ? 'กำลังบันทึก...' : photoProcessing ? 'กำลังเตรียมรูป...' : 'บันทึก'}
                 </button>
               )}
             </>
