@@ -9,6 +9,40 @@ const {
 const router = express.Router();
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
+// Use the recipient recorded on the dispatch log, never the item's current owner.
+router.get('/monthly-summary', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const month = req.query.month;
+  if (typeof month !== 'string' || !/^(20\d{2})-(0[1-9]|1[0-2])$/.test(month)) {
+    return res.status(400).json({ error: 'กรุณาเลือกเดือนที่ถูกต้อง' });
+  }
+  const [year, number] = month.split('-').map(Number);
+  const end = number === 12 ? `${year + 1}-01-01` : `${year}-${String(number + 1).padStart(2, '0')}-01`;
+  try {
+    const [rows] = await pool.query(
+      `SELECT il.to_user_id AS user_id, u.full_name AS user_name,
+              u.team_id, t.team_name, p.id AS product_id, p.name AS product_name,
+              COALESCE(NULLIF(TRIM(p.category), ''), 'ไม่ระบุประเภท') AS category,
+              pm.id AS model_id, pm.model_name, p.unit,
+              SUM(il.quantity) AS quantity, COUNT(*) AS log_count
+       FROM inventory_logs il
+       JOIN inventory_items ii ON ii.id = il.item_id
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u ON u.id = il.to_user_id
+       LEFT JOIN teams t ON t.id = u.team_id
+       WHERE il.action = 'dispatch' AND il.created_at >= ? AND il.created_at < ?
+       GROUP BY il.to_user_id, u.full_name, u.team_id, t.team_name,
+                p.id, p.name, p.category, pm.id, pm.model_name, p.unit
+       ORDER BY u.full_name, p.name, pm.model_name`,
+      [`${month}-01`, end]
+    );
+    res.json(rows.map(row => ({ ...row, quantity: Number(row.quantity), log_count: Number(row.log_count) })));
+  } catch (err) {
+    console.error('Monthly inventory summary error:', err);
+    res.status(500).json({ error: 'ไม่สามารถโหลดสรุปรายเดือนได้ กรุณาลองใหม่' });
+  }
+});
+
 /** Backfill team_id on dispatched items from current owner (one-shot opportunistic). */
 async function syncDispatchedItemTeams(db) {
   try {
