@@ -56,6 +56,20 @@ test("monthly summary validates month, enforces access and queries full dispatch
     assert.doesNotMatch(calls[0].sql, /LIMIT|ii.owner_id/);
     await fetch(`${url}?month=2024-02`);
     assert.deepEqual(calls[1].params, ["2024-02-01", "2024-03-01"]);
+    for (const ids of ['model_id=1', 'model_id=0&user_id=1', 'model_id=1&user_id=-1', 'model_id=abc&user_id=1']) {
+      assert.equal((await fetch(`${url}?month=2026-07&details=1&${ids}`)).status, 400);
+    }
+    assert.equal(calls.length, 2);
+    const detail = await fetch(`${url}?month=2026-07&details=1&model_id=5&user_id=8`);
+    assert.equal(detail.status, 200);
+    assert.equal((await detail.json())[0].quantity, 12);
+    assert.deepEqual(calls[2].params, ['2026-07-01', '2026-08-01', 8, 5]);
+    assert.match(calls[2].sql, /il.to_user_id <=> \? AND ii.model_id = \?/);
+    assert.match(calls[2].sql, /ORDER BY il.created_at ASC, il.id ASC/);
+    assert.match(calls[2].sql, /DATE_FORMAT\(il.created_at, '%Y-%m-%d'\)/);
+    await fetch(`${url}?month=2026-07&details=1&model_id=5&user_id=unknown`);
+    assert.equal(calls[3].params[2], null);
+    assert.equal((await fetch(`${url}?month=2026-07&details=1&model_id=5&user_id=8`, {headers: {'x-role': 'technician'}})).status, 403);
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));

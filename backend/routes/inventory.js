@@ -17,7 +17,26 @@ router.get('/monthly-summary', auth, requireRole(ADMIN_ROLES), async (req, res) 
   }
   const [year, number] = month.split('-').map(Number);
   const end = number === 12 ? `${year + 1}-01-01` : `${year}-${String(number + 1).padStart(2, '0')}-01`;
+  const details = req.query.details === '1';
+  const validId = value => typeof value === 'string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
+  if (details && (!validId(req.query.model_id) || (req.query.user_id !== 'unknown' && !validId(req.query.user_id)))) {
+    return res.status(400).json({ error: 'กรุณาระบุผู้รับและรุ่นสินค้าที่ถูกต้อง' });
+  }
   try {
+    if (details) {
+      const [rows] = await pool.query(
+        `SELECT il.id, il.quantity,
+                DATE_FORMAT(il.created_at, '%Y-%m-%d') AS dispatch_date,
+                DATE_FORMAT(il.created_at, '%H:%i') AS dispatch_time
+         FROM inventory_logs il
+         JOIN inventory_items ii ON ii.id = il.item_id
+         WHERE il.action = 'dispatch' AND il.created_at >= ? AND il.created_at < ?
+           AND il.to_user_id <=> ? AND ii.model_id = ?
+         ORDER BY il.created_at ASC, il.id ASC`,
+        [`${month}-01`, end, req.query.user_id === 'unknown' ? null : Number(req.query.user_id), Number(req.query.model_id)]
+      );
+      return res.json(rows.map(row => ({ ...row, quantity: Number(row.quantity) })));
+    }
     const [rows] = await pool.query(
       `SELECT il.to_user_id AS user_id, u.full_name AS user_name,
               u.team_id, t.team_name, p.id AS product_id, p.name AS product_name,

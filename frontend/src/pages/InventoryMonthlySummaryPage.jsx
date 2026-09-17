@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import InventoryDispatchDetailsModal from "../components/InventoryDispatchDetailsModal";
 import {
   CalendarDays,
   ChevronDown,
@@ -157,6 +158,7 @@ function MonthPicker({ value, onChange }) {
 }
 
 export default function InventoryMonthlySummaryPage() {
+  const [selectedRow, setSelectedRow] = useState(null);
   const [month, setMonth] = useState(currentMonth);
   const [category, setCategory] = useState("all");
   const [groupBy, setGroupBy] = useState("person");
@@ -372,7 +374,7 @@ export default function InventoryMonthlySummaryPage() {
                           "ประเภท",
                           "สินค้า / รุ่น",
                           "จำนวนที่เบิก",
-                          "รายการ",
+                          "จำนวนครั้ง",
                         ].map((label) => (
                           <th key={label} scope="col" className="px-5 py-3">
                             {label}
@@ -412,7 +414,13 @@ export default function InventoryMonthlySummaryPage() {
                             </span>
                           </td>
                           <td className="px-5 py-4 tabular-nums">
-                            {row.log_count.toLocaleString("th-TH")}
+                            <button
+                              onClick={() => setSelectedRow(row)}
+                              aria-label={`ดูรายละเอียด ${row.log_count} ครั้งของ ${row.product_name} ${row.model_name} ผู้เบิก ${row.user_name || row.user_id || "ไม่ระบุ"}`}
+                              className="min-h-11 rounded-xl border border-lime-300 bg-lime-50 px-3 py-2 font-bold text-lime-700 underline decoration-dotted underline-offset-4 hover:bg-lime-100 focus-visible:ring-2 focus-visible:ring-lime-500 dark:bg-lime-950 dark:text-lime-200"
+                            >
+                              {row.log_count.toLocaleString("th-TH")} ครั้ง
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -423,6 +431,13 @@ export default function InventoryMonthlySummaryPage() {
             ))
           )}
         </>
+      )}
+      {selectedRow && (
+        <InventoryDispatchDetailsModal
+          row={selectedRow}
+          month={month}
+          onClose={() => setSelectedRow(null)}
+        />
       )}
     </section>
   );
