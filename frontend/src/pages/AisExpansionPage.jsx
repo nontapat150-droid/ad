@@ -5,8 +5,13 @@ import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapP
 import { Calendar } from '../components/ui/calendar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+import { getImageUrl } from '../utils/imageUtils';
+import { loadImageForCanvas } from '../utils/checkinWatermark';
+import { createSalesLocationPhoto } from '../utils/salesPhotoStamp';
+import { isThailandCoordinate, readPhotoGps } from '../utils/photoLocation';
 
 const STATUS_META = {
   draft: { label: 'ยังไม่ไป', className: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -41,6 +46,12 @@ const inputCls =
   'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-gradient-to-b from-white to-[#F9FAFB] text-sm font-semibold shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] outline-none focus:ring-2 focus:ring-[#A3E635]/35 focus:border-[#B7E45A] disabled:opacity-60 disabled:bg-[#F9FAFB]';
 const labelCls = 'block text-[11px] font-bold text-[#6B7280] uppercase mb-1';
 
+const localDateTime = () => {
+  const now = new Date();
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const emptyForm = () => ({
   customer_type: 'general',
   customer_name: '',
@@ -62,6 +73,9 @@ const emptyForm = () => ({
   pair_line: '',
   lat: null,
   lng: null,
+  geo_address: '',
+  geo_source: '',
+  geo_captured_at: '',
   splitter_id: null,
   straight_distance_m: '',
   estimated_cable_m: '',
@@ -298,6 +312,7 @@ function FancyDatePicker({ value, onChange, disabled }) {
 }
 
 function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, salesUsers = [] }) {
+  const { branding } = useBranding();
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
@@ -305,7 +320,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
   const [photos, setPhotos] = useState([]);
   const [pendingFiles, setPendingFiles] = useState([]);
   const [pendingPreviews, setPendingPreviews] = useState([]);
+  const [geoAddress, setGeoAddress] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
   const fileRef = useRef(null);
+  const cameraRef = useRef(null);
   const isEdit = Boolean(job?.id);
   const locked = job?.status === 'handed_off';
 
@@ -347,6 +365,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
             pair_line: data.pair_line || '',
             lat: data.lat != null ? Number(data.lat) : null,
             lng: data.lng != null ? Number(data.lng) : null,
+            geo_address: data.geo_address || '',
+            geo_source: data.geo_source || '',
+            geo_captured_at: data.geo_captured_at ? String(data.geo_captured_at) : '',
             splitter_id: data.splitter_id != null ? Number(data.splitter_id) : null,
             straight_distance_m: data.straight_distance_m != null ? String(data.straight_distance_m) : '',
             estimated_cable_m: data.estimated_cable_m != null ? String(data.estimated_cable_m) : '',
@@ -360,10 +381,12 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
             remark: data.remark || '',
             lost_reason: data.lost_reason || '',
           });
+          setGeoAddress(data.geo_address || '');
           setPhotos(Array.isArray(data.photos) ? data.photos : []);
         } catch (err) {
           console.error(err);
           setForm(emptyForm());
+          setGeoAddress('');
           setPhotos([]);
         }
       } else {
@@ -371,6 +394,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
           ...emptyForm(),
           owner_user_id: isAdmin && salesUsers[0]?.id ? String(salesUsers[0].id) : '',
         });
+        setGeoAddress('');
         setPhotos([]);
       }
       setPendingFiles([]);
@@ -502,19 +526,110 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
     }));
   };
 
-  const onPickFiles = (e) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (!files.length) return;
+  const reverseAddress = async (lat, lng) => {
+    const { data } = await api.get('/checkin/reverse-geocode', { params: { lat, lng } });
+    return data?.detail || data?.display || '';
+  };
+
+  const applyLocation = async (lat, lng, source) => {
+    if (!isThailandCoordinate(lat, lng)) {
+      throw new Error('พิกัดอยู่นอกพื้นที่ประเทศไทย กรุณาตรวจสอบอีกครั้ง');
+    }
+    setLocationLoading(true);
+    let address = '';
+    try {
+      address = await reverseAddress(lat, lng);
+    } catch (err) {
+      console.warn('Reverse geocode failed:', err);
+    } finally {
+      setLocationLoading(false);
+    }
+    const capturedAt = localDateTime();
+    setGeoAddress(address);
+    setForm((prev) => ({
+      ...prev,
+      lat,
+      lng,
+      geo_address: address || prev.geo_address,
+      geo_source: source,
+      geo_captured_at: capturedAt,
+      // Keep an address the salesperson already entered; otherwise fill it from GPS.
+      address: prev.address.trim() || address || prev.address,
+    }));
+    return { lat, lng, address, captured_at: capturedAt };
+  };
+
+  const getCurrentLocation = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('อุปกรณ์นี้ไม่รองรับ GPS'));
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => reject(new Error('ไม่สามารถอ่านตำแหน่งปัจจุบันได้ กรุณาอนุญาต GPS แล้วลองใหม่')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  });
+
+  const captureCurrentLocation = async () => {
+    if (locked) return;
+    setLocationLoading(true);
+    try {
+      const coords = await getCurrentLocation();
+      await applyLocation(coords.lat, coords.lng, 'current_gps');
+    } catch (err) {
+      Swal.fire({ icon: 'warning', title: 'ระบุตำแหน่งไม่สำเร็จ', text: err.message });
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const addLocationPhotos = async (files, captureSource) => {
     const room = MAX_PHOTOS - (photos.length + pendingFiles.length);
     if (room <= 0) {
       Swal.fire({ icon: 'warning', title: `อัปโหลดได้ไม่เกิน ${MAX_PHOTOS} รูป` });
       return;
     }
     const take = files.slice(0, room);
-    const urls = take.map((f) => URL.createObjectURL(f));
-    setPendingFiles((prev) => [...prev, ...take]);
-    setPendingPreviews((prev) => [...prev, ...urls]);
+    const gpsFromPhoto = await Promise.all(take.map(readPhotoGps));
+    const photoCoords = gpsFromPhoto.find((coords) => coords && isThailandCoordinate(coords.lat, coords.lng));
+    let location;
+    try {
+      if (photoCoords) {
+        location = await applyLocation(photoCoords.lat, photoCoords.lng, 'photo_exif');
+      } else if (isThailandCoordinate(form.lat, form.lng)) {
+        location = {
+          lat: Number(form.lat), lng: Number(form.lng), address: geoAddress || form.geo_address || '',
+          captured_at: localDateTime(),
+        };
+      } else {
+        const coords = await getCurrentLocation();
+        location = await applyLocation(coords.lat, coords.lng, captureSource || 'current_gps');
+      }
+      const logoUrl = branding?.website_logo ? getImageUrl(branding.website_logo, 'branding') : null;
+      const logoImg = await loadImageForCanvas(logoUrl);
+      const stamped = await Promise.all(take.map(async (file, index) => {
+        const ownCoords = gpsFromPhoto[index];
+        const metadata = ownCoords && isThailandCoordinate(ownCoords.lat, ownCoords.lng)
+          ? { ...location, lat: ownCoords.lat, lng: ownCoords.lng }
+          : location;
+        const watermarked = await createSalesLocationPhoto(file, {
+          ...metadata,
+          siteName: branding?.website_name || 'Bount',
+          logoImg,
+        });
+        return { file: watermarked, metadata };
+      }));
+      const urls = stamped.map(({ file }) => URL.createObjectURL(file));
+      setPendingFiles((prev) => [...prev, ...stamped]);
+      setPendingPreviews((prev) => [...prev, ...urls]);
+    } catch (err) {
+      Swal.fire({ icon: 'warning', title: 'เพิ่มรูปพร้อมตำแหน่งไม่สำเร็จ', text: err.message });
+    }
+  };
+
+  const onPickFiles = async (e, captureSource = 'upload') => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    await addLocationPhotos(files, captureSource);
   };
 
   const removePending = (idx) => {
@@ -538,7 +653,8 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
   const uploadPending = async (expansionId) => {
     if (!pendingFiles.length) return;
     const fd = new FormData();
-    pendingFiles.forEach((f) => fd.append('images', f));
+    pendingFiles.forEach(({ file }) => fd.append('images', file));
+    fd.append('photo_metadata', JSON.stringify(pendingFiles.map(({ metadata }) => metadata)));
     const { data } = await api.post(`/expansion/${expansionId}/photos`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -831,7 +947,22 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
           {step === 2 && (
           <div>
-            <p className={`${labelCls} mb-2`}>พิกัดบ้าน + Splitter</p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className={labelCls}>พิกัดบ้าน + Splitter</p>
+                <p className="text-xs text-[#6B7280]">ระบบเลือก Splitter ที่อยู่ใกล้ที่สุดและคำนวณระยะเส้นตรงอัตโนมัติ</p>
+              </div>
+              {!locked && (
+                <button
+                  type="button"
+                  disabled={locationLoading}
+                  onClick={captureCurrentLocation}
+                  className="min-h-10 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-black text-sky-700 disabled:opacity-60"
+                >
+                  {locationLoading ? 'กำลังอ่านตำแหน่ง...' : '⌖ ใช้ตำแหน่งปัจจุบัน'}
+                </button>
+              )}
+            </div>
             <ExpansionMapPicker
               mode="sales"
               lat={form.lat}
@@ -842,14 +973,16 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               selectedSplitterId={form.splitter_id}
               onSelectSplitter={selectSplitter}
               onPick={({ lat, lng }) => {
-                setField('lat', lat);
-                setField('lng', lng);
+                applyLocation(lat, lng, 'map').catch((err) => {
+                  Swal.fire({ icon: 'warning', title: 'อ่านที่อยู่จากพิกัดไม่สำเร็จ', text: err.message });
+                });
               }}
             />
             {form.lat != null && form.lng != null && (
-              <p className="text-xs text-[#6B7280] mt-2 font-medium">
-                บ้าน: {Number(form.lat).toFixed(6)}, {Number(form.lng).toFixed(6)}
-              </p>
+              <div className="mt-2 rounded-xl border border-lime-200 bg-lime-50/70 p-3 text-xs text-lime-900">
+                <p className="font-black">บ้าน: {Number(form.lat).toFixed(6)}, {Number(form.lng).toFixed(6)}</p>
+                <p className="mt-1 leading-relaxed">{geoAddress || form.geo_address || 'กำลังค้นหาบ้านเลขที่ ตำบล อำเภอ จังหวัดจากพิกัด...'}</p>
+              </div>
             )}
           </div>
           )}
@@ -864,16 +997,21 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                 </span>
               </p>
               {!locked && totalPhotos < MAX_PHOTOS && (
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#F3F4F6] border border-[#E5E7EB]"
-                >
-                  + เพิ่มรูป
-                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => cameraRef.current?.click()} className="min-h-9 rounded-lg border border-lime-300 bg-lime-50 px-3 text-xs font-black text-lime-800">
+                    ◉ ถ่ายรูปหน้าบ้าน
+                  </button>
+                  <button type="button" onClick={() => fileRef.current?.click()} className="min-h-9 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-3 text-xs font-bold">
+                    + อัปโหลดรูป
+                  </button>
+                </div>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPickFiles} />
+            <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3 text-xs leading-relaxed text-sky-900">
+              รูปที่บันทึกจะมีโลโก้และชื่อเว็บไซต์ พร้อมวันเวลา พิกัด และที่อยู่จากตำแหน่งภาพ หากรูปไม่มี GPS ระบบจะใช้ตำแหน่งปัจจุบันของอุปกรณ์
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPickFiles(e, 'upload')} />
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPickFiles(e, 'camera')} />
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {photos.map((p) => (
                 <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-[#E5E7EB] bg-[#F3F4F6]">
@@ -892,6 +1030,9 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               {pendingPreviews.map((url, idx) => (
                 <div key={`p-${idx}`} className="relative aspect-square rounded-xl overflow-hidden border border-amber-200 bg-amber-50">
                   <img src={url} alt="" className="w-full h-full object-cover" />
+                  {pendingFiles[idx]?.metadata?.lat != null && (
+                    <span className="absolute left-1 bottom-1 rounded-md bg-[#1F2937]/80 px-1.5 py-0.5 text-[9px] font-black text-[#A3E635]">GPS</span>
+                  )}
                   {!locked && (
                     <button
                       type="button"

@@ -108,6 +108,13 @@ async function ensureExpansionSchema(db = pool) {
     await addColumnIfMissing(db, 'expansion_jobs', 'won_at', 'DATETIME NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'lost_at', 'DATETIME NULL');
     await addColumnIfMissing(db, 'expansion_jobs', 'handed_off_at', 'DATETIME NULL');
+    await addColumnIfMissing(db, 'expansion_jobs', 'geo_address', 'TEXT NULL');
+    await addColumnIfMissing(db, 'expansion_jobs', 'geo_source', 'VARCHAR(30) NULL');
+    await addColumnIfMissing(db, 'expansion_jobs', 'geo_captured_at', 'DATETIME NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lat', 'DECIMAL(10,7) NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_lng', 'DECIMAL(10,7) NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'source_address', 'TEXT NULL');
+    await addColumnIfMissing(db, 'expansion_job_photos', 'captured_at', 'DATETIME NULL');
     await db.query(
       `UPDATE expansion_jobs
        SET non_number = TRIM(install_date_text), install_date_text = NULL
@@ -359,7 +366,8 @@ async function getPhotoCount(db, expansionId) {
 
 async function loadPhotos(db, expansionId) {
   const [rows] = await db.query(
-    `SELECT id, expansion_job_id, image_path, uploaded_by, created_at
+    `SELECT id, expansion_job_id, image_path, uploaded_by, source_lat, source_lng,
+            source_address, captured_at, created_at
      FROM expansion_job_photos
      WHERE expansion_job_id = ?
      ORDER BY id ASC`,
@@ -419,6 +427,9 @@ function pickSalesFields(body, existing = {}) {
     non_number: body.non_number !== undefined ? trimOrNull(body.non_number) : existing.non_number,
     lat: body.lat !== undefined ? parseCoord(body.lat) : existing.lat,
     lng: body.lng !== undefined ? parseCoord(body.lng) : existing.lng,
+    geo_address: body.geo_address !== undefined ? trimOrNull(body.geo_address) : existing.geo_address,
+    geo_source: body.geo_source !== undefined ? trimOrNull(body.geo_source) : existing.geo_source,
+    geo_captured_at: body.geo_captured_at !== undefined ? trimOrNull(body.geo_captured_at) : existing.geo_captured_at,
     splitter_note: body.splitter_note !== undefined ? trimOrNull(body.splitter_note) : existing.splitter_note,
     radius_m: body.radius_m !== undefined
       ? (body.radius_m != null && body.radius_m !== '' ? parseInt(body.radius_m, 10) || null : null)
@@ -457,6 +468,29 @@ function pickSalesFields(body, existing = {}) {
       ? parseDecimal(body.estimated_cable_m)
       : existing.estimated_cable_m,
   };
+}
+
+function parsePhotoMetadata(value, count) {
+  if (!value) return Array.from({ length: count }, () => ({}));
+  try {
+    const metadata = JSON.parse(value);
+    if (!Array.isArray(metadata) || metadata.length !== count) throw new Error('count mismatch');
+    return metadata.map((item) => {
+      const lat = parseCoord(item?.lat);
+      const lng = parseCoord(item?.lng);
+      if ((lat == null) !== (lng == null)) throw new Error('partial coordinates');
+      return {
+        lat,
+        lng,
+        address: trimOrNull(item?.address),
+        captured_at: trimOrNull(item?.captured_at),
+      };
+    });
+  } catch {
+    const error = new Error('ข้อมูลตำแหน่งของรูปภาพไม่ถูกต้อง');
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 async function fetchJobWithExtras(db, id) {
@@ -909,13 +943,13 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO expansion_jobs
-         (customer_type, customer_name, phone, address, access_no, non_number, lat, lng, splitter_note, radius_m,
+         (customer_type, customer_name, phone, address, access_no, non_number, lat, lng, geo_address, geo_source, geo_captured_at, splitter_note, radius_m,
           status, owner_user_id, follow_up_at, follow_up_time, follow_up_channel, follow_up_note,
           remark, lost_reason,
          id_card, package_name, contract_info, occupation, entry_fee_request, approval_request,
           install_date, install_date_text, sales_note, pair_line, tech_note,
           splitter_id, straight_distance_m, estimated_cable_m)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         fields.customer_type,
         fields.customer_name,
@@ -925,6 +959,9 @@ router.post('/', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
         fields.non_number,
         fields.lat,
         fields.lng,
+        fields.geo_address,
+        fields.geo_source,
+        fields.geo_captured_at,
         fields.splitter_note,
         fields.radius_m ?? 500,
         nextStatus,
@@ -1027,7 +1064,7 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
     await pool.query(
       `UPDATE expansion_jobs SET
          customer_type = ?, customer_name = ?, phone = ?, address = ?, access_no = ?, non_number = ?,
-         lat = ?, lng = ?, splitter_note = ?, radius_m = ?,
+         lat = ?, lng = ?, geo_address = ?, geo_source = ?, geo_captured_at = ?, splitter_note = ?, radius_m = ?,
          status = ?, owner_user_id = ?, follow_up_at = ?, follow_up_time = ?,
          follow_up_channel = ?, follow_up_note = ?, last_contact_at = ?, remark = ?, lost_reason = ?,
          id_card = ?, package_name = ?, contract_info = ?, occupation = ?,
@@ -1044,6 +1081,9 @@ router.put('/:id', auth, requireRole(ALLOWED_ROLES), async (req, res) => {
         fields.non_number,
         fields.lat,
         fields.lng,
+        fields.geo_address,
+        fields.geo_source,
+        fields.geo_captured_at,
         fields.splitter_note,
         fields.radius_m,
         nextStatus,
@@ -1133,6 +1173,7 @@ router.post(
 
       const files = req.files || [];
       if (!files.length) return res.status(400).json({ error: 'ไม่พบไฟล์รูป' });
+      const metadata = parsePhotoMetadata(req.body?.photo_metadata, files.length);
 
       const current = await getPhotoCount(pool, existing.id);
       if (current + files.length > MAX_PHOTOS) {
@@ -1142,18 +1183,24 @@ router.post(
       }
 
       const inserted = [];
-      for (const file of files) {
+      for (const [index, file] of files.entries()) {
         const imagePath = `/uploads/expansion/${file.filename}`;
+        const meta = metadata[index];
         const [ins] = await pool.query(
-          `INSERT INTO expansion_job_photos (expansion_job_id, image_path, uploaded_by)
-           VALUES (?, ?, ?)`,
-          [existing.id, imagePath, req.user.id]
+          `INSERT INTO expansion_job_photos
+             (expansion_job_id, image_path, uploaded_by, source_lat, source_lng, source_address, captured_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [existing.id, imagePath, req.user.id, meta.lat, meta.lng, meta.address, meta.captured_at]
         );
         inserted.push({
           id: ins.insertId,
           expansion_job_id: existing.id,
           image_path: imagePath,
           uploaded_by: req.user.id,
+          source_lat: meta.lat,
+          source_lng: meta.lng,
+          source_address: meta.address,
+          captured_at: meta.captured_at,
         });
       }
 
@@ -1165,7 +1212,10 @@ router.post(
       res.status(201).json({ photos, photo_count: photos.length, added: inserted });
     } catch (err) {
       console.error('expansion photos upload:', err);
-      res.status(500).json({ error: 'Server error', detail: err.message });
+      res.status(err.statusCode || 500).json({
+        error: err.statusCode ? err.message : 'Server error',
+        detail: err.message,
+      });
     }
   }
 );
