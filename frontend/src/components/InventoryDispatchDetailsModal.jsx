@@ -2,24 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import axios from "../api/axios";
 
-const shortMonths = [
-  "ม.ค.",
-  "ก.พ.",
-  "มี.ค.",
-  "เม.ย.",
-  "พ.ค.",
-  "มิ.ย.",
-  "ก.ค.",
-  "ส.ค.",
-  "ก.ย.",
-  "ต.ค.",
-  "พ.ย.",
-  "ธ.ค.",
-];
-const displayDate = (value) => {
-  const [year, month, day] = value.split("-").map(Number);
-  return `${day} ${shortMonths[month - 1]} ${year + 543}`;
-};
+import { formatDispatchDate, parseDispatchDetails } from '../utils/inventoryDispatchDetails';
 
 export default function InventoryDispatchDetailsModal({ row, month, onClose }) {
   const dialog = useRef(null);
@@ -44,11 +27,11 @@ export default function InventoryDispatchDetailsModal({ row, month, onClose }) {
         },
         signal: controller.signal,
       })
-      .then((response) => setRecords(response.data))
+      .then((response) => { if (!controller.signal.aborted) setRecords(parseDispatchDetails(response.data)); })
       .catch((err) => {
         if (!controller.signal.aborted)
           setError(
-            err.response?.data?.error || "โหลดรายละเอียดไม่สำเร็จ กรุณาลองใหม่",
+            err.response?.data?.error || err.message || "โหลดรายละเอียดไม่สำเร็จ กรุณาลองใหม่",
           );
       })
       .finally(() => {
@@ -137,10 +120,10 @@ export default function InventoryDispatchDetailsModal({ row, month, onClose }) {
                     <td className="py-3">{index + 1}</td>
                     <td className="py-3">
                       <span className="whitespace-nowrap">
-                        {displayDate(record.dispatch_date)}
+                        {formatDispatchDate(record.dispatch_date)}
                       </span>
                       <span className="mt-1 block text-xs text-[#6B7280]">
-                        {record.dispatch_time} น.
+                        {record.dispatch_time ? `${record.dispatch_time} น.` : "ไม่ระบุเวลา"}
                       </span>
                     </td>
                     <td className="py-3 text-right font-bold">
