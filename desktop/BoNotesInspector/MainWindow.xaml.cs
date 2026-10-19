@@ -1,32 +1,34 @@
-using System.Text.Json;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
-using System.Windows.Media.Imaging;
-using BoNotesInspector.Capture;
 using BoNotesInspector.Core;
 namespace BoNotesInspector;
 public partial class MainWindow:Window
 {
-    private CancellationTokenSource? readCancellation;
-    public MainWindow(){InitializeComponent();RefreshWindows(null,null!);}
-    private void RefreshWindows(object? sender,RoutedEventArgs e){WindowsBox.ItemsSource=LineWindow.List();WindowsBox.SelectedIndex=0;}
-    private void StopRead(object sender,RoutedEventArgs e)=>readCancellation?.Cancel();
-    private async void StartRead(object sender,RoutedEventArgs e)
-    {
-        if(WindowsBox.SelectedItem is not LineTarget target){StatusText.Text="ไม่พบหน้าต่าง LINE กรุณาเปิด LINE และ Notes ก่อน";return;}
-        var folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"BO Notes Inspector","feasibility",DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-        readCancellation=new();StartButton.IsEnabled=false;StatusText.Text="กำลังอ่าน — กด Escape เพื่อหยุด และอย่าเปลี่ยนหน้าต่าง LINE";
-        try
-        {
-            var collector=new Collector();
-            var result=await Task.Run(()=>collector.RunAsync(target,new(24,300,folder),(frame,posts)=>{
-                File.WriteAllText(Path.Combine(folder,"draft-posts.json"),JsonSerializer.Serialize(posts,new JsonSerializerOptions{WriteIndented=true}));
-                Dispatcher.Invoke(()=>{ResultText.Text=string.Join("\n\n────────\n\n",posts.Select((p,i)=>$"รายการ {i+1} • {(p.Complete?"เห็นขอบเขตข้อความแล้ว — ต้องตรวจ OCR":"ข้อความบางส่วน/รอตรวจขอบเขต")}\n{p.Text}"));
-                    var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.UriSource=new Uri(Path.Combine(folder,frame.ImageId+".png"));image.EndInit();EvidenceImage.Source=image;StatusText.Text=$"เก็บภาพ {frame.ScrollOrdinal+1} • พบ {posts.Count} รายการ • ยังไม่ยืนยัน SN";});
-            },readCancellation.Token));
-            StatusText.Text=$"{result.Reason} • {result.Frames} ภาพ • {result.Posts.Count} รายการ • บันทึกที่ {folder}";
-        }
-        catch(OperationCanceledException){StatusText.Text=$"หยุดแล้ว ฉบับร่างที่อ่านสำเร็จอยู่ที่ {folder}";}
-        catch(Exception ex){StatusText.Text=$"ยังอ่านต่อไม่ได้: {ex.Message} • ฉบับร่างอยู่ที่ {folder}";}
-        finally{StartButton.IsEnabled=true;readCancellation.Dispose();readCancellation=null;}
-    }
+    private DraftBatch batch=new();private DraftStore? store;private DraftItem? editing;private bool loading=true;private bool reading;private List<Technician> technicians=[];
+    private readonly string dataRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"BO Notes Inspector","batches");
+    private string lastAutosave="";private bool autosaving;
+    public MainWindow(){InitializeComponent();FilterTypeBox.ItemsSource=new[]{new KeyValuePair<string,string>("all","ทุกประเภท")}.Concat(NoteParser.TypeNames);FilterTypeBox.SelectedValue="all";TypeBox.ItemsSource=NoteParser.TypeNames;RefreshWindows(null,null!);loading=false;CreateBatch();ExportButton.IsEnabled=false;EvidenceZipButton.IsEnabled=false;ConnectButton.IsEnabled=false;ImportButton.IsEnabled=false;var timer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromSeconds(5)};timer.Tick+=AutoSave;timer.Start();}
+    private async void AutoSave(object? sender,EventArgs e){if(reading||loading||autosaving||store==null)return;try{SaveEditor();var signature=ReviewPolicy.Digest(batch,batch.Items.Select(i=>i.Id))+string.Join(",",SelectedIds());if(signature==lastAutosave)return;autosaving=true;await store.SaveAsync(batch);lastAutosave=signature;RefreshSummary();}catch(Exception ex){StatusText.Text="บันทึกอัตโนมัติยังไม่สำเร็จ: "+ex.Message;}finally{autosaving=false;}}
+    private void CreateBatch(){editing=null;batch=new();store=new(Path.Combine(dataRoot,DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-"+batch.Id.ToString("N")[..8]));Directory.CreateDirectory(Path.Combine(store.DirectoryPath,"images"));GroupBox.IsEnabled=true;GroupBox.Text="";ResultText.Clear();CaptureImage.Source=null;RefreshRows();StatusText.Text="ชุดใหม่พร้อมอ่าน เลือกหน้าต่างและระบุชื่อกลุ่มที่เปิด Notes อยู่";}
+    private async void NewBatch(object sender,RoutedEventArgs e){if(reading)return;try{SaveEditor();if(store!=null)await store.SaveAsync(batch);CreateBatch();}catch(Exception ex){ShowError(ex);}}
+    private async void OpenBatch(object sender,RoutedEventArgs e){if(reading)return;var picker=new Microsoft.Win32.OpenFileDialog{Title="เลือก draft.json ของชุดที่บันทึกไว้",Filter="ฉบับร่าง Notes|draft.json",InitialDirectory=dataRoot};if(picker.ShowDialog()!=true)return;try{SaveEditor();if(store!=null)await store.SaveAsync(batch);var candidate=new DraftStore(Path.GetDirectoryName(picker.FileName)!);var loaded=await candidate.LoadAsync();editing=null;store=candidate;batch=loaded;GroupBox.Text=batch.Group;GroupBox.IsEnabled=batch.Items.Count==0;RefreshRows();StatusText.Text="เปิดฉบับร่างแล้ว — ยังไม่ยืนยันความถูกต้องแทนผู้ตรวจ";}catch(Exception ex){ShowError(ex);}}
+    private async void SaveBatch(object sender,RoutedEventArgs e){try{SaveEditor();if(store!=null)await store.SaveAsync(batch);StatusText.Text="บันทึกฉบับร่างในเครื่องแล้ว";}catch(Exception ex){ShowError(ex);}}
+    private void OpenBatchFolder(object sender,RoutedEventArgs e){if(store!=null)Process.Start(new ProcessStartInfo(store.DirectoryPath){UseShellExecute=true});}
+    private void OnClosing(object? sender,CancelEventArgs e){if(reading){readCancellation?.Cancel();e.Cancel=true;StatusText.Text="กำลังหยุดอ่าน กรุณาปิดอีกครั้งเมื่อบันทึกเสร็จ";return;}try{SaveEditor();store?.SaveAsync(batch).GetAwaiter().GetResult();}catch(Exception ex){e.Cancel=true;ShowError(ex);}}
+    private void ShowError(Exception ex){StatusText.Text=ex.Message;System.Windows.MessageBox.Show(this,ex.Message,"ดำเนินการไม่สำเร็จ",MessageBoxButton.OK,MessageBoxImage.Information);}
+    private void RefreshRows(){if(!IsInitialized)return;var rows=batch.Items.Select((i,n)=>new DraftRow(i,n+1)).Where(r=>FilterTypeBox.SelectedValue as string is null or "all"||r.Parsed.Type==(string)FilterTypeBox.SelectedValue).Where(r=>r.Parsed.JobDate.Length==0||((FromDateBox.SelectedDate==null||string.CompareOrdinal(r.Parsed.JobDate,FromDateBox.SelectedDate.Value.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture))>=0)&&(ToDateBox.SelectedDate==null||string.CompareOrdinal(r.Parsed.JobDate,ToDateBox.SelectedDate.Value.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture))<=0))).ToList();loading=true;DraftGrid.ItemsSource=rows;loading=false;ReviewCountText.Text=$"แสดง {rows.Count} / {batch.Items.Count} • ไม่ทราบวัน {batch.Items.Count(i=>NoteParser.Parse(i.Text).JobDate.Length==0)}";BatchText.Text=$"ชุด {batch.Id.ToString("N")[..8]} • {batch.Items.Count} รายการ • {batch.FrameCount} หน้าจอ";RefreshSummary();}
+    private Guid[] SelectedIds()=>batch.Items.Where(i=>i.Selected&&!i.Excluded).Select(i=>i.Id).ToArray();
+    private void RefreshSummary(){var selected=batch.Items.Where(i=>i.Selected&&!i.Excluded).ToList();SummaryTextBox.Text=$"กลุ่ม: {batch.Group}\nชุด: {batch.Id}\nเก็บภาพ: {batch.FrameCount} หน้าจอ\nเหตุผลหยุด: {batch.CaptureReason}\nเลือกรวมทุกตัวกรอง: {selected.Count} / {batch.Items.Count} รายการ\n\n"+string.Join("\n",selected.GroupBy(i=>NoteParser.Parse(i.Text).Type).Select(g=>$"{NoteParser.TypeNames.GetValueOrDefault(g.Key,"ไม่รู้ประเภท")}: {g.Count()}"))+"\n\n"+string.Join("\n",selected.Select((i,n)=>{var p=NoteParser.Parse(i.Text);return $"{n+1}. {DisplayDate(p.JobDate)} | {p.CaseNo} {p.OrderNo} {p.Srt} | {i.TechnicianName} | SN {p.Sns.Count} | {(i.TextVerified&&i.DateVerified&&i.SnVerified&&i.BoundaryVerified?"ตรวจแล้ว":"ยังไม่ยืนยัน")} | {i.ImportStatus}";}))+"\n\nExcel ล่าสุด: "+(batch.Export==null?"ยังไม่ส่งออก":batch.Export.FileName+" • "+(batch.Export.Digest==ReviewPolicy.Digest(batch,SelectedIds())?"ตรงกับชุดปัจจุบัน":"ข้อมูลเปลี่ยน ต้องส่งออกใหม่"))+"\n\nข้อมูลภาพอาจมีตัวอักษรผิดหรือข้อความรูปแนบปะปน ต้องตรวจภาพและ SN ก่อนนำเข้า จำนวนรายการอาจรวมชิ้นส่วนและภาพซ้ำ";}
+    private static string DisplayDate(string value)=>value.Length==0?"ไม่ทราบวันที่":value;
+    private void FilterChanged(object? sender,RoutedEventArgs e){if(!loading&&IsInitialized){SaveEditor();RefreshRows();}}
+    private void ClearFilters(object sender,RoutedEventArgs e){loading=true;FilterTypeBox.SelectedValue="all";FromDateBox.SelectedDate=null;ToDateBox.SelectedDate=null;loading=false;RefreshRows();}
+    private void SelectVisible(object sender,RoutedEventArgs e){foreach(var i in batch.Items)i.Selected=false;foreach(var row in DraftGrid.Items.OfType<DraftRow>())row.Item.Selected=true;RefreshRows();}
+    private void DeselectAll(object sender,RoutedEventArgs e){foreach(var i in batch.Items)i.Selected=false;RefreshRows();}
+    private void ExportExcel(object sender,RoutedEventArgs e)=>StatusText.Text="กำลังพัฒนาตัวส่งออก";
+    private void ExportEvidence(object sender,RoutedEventArgs e)=>StatusText.Text="กำลังพัฒนาตัวส่งออก";
+    private void ConnectServer(object sender,RoutedEventArgs e)=>StatusText.Text="กำลังพัฒนาการเชื่อมต่อ";
+    private void ImportSelected(object sender,RoutedEventArgs e)=>StatusText.Text="กำลังพัฒนาการเชื่อมต่อ";
+    private void DisconnectServer(object sender,RoutedEventArgs e)=>StatusText.Text="ยังไม่เชื่อมต่อ";
 }
+public sealed class DraftRow(DraftItem item,int number){public DraftItem Item=>item;public int Number=>number;public bool Selected{get=>item.Selected;set=>item.Selected=value;}public ParsedNote Parsed{get;}=NoteParser.Parse(item.Text);public string TypeName=>NoteParser.TypeNames.GetValueOrDefault(Parsed.Type,"ไม่รู้ประเภท");public string JobDate=>Parsed.JobDate.Length==0?"ไม่ทราบวันที่":Parsed.JobDate;public string Reference=>string.Join(" / ",new[]{Parsed.CaseNo,Parsed.OrderNo,Parsed.Srt}.Where(s=>s.Length>0));public string Technician=>item.TechnicianName;public string State=>item.ImportStatus!="ยังไม่นำเข้า"?item.ImportStatus:Parsed.Warnings.Count>0?string.Join(" • ",Parsed.Warnings):item.TextVerified&&item.DateVerified&&item.SnVerified&&item.BoundaryVerified?"ตรวจแล้ว — รอนำเข้า":"รอตรวจข้อความ / วันที่ / SN";}
