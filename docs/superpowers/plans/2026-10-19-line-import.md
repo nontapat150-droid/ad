@@ -5,7 +5,7 @@
 **Goal:** Native BO ad menu for LINE closeout intake, transactional SN usage/audit, original-field Excel and Sheets reports.
 **Architecture:** Express signed raw webhook persists inbox; SQL worker parses and reconciles inventory under job/item locks. Admin UI shares the existing Layout and auth; report fields retain source order/duplicates.
 **Tech Stack:** Existing React/Vite, Express, mysql2, ExcelJS, node:test. No new runtime libraries.
-**Spec:** outputs/แบบเชื่อม-LINE-กับ-BO-ad.md in the parent task workspace (approved by user “เริ่มเลย”). Copy with this plan for delivery.
+**Spec:** docs/superpowers/specs/2026-10-19-line-import-design.md (approved by user “เริ่มเลย”).
 
 ## Global constraints
 - Preserve pending sales edits; isolated branch codex/bo-line-import based on 3d86838.
