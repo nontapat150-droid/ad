@@ -15,7 +15,7 @@ function filters(q){
  if(q.search){if(typeof q.search!=='string'||q.search.length>200)throw fault('คำค้นยาวเกินไป');where.push('(r.customer LIKE ? OR r.case_no LIKE ? OR r.order_no LIKE ? OR r.srt LIKE ? OR r.raw_text LIKE ?)');for(let i=0;i<5;i++)params.push('%'+q.search+'%');}
  return {sql:where.length?' WHERE '+where.join(' AND '):'',params};
 }
-function record(r){return {...r,parsed:parse(r.parsed_json),checks:r.checks_json?parse(r.checks_json):[]};}
+function record(r){const parsed=parse(r.parsed_json);return {...r,job_date:parsed.date||'',parsed,checks:r.checks|| (r.checks_json?parse(r.checks_json):[])};}
 function createLineRouter({pool,config={},auth}){
  const service=createLineService({pool,config}),webhook=express.Router(),admin=express.Router();
  const handle=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(err){next(err);}};
@@ -87,7 +87,7 @@ function createLineRouter({pool,config={},auth}){
  }));
  admin.get('/records/:id',handle(async(req,res)=>{
   if(!positive(req.params.id))throw fault('เลขรายการไม่ถูกต้อง');const result=await service.process(req.params.id,{inspect:true});
-  const [history]=await pool.query('SELECT * FROM line_audit WHERE record_id=? ORDER BY id',[req.params.id]);res.json({...record(result),...result,history:history.map(h=>({...h,detail:parse(h.detail_json)}))});
+  const [history]=await pool.query('SELECT * FROM line_audit WHERE record_id=? ORDER BY id',[req.params.id]);res.json({...record(result),history:history.map(h=>({...h,detail:parse(h.detail_json)}))});
  }));
  admin.post('/records/:id/process',handle(async(req,res)=>{
   const {action,version}=req.body;if(!positive(req.params.id)||!positive(version)||!['check','confirm','report_only','accept_revision'].includes(action))throw fault('ระบุคำสั่งและรุ่นข้อมูล');

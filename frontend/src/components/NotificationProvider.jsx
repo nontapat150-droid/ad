@@ -144,6 +144,9 @@ export default function NotificationProvider({ children }) {
 
   /** กล่องข้อความ: กดอนุญาต → Chrome เด้งทันที / กดยกเลิก → เด้งซ้ำ */
   const showPermissionMessageBox = useCallback(async () => {
+    // The LINE inbox is usable without browser push permission. Keep its review
+    // and stock-confirmation dialogs free of unrelated recurring permission boxes.
+    if (window.location.pathname === '/line-import') return;
     if (!hasAuthToken() || !user) return;
     if (promptingRef.current) return;
 

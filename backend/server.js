@@ -133,7 +133,8 @@ async function startBackgroundJobs() {
 
 startBackgroundJobs();
 if (process.env.LINE_IMPORT_WORKER_ENABLED === 'true') {
-  require('./line/worker').startLineWorker({ pool, service: lineRoutes.service });
+  const sheets = require('./line/sheets').createSheetsSync({ pool, config: lineConfig });
+  require('./line/worker').startLineWorker({ pool, service: lineRoutes.service, sheets });
 }
 
 async function ensureAppSchema() {

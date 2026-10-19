@@ -1,12 +1,12 @@
 const mysql=require('mysql2/promise');
 const fs=require('node:fs/promises'); const path=require('node:path');
-async function fixture(){
+async function fixture(options={}){
  const port=Number(process.env.LINE_TEST_DB_PORT||3318);
  if(port!==3318)throw new Error('Test fixture requires isolated port 3318');
  const admin=await mysql.createConnection({host:'127.0.0.1',port,user:'root'});
  const database='bo_line_test_'+process.pid; if(!/^bo_line_test_\d+$/.test(database))throw new Error('Unsafe DB name');
  await admin.query('CREATE DATABASE IF NOT EXISTS '+database+' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');await admin.end();
- const pool=mysql.createPool({host:'127.0.0.1',port,user:'root',database,connectionLimit:8,multipleStatements:true,dateStrings:true,timezone:'Z'});
+ const pool=mysql.createPool({host:'127.0.0.1',port,user:'root',database,connectionLimit:8,multipleStatements:true,dateStrings:true,timezone:'Z',...options});
  await pool.query(`
  CREATE TABLE IF NOT EXISTS users(id INT PRIMARY KEY,full_name VARCHAR(100),username VARCHAR(100),role VARCHAR(50),status VARCHAR(20) DEFAULT 'active',team_id INT);
  CREATE TABLE IF NOT EXISTS jobs(id INT PRIMARY KEY,access_no VARCHAR(100),order_no VARCHAR(100),customer_order_no VARCHAR(100),field_engineer_id INT,team_id INT,status VARCHAR(30));
@@ -25,8 +25,8 @@ async function fixture(){
   for(const t of ['line_product_roles','line_sheet_outbox','line_audit','line_effects','line_records','line_events','line_bindings','line_groups','inventory_logs','job_used_inventory','ma_job_used_inventory','inventory_items','inventory_models','inventory_products','jobs','ma_jobs','users'])await pool.query('DELETE FROM '+t);
   await pool.query("UPDATE line_settings SET auto_enabled=1 WHERE id=1");
   await pool.query("INSERT INTO users VALUES (1,'ช่างทดสอบ','tech','technician','active',10),(2,'ช่างคนอื่น','other','technician','active',20),(9,'ผู้ดูแล','admin','admin','active',NULL)");
-  await pool.query("INSERT INTO jobs VALUES (101,'008801','P0001',NULL,1,10,'assigned'),(102,'008802','P0002',NULL,2,20,'assigned')");
-  await pool.query("INSERT INTO ma_jobs VALUES(201,'008803','008803','S0001',1,10,'assigned')");
+  await pool.query("INSERT INTO jobs(id,access_no,order_no,customer_order_no,field_engineer_id,team_id,status) VALUES (101,'008801','P0001',NULL,1,10,'assigned'),(102,'008802','P0002',NULL,2,20,'assigned')");
+  await pool.query("INSERT INTO ma_jobs(id,access_no,non_number,srt,assigned_user_id,team_id,status) VALUES(201,'008803','008803','S0001',1,10,'assigned')");
   await pool.query("INSERT INTO inventory_products VALUES (1,'ONU',1,'ONU','ชิ้น'),(2,'Playbox',1,'Playbox','ชิ้น')");
   await pool.query("INSERT INTO line_product_roles VALUES(1,'ONU'),(2,'PB')");
   await pool.query("INSERT INTO inventory_models VALUES(1,1,'FiberHome'),(2,2,'Playbox')");

@@ -2998,8 +2998,10 @@ router.put(
     const conn = await pool.getConnection();
 
     try {
-      await conn.beginTransaction();
+      // DDL implicitly commits in MySQL. Bootstrap before opening the usage
+      // transaction so a later job/photo error can roll every deduction back.
       await ensureMaJobSchema(conn);
+      await conn.beginTransaction();
 
       const [[job]] = await conn.query(`SELECT * FROM ma_jobs WHERE id = ? LIMIT 1 FOR UPDATE`, [maJobId]);
       if (!job) {
