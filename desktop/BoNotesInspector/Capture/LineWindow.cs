@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 namespace BoNotesInspector.Capture;
-public record LineTarget(nint Handle,string Label,int Width,int Height);
+public record LineTarget(nint Handle,string Label,int Width,int Height,uint Dpi=96);
 public static class LineWindow
 {
     [StructLayout(LayoutKind.Sequential)] private struct Rect{public int Left,Top,Right,Bottom;}
@@ -14,6 +14,9 @@ public static class LineWindow
     [DllImport("user32.dll")]private static extern bool IsWindowVisible(nint h);
     [DllImport("user32.dll")]private static extern bool IsIconic(nint h);
     [DllImport("user32.dll")]private static extern bool GetWindowRect(nint h,out Rect rect);
+    [DllImport("user32.dll")]private static extern uint GetDpiForWindow(nint h);
+    [DllImport("dwmapi.dll")]private static extern int DwmGetWindowAttribute(nint h,int attribute,out int value,int size);
+    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]private static extern nint GetWindowLongPtr(nint h,int index);
     [DllImport("user32.dll")]private static extern uint GetWindowThreadProcessId(nint h,out uint pid);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern int GetWindowText(nint h,StringBuilder value,int size);
     [DllImport("user32.dll")]private static extern nint GetForegroundWindow();
@@ -32,16 +35,21 @@ public static class LineWindow
             try{using var p=Process.GetProcessById((int)pid);if(!string.Equals(p.ProcessName,"LINE",StringComparison.OrdinalIgnoreCase))return true;}
             catch{return true;}
             var title=new StringBuilder(300);GetWindowText(h,title,title.Capacity);
-            result.Add(new(h,$"{title} · {r.Right-r.Left} × {r.Bottom-r.Top} · {h}",r.Right-r.Left,r.Bottom-r.Top));return true;
+            result.Add(new(h,$"{title} · {r.Right-r.Left} × {r.Bottom-r.Top} · {h}",r.Right-r.Left,r.Bottom-r.Top,GetDpiForWindow(h)));return true;
         },0);return result;
     }
     public static void Activate(LineTarget target){if(IsIconic(target.Handle))throw new InvalidOperationException("กรุณาขยายหน้าต่าง LINE ก่อนเริ่มอ่าน");SetForegroundWindow(target.Handle);}
     private static Rect Validate(LineTarget target)
     {
         if(!IsWindowVisible(target.Handle)||IsIconic(target.Handle)||GetForegroundWindow()!=target.Handle||!GetWindowRect(target.Handle,out var r))throw new InvalidOperationException("หยุดอ่าน: หน้าต่าง LINE ไม่อยู่ด้านหน้า กรุณาเลือกและเริ่มใหม่");
-        if(r.Right-r.Left!=target.Width||r.Bottom-r.Top!=target.Height)throw new InvalidOperationException("หยุดอ่าน: ขนาดหน้าต่างเปลี่ยน กรุณาเลือกหน้าต่างใหม่");
+        if(r.Right-r.Left!=target.Width||r.Bottom-r.Top!=target.Height||GetDpiForWindow(target.Handle)!=target.Dpi)throw new InvalidOperationException("หยุดอ่าน: ขนาดหน้าต่างหรือ DPI เปลี่ยน กรุณาเลือกหน้าต่างใหม่");
+        string? blocker=null;var content=new Rectangle(r.Left,r.Top,target.Width,target.Height);
+        EnumWindows((h,_)=>{if(h==target.Handle)return false;DwmGetWindowAttribute(h,14,out var cloaked,4);if(IsBlockingOverlay((long)GetWindowLongPtr(h,-20),cloaked)&&IsWindowVisible(h)&&!IsIconic(h)&&GetWindowRect(h,out var cover)&&BlocksCapture(content,new(cover.Left,cover.Top,cover.Right-cover.Left,cover.Bottom-cover.Top))){var name=new StringBuilder(200);GetWindowText(h,name,name.Capacity);blocker=$"{name} (#{h})";return false;}return true;},0);
+        if(blocker!=null)throw new InvalidOperationException("หยุดอ่าน: มีหน้าต่างอื่นบัง LINE กรุณาปิดหรือย้าย: "+blocker);
         return r;
     }
+    public static bool BlocksCapture(Rectangle target,Rectangle cover){target.Inflate(-10,-10);return target.IntersectsWith(cover);}
+    public static bool IsBlockingOverlay(long extendedStyle,int cloaked)=>cloaked==0&&(extendedStyle&0x20)==0;
     public static Bitmap Capture(LineTarget target)
     {
         var r=Validate(target);var b=new Bitmap(target.Width,target.Height,PixelFormat.Format24bppRgb);

@@ -5,6 +5,12 @@ using BoNotesInspector.Capture;
 using Xunit;
 public class CaptureRegressionTests
 {
+    [Fact] public void OcclusionInsideCapturedContentStopsButOutsideWindowDoesNot()
+    {
+        Assert.True(LineWindow.BlocksCapture(new(10,10,500,800),new(150,200,50,50)));
+        Assert.False(LineWindow.BlocksCapture(new(10,10,500,800),new(600,200,50,50)));
+    }
+    [Fact] public void ClickThroughCursorOverlayDoesNotBlockButNormalPopupDoes(){Assert.False(LineWindow.IsBlockingOverlay(0x80020,0));Assert.False(LineWindow.IsBlockingOverlay(0,1));Assert.True(LineWindow.IsBlockingOverlay(0,0));}
     // Catches OCR variance in an unchanged group title stopping a read or accepting a different group.
     [Fact] public void GroupIdentityUsesRenderedHeaderRatherThanOcrSpelling()
     {
