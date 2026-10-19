@@ -62,7 +62,7 @@ function createLineService({pool,config={}}){
    if(!g)errors.push('ยังไม่ได้อนุญาตกลุ่มนี้');
   }
   const [[tech]]=await conn.query('SELECT id,team_id,status,role FROM users WHERE id=?',[techId||0]);
-  if(!tech||tech.status!=='active'||!['technician','ma_technician','contractor_office','contractor_ma'].includes(tech.role))errors.push('ยังไม่ได้ผูกผู้ส่งกับช่างที่ใช้งานอยู่');
+  if(!tech||tech.status!=='approved'||!['technician','ma_technician','contractor_office','contractor_ma'].includes(tech.role))errors.push('ยังไม่ได้ผูกผู้ส่งกับช่างที่ใช้งานอยู่');
   if(group&&Number(group.team_id)!==Number(tech?.team_id))errors.push('ช่างผู้ส่งไม่อยู่ทีมของกลุ่ม');
   const kind=p.type==='ma'?'ma':'office',t=tableFor(kind);
   const clauses=[],params=[];

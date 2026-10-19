@@ -8,7 +8,7 @@ async function fixture(options={}){
  await admin.query('CREATE DATABASE IF NOT EXISTS '+database+' CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');await admin.end();
  const pool=mysql.createPool({host:'127.0.0.1',port,user:'root',database,connectionLimit:8,multipleStatements:true,dateStrings:true,timezone:'Z',...options});
  await pool.query(`
- CREATE TABLE IF NOT EXISTS users(id INT PRIMARY KEY,full_name VARCHAR(100),username VARCHAR(100),role VARCHAR(50),status VARCHAR(20) DEFAULT 'active',team_id INT);
+ CREATE TABLE IF NOT EXISTS users(id INT PRIMARY KEY,full_name VARCHAR(100),username VARCHAR(100),role VARCHAR(50),status VARCHAR(20) DEFAULT 'approved',team_id INT);
  CREATE TABLE IF NOT EXISTS jobs(id INT PRIMARY KEY,access_no VARCHAR(100),order_no VARCHAR(100),customer_order_no VARCHAR(100),field_engineer_id INT,team_id INT,status VARCHAR(30));
  CREATE TABLE IF NOT EXISTS ma_jobs(id INT PRIMARY KEY,access_no VARCHAR(100),non_number VARCHAR(100),srt VARCHAR(100),assigned_user_id INT,team_id INT,status VARCHAR(30));
  CREATE TABLE IF NOT EXISTS inventory_products(id INT PRIMARY KEY,name VARCHAR(100),has_sn INT,category VARCHAR(100),unit VARCHAR(30));
@@ -24,7 +24,7 @@ async function fixture(options={}){
  async function reset(){
   for(const t of ['line_product_roles','line_sheet_outbox','line_audit','line_effects','line_records','line_events','line_bindings','line_groups','inventory_logs','job_used_inventory','ma_job_used_inventory','inventory_items','inventory_models','inventory_products','jobs','ma_jobs','users'])await pool.query('DELETE FROM '+t);
   await pool.query("UPDATE line_settings SET auto_enabled=1 WHERE id=1");
-  await pool.query("INSERT INTO users VALUES (1,'ช่างทดสอบ','tech','technician','active',10),(2,'ช่างคนอื่น','other','technician','active',20),(9,'ผู้ดูแล','admin','admin','active',NULL)");
+  await pool.query("INSERT INTO users VALUES (1,'ช่างทดสอบ','tech','technician','approved',10),(2,'ช่างคนอื่น','other','technician','approved',20),(9,'ผู้ดูแล','admin','admin','approved',NULL)");
   await pool.query("INSERT INTO jobs(id,access_no,order_no,customer_order_no,field_engineer_id,team_id,status) VALUES (101,'008801','P0001',NULL,1,10,'assigned'),(102,'008802','P0002',NULL,2,20,'assigned')");
   await pool.query("INSERT INTO ma_jobs(id,access_no,non_number,srt,assigned_user_id,team_id,status) VALUES(201,'008803','008803','S0001',1,10,'assigned')");
   await pool.query("INSERT INTO inventory_products VALUES (1,'ONU',1,'ONU','ชิ้น'),(2,'Playbox',1,'Playbox','ชิ้น')");

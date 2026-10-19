@@ -33,7 +33,7 @@ function createLineRouter({pool,config={},auth}){
   const [[mode]]=await pool.query('SELECT auto_enabled FROM line_settings WHERE id=1');
   const [groups]=await pool.query('SELECT * FROM line_groups ORDER BY source_id');
   const [bindings]=await pool.query('SELECT b.*,u.full_name,u.team_id FROM line_bindings b LEFT JOIN users u ON u.id=b.user_id ORDER BY b.line_user_id');
-  const [users]=await pool.query("SELECT id,full_name,team_id,role FROM users WHERE status='active' AND role IN ('technician','ma_technician','contractor_office','contractor_ma') ORDER BY full_name");
+  const [users]=await pool.query("SELECT id,full_name,team_id,role FROM users WHERE status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma') ORDER BY full_name");
   const [products]=await pool.query('SELECT id,name FROM inventory_products WHERE has_sn=1 ORDER BY name');
   const [roles]=await pool.query('SELECT * FROM line_product_roles ORDER BY product_id,role');
   const [discovered]=await pool.query("SELECT DISTINCT source_id,line_user_id FROM line_records WHERE source='line' ORDER BY source_id LIMIT 500");
@@ -51,7 +51,7 @@ function createLineRouter({pool,config={},auth}){
  }));
  admin.put('/bindings',handle(async(req,res)=>{
   const {lineUserId,userId}=req.body;if(!sourceId(lineUserId)||!positive(userId))throw fault('ระบุผู้ส่ง LINE และช่าง');
-  await service.transaction(async c=>{const [[u]]=await c.query("SELECT id FROM users WHERE id=? AND status='active' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[userId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
+  await service.transaction(async c=>{const [[u]]=await c.query("SELECT id FROM users WHERE id=? AND status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[userId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
    const [[before]]=await c.query('SELECT * FROM line_bindings WHERE line_user_id=? FOR UPDATE',[lineUserId]);
    const [[owner]]=await c.query('SELECT line_user_id FROM line_bindings WHERE user_id=? FOR UPDATE',[userId]);if(owner&&owner.line_user_id!==lineUserId)throw fault('ช่างนี้ผูกกับบัญชี LINE อื่นแล้ว กรุณายกเลิกการผูกเดิมก่อน',409);
    if(before)await c.query('UPDATE line_bindings SET user_id=?,updated_by=?,updated_at=NOW(6) WHERE line_user_id=?',[userId,req.user.id,lineUserId]);
@@ -68,7 +68,7 @@ function createLineRouter({pool,config={},auth}){
  admin.post('/preview',handle(async(req,res)=>res.json({records:service.preview(req.body.text)})));
  admin.post('/import',handle(async(req,res)=>{
   if(!positive(req.body.userId))throw fault('เลือกช่างเจ้าของงานก่อนนำเข้า');
-  const [[u]]=await pool.query("SELECT id FROM users WHERE id=? AND status='active' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[req.body.userId]);if(!u)throw fault('ไม่พบช่าง');
+  const [[u]]=await pool.query("SELECT id FROM users WHERE id=? AND status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[req.body.userId]);if(!u)throw fault('ไม่พบช่าง');
   res.json({records:await service.importText({text:req.body.text,userId:Number(req.body.userId),actorId:req.user.id})});
  }));
  admin.get('/records',handle(async(req,res)=>{
@@ -99,7 +99,7 @@ function createLineRouter({pool,config={},auth}){
  }));
  admin.patch('/records/:id',handle(async(req,res)=>{
   if(!positive(req.params.id)||!positive(req.body.userId)||!positive(req.body.version))throw fault('ระบุช่างและรุ่นข้อมูล');
-  const [[u]]=await pool.query("SELECT id FROM users WHERE id=? AND status='active' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[req.body.userId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
+  const [[u]]=await pool.query("SELECT id FROM users WHERE id=? AND status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma')",[req.body.userId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
   res.json({records:await service.revise(req.params.id,{text:req.body.text,userId:Number(req.body.userId),actorId:req.user.id,expectedVersion:Number(req.body.version)})});
  }));
  admin.get('/history',handle(async(_req,res)=>{const [rows]=await pool.query('SELECT a.*,u.full_name AS actor FROM line_audit a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.id DESC LIMIT 200');res.json(rows.map(h=>({...h,detail:parse(h.detail_json)})));}));

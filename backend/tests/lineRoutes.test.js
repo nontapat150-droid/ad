@@ -5,6 +5,28 @@ before(async()=>{f=await fixture({dateStrings:false,timezone:'+07:00'});await f.
 app.use('/line/webhook',routers.webhook);app.use(express.json());app.use('/line-import',routers.admin);server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));base='http://127.0.0.1:'+server.address().port;});
 after(async()=>{if(server)await new Promise(r=>server.close(r));if(f)await f.close();});
 const sig=b=>crypto.createHmac('sha256',secret).update(b).digest('base64');
+test('LINE uses BO approved account status and refuses unapproved technicians',async()=>{
+ await f.reset();
+ const settings=await(await fetch(base+'/line-import/settings')).json();
+ assert.deepEqual(settings.users.map(u=>u.id).sort(),[1,2]);
+ const imported=await fetch(base+'/line-import/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text(),userId:1})});
+ assert.equal(imported.status,200);
+ for(const status of ['pending','rejected','active']){
+  await f.pool.query('UPDATE users SET status=? WHERE id=1',[status]);
+  const blocked=await(await fetch(base+'/line-import/settings')).json();
+  assert.ok(!blocked.users.some(u=>u.id===1));
+  const binding=await fetch(base+'/line-import/bindings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineUserId:'U1',userId:1})});
+  assert.equal(binding.status,400);
+  const denied=await fetch(base+'/line-import/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text(),userId:1})});
+  assert.equal(denied.status,400);
+  const [[record]]=await f.pool.query('SELECT id,version FROM line_records LIMIT 1');
+  const checked=await fetch(base+'/line-import/records/'+record.id+'/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'confirm',version:record.version})});
+  assert.equal(checked.status,200);
+  const [[item]]=await f.pool.query('SELECT quantity FROM inventory_items WHERE id=11');
+  assert.equal(Number(item.quantity),1,'unapproved technician must never consume stock');
+ }
+ await f.reset();
+});
 test('raw HMAC protects webhook, persists whole batch, empty verification succeeds',async()=>{
  const b=JSON.stringify({events:[event('HTTP1'),event('HTTP2')]},null,2);
  assert.equal((await fetch(base+'/line/webhook',{method:'POST',headers:{'Content-Type':'application/json','x-line-signature':sig(b)},body:b})).status,200);
