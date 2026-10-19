@@ -1,5 +1,30 @@
 const {test,before,after,beforeEach}=require('node:test');const assert=require('node:assert/strict');
 const {fixture,text,event}=require('./lineFixture');const {createLineService}=require('../line/service');
+test('rejecting a conflicting correction keeps accepted stock and records the decision',async()=>{
+ await s.receive([event()]);await s.drain();await s.receive([event('CORRECTION','\nหมายเหตุ : ผิด')]);await s.drain();
+ const [records]=await f.pool.query('SELECT * FROM line_records ORDER BY id');await s.process(records[1].id,{actorId:9,reject:true,expectedVersion:records[1].version});
+ assert.equal((await stock()).status,'used');assert.equal((await f.pool.query('SELECT status FROM line_records WHERE id=?',[records[0].id]))[0][0].status,'applied');
+ assert.equal((await f.pool.query('SELECT status FROM line_records WHERE id=?',[records[1].id]))[0][0].status,'rejected');
+ assert.equal((await f.pool.query("SELECT * FROM line_audit WHERE action='rejected'"))[0].length,1);
+});
+test('turning automatic mode off stops already queued events',async()=>{
+ await s.receive([event()]);await f.pool.query('UPDATE line_settings SET auto_enabled=0');await s.drain();assert.equal((await stock()).status,'dispatched');
+});
+test('inspect shows resolved job and technician without changing revision',async()=>{
+ const [r]=await s.importText({text:text(),userId:1,actorId:9});const view=await s.process(r.id,{inspect:true});assert.equal(view.job_id,101);assert.equal(view.tech_id,1);assert.equal(view.version,1);
+});
+test('conflict chains always compare against the accepted version, not another conflict',async()=>{
+ await f.pool.query("INSERT INTO inventory_items VALUES(15,1,'ABC002',1,'dispatched',1,10,NULL)");
+ await s.receive([event()]);await s.drain();await s.receive([event('B','\nหมายเหตุ : B')]);await s.drain();
+ const e=event('C');e.message.text=e.message.text.replace('ABC001','ABC002');await s.receive([e]);await s.drain();
+ const r=(await f.pool.query('SELECT * FROM line_records ORDER BY id DESC LIMIT 1'))[0][0];
+ await assert.rejects(s.process(r.id,{actorId:9,confirm:true,acceptConflict:true,expectedVersion:r.version}),/คืน.*ระบบเดิม|อุปกรณ์เดิม/);
+ assert.equal((await stock(15)).status,'dispatched');assert.equal((await f.pool.query("SELECT * FROM line_records WHERE status='applied'"))[0].length,1);
+});
+test('another-job usage rejects even if a stale inventory status says dispatched',async()=>{
+ await f.pool.query("INSERT INTO job_used_inventory(job_id,inventory_item_id,device_role,sn,quantity,used_by) VALUES(102,11,'ONU','ABC001',1,2)");
+ await s.receive([event()]);await s.drain();assert.equal((await stock()).status,'dispatched');assert.equal((await row()).status,'review');
+});
 test('concurrent historical revisions serialize identity and quarantine the changed one',async()=>{
  await Promise.all([s.importText({text:text(),userId:1,actorId:9}),s.importText({text:text('\nSn Playbox : PB001'),userId:1,actorId:9})]);
  const [rows]=await f.pool.query('SELECT status FROM line_records ORDER BY id');

@@ -27,6 +27,10 @@ test('actual completion route after LINE records one usage and one used log',asy
  assert.equal((await f.pool.query('SELECT * FROM job_used_inventory WHERE job_id=101'))[0].length,1);
  assert.equal((await f.pool.query("SELECT * FROM inventory_logs WHERE action='used'"))[0].length,1);
 });
+test('completion cannot silently omit an already recorded SN from its device summary',async()=>{
+ await s.receive([event()]);await s.drain();await complete({usedInventory:[]});
+ assert.ok((await f.pool.query('SELECT install_device FROM jobs WHERE id=101'))[0][0].install_device?.includes('ABC001'));
+});
 test('actual normal completion before LINE links same inventory without second use',async()=>{
  await complete({usedInventory:[{inventory_item_id:11,device_role:'ONU'}]});
  await s.receive([event()]);await s.drain();assert.equal((await f.pool.query('SELECT status FROM line_records'))[0][0].status,'applied');

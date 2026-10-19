@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 
 export const lineTypes={install_ais:'ติดตั้ง AIS',install_3bb:'ติดตั้ง 3BB',device_3bb:'เปลี่ยนอุปกรณ์ 3BB',ma:'งาน MA'};
+export const lineActions={received:'รับข้อมูล',review:'ตรวจข้อมูล',confirmed:'ยืนยันใช้ SN',auto_applied:'ตัดอุปกรณ์อัตโนมัติ',report_only:'เก็บเฉพาะรายงาน',superseded:'รับรุ่นใหม่แทน',revised:'แก้ข้อความ',rejected:'เก็บรุ่นเดิม',legacy_return:'คืนอุปกรณ์ผ่านระบบเดิม',unsend:'ถอนข้อความ',mode_changed:'เปลี่ยนโหมดทำงาน',group_changed:'แก้กลุ่มที่อนุญาต',binding_changed:'ผูกบัญชีช่าง',binding_removed:'ยกเลิกการผูกช่าง',product_roles_changed:'กำหนดประเภทสินค้า'};
 export const lineStatuses={review:'รอตรวจสอบ',applied:'ตัด/ตรวจอุปกรณ์แล้ว',conflict:'ข้อมูลขัดแย้ง',report_only:'เก็บเฉพาะรายงาน',reversed:'คืนผ่านระบบเดิม',withdrawn:'ถอนข้อความแล้ว',superseded:'รุ่นก่อนหน้า',rejected:'ไม่รับข้อมูล'};
 function chunks(text,size=30000){
  const str=String(text??'');const out=[];

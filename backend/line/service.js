@@ -30,7 +30,7 @@ function createLineService({pool,config={}}){
    }
   });
  }
- async function createRecords(conn,{text,source='manual',userId=null,actorId=null,event=null,receivedAt=null}){
+ async function createRecords(conn,{text,source='manual',userId=null,actorId=null,event=null,receivedAt=null,businessKey=null}){
   const parsed=parseText(text);if(parsed.length>100)throw fault('นำเข้าได้ครั้งละไม่เกิน 100 งาน');
   if(!parsed.length)throw fault('ไม่พบข้อความปิดงาน 4 ประเภทที่รองรับ');
   const out=[];
@@ -39,11 +39,11 @@ function createLineService({pool,config={}}){
    if(source==='line'){const [[bind]]=await conn.query('SELECT user_id FROM line_bindings WHERE line_user_id=?',[lineUser]);userId=bind?.user_id||null;}
    const dedupe=hash(JSON.stringify([source,group,lineUser||userId,p.raw]));
    // Identity row is held through commit; locking reads see the newest revision.
-   const business=hash(JSON.stringify([group,lineUser||userId,p.type,p.caseNo||p.orderNo||p.srt]));
+   const business=businessKey||hash(JSON.stringify([group,lineUser||userId,p.type,p.caseNo||p.orderNo||p.srt]));
    await conn.query('INSERT INTO line_identities(business_key) VALUES(?) ON DUPLICATE KEY UPDATE business_key=business_key',[business]);
    const [[old]]=await conn.query('SELECT id,version,status FROM line_records WHERE dedupe_key=? FOR UPDATE',[dedupe]);if(old){out.push({...old,duplicate:true});continue;}
    {
-    const [[prior]]=await conn.query("SELECT id FROM line_records WHERE business_key=? AND status NOT IN ('superseded','rejected') ORDER BY id DESC LIMIT 1 FOR UPDATE",[business]);
+    const [[prior]]=await conn.query("SELECT id FROM line_records WHERE business_key=? AND status IN ('applied','report_only','review','withdrawn','reversed') ORDER BY id DESC LIMIT 1 FOR UPDATE",[business]);
     const [insert]=await conn.query("INSERT INTO line_records(event_id,message_id,source_id,line_user_id,source,tech_id,type,job_date,case_no,order_no,srt,customer,raw_text,parsed_json,dedupe_key,business_key,status,conflict_with,received_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,COALESCE(?,NOW(6)))",
      [event?.webhookEventId||null,event?.message?.id||null,group,lineUser,source,userId,p.type,p.date||null,p.caseNo,p.orderNo,p.srt,(p.customer||'').slice(0,255),p.raw,JSON.stringify(p),dedupe,business,prior?'conflict':'review',prior?.id||null,receivedAt]);
     await audit(conn,insert.insertId,actorId,'received',{source,techId:userId,conflictWith:prior?.id||null});
@@ -61,8 +61,8 @@ function createLineService({pool,config={}}){
    const [[g]]=await conn.query('SELECT * FROM line_groups WHERE source_id=? AND enabled=1',[r.source_id]);group=g;
    if(!g)errors.push('ยังไม่ได้อนุญาตกลุ่มนี้');
   }
-  const [[tech]]=await conn.query('SELECT id,team_id,status FROM users WHERE id=?',[techId||0]);
-  if(!tech||tech.status!=='active')errors.push('ยังไม่ได้ผูกผู้ส่งกับช่างที่ใช้งานอยู่');
+  const [[tech]]=await conn.query('SELECT id,team_id,status,role FROM users WHERE id=?',[techId||0]);
+  if(!tech||tech.status!=='active'||!['technician','ma_technician','contractor_office','contractor_ma'].includes(tech.role))errors.push('ยังไม่ได้ผูกผู้ส่งกับช่างที่ใช้งานอยู่');
   if(group&&Number(group.team_id)!==Number(tech?.team_id))errors.push('ช่างผู้ส่งไม่อยู่ทีมของกลุ่ม');
   const kind=p.type==='ma'?'ma':'office',t=tableFor(kind);
   const clauses=[],params=[];
@@ -89,6 +89,10 @@ function createLineService({pool,config={}}){
     if(!roles.length){check.reason='ยังไม่ผูกประเภทสินค้ากับช่อง '+s.role;errors.push(s.sn+': '+check.reason);continue;}
    }
    let used=null;
+   if(job&&kind==='office'){
+    const [occupied]=await conn.query('SELECT id FROM job_used_inventory WHERE job_id=? AND device_role=? AND inventory_item_id<>? LIMIT 1 FOR UPDATE',[job.id,s.role,item.id]);
+    if(occupied.length)errors.push('มีอุปกรณ์เดิมในบทบาท '+s.role+' กรุณาคืนผ่านระบบเดิมก่อน');
+   }
    if(job){try{used=await existingUsage(conn,{kind,jobId:job.id,itemId:item.id,role:s.role});}catch(e){errors.push(e.message);}}
    if(used){check.result='already_used';check.usageId=used.id;continue;}
    const inBag=tech&&(Number(item.owner_id)===Number(tech.id)||(teamId&&(Number(item.team_id)===Number(teamId)||Number(item.owner_team)===Number(teamId))));
@@ -97,19 +101,25 @@ function createLineService({pool,config={}}){
   }
   return {errors:[...new Set(errors)],checks,techId:tech?.id||null,teamId,kind,job};
  }
- async function finish(conn,r,{actorId=null,confirm=false,reportOnly=false,automatic=false,expectedVersion,inspect=false,acceptConflict=false}={}){
+ async function finish(conn,r,{actorId=null,confirm=false,reportOnly=false,automatic=false,expectedVersion,inspect=false,acceptConflict=false,reject=false}={}){
   if(expectedVersion!==undefined&&r.version!==Number(expectedVersion))throw fault('ข้อมูลถูกเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
   if(!inspect&&['applied','report_only','reversed','withdrawn','superseded','rejected'].includes(r.status)){if(automatic)return r;throw fault('รายการนี้ดำเนินการแล้ว',409);}
+  if(inspect&&['applied','report_only','reversed','withdrawn','superseded','rejected'].includes(r.status))return {...r,parsed:parse(r.parsed_json),checks:r.checks_json?parse(r.checks_json):[],errors:[]};
+  if(reject){
+   if(r.status!=='conflict')throw fault('ปฏิเสธได้เฉพาะข้อมูลขัดแย้ง',409);
+   await conn.query("UPDATE line_records SET status='rejected',version=version+1,reason='เก็บรุ่นเดิม ไม่รับข้อความแก้ไขนี้',updated_at=NOW(6) WHERE id=?",[r.id]);
+   await audit(conn,r.id,actorId,'rejected',{keptExisting:true});await enqueue(conn,r.id,r.version+1);return {...r,status:'rejected',version:r.version+1};
+  }
   let previous=null;
   if(r.status==='conflict'&&!inspect){
    if(!acceptConflict)throw fault('ต้องเลือกรับข้อมูลรุ่นนี้อย่างชัดเจน',409);
-   const [[old]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[r.conflict_with]);previous=old;
+   const [[old]]=await conn.query("SELECT * FROM line_records WHERE business_key=? AND id<>? AND status IN ('applied','report_only','review','withdrawn','reversed') ORDER BY CASE WHEN status='applied' THEN 0 WHEN status='report_only' THEN 1 ELSE 2 END,id DESC LIMIT 1 FOR UPDATE",[r.business_key,r.id]);previous=old;
    const snKey=x=>parse(x.parsed_json).sns.map(s=>s.role+':'+s.sn.toUpperCase()).sort().join('|');
    if(old&&['applied','withdrawn'].includes(old.status)&&snKey(old)!==snKey(r))throw fault('SN เปลี่ยนหลังตัดแล้ว กรุณาคืนหรือเปลี่ยนอุปกรณ์ผ่านระบบเดิมก่อน',409);
   }
   const v=await evaluate(conn,r);
   const clean=v.checks.map(({item,...check})=>check);
-  if(inspect)return {...r,parsed:parse(r.parsed_json),checks:clean,errors:v.errors};
+  if(inspect)return {...r,recorded_tech_id:r.tech_id,recorded_job_id:r.job_id,tech_id:v.techId,team_id:v.teamId,job_kind:v.kind,job_id:v.job?.id||null,parsed:parse(r.parsed_json),checks:clean,errors:v.errors};
   if(reportOnly){
    await conn.query("UPDATE line_records SET status='report_only',version=version+1,reason='เก็บเฉพาะรายงาน',checks_json=?,updated_at=NOW(6) WHERE id=?",[JSON.stringify(clean),r.id]);
   }else if(v.errors.length||(!confirm&&!automatic)){
@@ -136,7 +146,11 @@ function createLineService({pool,config={}}){
   await audit(conn,r.id,actorId,reportOnly?'report_only':automatic?'auto_applied':'confirmed',{techId:v.techId,teamId:v.teamId,jobId:v.job?.id,checks:v.checks.map(({item,...check})=>check)});
   await enqueue(conn,r.id,r.version+1);return {...r,status:reportOnly?'report_only':'applied',version:r.version+1};
  }
- async function process(id,options={}){return transaction(pool,async conn=>{const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[id]);if(!r)throw fault('ไม่พบข้อมูล',404);return finish(conn,r,options);});}
+ async function process(id,options={}){return transaction(pool,async conn=>{
+  const [[key]]=await conn.query('SELECT business_key FROM line_records WHERE id=?',[id]);if(!key)throw fault('ไม่พบข้อมูล',404);
+  await conn.query('INSERT INTO line_identities(business_key) VALUES(?) ON DUPLICATE KEY UPDATE business_key=business_key',[key.business_key]);
+  const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[id]);return finish(conn,r,options);
+ });}
  async function processEvent(id){
   return transaction(pool,async conn=>{
    const [[e]]=await conn.query("SELECT * FROM line_events WHERE event_id=? AND state<>'done' FOR UPDATE",[id]);if(!e)return;
@@ -147,7 +161,8 @@ function createLineService({pool,config={}}){
      if(rec.duplicate)continue;
      const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[rec.id]);
      const [[eligible]]=await conn.query("SELECT b.user_id FROM line_bindings b JOIN line_groups g ON g.source_id=? AND g.enabled=1 WHERE b.line_user_id=? AND b.updated_at<=? AND g.updated_at<=?",[r.source_id,r.line_user_id,e.received_at,e.received_at]);
-     if(e.allow_auto&&eligible&&r.status!=='conflict')await finish(conn,r,{automatic:true});
+     const [[currentMode]]=await conn.query('SELECT auto_enabled FROM line_settings WHERE id=1 LOCK IN SHARE MODE');
+     if(e.allow_auto&&currentMode?.auto_enabled&&eligible&&r.status!=='conflict')await finish(conn,r,{automatic:true});
     }
    }else if(event.type==='unsend'){
     const [rows]=await conn.query("SELECT * FROM line_records WHERE message_id=? AND source_id=? FOR UPDATE",[event.unsend?.messageId||'',event.source?.groupId||event.source?.roomId||'']);
@@ -165,13 +180,15 @@ function createLineService({pool,config={}}){
  }
  async function revise(id,{text,userId,actorId,expectedVersion}){
   return transaction(pool,async conn=>{
-   const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[id]);if(!r)throw fault('ไม่พบข้อมูล',404);
+   const [[key]]=await conn.query('SELECT business_key FROM line_records WHERE id=?',[id]);if(!key)throw fault('ไม่พบข้อมูล',404);
+   await conn.query('INSERT INTO line_identities(business_key) VALUES(?) ON DUPLICATE KEY UPDATE business_key=business_key',[key.business_key]);
+   const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[id]);
    if(r.version!==Number(expectedVersion))throw fault('ข้อมูลถูกเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
    if(['applied','withdrawn','superseded'].includes(r.status))throw fault('แก้ข้อมูลหลังตัดแล้วโดยส่งรุ่นใหม่และตรวจการคืนผ่านระบบเดิม',409);
    if(parseText(text).length!==1)throw fault('แก้ไขได้ครั้งละหนึ่งงาน');
    if(r.raw_text===text&&Number(r.tech_id)===Number(userId))throw fault('ข้อมูลยังเหมือนเดิม');
    await conn.query("UPDATE line_records SET status='superseded',version=version+1,updated_at=NOW(6) WHERE id=?",[id]);
-   const records=await createRecords(conn,{text,userId,actorId});await audit(conn,id,actorId,'revised',{next:records.map(r=>r.id)});await enqueue(conn,id,r.version+1);return records;
+   const records=await createRecords(conn,{text,userId,actorId,businessKey:r.business_key});await audit(conn,id,actorId,'revised',{next:records.map(r=>r.id)});await enqueue(conn,id,r.version+1);return records;
   });
  }
  return {receive,importText,process,drain,revise,preview:parseText,transaction:fn=>transaction(pool,fn),audit,enqueue};

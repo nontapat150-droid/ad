@@ -1,6 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
-const { reuseSn, invalidateEffects } = require('../line/inventory');
+const { reuseSn, invalidateEffects, withRecordedSn } = require('../line/inventory');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob, syncMaCustomerFromJob, syncInstalledFromJob } = require('../utils/customerSync');
@@ -1212,7 +1212,7 @@ router.put(
 
       // 2. Process tech-bag inventory usage (SN items) — shared team bag
       const bagTeamId = await resolveJobBagTeamId(conn, { job, actorId: techId });
-      const usedItems = parseUsedInventoryBody(req.body);
+      const usedItems = await withRecordedSn(conn, { kind: 'office', jobId, items: parseUsedInventoryBody(req.body) });
       let installPartsFromBag = [];
       if (usedItems.length > 0) {
         installPartsFromBag = await processUsedInventory(conn, {
@@ -3058,7 +3058,7 @@ router.put(
       const completedById = resolveCompletedById(job, techId, { isAdmin, isMa: true });
       const creditUserId = resolveBagOwnerId(job, techId, { isMa: true });
       const noSnItems = parseNoSnItems(req.body);
-      const snItems = parseUsedInventoryBody(req.body);
+      const snItems = await withRecordedSn(conn, { kind: 'ma', jobId: maJobId, items: parseUsedInventoryBody(req.body) });
       const equipParts = [];
 
       if (snItems.length > 0) {

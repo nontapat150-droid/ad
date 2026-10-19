@@ -21,7 +21,9 @@ test('admin API denies technicians and validates date range, versions and config
  assert.equal(list.records[0].job_date,'2026-10-18');
  assert.equal((await req('/line-import/records/'+list.records[0].id+'/process',{action:'confirm'})).status,400);
  assert.equal((await req('/line-import/records/'+list.records[0].id+'/process',{action:'confirm',version:1})).status,200);
+ assert.equal((await(await fetch(base+'/line-import/records?needsReview=true')).json()).total,0);
  assert.equal((await fetch(base+'/line-import/records/'+list.records[0].id)).status,200);
  const settings=await(await fetch(base+'/line-import/settings')).json();assert.equal(settings.channelReady,true);assert.ok(!JSON.stringify(settings).includes(secret));
+ const collision=await fetch(base+'/line-import/bindings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({lineUserId:'U2',userId:1})});assert.equal(collision.status,409);
 });
 

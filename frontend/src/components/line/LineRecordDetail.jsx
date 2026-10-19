@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {lineTypes,lineStatuses} from '../../utils/lineWorkbook';
+import {lineTypes,lineStatuses,lineActions} from '../../utils/lineWorkbook';
 export default function LineRecordDetail({record,settings,busy,error,onClose,onAction,onRevise}){
  const dialog=useRef(null),[action,setAction]=useState(''),[editing,setEditing]=useState(false),[text,setText]=useState(record.raw_text),[userId,setUserId]=useState(record.tech_id||'');
  useEffect(()=>{const el=dialog.current;if(!el.open)el.showModal();return()=>el.close();},[]);
@@ -16,10 +16,10 @@ export default function LineRecordDetail({record,settings,busy,error,onClose,onA
     <h3>ช่องข้อมูลที่อ่านได้</h3><div className="li-fields">{record.parsed?.fields.map((f,i)=><div key={i}><dt>{f.label}</dt><dd>{f.value||'—'}</dd></div>)}</div>
    </section>
   </div>
-  <section className="li-history"><h3>ประวัติรายการ</h3>{record.history?.map(h=><div key={h.id}><time>{String(h.created_at)}</time><span>{h.action} {h.actor_id?'· ผู้ใช้ #'+h.actor_id:'· ระบบอัตโนมัติ'}</span></div>)}</section>
+  <section className="li-history"><h3>ประวัติรายการ</h3>{record.history?.map(h=><div key={h.id}><time>{String(h.created_at)}</time><span>{lineActions[h.action]||h.action} {h.actor_id?'· ผู้ใช้ #'+h.actor_id:'· ระบบอัตโนมัติ'}</span></div>)}</section>
   {mutable&&<footer className="li-dialog-footer">
-   {action?<div className="li-confirm"><p>{action==='report_only'?'ยืนยันเก็บข้อมูลสำหรับรายงาน โดยไม่ตัดอุปกรณ์หรือไม่?':action==='accept_revision'?'รับข้อมูลรุ่นนี้แทนรุ่นก่อนและใช้ผลตรวจอุปกรณ์นี้หรือไม่?':'ยืนยันใช้อุปกรณ์ของงานนี้จากกระเป๋าช่าง/ทีมหรือไม่?'}</p><div className="li-actions"><button className="li-primary" disabled={busy} onClick={()=>{onAction(action,record.version);setAction('');}}>ยืนยันรายการ</button><button className="li-secondary" disabled={busy} onClick={()=>setAction('')}>กลับไปตรวจ</button></div></div>:
-    <div className="li-actions"><button className="li-secondary" disabled={busy} onClick={()=>setEditing(true)}>แก้ข้อความ / เลือกช่าง</button>{record.status!=='conflict'&&<button className="li-secondary" disabled={busy} onClick={()=>setAction('report_only')}>เก็บเฉพาะรายงาน</button>}<button className="li-primary" disabled={busy||blocked} onClick={()=>setAction(record.status==='conflict'?'accept_revision':'confirm')}>{record.status==='conflict'?'รับข้อมูลรุ่นนี้':'ยืนยันใช้ SN'}</button></div>}
+   {action?<div className="li-confirm"><p>{action==='reject'?'เก็บรุ่นเดิมและไม่รับข้อความแก้ไขนี้ โดยคงผลสต็อกเดิมหรือไม่?':action==='report_only'?'ยืนยันเก็บข้อมูลสำหรับรายงาน โดยไม่ตัดอุปกรณ์หรือไม่?':action==='accept_revision'?'รับข้อมูลรุ่นนี้แทนรุ่นก่อนและใช้ผลตรวจอุปกรณ์นี้หรือไม่?':'ยืนยันใช้อุปกรณ์ของงานนี้จากกระเป๋าช่าง/ทีมหรือไม่?'}</p><div className="li-actions"><button className="li-primary" disabled={busy} onClick={()=>{onAction(action,record.version);setAction('');}}>ยืนยันรายการ</button><button className="li-secondary" disabled={busy} onClick={()=>setAction('')}>กลับไปตรวจ</button></div></div>:
+    <div className="li-actions"><button className="li-secondary" disabled={busy} onClick={()=>setEditing(true)}>แก้ข้อความ / เลือกช่าง</button>{record.status==='conflict'?<button className="li-secondary" disabled={busy} onClick={()=>setAction('reject')}>เก็บรุ่นเดิม</button>:<button className="li-secondary" disabled={busy} onClick={()=>setAction('report_only')}>เก็บเฉพาะรายงาน</button>}<button className="li-primary" disabled={busy||blocked} onClick={()=>setAction(record.status==='conflict'?'accept_revision':'confirm')}>{record.status==='conflict'?'รับข้อมูลรุ่นนี้':'ยืนยันใช้ SN'}</button></div>}
   </footer>}
  </dialog>;
 }

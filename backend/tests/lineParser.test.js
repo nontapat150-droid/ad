@@ -1,5 +1,6 @@
 const {test}=require('node:test'); const assert=require('node:assert/strict');
 const {parseText,dateISO}=require('../line/parser');
+test('overlong references remain complete in source fields and are quarantined',()=>{const v='8'.repeat(101);const [r]=parseText('#ปิดงานติดตั้งais\nวันที่ติดตั้ง :18/10/69\nปิดเคสงาน :'+v);assert.equal(r.caseNo,'');assert.equal(r.fields[1].value,v);assert.ok(r.warnings.some(w=>w.includes('ยาวเกิน')));});
 const sample=(tag='#ปิดงานติดตั้งais')=>`${tag}\nวันที่ติดตั้ง : 18/10/69\nปิดเคสงาน : 008801\nOrder no : P0001\nชื่อ-สกุล : ลูกค้าทดสอบ\nSn ONU : : ABC001\nSn Mesh เช่า:\nหมายเหตุ : ทดสอบ\nบรรทัดต่อ\nหัวข้อใหม่ : =1+1`;
 test('4 types keep Thai dates, all source labels, blanks, unknowns and continuation',()=>{
  for(const [tag,type] of [['#ปิดงานติดตั้งais','install_ais'],['#ปิดงานติดตั้ง3bb','install_3bb'],['#ปิดงานเปลี่ยนอุปกรณ์3bb','device_3bb'],['#งานMA','ma']]){

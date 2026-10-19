@@ -17,4 +17,12 @@ test('explicit legacy return invalidates imports so stale retries never rededuct
  await s.receive([event('RETRY')]);await s.drain();
  assert.equal((await f.pool.query('SELECT status FROM inventory_items WHERE id=11'))[0][0].status,'dispatched');
 });
+test('return of a superseded effect enqueues its changed audit without reviving that revision',async()=>{
+ await s.receive([event()]);await s.drain();await s.receive([event('REV','\nหมายเหตุ : แก้ไข')]);await s.drain();
+ const [records]=await f.pool.query('SELECT * FROM line_records ORDER BY id');await s.process(records[1].id,{actorId:9,confirm:true,acceptConflict:true,expectedVersion:records[1].version});
+ const old=(await f.pool.query('SELECT * FROM line_records WHERE id=?',[records[0].id]))[0][0];await f.pool.query("UPDATE line_sheet_outbox SET state='done'");
+ await transaction(f.pool,async c=>{await lockJob(c,'office',101);await c.query("UPDATE inventory_items SET status='dispatched',quantity=1 WHERE id=11");await c.query('DELETE FROM job_used_inventory WHERE job_id=101');await invalidateEffects(c,'office',101,9);});
+ const out=(await f.pool.query('SELECT * FROM line_sheet_outbox WHERE record_id=?',[old.id]))[0][0];assert.equal(out.state,'pending');assert.equal(out.version,old.version+1);
+ assert.equal((await f.pool.query('SELECT status FROM line_records WHERE id=?',[old.id]))[0][0].status,'superseded');
+});
 

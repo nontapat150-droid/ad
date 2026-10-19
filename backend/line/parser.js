@@ -59,6 +59,7 @@ function parseText(text){
      if(!semantic[f.key]){semantic[f.key]=v;r[f.key]=v;}
     }
    }
+   for(const key of ['caseNo','orderNo','srt'])if(r[key].length>100){r.warnings.push('เลขอ้างอิงยาวเกิน 100 ตัวอักษร: '+key);r[key]='';}
    if(!r.date)r.warnings.push('วันที่งานไม่ถูกต้องหรือไม่ได้ระบุ');
    if(!r.caseNo&&!r.orderNo&&!r.srt)r.warnings.push('ไม่มีเลขเคส Order หรือ SRT');
    r.warnings=[...new Set(r.warnings)];result.push(r);
