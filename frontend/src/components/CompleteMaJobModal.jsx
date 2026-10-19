@@ -151,9 +151,7 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess, ed
       : (isAdmin && (job.assigned_user_id || job.field_engineer_id)
         ? `/inventory/my-bag?user_id=${job.assigned_user_id || job.field_engineer_id}`
         : '/inventory/my-bag');
-    const detailsPromise = editMode
-      ? api.get(`/dispatch/jobs/${job.id}/details?type=ma`).catch(() => ({ data: null }))
-      : Promise.resolve({ data: null });
+    const detailsPromise = api.get(`/dispatch/jobs/${job.id}/details?type=ma`).catch(() => ({ data: null }));
 
     Promise.all([
       api.get(bagUrl),
@@ -168,6 +166,16 @@ export default function CompleteMaJobModal({ isOpen, onClose, job, onSuccess, ed
         let noSn = all.filter((item) => !isSn(item) || !item.sn);
         const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
         const details = detailsRes?.data;
+
+        if (!editMode && details?.used_devices?.length) {
+          const previousSn = details.used_devices.filter(d => d.device_role === 'SN');
+          for (const d of previousSn) {
+            if (!sn.some(i => String(i.id) === String(d.inventory_item_id))) {
+              sn.push({ id: d.inventory_item_id, sn: d.sn, product_name: d.product_name, model_name: d.model_name, has_sn: 1, quantity: 1 });
+            }
+          }
+          setSelectedSnIds(previousSn.map(d => d.inventory_item_id));
+        }
 
         if (editMode && details) {
           setSrt(details.srt || job.srt || '');

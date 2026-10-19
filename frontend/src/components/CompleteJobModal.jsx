@@ -431,9 +431,7 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
     // Load tech / team bag (+ used devices when editing completed job)
     setBagLoading(true);
     const bagUrl = buildCompleteBagUrl(job, { isAdmin });
-    const detailsPromise = editMode
-      ? api.get(`/dispatch/jobs/${job.id}/details?type=office`).catch(() => ({ data: null }))
-      : Promise.resolve({ data: null });
+    const detailsPromise = api.get(`/dispatch/jobs/${job.id}/details?type=office`).catch(() => ({ data: null }));
 
     Promise.all([
       api.get(bagUrl),
@@ -447,6 +445,14 @@ export function CompleteJobModal({ isOpen, onClose, job, onSuccess, editMode = f
         let noSn = all.filter((item) => !isSnBagItem(item));
         const freqConfig = cfgRes?.data || { product_ids: [], roles: [] };
         const details = detailsRes?.data;
+
+        if (!editMode && details?.used_devices?.length) {
+          // LINE may already have recorded these devices before the evidence form.
+          const snOnly = details.used_devices.filter(d => ['SOA', 'ONU', 'PB', 'Mesh', 'SIM', 'Cam'].includes(d.device_role));
+          const merged = mergeUsedDevicesIntoBag(snItems, noSn, snOnly);
+          snItems = merged.sn;
+          setBagSelections(prev => ({ ...prev, ...merged.bagSelections }));
+        }
 
         if (editMode && details) {
           const parsed = parseInstallDeviceFields(details.install_device || job.install_device);

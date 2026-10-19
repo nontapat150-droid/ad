@@ -21,5 +21,10 @@ async function invalidateEffects(conn,kind,jobId,actorId){
   }
  }catch(err){if(err.code!=='ER_NO_SUCH_TABLE')throw err;}
 }
-module.exports={tableFor,lockJob,existingUsage,invalidateEffects};
+async function reuseSn(conn,options){
+ const [[item]]=await conn.query('SELECT p.has_sn FROM inventory_items i JOIN inventory_models m ON m.id=i.model_id JOIN inventory_products p ON p.id=m.product_id WHERE i.id=?',[options.itemId]);
+ if(!Number(item?.has_sn))return null;
+ return existingUsage(conn,options);
+}
+module.exports={tableFor,lockJob,existingUsage,reuseSn,invalidateEffects};
 

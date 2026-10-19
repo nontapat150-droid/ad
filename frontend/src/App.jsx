@@ -24,6 +24,7 @@ import SystemSettingsPage from './pages/SystemSettingsPage';
 import ContractorInventoryPage from './pages/ContractorInventoryPage';
 import InstalledCustomersPage from './pages/InstalledCustomersPage';
 import QualityControlPage from './pages/QualityControlPage';
+import LineImportPage from './pages/LineImportPage';
 
 // ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children, allowedRoles = [] }) {
@@ -128,6 +129,7 @@ function AppRoutes() {
         }
       />
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><InventoryDashboardPage /></ProtectedRoute>} />
+      <Route path="/line-import" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><LineImportPage /></ProtectedRoute>} />
       <Route path="/bag" element={<ProtectedRoute allowedRoles={['technician', 'ma_technician', 'contractor_office', 'contractor_ma', 'super_admin', 'admin']}><TechBagPage /></ProtectedRoute>} />
       <Route path="/entry-fee" element={<ProtectedRoute allowedRoles={['technician', 'contractor_office', 'super_admin', 'admin']}><EntryFeePage /></ProtectedRoute>} />
       <Route path="/attendance-summary" element={<ProtectedRoute allowedRoles={['super_admin', 'admin']}><AttendanceSummaryPage /></ProtectedRoute>} />

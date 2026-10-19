@@ -97,10 +97,16 @@ function createLineService({pool,config={}}){
   }
   return {errors:[...new Set(errors)],checks,techId:tech?.id||null,teamId,kind,job};
  }
- async function finish(conn,r,{actorId=null,confirm=false,reportOnly=false,automatic=false,expectedVersion,inspect=false}={}){
+ async function finish(conn,r,{actorId=null,confirm=false,reportOnly=false,automatic=false,expectedVersion,inspect=false,acceptConflict=false}={}){
   if(expectedVersion!==undefined&&r.version!==Number(expectedVersion))throw fault('ข้อมูลถูกเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
-  if(['applied','report_only','reversed','withdrawn','superseded','rejected'].includes(r.status)){if(automatic)return r;throw fault('รายการนี้ดำเนินการแล้ว',409);}
-  if(r.status==='conflict'&&!reportOnly&&!inspect)throw fault('ข้อความนี้ขัดแย้งกับรุ่นเดิม กรุณาตรวจและแก้ข้อความก่อน',409);
+  if(!inspect&&['applied','report_only','reversed','withdrawn','superseded','rejected'].includes(r.status)){if(automatic)return r;throw fault('รายการนี้ดำเนินการแล้ว',409);}
+  let previous=null;
+  if(r.status==='conflict'&&!inspect){
+   if(!acceptConflict)throw fault('ต้องเลือกรับข้อมูลรุ่นนี้อย่างชัดเจน',409);
+   const [[old]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[r.conflict_with]);previous=old;
+   const snKey=x=>parse(x.parsed_json).sns.map(s=>s.role+':'+s.sn.toUpperCase()).sort().join('|');
+   if(old&&['applied','withdrawn'].includes(old.status)&&snKey(old)!==snKey(r))throw fault('SN เปลี่ยนหลังตัดแล้ว กรุณาคืนหรือเปลี่ยนอุปกรณ์ผ่านระบบเดิมก่อน',409);
+  }
   const v=await evaluate(conn,r);
   const clean=v.checks.map(({item,...check})=>check);
   if(inspect)return {...r,parsed:parse(r.parsed_json),checks:clean,errors:v.errors};
@@ -122,6 +128,10 @@ function createLineService({pool,config={}}){
     check.result='deducted';check.logId=log.insertId;check.usageId=usage.insertId;
    }
    await conn.query("UPDATE line_records SET status='applied',version=version+1,reason=NULL,tech_id=?,team_id=?,job_kind=?,job_id=?,checks_json=?,updated_at=NOW(6) WHERE id=?",[v.techId,v.teamId,v.kind,v.job.id,JSON.stringify(v.checks.map(({item,...check})=>check)),r.id]);
+  }
+  if(previous){
+   await conn.query("UPDATE line_records SET status='superseded',version=version+1,updated_at=NOW(6) WHERE id=?",[previous.id]);
+   await audit(conn,previous.id,actorId,'superseded',{accepted:r.id});await enqueue(conn,previous.id,previous.version+1);
   }
   await audit(conn,r.id,actorId,reportOnly?'report_only':automatic?'auto_applied':'confirmed',{techId:v.techId,teamId:v.teamId,jobId:v.job?.id,checks:v.checks.map(({item,...check})=>check)});
   await enqueue(conn,r.id,r.version+1);return {...r,status:reportOnly?'report_only':'applied',version:r.version+1};
@@ -153,7 +163,18 @@ function createLineService({pool,config={}}){
   const [events]=await pool.query("SELECT event_id FROM line_events WHERE state<>'done' AND (next_attempt_at IS NULL OR next_attempt_at<=NOW(6)) ORDER BY received_at LIMIT 50");
   for(const e of events){try{await processEvent(e.event_id);}catch(err){await pool.query("UPDATE line_events SET state='retry',attempts=attempts+1,next_attempt_at=DATE_ADD(NOW(6),INTERVAL 30 SECOND),error_code=? WHERE event_id=?",[String(err.code||'PROCESSING_FAILED').slice(0,100),e.event_id]);}}
  }
- return {receive,importText,process,drain,preview:parseText,transaction:fn=>transaction(pool,fn),audit,enqueue};
+ async function revise(id,{text,userId,actorId,expectedVersion}){
+  return transaction(pool,async conn=>{
+   const [[r]]=await conn.query('SELECT * FROM line_records WHERE id=? FOR UPDATE',[id]);if(!r)throw fault('ไม่พบข้อมูล',404);
+   if(r.version!==Number(expectedVersion))throw fault('ข้อมูลถูกเปลี่ยนแล้ว กรุณาโหลดใหม่',409);
+   if(['applied','withdrawn','superseded'].includes(r.status))throw fault('แก้ข้อมูลหลังตัดแล้วโดยส่งรุ่นใหม่และตรวจการคืนผ่านระบบเดิม',409);
+   if(parseText(text).length!==1)throw fault('แก้ไขได้ครั้งละหนึ่งงาน');
+   if(r.raw_text===text&&Number(r.tech_id)===Number(userId))throw fault('ข้อมูลยังเหมือนเดิม');
+   await conn.query("UPDATE line_records SET status='superseded',version=version+1,updated_at=NOW(6) WHERE id=?",[id]);
+   const records=await createRecords(conn,{text,userId,actorId});await audit(conn,id,actorId,'revised',{next:records.map(r=>r.id)});await enqueue(conn,id,r.version+1);return records;
+  });
+ }
+ return {receive,importText,process,drain,revise,preview:parseText,transaction:fn=>transaction(pool,fn),audit,enqueue};
 }
 module.exports={createLineService,transaction,audit,enqueue,fault,parse};
 

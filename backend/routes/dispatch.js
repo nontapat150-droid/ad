@@ -1,5 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
+const { reuseSn, invalidateEffects } = require('../line/inventory');
 const { auth, requireRole } = require('../middleware/auth');
 const { upload, setUpload } = require('../middleware/upload');
 const { syncCustomerFromJob, syncMaCustomerFromJob, syncInstalledFromJob } = require('../utils/customerSync');
@@ -464,6 +465,7 @@ async function returnOfficeJobUsedInventory(conn, { jobId, accessNo, actorId, no
     }
   }
   await conn.query('DELETE FROM job_used_inventory WHERE job_id = ?', [jobId]);
+  await invalidateEffects(conn, 'office', jobId, actorId);
   return usedItems;
 }
 
@@ -501,6 +503,7 @@ async function returnMaJobUsedInventory(conn, { maJobId, accessNo, actorId, note
     }
   }
   await conn.query('DELETE FROM ma_job_used_inventory WHERE ma_job_id = ?', [maJobId]);
+  await invalidateEffects(conn, 'ma', maJobId, actorId);
   return usedItems;
 }
 
@@ -527,6 +530,12 @@ async function processUsedInventory(conn, { jobId, techId, teamId, accessNo, use
       throw new Error('เลือกอุปกรณ์ซ้ำกันในรายการ');
     }
     seenIds.add(itemId);
+
+    const previous = await reuseSn(conn, { kind: 'office', jobId, itemId, role });
+    if (previous) {
+      installParts.push({ prefix: DEVICE_ROLE_INSTALL_PREFIX[role], value: role === 'SOA' ? [previous.product_name, previous.model_name].filter(Boolean).join(' ') : previous.sn });
+      continue;
+    }
 
     const item = await lockSharedBagItem(conn, {
       itemId,
@@ -780,6 +789,12 @@ async function processMaSnItems(conn, { maJobId, techId, teamId, nonNumber, snIt
     if (!itemId) continue;
     if (seenIds.has(itemId)) throw new Error('เลือกอุปกรณ์ SN ซ้ำกันในรายการ');
     seenIds.add(itemId);
+
+    const previous = await reuseSn(conn, { kind: 'ma', jobId: maJobId, itemId });
+    if (previous) {
+      summaryParts.push([previous.product_name, previous.model_name, '(SN: ' + previous.sn + ')'].filter(Boolean).join(' '));
+      continue;
+    }
 
     const item = await lockSharedBagItem(conn, {
       itemId,
@@ -1160,7 +1175,7 @@ router.put(
 
       // 1. Fetch job & verify access
       const [[job]] = await conn.query(
-        `SELECT * FROM jobs WHERE id = ? LIMIT 1`, [jobId]
+        `SELECT * FROM jobs WHERE id = ? LIMIT 1 FOR UPDATE`, [jobId]
       );
       if (!job) { await conn.rollback(); return res.status(404).json({ error: 'Job not found' }); }
 
@@ -2986,7 +3001,7 @@ router.put(
       await conn.beginTransaction();
       await ensureMaJobSchema(conn);
 
-      const [[job]] = await conn.query(`SELECT * FROM ma_jobs WHERE id = ? LIMIT 1`, [maJobId]);
+      const [[job]] = await conn.query(`SELECT * FROM ma_jobs WHERE id = ? LIMIT 1 FOR UPDATE`, [maJobId]);
       if (!job) {
         await conn.rollback();
         return res.status(404).json({ error: 'ไม่พบงาน MA' });
@@ -4113,7 +4128,7 @@ router.put('/jobs/:id/completion-devices', auth, requireRole(ADMIN_ROLES), async
   try {
     await conn.beginTransaction();
 
-    const [[job]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1`, [jobId]);
+    const [[job]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1 FOR UPDATE`, [jobId]);
     if (!job) {
       await conn.rollback();
       return res.status(404).json({ error: 'ไม่พบงาน' });
@@ -4246,7 +4261,7 @@ router.put('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
       );
 
       if (isCompleted && bodyHasCompletionDeviceEdit(req.body)) {
-        const [[freshJob]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1`, [req.params.id]);
+        const [[freshJob]] = await conn.query(`SELECT * FROM jobs WHERE id = ? LIMIT 1 FOR UPDATE`, [req.params.id]);
         await applyOfficeCompletionDeviceFields(conn, freshJob || oldJob, req.body);
       }
 
@@ -4325,3 +4340,4 @@ router.delete('/jobs/:id', auth, requireRole(ADMIN_ROLES), async (req, res) => {
 });
 
 module.exports = router;
+

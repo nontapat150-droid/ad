@@ -50,4 +50,12 @@ test('MA deducts new only; unsend does not return stock',async()=>{
  await s.receive([e]);await s.drain();assert.equal((await row()).status,'applied');assert.equal((await f.pool.query('SELECT * FROM ma_job_used_inventory'))[0].length,1);
  await s.receive([{type:'unsend',webhookEventId:'E-UN',source:e.source,unsend:{messageId:e.message.id}}]);await s.drain();assert.equal((await row()).status,'withdrawn');assert.equal((await stock()).status,'used');
 });
+test('explicit revision acceptance keeps existing stock and rejects SN changes until return',async()=>{
+ await s.receive([event()]);await s.drain();await s.receive([event('E2','\nหมายเหตุ : แก้ชื่อ')]);await s.drain();
+ let r=(await f.pool.query('SELECT * FROM line_records ORDER BY id DESC LIMIT 1'))[0][0];
+ const result=await s.process(r.id,{actorId:9,confirm:true,acceptConflict:true,expectedVersion:r.version});assert.equal(result.status,'applied');
+ assert.equal((await f.pool.query('SELECT * FROM inventory_logs'))[0].length,1);
+ await s.receive([event('E3','\nSn Playbox : PB001')]);await s.drain();r=(await f.pool.query('SELECT * FROM line_records ORDER BY id DESC LIMIT 1'))[0][0];
+ await assert.rejects(s.process(r.id,{actorId:9,confirm:true,acceptConflict:true,expectedVersion:r.version}),/คืน.*ระบบเดิม/);
+});
 

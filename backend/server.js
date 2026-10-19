@@ -34,6 +34,8 @@ const expansionRouter = require('./routes/expansion');
 const splittersRouter = require('./routes/splitters');
 
 const app = express();
+const lineConfig = require('./line/config');
+const lineRoutes = require('./line/router').createLineRouter({ pool, config: lineConfig, auth: require('./middleware/auth').auth });
 const PORT = process.env.PORT || 3001;
 
 // ── Ensure uploads folder exists ────────────────────────────
@@ -45,6 +47,9 @@ app.use(cors({
   origin: process.env.FRONTEND_ORIGIN || 'https://bonusais.com',
   credentials: true,
 }));
+// LINE signature verification must receive the exact bytes before the JSON parser.
+app.use('/api/line/webhook', lineRoutes.webhook);
+app.use('/line/webhook', lineRoutes.webhook);
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
@@ -72,6 +77,7 @@ app.get('/health', async (req, res) => {
 
 // ── API Routes ──────────────────────────────────────────────
 const apiRouter = express.Router();
+apiRouter.use('/line-import', lineRoutes.admin);
 apiRouter.use('/auth', authRouter);
 apiRouter.use('/checkin', checkinRouter);
 apiRouter.use('/dispatch', dispatchRouter);
@@ -126,6 +132,9 @@ async function startBackgroundJobs() {
 }
 
 startBackgroundJobs();
+if (process.env.LINE_IMPORT_WORKER_ENABLED === 'true') {
+  require('./line/worker').startLineWorker({ pool, service: lineRoutes.service });
+}
 
 async function ensureAppSchema() {
   try {

@@ -101,6 +101,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       else if (key === 'checkin')       navigate('/checkin');
       else if (key === 'oil')           navigate('/oil');
       else if (key === 'inventory')     navigate('/inventory');
+      else if (key === 'line_import')   navigate('/line-import');
       else if (key === 'users')         navigate('/users');
       else if (key === 'bag')           navigate('/bag');
       else if (key === 'entry_fee')     navigate('/entry-fee');
@@ -126,6 +127,7 @@ export default function Sidebar({ open, onClose, activeKey, onNavigate, onOpenRe
       { key: 'installed_customers', label: 'ลูกค้าติดตั้งสำเร็จ', icon: InstalledIcon },
       { key: 'quality_control', label: 'ควบคุมคุณภาพ', icon: QcIcon },
       { key: 'inventory', label: 'ระบบคลัง', icon: InventoryIcon },
+      { key: 'line_import', label: 'นำเข้าข้อมูล LINE', icon: JobsIcon },
       { key: 'contractor_inventory', label: 'สรุปอุปกรณ์รับเหมา', icon: InventoryIcon },
       ...(isSuperAdmin ? [{ key: 'ma_performance', label: 'สรุปผล MA', icon: ChartBarIcon }] : []),
       { key: 'announcements', label: 'ระบบประกาศ', icon: AnnouncementsIcon },

@@ -1,5 +1,6 @@
 const express = require('express');
 const pool    = require('../config/db');
+const { reuseSn } = require('../line/inventory');
 const { auth, requireRole } = require('../middleware/auth');
 const {
   notifyInventoryDispatched,
@@ -1490,7 +1491,7 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
   
       // 1. Verify job exists
       const [[job]] = await conn.query(
-        'SELECT id, access_no, status, customer, install_device FROM jobs WHERE id = ?', 
+        'SELECT id, access_no, status, customer, install_device FROM jobs WHERE id = ? FOR UPDATE',
         [job_id]
       );
       if (!job) {
@@ -1504,6 +1505,13 @@ router.get('/contractor-summary', auth, requireRole(ADMIN_ROLES), async (req, re
       for (const reqItem of items) {
         const { item_id, quantity } = reqItem;
         if (!item_id || !quantity || quantity <= 0) continue;
+
+        const previous = await reuseSn(conn, { kind: 'office', jobId: job_id, itemId: item_id });
+        if (previous) {
+          if (Number(quantity) !== 1) throw new Error('อุปกรณ์ SN ใช้ได้ครั้งละ 1 ชิ้น');
+          usedItemsSummary.push(previous.product_name + ' SN ' + previous.sn + ' (เคยบันทึกแล้ว)');
+          continue;
+        }
 
         let used;
         try {
