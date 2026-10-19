@@ -29,6 +29,7 @@ function createLineRouter({pool,config={},auth}){
   await service.receive(body.events);res.json({ok:true});
  }));
  admin.use(auth,(req,res,next)=>{if(!(req.user?.roles||[req.user?.role]).some(r=>['admin','super_admin'].includes(r)))return res.status(403).json({error:'เฉพาะผู้ดูแลระบบ'});next();});
+ require('./desktop').mountDesktop(admin,{pool,service,handle});
  admin.get('/settings',handle(async(_req,res)=>{
   const [[mode]]=await pool.query('SELECT auto_enabled FROM line_settings WHERE id=1');
   const [groups]=await pool.query('SELECT * FROM line_groups ORDER BY source_id');

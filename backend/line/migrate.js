@@ -8,9 +8,11 @@ async function main(){
    const [columns]=await conn.query('SHOW COLUMNS FROM '+table);
    if(!columns.some(c=>c.Field==='id'&&/auto_increment/i.test(c.Extra)))throw new Error(table+'.id must be AUTO_INCREMENT before LINE import can safely write history');
   }
-  const sql=await fs.readFile(path.join(__dirname,'migration.sql'),'utf8');
-  for(const statement of sql.split(/;\s*(?:\r?\n|$)/).filter(s=>s.trim()))await conn.query(statement);
-  console.log('LINE import schema ready; auto deduction is OFF by default.');
+  for(const file of ['migration.sql','desktop-migration.sql']){
+   const sql=await fs.readFile(path.join(__dirname,file),'utf8');
+   for(const statement of sql.split(/;\s*(?:\r?\n|$)/).filter(s=>s.trim()))await conn.query(statement);
+  }
+  console.log('LINE import and desktop schemas ready; existing auto mode preserved.');
  }finally{conn.release();await pool.end();}
 }
 main().catch(e=>{console.error('LINE migration failed:',e.code||e.message);process.exitCode=1;});

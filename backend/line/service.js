@@ -191,7 +191,8 @@ function createLineService({pool,config={}}){
    const records=await createRecords(conn,{text,userId,actorId,businessKey:r.business_key});await audit(conn,id,actorId,'revised',{next:records.map(r=>r.id)});await enqueue(conn,id,r.version+1);return records;
   });
  }
- return {receive,importText,process,drain,revise,preview:parseText,transaction:fn=>transaction(pool,fn),audit,enqueue};
+ return {receive,createRecords,importText,process,drain,revise,preview:parseText,transaction:fn=>transaction(pool,fn),audit,enqueue};
 }
 module.exports={createLineService,transaction,audit,enqueue,fault,parse};
+
 
