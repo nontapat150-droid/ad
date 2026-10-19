@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/artifacts/
+**/tessdata/
+**/private-fixtures/
+*.user
+**/notes-tools/
+.build-tools/

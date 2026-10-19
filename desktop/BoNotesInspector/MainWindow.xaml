@@ -1,0 +1,11 @@
+<Window x:Class="BoNotesInspector.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="BO Notes Inspector — ทดลองตัวอ่าน" Width="960" Height="720" FontFamily="Leelawadee UI" FontSize="14" Background="#F4F6F8">
+ <DockPanel Margin="20">
+  <StackPanel DockPanel.Dock="Top">
+   <TextBlock Text="BO Notes Inspector" FontSize="27" FontWeight="Bold"/>
+   <TextBlock Text="ทดลองอ่าน Notes • เก็บในเครื่องเท่านั้น • ยังไม่นำเข้าและไม่ตัด SN" Margin="0,4,0,16"/>
+   <WrapPanel><ComboBox x:Name="WindowsBox" Width="360" DisplayMemberPath="Label"/><Button Content="ค้นหาหน้าต่าง LINE" Click="RefreshWindows" Margin="8,0" Padding="10,6"/><Button x:Name="StartButton" Content="เริ่มทดลองอ่าน 24 หน้า" Click="StartRead" Padding="12,6"/><Button Content="หยุด" Click="StopRead" Margin="8,0" Padding="12,6"/></WrapPanel>
+   <TextBlock x:Name="StatusText" Text="เปิด Notes ของกลุ่มงานใน LINE แล้วเลือกหน้าต่างก่อนเริ่ม" Margin="0,14" TextWrapping="Wrap"/>
+  </StackPanel>
+  <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox x:Name="ResultText" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0"/><ScrollViewer Grid.Column="1"><Image x:Name="EvidenceImage" Stretch="Uniform" VerticalAlignment="Top"/></ScrollViewer></Grid>
+ </DockPanel>
+</Window>
