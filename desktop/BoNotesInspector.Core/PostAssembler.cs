@@ -9,6 +9,7 @@ public sealed class PostAssembler
     private readonly Dictionary<Guid,List<(int Y,string Text,float Confidence)>> positions=[];
     private int offset;
     private string? previousFrame;
+    private bool attachmentMode;
     public IReadOnlyList<CapturedPost> Posts => posts;
     private static string WithoutMarks(string text)=>new(text.Where(c=>CharUnicodeInfo.GetUnicodeCategory(c) is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark)).ToArray());
     public static bool IsStart(string text)=>Regex.IsMatch(WithoutMarks(text).Replace(" ",""),@"^#(?:ปดงาน|งานMA)",RegexOptions.IgnoreCase);
@@ -25,19 +26,27 @@ public sealed class PostAssembler
             .Where(l=>!frame.Images.Any(b=>l.Y>=b.Top&&l.Y<b.Bottom))
             .Where(l=>!string.IsNullOrWhiteSpace(l.Text)&&!Regex.IsMatch(l.Text.Trim(),@"^(?:Notes|Albums|Search|ค้นหา|อัลบั้ม|โน้ต)$",RegexOptions.IgnoreCase))
             .OrderBy(l=>l.Y).ToList();
-        CapturedPost? current=null; var first=true;bool insideAttachments=frame.Images.Any(b=>b.Top<=160&&b.Bottom>160);
+        CapturedPost? current=null; var first=true;bool insideAttachments=attachmentMode||frame.Images.Any(b=>b.Top<=160&&b.Bottom>160);
         for(int i=0;i<lines.Count;i++)
         {
             var line=lines[i]; var value=line.Text.Trim();
             if(insideAttachments)
             {
-                if(IsStart(value))insideAttachments=false;
-                else {if(IsFooter(value)){insideAttachments=false;var prior=posts.LastOrDefault();if(prior!=null){prior.PostedText=value;if(HasVisibleTail(prior))prior.HasEnd=true;if(!prior.EvidenceIds.Contains(frame.ImageId))prior.EvidenceIds.Add(frame.ImageId);}}continue;}
+                if(IsFooter(value))
+                {
+                    insideAttachments=false;
+                    if(current!=null){current.HasEnd=true;current.PostedText=value;Finish(current,frame,first);first=false;current=null;}
+                    else {var prior=posts.LastOrDefault();if(prior!=null){prior.PostedText=value;if(HasVisibleTail(prior))prior.HasEnd=true;if(!prior.EvidenceIds.Contains(frame.ImageId))prior.EvidenceIds.Add(frame.ImageId);}}
+                    continue;
+                }
+                // A hashtag in a white section below an attachment's dark banner is not a trusted Notes boundary.
+                // Retain it as uncertain evidence text until a visible Notes footer; never mark it complete.
+                if(current==null&&!IsStart(value))continue;
             }
             if(IsStart(value))
             {
                 if(current!=null) { current.HasEnd=HasVisibleTail(current); Finish(current,frame,first); first=false; }
-                current=new(){HasStart=true,Author=i>0&&!IsFooter(lines[i-1].Text)&&line.Y-lines[i-1].Y<65&&!lines[i-1].Text.Contains(':')?lines[i-1].Text.Trim():""};
+                current=new(){HasStart=true,BoundaryUncertain=insideAttachments,Author=!insideAttachments&&i>0&&!IsFooter(lines[i-1].Text)&&line.Y-lines[i-1].Y<65&&!lines[i-1].Text.Contains(':')?lines[i-1].Text.Trim():""};
             }
             if(IsFooter(value))
             {
@@ -60,6 +69,7 @@ public sealed class PostAssembler
             {current.HasEnd=HasVisibleTail(current);Finish(current,frame,first);first=false;current=null;insideAttachments=true;}
         }
         if(current!=null)Finish(current,frame,first);
+        attachmentMode=insideAttachments;
         previousFrame=frame.ImageId;
     }
 

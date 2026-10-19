@@ -5,6 +5,12 @@ using BoNotesInspector.Capture;
 using Xunit;
 public class CaptureRegressionTests
 {
+    [Fact] public void SingleCharacterGroupChangeCannotHideInBlankHeader()
+    {
+        using var first=new Bitmap(535,878);using(var g=Graphics.FromImage(first)){g.Clear(Color.White);g.FillRectangle(Brushes.Black,150,48,120,12);}
+        using var second=(Bitmap)first.Clone();using(var g=Graphics.FromImage(second))g.FillRectangle(Brushes.Black,274,48,8,12);
+        Assert.False(HeaderIdentity.Same(first,second));Assert.True(HeaderIdentity.Same(first,first));
+    }
     [Fact] public void OcclusionInsideCapturedContentStopsButOutsideWindowDoesNot()
     {
         Assert.True(LineWindow.BlocksCapture(new(10,10,500,800),new(150,200,50,50)));

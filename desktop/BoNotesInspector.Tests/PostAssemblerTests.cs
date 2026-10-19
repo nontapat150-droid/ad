@@ -3,6 +3,12 @@ using Xunit;
 
 public class PostAssemblerTests
 {
+    [Fact] public void HashtagWithinWhiteAttachmentCannotBecomeCompleteJob()
+    {
+        var a=new PostAssembler();a.Push(F("one",0,[L("#งานMA",180),L("Non : REAL0001",220),L("หมายเหตุ :",250),L("#งานMA",370),L("Non : PHOTO0002",400),L("หมายเหตุ :",430),L("3 hours ago",500),L("B",530),L("#งานMA",570),L("Non : REAL0003",600),L("หมายเหตุ :",630)],[new(290,330)]));
+        Assert.DoesNotContain(a.Posts,p=>p.Text.Contains("PHOTO0002")&&p.Complete);
+        Assert.Contains(a.Posts,p=>p.Text.Contains("REAL0003"));
+    }
     // Catches joining two visible jobs into one and treating text inside attached photos as job fields.
     [Fact] public void AdjacentPostsStaySeparateAndPhotoTextIsNotImported()
     {

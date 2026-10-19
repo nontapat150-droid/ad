@@ -18,11 +18,11 @@ function mountDesktop(admin,{pool,service,handle}){
  admin.post('/desktop/items',handle(async(req,res)=>{
   const p=payload(req.body,service),hash=crypto.createHash('sha256').update(JSON.stringify(p)).digest('hex');
   const result=await service.transaction(async c=>{
-   const [[u]]=await c.query("SELECT id FROM users WHERE id=? AND status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma') FOR UPDATE",[p.technicianId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
    await c.query('INSERT INTO line_desktop_items(batch_id,item_id,revision,actor_id,payload_hash,metadata_json) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE batch_id=batch_id',[p.batchId,p.itemId,p.revision,req.user.id,hash,JSON.stringify(p.source)]);
    const [[old]]=await c.query('SELECT payload_hash,receipt_json FROM line_desktop_items WHERE batch_id=? AND item_id=? AND revision=? FOR UPDATE',[p.batchId,p.itemId,p.revision]);
    if(old.payload_hash!==hash)throw fault('รหัสรายการและรุ่นนี้ถูกใช้กับข้อมูลอื่นแล้ว กรุณาสร้างรุ่นใหม่และส่งออก Excel อีกครั้ง',409);
    if(old.receipt_json)return{...parse(old.receipt_json),duplicate:true};
+   const [[u]]=await c.query("SELECT id FROM users WHERE id=? AND status='approved' AND role IN ('technician','ma_technician','contractor_office','contractor_ma') FOR UPDATE",[p.technicianId]);if(!u)throw fault('ไม่พบช่างที่ใช้งานอยู่');
    // This API only creates records. It never invokes process/confirm or inventory writes.
    const records=await service.createRecords(c,{text:p.text,source:'notes_desktop',userId:p.technicianId,actorId:req.user.id});
    const receipt={batchId:p.batchId,itemId:p.itemId,revision:p.revision,records};
