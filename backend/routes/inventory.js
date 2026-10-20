@@ -63,6 +63,64 @@ router.get('/monthly-summary', auth, requireRole(ADMIN_ROLES), async (req, res) 
   }
 });
 
+// ── GET /api/inventory/equipment-holders ────────────────────────────────
+// Current equipment assigned to each technician. Optional `sn` finds an
+// individual serial number without relying on the item's historical logs.
+router.get('/equipment-holders', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  const sn = typeof req.query.sn === 'string' ? req.query.sn.trim() : '';
+  try {
+    const [holders] = await pool.query(
+      `SELECT ii.owner_id, COALESCE(NULLIF(TRIM(u.full_name), ''), u.username, 'ไม่ระบุผู้ถือ') AS owner_name,
+              t.team_name, p.name AS product_name, pm.model_name, p.unit,
+              SUM(ii.quantity) AS quantity, COUNT(*) AS item_count,
+              SUM(CASE WHEN p.has_sn = 1 THEN 1 ELSE 0 END) AS sn_count
+       FROM inventory_items ii
+       JOIN inventory_models pm ON pm.id = ii.model_id
+       JOIN inventory_products p ON p.id = pm.product_id
+       LEFT JOIN users u ON u.id = ii.owner_id
+       LEFT JOIN teams t ON t.id = COALESCE(ii.team_id, u.team_id)
+       WHERE ii.status = 'dispatched' AND ii.owner_id IS NOT NULL
+         AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+       GROUP BY ii.owner_id, u.full_name, u.username, t.team_name, p.id, p.name, pm.id, pm.model_name, p.unit
+       ORDER BY owner_name ASC, p.name ASC, pm.model_name ASC`
+    );
+
+    let snResults = [];
+    if (sn) {
+      const [rows] = await pool.query(
+        `SELECT ii.id, ii.sn, ii.quantity, ii.dispatched_at,
+                COALESCE(NULLIF(TRIM(u.full_name), ''), u.username, 'ไม่ระบุผู้ถือ') AS owner_name,
+                t.team_name, p.name AS product_name, pm.model_name, p.unit
+         FROM inventory_items ii
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         LEFT JOIN users u ON u.id = ii.owner_id
+         LEFT JOIN teams t ON t.id = COALESCE(ii.team_id, u.team_id)
+         WHERE ii.status = 'dispatched' AND ii.owner_id IS NOT NULL
+           AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+           AND ii.sn LIKE ?
+         ORDER BY ii.sn ASC, ii.dispatched_at DESC
+         LIMIT 50`,
+        [`%${sn}%`]
+      );
+      snResults = rows;
+    }
+
+    res.json({
+      holders: holders.map((row) => ({
+        ...row,
+        quantity: Number(row.quantity) || 0,
+        item_count: Number(row.item_count) || 0,
+        sn_count: Number(row.sn_count) || 0,
+      })),
+      sn_results: snResults.map((row) => ({ ...row, quantity: Number(row.quantity) || 0 })),
+    });
+  } catch (err) {
+    console.error('Equipment holders error:', err);
+    res.status(500).json({ error: 'โหลดอุปกรณ์ของช่างไม่สำเร็จ กรุณาลองใหม่' });
+  }
+});
+
 /** Backfill team_id on dispatched items from current owner (one-shot opportunistic). */
 async function syncDispatchedItemTeams(db) {
   try {

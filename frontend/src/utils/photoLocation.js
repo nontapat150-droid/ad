@@ -1,3 +1,7 @@
+const textAt = (view, offset, length) => String.fromCharCode(
+  ...new Uint8Array(view.buffer, view.byteOffset + offset, length)
+);
+
 /** Read GPS from the EXIF block of a JPEG without sending the photo anywhere. */
 export function readJpegGps(buffer) {
   try {
@@ -9,9 +13,8 @@ export function readJpegGps(buffer) {
       const marker = view.getUint8(offset + 1);
       const size = view.getUint16(offset + 2);
       if (size < 2 || offset + 2 + size > view.byteLength) break;
-      if (marker === 0xe1 && offset + 10 < view.byteLength &&
-          String.fromCharCode(...new Uint8Array(buffer, offset + 4, 4)) === 'Exif') {
-        return readExifGps(view, offset + 10, offset + 2 + size);
+      if (marker === 0xe1 && offset + 10 < view.byteLength && textAt(view, offset + 4, 4) === 'Exif') {
+        return readExifBlockGps(view, offset + 4, offset + 2 + size);
       }
       offset += size + 2;
     }
@@ -19,6 +22,57 @@ export function readJpegGps(buffer) {
     return null;
   }
   return null;
+}
+
+/** Read GPS metadata from a PNG eXIf chunk. */
+export function readPngGps(buffer) {
+  try {
+    const view = new DataView(buffer);
+    if (view.byteLength < 20 || textAt(view, 1, 3) !== 'PNG') return null;
+    let offset = 8;
+    while (offset + 12 <= view.byteLength) {
+      const size = view.getUint32(offset, false);
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + size;
+      if (dataEnd + 4 > view.byteLength) return null;
+      if (textAt(view, offset + 4, 4) === 'eXIf') return readExifBlockGps(view, dataStart, dataEnd);
+      offset = dataEnd + 4;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** Read GPS metadata from a WebP EXIF chunk. */
+export function readWebpGps(buffer) {
+  try {
+    const view = new DataView(buffer);
+    if (view.byteLength < 20 || textAt(view, 0, 4) !== 'RIFF' || textAt(view, 8, 4) !== 'WEBP') return null;
+    let offset = 12;
+    while (offset + 8 <= view.byteLength) {
+      const size = view.getUint32(offset + 4, true);
+      const dataStart = offset + 8;
+      const dataEnd = dataStart + size;
+      if (dataEnd > view.byteLength) return null;
+      if (textAt(view, offset, 4) === 'EXIF') return readExifBlockGps(view, dataStart, dataEnd);
+      offset = dataEnd + (size % 2);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function readImageGps(buffer) {
+  return readJpegGps(buffer) || readPngGps(buffer) || readWebpGps(buffer);
+}
+
+function readExifBlockGps(view, start, end) {
+  if (start + 6 <= end && textAt(view, start, 4) === 'Exif') {
+    return readExifGps(view, start + 6, end);
+  }
+  return readExifGps(view, start, end);
 }
 
 function readExifGps(view, tiff, end) {
@@ -67,8 +121,8 @@ function readExifGps(view, tiff, end) {
 }
 
 export async function readPhotoGps(file) {
-  if (!file || file.type !== 'image/jpeg') return null;
-  return readJpegGps(await file.arrayBuffer());
+  if (!file) return null;
+  return readImageGps(await file.arrayBuffer());
 }
 
 export function isThailandCoordinate(lat, lng) {

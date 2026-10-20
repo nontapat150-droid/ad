@@ -456,6 +456,9 @@ function parsePhotoMetadata(value, count) {
       const lat = parseCoord(item?.lat);
       const lng = parseCoord(item?.lng);
       if ((lat == null) !== (lng == null)) throw new Error('partial coordinates');
+      if (lat != null && (lat < 5 || lat > 21 || lng < 97 || lng > 106.5)) {
+        throw new Error('coordinates outside Thailand');
+      }
       return {
         lat,
         lng,

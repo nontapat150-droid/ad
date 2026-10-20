@@ -12,20 +12,7 @@ import Point from 'ol/geom/Point';
 import Circle from 'ol/geom/Circle';
 import LineString from 'ol/geom/LineString';
 import { Style, Fill, Stroke, Circle as CircleStyle, Text } from 'ol/style';
-
-function haversineMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
+import { haversineMeters } from '../utils/geoDistance';
 /**
  * Satellite map picker for expansion / sales.
  *
@@ -48,6 +35,7 @@ export default function ExpansionMapPicker({
   selectedSplitterId = null,
   onSelectSplitter,
   showGps = false,
+  allowManualEntry = mode !== 'sales',
 }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -58,8 +46,14 @@ export default function ExpansionMapPicker({
   const popupOverlayRef = useRef(null);
   const onPickRef = useRef(onPick);
   const onSelectSplitterRef = useRef(onSelectSplitter);
-  onPickRef.current = onPick;
-  onSelectSplitterRef.current = onSelectSplitter;
+
+  useEffect(() => {
+    onPickRef.current = onPick;
+  }, [onPick]);
+
+  useEffect(() => {
+    onSelectSplitterRef.current = onSelectSplitter;
+  }, [onSelectSplitter]);
 
   const showRadius = mode === 'basic';
   const [coordInput, setCoordInput] = useState(
@@ -69,6 +63,7 @@ export default function ExpansionMapPicker({
   const [searchError, setSearchError] = useState('');
   const [clickedCoord, setClickedCoord] = useState(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(allowManualEntry);
 
   const customerStyle = useCallback(
     () =>
@@ -245,11 +240,15 @@ export default function ExpansionMapPicker({
     const lonNum = lng != null ? Number(lng) : NaN;
     const r = Number(radiusM) || 500;
     if (Number.isFinite(latNum) && Number.isFinite(lonNum)) {
-      setCoordInput(`${latNum}, ${lonNum}`);
+      const frame = window.requestAnimationFrame(() => {
+        setCoordInput(`${latNum}, ${lonNum}`);
+      });
       drawCustomer(latNum, lonNum, r);
+      return () => window.cancelAnimationFrame(frame);
     } else {
       customerSourceRef.current.clear();
     }
+    return undefined;
   }, [lat, lng, radiusM, drawCustomer]);
 
   useEffect(() => {
@@ -321,22 +320,27 @@ export default function ExpansionMapPicker({
   return (
     <div className={`flex flex-col border border-[#E5E7EB] rounded-2xl overflow-hidden bg-white ${className}`}>
       <form onSubmit={handleSearch} className="flex flex-wrap items-start gap-2 p-3 bg-[#F9FAFB] border-b border-[#E5E7EB]">
-        <div className="flex-1 min-w-[160px]">
-          <input
-            type="text"
-            placeholder="พิกัด: 9.13, 99.33"
-            value={coordInput}
-            disabled={!selectable}
-            onChange={(e) => {
-              setCoordInput(e.target.value);
-              if (searchError) setSearchError('');
-            }}
-            className={`w-full px-3 py-2 text-sm border rounded-xl outline-none focus:ring-2 focus:ring-[#A3E635]/40 ${
-              searchError ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'
-            } disabled:opacity-60`}
-          />
-          {searchError && <p className="text-[10px] text-red-500 font-medium mt-1">{searchError}</p>}
-        </div>
+        {manualEntryOpen ? (
+          <div className="flex-1 min-w-[160px]">
+            <input
+              type="text"
+              aria-label="ใส่พิกัดเอง"
+              placeholder="พิกัด: 9.13, 99.33"
+              value={coordInput}
+              disabled={!selectable}
+              onChange={(e) => {
+                setCoordInput(e.target.value);
+                if (searchError) setSearchError('');
+              }}
+              className={`w-full px-3 py-2 text-sm border rounded-xl outline-none focus:ring-2 focus:ring-[#A3E635]/40 ${
+                searchError ? 'border-red-300 bg-red-50' : 'border-[#E5E7EB] bg-white'
+              } disabled:opacity-60`}
+            />
+            {searchError && <p className="text-[10px] text-red-500 font-medium mt-1">{searchError}</p>}
+          </div>
+        ) : (
+          <p className="flex-1 min-w-[160px] py-2 text-xs font-semibold text-slate-600">กดบนแผนที่ หรือใช้ตำแหน่งฉันได้เลย</p>
+        )}
         {showRadius && (
           <div className="relative w-[100px]">
             <input
@@ -354,7 +358,7 @@ export default function ExpansionMapPicker({
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#9CA3AF]">ม.</span>
           </div>
         )}
-        {selectable && (
+        {selectable && manualEntryOpen && (
           <button
             type="submit"
             className="px-4 py-2 text-sm font-bold rounded-xl text-[#1F2937]"
@@ -371,6 +375,15 @@ export default function ExpansionMapPicker({
             className="px-3 py-2 text-sm font-bold rounded-xl bg-sky-50 text-sky-700 border border-sky-200 disabled:opacity-60"
           >
             {gpsLoading ? 'กำลังระบุ...' : mode === 'sales' ? '⌖ ตำแหน่งฉัน' : 'GPS'}
+          </button>
+        )}
+        {selectable && !manualEntryOpen && (
+          <button
+            type="button"
+            onClick={() => setManualEntryOpen(true)}
+            className="min-h-11 px-3 py-2 text-xs font-bold rounded-xl bg-white text-slate-600 border border-slate-200"
+          >
+            ใส่พิกัดเอง
           </button>
         )}
       </form>
@@ -390,7 +403,8 @@ export default function ExpansionMapPicker({
                     setClickedCoord(null);
                     popupOverlayRef.current?.setPosition(undefined);
                   }}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="ปิดกล่องพิกัด"
+                  className="min-w-11 min-h-11 -mr-2 -mt-2 p-1 text-slate-400 hover:text-slate-600"
                 >
                   ✕
                 </button>
@@ -402,7 +416,8 @@ export default function ExpansionMapPicker({
                   onClick={() => {
                     navigator.clipboard.writeText(`${clickedCoord.lat}, ${clickedCoord.lon}`);
                   }}
-                  className="flex-1 py-1.5 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg"
+                  aria-label="คัดลอกพิกัด"
+                  className="flex-1 min-h-11 py-1.5 bg-slate-100 text-slate-700 text-[11px] font-bold rounded-lg"
                 >
                   คัดลอก
                 </button>
@@ -459,5 +474,3 @@ export default function ExpansionMapPicker({
     </div>
   );
 }
-
-export { haversineMeters };

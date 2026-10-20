@@ -5,6 +5,7 @@ import InventoryReceivePage from './InventoryReceivePage';
 import InventoryDispatchPage from './InventoryDispatchPage';
 import InventoryHistoryPage from './InventoryHistoryPage';
 import InventoryMonthlySummaryPage from './InventoryMonthlySummaryPage';
+import InventoryEquipmentHoldersPage from './InventoryEquipmentHoldersPage';
 import InventoryReturnPage from './InventoryReturnPage';
 import NotificationBell from '../components/NotificationBell';
 import ThemeToggle from '../components/ThemeToggle';
@@ -55,11 +56,13 @@ export default function InventoryDashboardPage() {
                 <button onClick={() => setActiveTab('return')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'return' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>คืนสินค้า</button>
                 <button onClick={() => setActiveTab('history')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'history' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>ประวัติรายการ</button>
                 <button onClick={() => setActiveTab('summary')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'summary' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>สรุปรายเดือน</button>
+                <button onClick={() => setActiveTab('holders')} className={`flex-1 sm:flex-none px-6 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'holders' ? 'bg-white shadow-sm text-[#1F2937]' : 'text-[#6B7280] hover:text-[#4B5563]'}`}>อุปกรณ์กับช่าง</button>
               </div>
             </div>
 
             <div className="animate-[slideUp_0.3s_ease-out]">
               {activeTab === 'summary' && <InventoryMonthlySummaryPage />}
+              {activeTab === 'holders' && <InventoryEquipmentHoldersPage />}
               {activeTab === 'stock' && <InventoryStockPage />}
               {activeTab === 'receive' && <InventoryReceivePage />}
               {activeTab === 'dispatch' && <InventoryDispatchPage />}

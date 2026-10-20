@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
-import ExpansionMapPicker, { haversineMeters } from '../components/ExpansionMapPicker';
+import ExpansionMapPicker from '../components/ExpansionMapPicker';
 import { Calendar } from '../components/ui/calendar';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,8 @@ import { getImageUrl } from '../utils/imageUtils';
 import { loadImageForCanvas } from '../utils/checkinWatermark';
 import { createSalesLocationPhoto } from '../utils/salesPhotoStamp';
 import { isThailandCoordinate, readPhotoGps } from '../utils/photoLocation';
+import { haversineMeters } from '../utils/geoDistance';
+import { locationSourceLabel, makeActiveFilterChips } from '../utils/salesUiCopy';
 
 const STATUS_META = {
   draft: { label: 'ยังไม่ไป', className: 'bg-slate-100 text-slate-700 border-slate-200' },
@@ -39,6 +41,7 @@ const NEXT_ACTIONS = {
 };
 
 const NEARBY_RADIUS_M = 3000;
+const PHOTO_UPLOAD_BATCH_SIZE = 20;
 
 const inputCls =
   'w-full px-3 py-2.5 rounded-xl border border-[#E5E7EB] bg-gradient-to-b from-white to-[#F9FAFB] text-sm font-semibold shadow-[inset_0_1px_0_#FFFFFF,0_1px_2px_rgba(0,0,0,0.03)] outline-none focus:ring-2 focus:ring-[#A3E635]/35 focus:border-[#B7E45A] disabled:opacity-60 disabled:bg-[#F9FAFB]';
@@ -264,7 +267,7 @@ function FancySelect({ value, onChange, options, disabled, placeholder = 'เล
   );
 }
 
-function FancyDatePicker({ value, onChange, disabled }) {
+function FancyDatePicker({ value, onChange, disabled, placeholder = 'เลือกวันที่ติดตั้ง' }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -286,7 +289,7 @@ function FancyDatePicker({ value, onChange, disabled }) {
         className={`${inputCls} flex items-center justify-between text-left ${open ? 'ring-2 ring-[#A3E635]/35 border-[#B7E45A]' : ''}`}
       >
         <span className={value ? 'text-[#1F2937]' : 'text-[#9CA3AF]'}>
-          {value ? prettyThaiDate(value) : 'เลือกวันที่ติดตั้ง'}
+          {value ? prettyThaiDate(value) : placeholder}
         </span>
         <svg className="w-4 h-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v3m8-3v3M4.5 9.5h15M5 4.5h14a1.5 1.5 0 011.5 1.5v13A1.5 1.5 0 0119 20.5H5A1.5 1.5 0 013.5 19V6A1.5 1.5 0 015 4.5z" />
@@ -321,12 +324,13 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
   const [geoAddress, setGeoAddress] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
   const [photoProcessing, setPhotoProcessing] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(null);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
   const isEdit = Boolean(job?.id);
   const locked = job?.status === 'handed_off';
 
-  const totalPhotos = photos.length + pendingFiles.length;
+  const selectedSplitter = nearby.find((splitter) => Number(splitter.id) === Number(form.splitter_id));
   const stepMeta = [
     { id: 1, label: 'ข้อมูลลูกค้า' },
     { id: 2, label: 'หน้างาน/พิกัด' },
@@ -397,6 +401,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
         setPhotos([]);
       }
       setPendingFiles([]);
+      setPhotoProgress(null);
       setPendingPreviews((prev) => {
         prev.forEach((u) => URL.revokeObjectURL(u));
         return [];
@@ -548,8 +553,13 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
     if (photoProcessing) return;
     const take = files;
     setPhotoProcessing(true);
+    setPhotoProgress({ phase: 'กำลังเตรียมรูป', done: 0, total: take.length });
     try {
-      const gpsFromPhoto = await Promise.all(take.map(readPhotoGps));
+      const gpsFromPhoto = [];
+      for (const [index, file] of take.entries()) {
+        gpsFromPhoto.push(await readPhotoGps(file));
+        setPhotoProgress({ phase: 'กำลังเตรียมรูป', done: index + 1, total: take.length });
+      }
       const photoCoords = gpsFromPhoto.find((coords) => coords && isThailandCoordinate(coords.lat, coords.lng));
       let location;
       if (photoCoords) {
@@ -600,8 +610,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
       const urls = stamped.map(({ file }) => URL.createObjectURL(file));
       setPendingFiles((prev) => [...prev, ...stamped]);
       setPendingPreviews((prev) => [...prev, ...urls]);
+      setPhotoProgress({ phase: 'พร้อมบันทึก', done: take.length, total: take.length });
     } catch (err) {
       Swal.fire({ icon: 'warning', title: 'เพิ่มรูปพร้อมตำแหน่งไม่สำเร็จ', text: err.message });
+      setPhotoProgress(null);
     } finally {
       setPhotoProcessing(false);
     }
@@ -634,19 +646,34 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
   const uploadPending = async (expansionId) => {
     if (!pendingFiles.length) return;
-    const fd = new FormData();
-    pendingFiles.forEach(({ file }) => fd.append('images', file));
-    fd.append('photo_metadata', JSON.stringify(pendingFiles.map(({ metadata }) => metadata)));
-    const { data } = await api.post(`/expansion/${expansionId}/photos`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    setPhotos(data.photos || []);
-    setPendingPreviews((prev) => {
-      prev.forEach((u) => URL.revokeObjectURL(u));
-      return [];
-    });
-    setPendingFiles([]);
-    return data.photo_count;
+    const queue = [...pendingFiles];
+    const previews = [...pendingPreviews];
+    let photoCount = photos.length;
+    const total = queue.length;
+    let uploaded = 0;
+    setPhotoProgress({ phase: 'กำลังอัปโหลดรูป', done: uploaded, total });
+
+    while (queue.length) {
+      const batch = queue.slice(0, PHOTO_UPLOAD_BATCH_SIZE);
+      const fd = new FormData();
+      batch.forEach(({ file }) => fd.append('images', file));
+      fd.append('photo_metadata', JSON.stringify(batch.map(({ metadata }) => metadata)));
+      const { data } = await api.post(`/expansion/${expansionId}/photos`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      photoCount = data.photo_count ?? photoCount + batch.length;
+      uploaded += batch.length;
+      setPhotos(data.photos || []);
+      queue.splice(0, batch.length);
+      previews.splice(0, batch.length).forEach((url) => URL.revokeObjectURL(url));
+      setPendingFiles([...queue]);
+      setPendingPreviews([...previews]);
+      setPhotoProgress({ phase: 'กำลังอัปโหลดรูป', done: uploaded, total });
+    }
+
+    setPhotoProgress({ phase: 'อัปโหลดแล้ว', done: total, total });
+
+    return photoCount;
   };
 
   const validateClient = () => {
@@ -762,7 +789,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E7EB] shrink-0">
           <div>
             <h3 className="font-black text-[#1F2937] text-lg">
-              {isEdit ? `แก้ไขงานขาย #${job.id}` : 'สร้างงานขายใหม่'}
+              {locked ? `ดูงานขาย #${job.id}` : isEdit ? `แก้ไขงานขาย #${job.id}` : 'สร้างงานขายใหม่'}
             </h3>
             {isEdit && (
               <div className="mt-1">
@@ -797,6 +824,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
           {step === 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <p className="text-sm font-black text-slate-800">ข้อมูลลูกค้า</p>
+              <p className="mt-0.5 text-xs text-slate-500">กรอกเท่าที่มี ทุกช่องข้ามได้</p>
+            </div>
             <Field label="ประเภทลูกค้า">
               <FancySelect
                 disabled={locked}
@@ -824,6 +855,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               <Field label="ที่อยู่ติดตั้ง">
                 <textarea disabled={locked} value={form.address} onChange={(e) => setField('address', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
               </Field>
+            </div>
+            <div className="sm:col-span-2 border-t border-slate-100 pt-3">
+              <p className="text-sm font-black text-slate-800">ข้อมูลติดตั้ง</p>
+              <p className="mt-0.5 text-xs text-slate-500">ใส่เพิ่มเมื่อมีข้อมูล</p>
             </div>
             <Field label="แพ็กเกจ">
               <input disabled={locked} value={form.package_name} onChange={(e) => setField('package_name', e.target.value)} className={inputCls} />
@@ -854,10 +889,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
             <Field label="หมายเหตุวันติดตั้ง">
               <input disabled={locked} value={form.install_date_text} onChange={(e) => setField('install_date_text', e.target.value)} className={inputCls} placeholder="เช่น รอลูกค้ายืนยันวัน" />
             </Field>
-            <Field label="เลข NON (ถ้ามี)">
+            <Field label="NON (เลขงาน) (ถ้ามี)">
               <input disabled={locked} value={form.non_number} onChange={(e) => setField('non_number', e.target.value)} className={inputCls} placeholder="เช่น NON12345678" />
             </Field>
-            <Field label="Access Number (ถ้ามี)">
+            <Field label="Access (เลข Access) (ถ้ามี)">
               <input disabled={locked} value={form.access_no} onChange={(e) => setField('access_no', e.target.value)} className={inputCls} placeholder="เช่น 880xxxxxxx" />
             </Field>
             <Field label="พนักงานขาย">
@@ -880,7 +915,8 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               <input disabled={locked} value={form.pair_line} onChange={(e) => setField('pair_line', e.target.value)} className={inputCls} />
             </Field>
             <div className="sm:col-span-2 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
-              <p className="text-xs font-black text-sky-800 mb-3">นัดติดตามลูกค้า</p>
+              <p className="text-xs font-black text-sky-800 mb-1">นัดติดตามลูกค้า</p>
+              <p className="text-[11px] text-sky-700 mb-3">ยังไม่ได้นัด ข้ามส่วนนี้ได้</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="วันที่ติดตาม">
                   <FancyDatePicker disabled={locked} value={form.follow_up_at} onChange={(v) => setField('follow_up_at', v)} />
@@ -914,6 +950,10 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
 
           {step === 2 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <p className="text-sm font-black text-slate-800">ข้อมูลหน้างาน</p>
+              <p className="mt-0.5 text-xs text-slate-500">กรอกเท่าที่มี ทุกช่องข้ามได้</p>
+            </div>
             <div className="sm:col-span-2">
               <Field label="หมายเหตุการขาย">
                 <textarea disabled={locked} value={form.sales_note} onChange={(e) => setField('sales_note', e.target.value)} rows={2} className={`${inputCls} resize-none`} />
@@ -948,8 +988,8 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className={labelCls}>พิกัดบ้าน + Splitter</p>
-                <p className="text-xs text-[#6B7280]">ไม่ต้องระบุพิกัดก็ได้ — เมื่อมีพิกัด ระบบจะเลือก Splitter ที่ใกล้ที่สุดและคำนวณระยะเส้นตรงให้อัตโนมัติ</p>
+                <p className={labelCls}>ตำแหน่งบ้านและ Splitter (จุดกระจายสาย)</p>
+                <p className="text-xs text-[#6B7280]">เจอพิกัดในรูปได้ หรือใช้ตำแหน่งฉัน กดแผนที่ หรือใส่พิกัดเองก็ได้</p>
               </div>
               {locationLoading && <span className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-[11px] font-bold text-sky-700">กำลังค้นหาที่อยู่...</span>}
             </div>
@@ -961,6 +1001,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               height="280px"
               splitters={nearby}
               selectedSplitterId={form.splitter_id}
+              allowManualEntry={false}
               onSelectSplitter={selectSplitter}
               onPick={({ lat, lng, source }) => {
                 applyLocation(lat, lng, source === 'gps' ? 'current_gps' : source || 'map').catch((err) => {
@@ -970,8 +1011,12 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
             />
             {form.lat != null && form.lng != null && (
               <div className="mt-2 rounded-xl border border-lime-200 bg-lime-50/70 p-3 text-xs text-lime-900">
-                <p className="font-black">บ้าน: {Number(form.lat).toFixed(6)}, {Number(form.lng).toFixed(6)}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-black">มีพิกัดบ้านแล้ว</p>
+                  <span className="rounded-full border border-lime-300 bg-white px-2 py-0.5 text-[10px] font-black">{locationSourceLabel(form.geo_source)}</span>
+                </div>
                 <p className="mt-1 leading-relaxed">{geoAddress || form.geo_address || 'กำลังค้นหาบ้านเลขที่ ตำบล อำเภอ จังหวัดจากพิกัด...'}</p>
+                {selectedSplitter && <p className="mt-1 font-semibold">Splitter ที่ใกล้สุด: {selectedSplitter.code || selectedSplitter.name || `#${selectedSplitter.id}`}{form.straight_distance_m ? ` · ${Math.round(Number(form.straight_distance_m))} ม.` : ''}</p>}
               </div>
             )}
           </div>
@@ -983,36 +1028,41 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               <p className={labelCls}>
                 รูปภาพ
                 <span className="normal-case font-semibold text-[#9CA3AF] ml-1">
-                  ({totalPhotos} รูป)
+                  (บันทึกแล้ว {photos.length} · พร้อมบันทึก {pendingFiles.length})
                 </span>
               </p>
               {!locked && (
                 <div className="flex flex-wrap justify-end gap-2">
-                  <button type="button" disabled={photoProcessing || saving} onClick={() => cameraRef.current?.click()} className="min-h-9 rounded-lg border border-lime-300 bg-lime-50 px-3 text-xs font-black text-lime-800 disabled:opacity-60">
+                  <button type="button" disabled={photoProcessing || saving} onClick={() => cameraRef.current?.click()} className="min-h-11 rounded-lg border border-lime-300 bg-lime-50 px-3 text-xs font-black text-lime-800 disabled:opacity-60">
                     ◉ ถ่ายรูปหน้าบ้าน
                   </button>
-                  <button type="button" disabled={photoProcessing || saving} onClick={() => fileRef.current?.click()} className="min-h-9 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-3 text-xs font-bold disabled:opacity-60">
+                  <button type="button" disabled={photoProcessing || saving} onClick={() => fileRef.current?.click()} className="min-h-11 rounded-lg border border-[#E5E7EB] bg-[#F3F4F6] px-3 text-xs font-bold disabled:opacity-60">
                     + อัปโหลดรูป
                   </button>
                 </div>
               )}
             </div>
             <div className="mb-3 rounded-2xl border border-sky-200 bg-sky-50/70 p-3 text-xs leading-relaxed text-sky-900">
-              {photoProcessing
-                ? 'กำลังอ่านพิกัด ประทับข้อมูลบนรูป และเตรียมไฟล์...'
-                : 'เพิ่มรูปได้ไม่จำกัด · รูป JPEG จะอ่าน GPS จากภาพก่อน หากไม่มีพิกัด ระบบจะขอตำแหน่งปัจจุบัน แต่ยังเพิ่มรูปได้แม้ไม่อนุญาตตำแหน่ง'}
+              {photoProcessing || photoProgress?.phase === 'กำลังอัปโหลดรูป'
+                ? `${photoProgress?.phase || 'กำลังเตรียมรูป'} ${photoProgress ? `${photoProgress.done}/${photoProgress.total}` : ''}`
+                : photoProgress?.phase === 'พร้อมบันทึก'
+                  ? `พร้อมบันทึก ${pendingFiles.length} รูป`
+                  : photoProgress?.phase === 'อัปโหลดแล้ว'
+                    ? `อัปโหลดแล้ว ${photos.length} รูป`
+                  : 'เพิ่มรูปได้ไม่จำกัด · JPEG, PNG และ WebP จะอ่านพิกัดในรูปก่อน ถ้าไม่เจอ ระบบจะขอตำแหน่งฉัน แต่เพิ่มรูปได้แม้ไม่อนุญาตตำแหน่ง'}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPickFiles(e, 'upload')} />
-            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPickFiles(e, 'camera')} />
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={(e) => onPickFiles(e, 'upload')} />
+            <input ref={cameraRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" capture="environment" className="hidden" onChange={(e) => onPickFiles(e, 'camera')} />
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {photos.map((p) => (
                 <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-[#E5E7EB] bg-[#F3F4F6]">
-                  <img src={resolveImageUrl(p.image_path)} alt="" className="w-full h-full object-cover" />
+                  <img src={resolveImageUrl(p.image_path)} alt={`รูปหน้าบ้าน ${p.id}`} className="w-full h-full object-cover" />
                   {!locked && (
                     <button
                       type="button"
                       onClick={() => removeSavedPhoto(p.id)}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs"
+                      aria-label={`ลบรูปที่บันทึกแล้ว ${p.id}`}
+                      className="absolute top-1 right-1 min-w-11 min-h-11 rounded-full bg-black/60 text-white text-xs"
                     >
                       ✕
                     </button>
@@ -1021,7 +1071,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
               ))}
               {pendingPreviews.map((url, idx) => (
                 <div key={`p-${idx}`} className="relative aspect-square rounded-xl overflow-hidden border border-amber-200 bg-amber-50">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  <img src={url} alt={`รูปที่พร้อมบันทึก ${idx + 1}`} className="w-full h-full object-cover" />
                   {pendingFiles[idx]?.metadata?.lat != null && (
                     <span className="absolute left-1 bottom-1 rounded-md bg-[#1F2937]/80 px-1.5 py-0.5 text-[9px] font-black text-[#A3E635]">GPS</span>
                   )}
@@ -1030,7 +1080,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                       type="button"
                       onClick={() => removePending(idx)}
                       aria-label={`ลบรูปที่ ${idx + 1}`}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white text-xs"
+                      className="absolute top-1 right-1 min-w-11 min-h-11 rounded-full bg-black/60 text-white text-xs"
                     >
                       ✕
                     </button>
@@ -1078,7 +1128,7 @@ function ExpansionFormModal({ open, job, onClose, onSaved, isAdmin, salesName, s
                   className="flex-1 py-3 rounded-xl font-bold text-sm text-[#1F2937] disabled:opacity-60"
                   style={{ background: 'linear-gradient(135deg,#A3E635,#84cc16)' }}
                 >
-                  {saving ? 'กำลังบันทึก...' : photoProcessing ? 'กำลังเตรียมรูป...' : 'บันทึก'}
+                  {saving ? 'กำลังบันทึก...' : photoProcessing ? 'กำลังเตรียมรูป...' : 'บันทึกงาน'}
                 </button>
               )}
             </>
@@ -1509,23 +1559,23 @@ function installationStatusMeta(job) {
 }
 
 const HISTORY_ACTION_LABELS = {
-  created: 'สร้างงานขาย',
+  created: 'สร้างงาน',
   updated: 'แก้ไขข้อมูล',
   status_changed: 'เปลี่ยนสถานะ',
   assigned: 'เปลี่ยนผู้รับผิดชอบ',
-  handed_off: 'ส่งต่องานติดตั้ง',
-  photos_added: 'เพิ่มรูปภาพ',
-  photo_deleted: 'ลบรูปภาพ',
+  handed_off: 'ส่งงานติดตั้ง',
+  photos_added: 'เพิ่มรูป',
+  photo_deleted: 'ลบรูป',
 };
 
 const HISTORY_FIELD_LABELS = {
   customer_name: 'ชื่อลูกค้า', phone: 'เบอร์โทร', address: 'ที่อยู่', package_name: 'แพ็กเกจ',
-  contract_info: 'สัญญา', occupation: 'อาชีพ/ผู้ติดต่อ', access_no: 'Access Number',
-  non_number: 'เลข NON', follow_up_at: 'วันติดตาม', follow_up_time: 'เวลาติดตาม',
+  contract_info: 'สัญญา', occupation: 'อาชีพ/ผู้ติดต่อ', access_no: 'Access (เลข Access)',
+  non_number: 'NON (เลขงาน)', follow_up_at: 'วันติดตาม', follow_up_time: 'เวลาติดตาม',
   follow_up_channel: 'ช่องทางติดตาม', follow_up_note: 'รายละเอียดติดตาม', status: 'สถานะ',
   owner_user_id: 'ผู้รับผิดชอบ', install_date: 'วันติดตั้ง', install_date_text: 'หมายเหตุวันติดตั้ง',
   sales_note: 'หมายเหตุการขาย', tech_note: 'หมายเหตุถึงช่าง', pair_line: 'คู่สาย',
-  estimated_cable_m: 'ระยะสาย', splitter_id: 'Splitter', approval_request: 'คำขออนุมัติ',
+  estimated_cable_m: 'ระยะสาย', splitter_id: 'Splitter (จุดกระจายสาย)', approval_request: 'คำขออนุมัติ',
 };
 
 function SalesHistoryModal({ job, onClose }) {
@@ -1552,7 +1602,7 @@ function SalesHistoryModal({ job, onClose }) {
             <h3 className="font-black text-slate-800">ประวัติงานขาย #{job.id}</h3>
             <p className="text-xs text-slate-500 truncate">{job.customer_name}</p>
           </div>
-          <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600">✕</button>
+          <button type="button" onClick={onClose} aria-label="ปิดประวัติงานขาย" className="w-11 h-11 rounded-xl bg-slate-100 text-slate-600">✕</button>
         </div>
         <div className="overflow-y-auto p-4">
           {loading ? (
@@ -1696,7 +1746,7 @@ function SalesAnalyticsPanel({ isAdmin, salesUsers }) {
               {salesUsers.map((sales) => <option key={sales.id} value={sales.id}>{sales.full_name || sales.username}</option>)}
             </select>
           )}
-          <button type="button" onClick={exportReport} className="px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700">Export รายงาน</button>
+          <button type="button" onClick={exportReport} className="min-h-11 px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700">ดาวน์โหลด Excel</button>
         </div>
       </div>
 
@@ -1704,8 +1754,8 @@ function SalesAnalyticsPanel({ isAdmin, salesUsers }) {
         {[
           ['ลูกค้าใหม่', metrics.leads, 'bg-white border-slate-200 text-slate-800'],
           ['ปิดการขาย', metrics.won, 'bg-emerald-50 border-emerald-200 text-emerald-800'],
-          ['Conversion', `${metrics.conversion_rate || 0}%`, 'bg-lime-50 border-lime-200 text-lime-800'],
-          ['เฉลี่ยก่อนปิด', `${metrics.avg_days_to_win || 0} วัน`, 'bg-sky-50 border-sky-200 text-sky-800'],
+          ['อัตราปิดได้', `${metrics.conversion_rate || 0}%`, 'bg-lime-50 border-lime-200 text-lime-800'],
+          ['ใช้เวลาก่อนปิดเฉลี่ย', `${metrics.avg_days_to_win || 0} วัน`, 'bg-sky-50 border-sky-200 text-sky-800'],
         ].map(([label, value, tone]) => (
           <div key={label} className={`rounded-2xl border p-4 ${tone}`}>
             <p className="text-[11px] font-bold opacity-70">{label}</p>
@@ -1732,7 +1782,7 @@ function SalesAnalyticsPanel({ isAdmin, salesUsers }) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-black text-slate-800 mb-3">สถานะหลังส่งมอบงานติดตั้ง</h3>
+          <h3 className="text-sm font-black text-slate-800 mb-3">สถานะงานติดตั้ง</h3>
           <div className="grid grid-cols-2 gap-2">
             {[
               ['รอแอดมินมอบหมาย', data?.installation?.waiting_assignment, 'text-amber-700 bg-amber-50 border-amber-200'],
@@ -1913,7 +1963,7 @@ export default function AisExpansionPage() {
   const handleHandoff = async (job) => {
     const { value: accessNo } = await Swal.fire({
       title: 'ส่งต่องานติดตั้ง',
-      html: '<p class="text-sm text-left text-slate-600 mb-2">กรอก Access Number เพื่อสร้างงานในระบบแจกจ่ายงาน</p>',
+      html: '<p class="text-sm text-left text-slate-600 mb-2">ใส่เลข Access เพื่อส่งงานไปให้ทีมติดตั้ง</p>',
       input: 'text',
       inputValue: job.access_no || '',
       inputPlaceholder: '880xxxxxxx',
@@ -1921,7 +1971,7 @@ export default function AisExpansionPage() {
       confirmButtonText: 'ส่งต่อติดตั้ง',
       cancelButtonText: 'ยกเลิก',
       confirmButtonColor: '#185FA5',
-      inputValidator: (v) => (!v?.trim() ? 'ต้องมี Access Number' : undefined),
+      inputValidator: (v) => (!v?.trim() ? 'ใส่เลข Access ก่อน' : undefined),
     });
     if (!accessNo) return;
 
@@ -2017,7 +2067,7 @@ export default function AisExpansionPage() {
       }
       Swal.close();
       if (!allJobs.length) {
-        Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายสำหรับ Export' });
+        Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่มีรายการงานขายให้ดาวน์โหลด' });
         return;
       }
       const rows = buildExpansionExportRows(allJobs, { isAdmin });
@@ -2029,11 +2079,41 @@ export default function AisExpansionPage() {
       const scopeLabel = viewTab === 'done' ? 'done' : 'open';
       XLSX.writeFile(wb, `sales_jobs_${scopeLabel}_${day}.xlsx`);
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Export ไม่สำเร็จ', text: err.response?.data?.error || err.message });
+      Swal.fire({ icon: 'error', title: 'ดาวน์โหลดไม่สำเร็จ', text: err.response?.data?.error || err.message });
     }
   };
 
   const displayedJobs = jobs;
+  const ownerName = salesUsers.find((sales) => String(sales.id) === String(ownerFilter))?.full_name
+    || salesUsers.find((sales) => String(sales.id) === String(ownerFilter))?.username
+    || '';
+  const followUpLabels = {
+    today: 'วันนี้',
+    overdue: 'เลยวันนัด',
+    scheduled: 'มีนัด',
+  };
+  const activeFilterChips = makeActiveFilterChips({
+    search,
+    status: statusFilter,
+    followUp: followFilter,
+    ownerName,
+    dateFrom: dateFrom ? prettyThaiDate(dateFrom) : '',
+    dateTo: dateTo ? prettyThaiDate(dateTo) : '',
+    packageName: packageFilter.trim(),
+    statusLabel: STATUS_META[statusFilter]?.label,
+    followUpLabel: followUpLabels[followFilter],
+  });
+  const clearFilters = () => {
+    setPage(1);
+    setStatusFilter('');
+    setFollowFilter('');
+    setOwnerFilter('');
+    setDateFrom('');
+    setDateTo('');
+    setPackageFilter('');
+    setSearchInput('');
+    setSearch('');
+  };
 
   return (
     <Layout activeKey="ais_expansion" pageTitle="ระบบงานขาย / งานขยาย" manualPage="ais_expansion">
@@ -2090,7 +2170,7 @@ export default function AisExpansionPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-lg font-black text-[#1F2937]">งานขายของ{isAdmin ? 'ทีม' : 'ฉัน'}</h2>
-                  <p className="text-xs text-[#6B7280] mt-0.5">ลงขาย · วัดระยะประมาณจาก Splitter · อัปโหลดรูป</p>
+                  <p className="text-xs text-[#6B7280] mt-0.5">สร้างงาน · ดูจุด Splitter ที่ใกล้บ้าน · เพิ่มรูป</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -2098,7 +2178,7 @@ export default function AisExpansionPage() {
                     onClick={handleExportExcel}
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border border-[#D1D5DB] text-[#1F2937] bg-white hover:bg-[#F9FAFB]"
                   >
-                    Export Excel
+                    ดาวน์โหลด Excel
                   </button>
                   <button
                     type="button"
@@ -2174,29 +2254,27 @@ export default function AisExpansionPage() {
                     <option value="">พนักงานขายทั้งหมด</option>
                     {salesUsers.map((sales) => <option key={sales.id} value={sales.id}>{sales.full_name || sales.username}</option>)}
                   </select>
-                ) : (
-                  <button type="button" onClick={() => { setPage(1); setStatusFilter(''); setFollowFilter(''); setDateFrom(''); setDateTo(''); setPackageFilter(''); setSearchInput(''); setSearch(''); }} className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">ล้างตัวกรอง</button>
-                )}
+                ) : null}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-                <label className="text-[10px] font-bold text-slate-500">สร้างตั้งแต่
-                  <input type="date" value={dateFrom} onChange={(e) => { setPage(1); setDateFrom(e.target.value); }} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
-                </label>
-                <label className="text-[10px] font-bold text-slate-500">ถึงวันที่
-                  <input type="date" value={dateTo} onChange={(e) => { setPage(1); setDateTo(e.target.value); }} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
-                </label>
+                <div className="text-[10px] font-bold text-slate-500">วันสร้าง (เริ่ม)
+                  <div className="mt-1"><FancyDatePicker value={dateFrom} placeholder="เลือกวันเริ่ม" onChange={(value) => { setPage(1); setDateFrom(value); }} /></div>
+                </div>
+                <div className="text-[10px] font-bold text-slate-500">วันสร้าง (จบ)
+                  <div className="mt-1"><FancyDatePicker value={dateTo} placeholder="เลือกวันจบ" onChange={(value) => { setPage(1); setDateTo(value); }} /></div>
+                </div>
                 <label className="text-[10px] font-bold text-slate-500">แพ็กเกจ
                   <input value={packageFilter} onChange={(e) => { setPage(1); setPackageFilter(e.target.value); }} placeholder="ชื่อแพ็กเกจแบบตรงกัน" className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700" />
                 </label>
               </div>
-              {(search || statusFilter || followFilter || ownerFilter || dateFrom || dateTo || packageFilter) && (
-                <button
-                  type="button"
-                  onClick={() => { setPage(1); setStatusFilter(''); setFollowFilter(''); setOwnerFilter(''); setDateFrom(''); setDateTo(''); setPackageFilter(''); setSearchInput(''); setSearch(''); }}
-                  className="mt-2 text-[11px] font-bold text-slate-500 underline underline-offset-2"
-                >
-                  ล้างการค้นหาและตัวกรองทั้งหมด
-                </button>
+              {activeFilterChips.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="ตัวกรองที่เลือก">
+                  <span className="text-[11px] font-black text-slate-500">กำลังดู:</span>
+                  {activeFilterChips.map((chip) => (
+                    <span key={chip.key} className="rounded-full border border-lime-200 bg-lime-50 px-2.5 py-1 text-[11px] font-bold text-lime-900">{chip.label}</span>
+                  ))}
+                  <button type="button" onClick={clearFilters} className="min-h-8 rounded-lg px-2 text-[11px] font-black text-slate-600 underline underline-offset-2">ล้างทั้งหมด</button>
+                </div>
               )}
 
             </div>
@@ -2264,7 +2342,7 @@ export default function AisExpansionPage() {
                         )}
                         {(job.estimated_cable_m != null || job.splitter_code || job.splitter_name) && (
                           <p className="text-xs font-semibold text-amber-700 mt-1">
-                            {job.splitter_code || job.splitter_name || 'Splitter'}
+                            Splitter: {job.splitter_code || job.splitter_name || 'ยังไม่เลือก'}
                             {job.estimated_cable_m != null ? ` · ประมาณ ${job.estimated_cable_m} ม.` : ''}
                             {job.photo_count != null ? ` · รูป ${job.photo_count}` : ''}
                           </p>
@@ -2280,12 +2358,14 @@ export default function AisExpansionPage() {
                           </div>
                         )}
                       </div>
-                      <div className="text-right shrink-0">
-                        {job.lat != null && job.lng != null && (
-                          <p className="text-[10px] font-mono text-[#9CA3AF]">
-                            {Number(job.lat).toFixed(4)}, {Number(job.lng).toFixed(4)}
-                          </p>
-                        )}
+                      <div className="shrink-0">
+                        <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black ${
+                          job.lat != null && job.lng != null
+                            ? 'border-lime-200 bg-lime-50 text-lime-800'
+                            : 'border-slate-200 bg-slate-50 text-slate-500'
+                        }`}>
+                          {job.lat != null && job.lng != null ? 'มีพิกัด' : 'ยังไม่มีพิกัด'}
+                        </span>
                       </div>
                     </div>
 
