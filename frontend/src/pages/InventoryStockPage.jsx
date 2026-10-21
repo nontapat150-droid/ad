@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 import CategoryManagementModal from '../components/CategoryManagementModal';
 import { AppSelectField } from '../components/DispatchFilterFields';
+import { buildInventoryExportSheets } from '../utils/inventoryExport';
 
 export default function InventoryStockPage() {
   const [loading, setLoading] = useState(false);
@@ -11,7 +13,8 @@ export default function InventoryStockPage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [expandedCategories, setExpandedCategories] = useState({});
-    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchStock();
@@ -36,6 +39,34 @@ export default function InventoryStockPage() {
       console.error('Failed to load stock overview', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportInventory = async () => {
+    setExporting(true);
+    try {
+      const { data } = await axios.get('/inventory/export-data');
+      const workbook = XLSX.utils.book_new();
+
+      buildInventoryExportSheets(data).forEach(({ name, rows }) => {
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const headers = Object.keys(rows[0] || {});
+        worksheet['!cols'] = headers.map((header) => ({ wch: Math.max(14, Math.min(28, header.length + 10)) }));
+        XLSX.utils.book_append_sheet(workbook, worksheet, name);
+      });
+
+      const date = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `รายงานคลังสินค้า_${date}.xlsx`);
+      Swal.fire({ icon: 'success', title: 'ดาวน์โหลด Excel แล้ว', showConfirmButton: false, timer: 1500 });
+    } catch (err) {
+      console.error('Failed to export inventory', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดไม่สำเร็จ',
+        text: err.response?.data?.error || 'ไม่สามารถเตรียมไฟล์ได้ กรุณาลองใหม่',
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -756,7 +787,22 @@ export default function InventoryStockPage() {
           </div>
         </div>
         
-        <div className="flex gap-3 w-full sm:w-auto">
+        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleExportInventory}
+              disabled={exporting}
+              className="h-11 px-4 rounded-xl border border-[#D9F99D] bg-[#F7FEE7] text-[#4D7C0F] hover:bg-[#ECFCCB] disabled:opacity-60 font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2 whitespace-nowrap"
+              title="ดาวน์โหลด Excel แยกสินค้าในคลัง ใช้แล้ว และอยู่กับช่าง"
+              aria-label="ดาวน์โหลด Excel แยกสินค้าในคลัง ใช้แล้ว และอยู่กับช่าง"
+            >
+              {exporting ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v4m0 8v4m8-8h-4M8 12H4m13.657-5.657-2.828 2.828M9.172 14.828l-2.829 2.829m11.314 0-2.828-2.829M9.172 9.172 6.343 6.343" /></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4m-5 7v2a1 1 0 001 1h16a1 1 0 001-1v-2" /></svg>
+              )}
+              <span>{exporting ? 'กำลังเตรียมไฟล์...' : 'ดาวน์โหลด Excel'}</span>
+            </button>
             <button
               onClick={() => setIsCategoryModalOpen(true)}
               className="px-4 py-2.5 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100 hover:bg-indigo-100 transition-colors shadow-sm whitespace-nowrap hidden sm:flex items-center gap-2"

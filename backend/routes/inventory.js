@@ -121,6 +121,61 @@ router.get('/equipment-holders', auth, requireRole(ADMIN_ROLES), async (req, res
   }
 });
 
+// ── GET /api/inventory/export-data ─────────────────────────────────────
+// The browser creates the Excel file so this route only returns the three
+// current/history views needed for its worksheets.
+router.get('/export-data', auth, requireRole(ADMIN_ROLES), async (req, res) => {
+  try {
+    const [inStockResult, usedResult, withTechnicianResult] = await Promise.all([
+      pool.query(
+        `SELECT ii.id, ii.sn, ii.quantity, ii.created_at,
+                COALESCE(NULLIF(TRIM(p.category), ''), 'ไม่ระบุ') AS category,
+                p.name AS product_name, pm.model_name, p.unit
+         FROM inventory_items ii
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         WHERE ii.status = 'in_stock'
+         ORDER BY p.name ASC, pm.model_name ASC, ii.created_at ASC, ii.id ASC`
+      ),
+      pool.query(
+        `SELECT il.id, il.quantity, il.created_at AS used_at, il.note, ii.sn,
+                p.name AS product_name, pm.model_name, p.unit,
+                COALESCE(NULLIF(TRIM(u.full_name), ''), u.username, 'ไม่ระบุ') AS used_by_name
+         FROM inventory_logs il
+         JOIN inventory_items ii ON ii.id = il.item_id
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         LEFT JOIN users u ON u.id = il.from_user_id
+         WHERE il.action = 'used'
+         ORDER BY il.created_at DESC, il.id DESC`
+      ),
+      pool.query(
+        `SELECT ii.id, ii.sn, ii.quantity, ii.dispatched_at,
+                COALESCE(NULLIF(TRIM(u.full_name), ''), u.username, 'ไม่ระบุผู้ถือ') AS owner_name,
+                t.team_name, p.name AS product_name, pm.model_name, p.unit
+         FROM inventory_items ii
+         JOIN inventory_models pm ON pm.id = ii.model_id
+         JOIN inventory_products p ON p.id = pm.product_id
+         LEFT JOIN users u ON u.id = ii.owner_id
+         LEFT JOIN teams t ON t.id = COALESCE(ii.team_id, u.team_id)
+         WHERE ii.status = 'dispatched' AND ii.owner_id IS NOT NULL
+           AND (ii.expires_at IS NULL OR ii.expires_at > NOW())
+         ORDER BY owner_name ASC, p.name ASC, pm.model_name ASC, ii.dispatched_at ASC, ii.id ASC`
+      ),
+    ]);
+
+    const normalizeQuantity = (row) => ({ ...row, quantity: Number(row.quantity) || 0 });
+    res.json({
+      in_stock: inStockResult[0].map(normalizeQuantity),
+      used: usedResult[0].map(normalizeQuantity),
+      with_technician: withTechnicianResult[0].map(normalizeQuantity),
+    });
+  } catch (err) {
+    console.error('Inventory export data error:', err);
+    res.status(500).json({ error: 'เตรียมข้อมูลสำหรับดาวน์โหลดไม่สำเร็จ กรุณาลองใหม่' });
+  }
+});
+
 /** Backfill team_id on dispatched items from current owner (one-shot opportunistic). */
 async function syncDispatchedItemTeams(db) {
   try {
